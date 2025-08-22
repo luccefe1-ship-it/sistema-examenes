@@ -468,6 +468,7 @@
         let transcribedText = '';
         let cleanedText = '';
         let selectedImages = []; // Array para múltiples imágenes
+        let currentTab = 'upload'; // Estado de navegación
 
         // Usuarios predefinidos
         const users = {
@@ -526,12 +527,12 @@
                     </div>
 
                     <div class="nav-tabs">
-                        <button class="nav-tab active" onclick="showTab('upload')">📤 Subir Test</button>
-                        <button class="nav-tab" onclick="showTab('questions')">📋 Banco de Preguntas</button>
-                        <button class="nav-tab" onclick="showTab('test')">🎯 Test Aleatorio</button>
+                        <button class="nav-tab ${currentTab === 'upload' ? 'active' : ''}" onclick="showTab('upload')">📤 Subir Test</button>
+                        <button class="nav-tab ${currentTab === 'questions' ? 'active' : ''}" onclick="showTab('questions')">📋 Banco de Preguntas</button>
+                        <button class="nav-tab ${currentTab === 'test' ? 'active' : ''}" onclick="showTab('test')">🎯 Test Aleatorio</button>
                     </div>
 
-                    <div id="upload-tab" class="tab-content active">
+                    <div id="upload-tab" class="tab-content ${currentTab === 'upload' ? 'active' : ''}">
                         <div id="success-message" style="display: none;"></div>
                         <div id="error-message" style="display: none;"></div>
                         
@@ -588,7 +589,7 @@
                         </div>
                     </div>
 
-                    <div id="questions-tab" class="tab-content">
+                    <div id="questions-tab" class="tab-content ${currentTab === 'questions' ? 'active' : ''}">
                         <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 20px;">
                             <h2>Banco de Preguntas (${questions.length})</h2>
                             <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
@@ -598,7 +599,7 @@
                         </div>
                     </div>
 
-                    <div id="test-tab" class="tab-content">
+                    <div id="test-tab" class="tab-content ${currentTab === 'test' ? 'active' : ''}">
                         <h2>Test Aleatorio</h2>
                         <div id="test-content">
                             ${renderTestContent()}
@@ -731,11 +732,8 @@
 
         // Funciones de navegación
         function showTab(tabName) {
-            document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById(tabName + '-tab').classList.add('active');
+            currentTab = tabName;
+            renderApp();
         }
 
         // Funciones de upload y transcripción (MÚLTIPLES IMÁGENES)
@@ -1103,6 +1101,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             if (confirm('¿Estás seguro de que quieres eliminar todas las preguntas?')) {
                 questions = [];
                 localStorage.setItem('questions', JSON.stringify(questions));
+                currentTab = 'questions'; // Mantener en banco de preguntas
                 renderApp();
             }
         }
@@ -1111,7 +1110,9 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             if (confirm('¿Eliminar esta pregunta?')) {
                 questions.splice(index, 1);
                 localStorage.setItem('questions', JSON.stringify(questions));
+                currentTab = 'questions'; // Mantener en banco de preguntas
                 renderApp();
+                showSuccess('Pregunta eliminada exitosamente');
             }
         }
 
@@ -1260,6 +1261,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
 
                 // Cerrar modal y actualizar vista
                 closeEditModal();
+                currentTab = 'questions'; // Mantener en banco de preguntas
                 renderApp();
                 
                 showSuccess('¡Pregunta actualizada exitosamente!');
@@ -1292,6 +1294,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 }
             }, 1000);
             
+            currentTab = 'test'; // Mantener en test aleatorio
             renderApp();
         }
 
@@ -1302,6 +1305,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
         function previousQuestion() {
             if (currentTest.currentQuestion > 0) {
                 currentTest.currentQuestion--;
+                currentTab = 'test'; // Mantener en test aleatorio
                 renderApp();
             }
         }
@@ -1311,6 +1315,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 finishTest();
             } else {
                 currentTest.currentQuestion++;
+                currentTab = 'test'; // Mantener en test aleatorio
                 renderApp();
             }
         }
@@ -1329,6 +1334,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             alert(`Test completado!\n\nRespuestas correctas: ${correct}/${currentTest.questions.length}\nPorcentaje: ${percentage}%`);
             
             currentTest = null;
+            currentTab = 'test'; // Mantener en test aleatorio
             renderApp();
         }
 
