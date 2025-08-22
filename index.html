@@ -65,6 +65,7 @@
         .btn-danger { background: #ef4444; color: white; }
         .btn-warning { background: #f59e0b; color: white; }
         .btn-secondary { background: #6b7280; color: white; }
+        .btn-info { background: #0ea5e9; color: white; }
 
         .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 
@@ -454,6 +455,57 @@
             height: 100%;
             transition: width 0.3s ease;
         }
+
+        /* NUEVOS ESTILOS PARA TEMAS */
+        .topic-section {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .topic-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .topic-filter {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .topic-tag {
+            background: #4f46e5;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .topic-badge {
+            background: #e0e7ff;
+            color: #4f46e5;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        .test-topic-selector {
+            background: #f0f9ff;
+            border: 2px solid #0ea5e9;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
@@ -463,12 +515,14 @@
         // Estado global
         let currentUser = null;
         let questions = JSON.parse(localStorage.getItem('questions') || '[]');
+        let topics = JSON.parse(localStorage.getItem('topics') || '[]'); // NUEVO: array de temas
         let currentTest = null;
         let apiKey = localStorage.getItem('anthropic_api_key') || '';
         let transcribedText = '';
         let cleanedText = '';
         let selectedImages = []; // Array para múltiples imágenes
         let currentTab = 'upload'; // Estado de navegación
+        let selectedTopicFilter = 'all'; // NUEVO: filtro de tema seleccionado
 
         // Usuarios predefinidos
         const users = {
@@ -536,6 +590,30 @@
                         <div id="success-message" style="display: none;"></div>
                         <div id="error-message" style="display: none;"></div>
                         
+                        <!-- NUEVA SECCIÓN DE TEMAS -->
+                        <div class="topic-section">
+                            <div style="font-size: 1.1rem; font-weight: bold; color: #92400e; margin-bottom: 10px;">🏷️ Gestión de Temas</div>
+                            <div style="color: #78350f; font-size: 14px; margin-bottom: 15px;">
+                                Organiza tus preguntas por temas. Primero crea o selecciona un tema, luego podrás asignar las preguntas procesadas a ese tema.
+                            </div>
+                            <div class="topic-buttons">
+                                <button onclick="createTopic()" class="btn btn-info">
+                                    🆕 Crear Nuevo Tema
+                                </button>
+                                <button onclick="assignTopic()" class="btn btn-warning" ${cleanedText ? '' : 'disabled'}>
+                                    🏷️ Asignar Tema a Preguntas
+                                </button>
+                            </div>
+                            ${topics.length > 0 ? `
+                                <div style="margin-top: 15px;">
+                                    <div style="font-weight: 500; color: #92400e; margin-bottom: 8px;">Temas disponibles:</div>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                        ${topics.map(topic => `<span class="topic-tag">${topic.name} (${getTopicQuestionCount(topic.id)} preguntas)</span>`).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                        
                         <!-- Layout de 3 columnas -->
                         <div class="three-column-layout">
                             <!-- Columna 1: Subir Imágenes -->
@@ -590,10 +668,24 @@
                     </div>
 
                     <div id="questions-tab" class="tab-content ${currentTab === 'questions' ? 'active' : ''}">
-                        <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 20px;">
-                            <h2>Banco de Preguntas (${questions.length})</h2>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+                            <h2>Banco de Preguntas (${getFilteredQuestions().length})</h2>
                             <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
                         </div>
+                        
+                        <!-- NUEVO: Filtro por temas -->
+                        <div class="topic-filter">
+                            <span style="font-weight: 500; color: #374151;">Filtrar por tema:</span>
+                            <select id="topic-filter" onchange="filterByTopic(this.value)" class="form-input" style="width: auto;">
+                                <option value="all">Todos los temas (${questions.length})</option>
+                                ${topics.map(topic => `
+                                    <option value="${topic.id}" ${selectedTopicFilter === topic.id ? 'selected' : ''}>
+                                        ${topic.name} (${getTopicQuestionCount(topic.id)})
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        
                         <div class="questions-list" id="questions-list">
                             ${renderQuestionsList()}
                         </div>
@@ -601,6 +693,32 @@
 
                     <div id="test-tab" class="tab-content ${currentTab === 'test' ? 'active' : ''}">
                         <h2>Test Aleatorio</h2>
+                        
+                        <!-- NUEVA: Sección de selección de tema para test -->
+                        ${topics.length > 0 ? `
+                            <div class="test-topic-selector">
+                                <div style="font-weight: bold; color: #0c4a6e; margin-bottom: 15px;">🎯 Seleccionar Tipo de Test</div>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                                    <div>
+                                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                            <input type="radio" name="test-type" value="all" checked onchange="updateTestType()">
+                                            <span style="font-weight: 500;">Test General (${questions.length} preguntas disponibles)</span>
+                                        </label>
+                                        <div style="color: #6b7280; font-size: 13px; margin-left: 25px;">Incluye preguntas de todos los temas</div>
+                                    </div>
+                                    ${topics.map(topic => `
+                                        <div>
+                                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                                <input type="radio" name="test-type" value="${topic.id}" onchange="updateTestType()">
+                                                <span style="font-weight: 500;">${topic.name} (${getTopicQuestionCount(topic.id)} preguntas)</span>
+                                            </label>
+                                            <div style="color: #6b7280; font-size: 13px; margin-left: 25px;">Solo preguntas de ${topic.name}</div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        
                         <div id="test-content">
                             ${renderTestContent()}
                         </div>
@@ -610,28 +728,39 @@
         }
 
         function renderQuestionsList() {
-            if (questions.length === 0) {
-                return '<div style="text-align: center; padding: 40px; color: #9ca3af;">No hay preguntas en el banco</div>';
+            const filteredQuestions = getFilteredQuestions();
+            
+            if (filteredQuestions.length === 0) {
+                const filterText = selectedTopicFilter === 'all' ? 'No hay preguntas en el banco' : 'No hay preguntas en este tema';
+                return `<div style="text-align: center; padding: 40px; color: #9ca3af;">${filterText}</div>`;
             }
 
-            return questions.map((q, index) => `
-                <div class="question-item">
-                    <div class="question-content">
-                        <div class="question-text">${q.question}</div>
-                        <ul class="question-options">
-                            ${q.options.map((opt, i) => `
-                                <li class="${q.correctAnswer === i ? 'correct' : ''}">
-                                    ${String.fromCharCode(97 + i)}) ${opt}
-                                </li>
-                            `).join('')}
-                        </ul>
+            return filteredQuestions.map((q, originalIndex) => {
+                const actualIndex = questions.findIndex(question => question.id === q.id);
+                const topicName = q.topicId ? getTopicName(q.topicId) : null;
+                
+                return `
+                    <div class="question-item">
+                        <div class="question-content">
+                            <div class="question-text">
+                                ${q.question}
+                                ${topicName ? `<span class="topic-badge">${topicName}</span>` : ''}
+                            </div>
+                            <ul class="question-options">
+                                ${q.options.map((opt, i) => `
+                                    <li class="${q.correctAnswer === i ? 'correct' : ''}">
+                                        ${String.fromCharCode(97 + i)}) ${opt}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                        <div class="question-actions">
+                            <button onclick="editQuestion(${actualIndex})" class="btn btn-warning btn-sm">Editar</button>
+                            <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger btn-sm">Eliminar</button>
+                        </div>
                     </div>
-                    <div class="question-actions">
-                        <button onclick="editQuestion(${index})" class="btn btn-warning btn-sm">Editar</button>
-                        <button onclick="deleteQuestion(${index})" class="btn btn-danger btn-sm">Eliminar</button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function renderTestContent() {
@@ -645,8 +774,8 @@
                         <button onclick="startRandomTest()" class="btn btn-primary" style="font-size: 1.2rem; padding: 15px 30px;">
                             🎯 Comenzar Test Aleatorio
                         </button>
-                        <div style="margin-top: 15px; color: #6b7280;">
-                            Preguntas disponibles: ${questions.length}
+                        <div style="margin-top: 15px; color: #6b7280;" id="available-questions-count">
+                            ${getAvailableQuestionsText()}
                         </div>
                     </div>
                 `;
@@ -659,7 +788,7 @@
             const question = currentTest.questions[currentTest.currentQuestion];
             return `
                 <div style="max-width: 800px; margin: 0 auto;">
-                    <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <div>Pregunta ${currentTest.currentQuestion + 1} de ${currentTest.questions.length}</div>
                         <div id="timer" style="font-weight: bold; color: #ef4444;">⏱️ ${formatTime(currentTest.timeLeft)}</div>
                     </div>
@@ -679,7 +808,7 @@
                         </div>
                     </div>
                     
-                    <div style="display: flex; justify-content: between; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; gap: 10px;">
                         <button onclick="previousQuestion()" class="btn btn-secondary" ${currentTest.currentQuestion === 0 ? 'disabled' : ''}>
                             ← Anterior
                         </button>
@@ -734,6 +863,193 @@
         function showTab(tabName) {
             currentTab = tabName;
             renderApp();
+        }
+
+        // NUEVAS FUNCIONES PARA MANEJO DE TEMAS
+        function createTopic() {
+            const topicName = prompt('Ingresa el nombre del nuevo tema:');
+            if (topicName && topicName.trim()) {
+                const newTopic = {
+                    id: Date.now() + Math.random(),
+                    name: topicName.trim(),
+                    createdAt: new Date().toISOString()
+                };
+                
+                topics.push(newTopic);
+                localStorage.setItem('topics', JSON.stringify(topics));
+                renderApp();
+                showSuccess(`Tema "${topicName}" creado exitosamente`);
+            }
+        }
+
+        function assignTopic() {
+            if (!cleanedText) {
+                showError('Primero procesa el texto para poder asignar temas');
+                return;
+            }
+
+            if (topics.length === 0) {
+                showError('Primero crea al menos un tema');
+                return;
+            }
+
+            // Mostrar modal para seleccionar tema
+            showTopicSelectionModal();
+        }
+
+        function showTopicSelectionModal() {
+            const modal = document.createElement('div');
+            modal.id = 'topic-selection-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            `;
+
+            modal.innerHTML = `
+                <div style="
+                    background: white;
+                    border-radius: 16px;
+                    padding: 30px;
+                    max-width: 500px;
+                    width: 90%;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="color: #2d3748; margin: 0;">🏷️ Seleccionar Tema</h3>
+                        <button onclick="closeTopicModal()" style="
+                            background: #ef4444;
+                            color: white;
+                            border: none;
+                            border-radius: 50%;
+                            width: 30px;
+                            height: 30px;
+                            cursor: pointer;
+                            font-size: 16px;
+                        ">×</button>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <div style="color: #6b7280; margin-bottom: 15px;">
+                            Selecciona el tema para las preguntas que serán procesadas:
+                        </div>
+                        
+                        <div style="display: grid; gap: 10px;">
+                            ${topics.map(topic => `
+                                <label style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 10px;
+                                    padding: 15px;
+                                    border: 2px solid #e5e7eb;
+                                    border-radius: 8px;
+                                    cursor: pointer;
+                                    transition: all 0.2s ease;
+                                " onmouseover="this.style.borderColor='#4f46e5'" onmouseout="this.style.borderColor='#e5e7eb'">
+                                    <input type="radio" name="selected-topic" value="${topic.id}" style="transform: scale(1.2);">
+                                    <div>
+                                        <div style="font-weight: 500; color: #1f2937;">${topic.name}</div>
+                                        <div style="font-size: 12px; color: #6b7280;">${getTopicQuestionCount(topic.id)} preguntas existentes</div>
+                                    </div>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button onclick="closeTopicModal()" class="btn btn-secondary">Cancelar</button>
+                        <button onclick="confirmTopicAssignment()" class="btn btn-primary">Asignar Tema</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            // Cerrar modal al hacer click fuera
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeTopicModal();
+                }
+            });
+        }
+
+        function closeTopicModal() {
+            const modal = document.getElementById('topic-selection-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        function confirmTopicAssignment() {
+            const selectedRadio = document.querySelector('input[name="selected-topic"]:checked');
+            if (!selectedRadio) {
+                alert('Selecciona un tema');
+                return;
+            }
+
+            const selectedTopicId = selectedRadio.value;
+            const topicName = getTopicName(selectedTopicId);
+            
+            // Guardar el tema seleccionado para cuando se procesen las preguntas
+            window.selectedTopicForNewQuestions = selectedTopicId;
+            
+            closeTopicModal();
+            showSuccess(`Tema "${topicName}" seleccionado. Las preguntas se asignarán a este tema cuando las añadas al banco.`);
+        }
+
+        function getTopicName(topicId) {
+            const topic = topics.find(t => t.id === topicId);
+            return topic ? topic.name : 'Sin tema';
+        }
+
+        function getTopicQuestionCount(topicId) {
+            return questions.filter(q => q.topicId === topicId).length;
+        }
+
+        function filterByTopic(topicId) {
+            selectedTopicFilter = topicId;
+            renderApp();
+        }
+
+        function getFilteredQuestions() {
+            if (selectedTopicFilter === 'all') {
+                return questions;
+            }
+            return questions.filter(q => q.topicId === selectedTopicFilter);
+        }
+
+        function updateTestType() {
+            const selectedType = document.querySelector('input[name="test-type"]:checked');
+            if (selectedType) {
+                const questionsCount = selectedType.value === 'all' 
+                    ? questions.length 
+                    : getTopicQuestionCount(selectedType.value);
+                
+                const countElement = document.getElementById('available-questions-count');
+                if (countElement) {
+                    countElement.textContent = getAvailableQuestionsText();
+                }
+            }
+        }
+
+        function getAvailableQuestionsText() {
+            const selectedType = document.querySelector('input[name="test-type"]:checked');
+            if (!selectedType) return `Preguntas disponibles: ${questions.length}`;
+            
+            if (selectedType.value === 'all') {
+                return `Preguntas disponibles: ${questions.length}`;
+            } else {
+                const topicName = getTopicName(selectedType.value);
+                const count = getTopicQuestionCount(selectedType.value);
+                return `Preguntas disponibles en ${topicName}: ${count}`;
+            }
         }
 
         // Funciones de upload y transcripción (MÚLTIPLES IMÁGENES)
@@ -1017,10 +1333,19 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                     return;
                 }
 
+                // NUEVO: Asignar tema a las preguntas si hay uno seleccionado
+                if (window.selectedTopicForNewQuestions) {
+                    newQuestions.forEach(question => {
+                        question.topicId = window.selectedTopicForNewQuestions;
+                    });
+                    const topicName = getTopicName(window.selectedTopicForNewQuestions);
+                    showSuccess(`¡Se añadieron ${newQuestions.length} preguntas al tema "${topicName}"! Total de imágenes procesadas: ${selectedImages.length}`);
+                } else {
+                    showSuccess(`¡Se añadieron ${newQuestions.length} preguntas al banco! Total de imágenes procesadas: ${selectedImages.length}`);
+                }
+
                 questions.push(...newQuestions);
                 localStorage.setItem('questions', JSON.stringify(questions));
-                
-                showSuccess(`¡Se añadieron ${newQuestions.length} preguntas al banco! Total de imágenes procesadas: ${selectedImages.length}`);
                 
                 // Limpiar formularios
                 resetUploadForm();
@@ -1050,6 +1375,9 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             
             // Limpiar input
             document.getElementById('imageInput').value = '';
+            
+            // NUEVO: Limpiar selección de tema
+            window.selectedTopicForNewQuestions = null;
         }
 
         function parseCleanedText(text) {
@@ -1088,7 +1416,8 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                         id: Date.now() + Math.random(),
                         question: questionText,
                         options: options,
-                        correctAnswer: correctAnswer
+                        correctAnswer: correctAnswer,
+                        topicId: null // Se asignará después si hay tema seleccionado
                     });
                 }
             });
@@ -1167,13 +1496,28 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                         <textarea id="edit-question-text" class="form-input" style="height: 80px; resize: vertical;">${question.question}</textarea>
                     </div>
 
+                    <!-- NUEVO: Selector de tema -->
+                    ${topics.length > 0 ? `
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label class="form-label">Tema:</label>
+                            <select id="edit-question-topic" class="form-input">
+                                <option value="">Sin tema</option>
+                                ${topics.map(topic => `
+                                    <option value="${topic.id}" ${question.topicId === topic.id ? 'selected' : ''}>
+                                        ${topic.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    ` : ''}
+
                     <div style="margin-bottom: 20px;">
                         <label class="form-label">Opciones de Respuesta:</label>
                         ${question.options.map((option, i) => `
                             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                                 <input type="radio" name="correct-answer" value="${i}" ${question.correctAnswer === i ? 'checked' : ''} 
                                        style="cursor: pointer;">
-                                <label style="font-weight: 500; color: #4f46e5; min-width: 20px;">${String.fromCharCode(97 + i)}))</label>
+                                <label style="font-weight: 500; color: #4f46e5; min-width: 20px;">${String.fromCharCode(97 + i)})</label>
                                 <input type="text" id="edit-option-${i}" value="${option}" class="form-input" style="flex: 1;">
                             </div>
                         `).join('')}
@@ -1183,6 +1527,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                         <div style="font-weight: 500; color: #0c4a6e; margin-bottom: 5px;">💡 Instrucciones:</div>
                         <div style="color: #075985; font-size: 14px;">
                             • Modifica el texto de la pregunta y las opciones<br>
+                            • Selecciona el tema correspondiente<br>
                             • Selecciona el radio button de la respuesta correcta<br>
                             • La opción correcta aparecerá en verde en el banco
                         </div>
@@ -1220,162 +1565,4 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 
                 for (let i = 0; i < 4; i++) {
                     const optionInput = document.getElementById(`edit-option-${i}`);
-                    if (optionInput) {
-                        const optionText = optionInput.value.trim();
-                        if (optionText) {
-                            options.push(optionText);
-                        }
-                    }
-                }
-
-                // Obtener respuesta correcta
-                const correctAnswerRadio = document.querySelector('input[name="correct-answer"]:checked');
-                const correctAnswer = correctAnswerRadio ? parseInt(correctAnswerRadio.value) : 0;
-
-                // Validaciones
-                if (!questionText) {
-                    alert('La pregunta no puede estar vacía');
-                    return;
-                }
-
-                if (options.length < 2) {
-                    alert('Debe haber al menos 2 opciones de respuesta');
-                    return;
-                }
-
-                if (correctAnswer >= options.length) {
-                    alert('Selecciona una respuesta correcta válida');
-                    return;
-                }
-
-                // Actualizar la pregunta
-                questions[index] = {
-                    ...questions[index],
-                    question: questionText,
-                    options: options,
-                    correctAnswer: correctAnswer
-                };
-
-                // Guardar en localStorage
-                localStorage.setItem('questions', JSON.stringify(questions));
-
-                // Cerrar modal y actualizar vista
-                closeEditModal();
-                currentTab = 'questions'; // Mantener en banco de preguntas
-                renderApp();
-                
-                showSuccess('¡Pregunta actualizada exitosamente!');
-
-            } catch (error) {
-                showError(`Error al guardar: ${error.message}`);
-            }
-        }
-
-        // Funciones del test
-        function startRandomTest() {
-            const shuffled = [...questions].sort(() => Math.random() - 0.5);
-            currentTest = {
-                questions: shuffled.slice(0, Math.min(10, questions.length)),
-                currentQuestion: 0,
-                answers: {},
-                timeLeft: 600, // 10 minutos
-                timer: null
-            };
-            
-            currentTest.timer = setInterval(() => {
-                currentTest.timeLeft--;
-                if (currentTest.timeLeft <= 0) {
-                    finishTest();
-                } else {
-                    const timerElement = document.getElementById('timer');
-                    if (timerElement) {
-                        timerElement.textContent = `⏱️ ${formatTime(currentTest.timeLeft)}`;
-                    }
-                }
-            }, 1000);
-            
-            currentTab = 'test'; // Mantener en test aleatorio
-            renderApp();
-        }
-
-        function selectAnswer(answerIndex) {
-            currentTest.answers[currentTest.currentQuestion] = answerIndex;
-        }
-
-        function previousQuestion() {
-            if (currentTest.currentQuestion > 0) {
-                currentTest.currentQuestion--;
-                currentTab = 'test'; // Mantener en test aleatorio
-                renderApp();
-            }
-        }
-
-        function nextQuestion() {
-            if (currentTest.currentQuestion === currentTest.questions.length - 1) {
-                finishTest();
-            } else {
-                currentTest.currentQuestion++;
-                currentTab = 'test'; // Mantener en test aleatorio
-                renderApp();
-            }
-        }
-
-        function finishTest() {
-            clearInterval(currentTest.timer);
-            
-            let correct = 0;
-            currentTest.questions.forEach((q, i) => {
-                if (currentTest.answers[i] === q.correctAnswer) {
-                    correct++;
-                }
-            });
-            
-            const percentage = Math.round((correct / currentTest.questions.length) * 100);
-            alert(`Test completado!\n\nRespuestas correctas: ${correct}/${currentTest.questions.length}\nPorcentaje: ${percentage}%`);
-            
-            currentTest = null;
-            currentTab = 'test'; // Mantener en test aleatorio
-            renderApp();
-        }
-
-        // Funciones de utilidad
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result.split(',')[1]);
-                reader.onerror = error => reject(error);
-            });
-        }
-
-        function formatTime(seconds) {
-            const mins = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            return `${mins}:${secs.toString().padStart(2, '0')}`;
-        }
-
-        function showSuccess(message) {
-            const element = document.getElementById('success-message');
-            if (element) {
-                element.className = 'success-message';
-                element.textContent = message;
-                element.style.display = 'block';
-                setTimeout(() => element.style.display = 'none', 5000);
-            }
-        }
-
-        function showError(message) {
-            const element = document.getElementById('error-message');
-            if (element) {
-                element.className = 'error-message';
-                element.textContent = message;
-                element.style.display = 'block';
-                setTimeout(() => element.style.display = 'none', 5000);
-            }
-        }
-
-        // Inicializar aplicación
-        renderApp();
-    </script>
-</body>
-</html>
+                    if
