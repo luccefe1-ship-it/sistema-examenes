@@ -1,4 +1,1023 @@
-<!DOCTYPE html>
+setCurrentTest(testQuestions);
+                setCurrentQuestionIndex(0);
+                setUserAnswers({});
+                                                                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                                    />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        
+                                                        <div className="flex gap-3">
+                                                            <button
+                                                                onClick={() => {
+                                                                    updateQuestion(question.id, question);
+                                                                    setEditingQuestion(null);
+                                                                }}
+                                                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                                            >
+                                                                <Save />
+                                                                Guardar
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setEditingQuestion(null)}
+                                                                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                                            >
+                                                                <X />
+                                                                Cancelar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div>
+                                                        <div className="flex justify-between items-start mb-4">
+                                                            <h3 className="text-lg font-semibold text-gray-800">
+                                                                {index + 1}. {question.text}
+                                                            </h3>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => setEditingQuestion(question.id)}
+                                                                    className="p-2 text-gray-600 hover:text-blue-600 transition-colors"
+                                                                >
+                                                                    <Edit />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => deleteQuestion(question.id)}
+                                                                    className="p-2 text-gray-600 hover:text-red-600 transition-colors"
+                                                                >
+                                                                    <Trash2 />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="space-y-3">
+                                                            {question.options.map((option, optIndex) => (
+                                                                <div
+                                                                    key={optIndex}
+                                                                    className={`p-4 rounded-lg border ${
+                                                                        question.correctAnswer === optIndex
+                                                                            ? 'bg-green-50 border-green-300 text-green-800'
+                                                                            : 'bg-gray-50 border-gray-300'
+                                                                    }`}
+                                                                >
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="w-6 h-6 rounded-full border border-gray-400 flex items-center justify-center text-sm font-medium">
+                                                                            {String.fromCharCode(97 + optIndex)}
+                                                                        </span>
+                                                                        <span className="flex-1">{option}</span>
+                                                                        {question.correctAnswer === optIndex && (
+                                                                            <CheckCircle />
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Random Test View */}
+                        {currentView === 'random' && !currentTest && (
+                            <div className="max-w-4xl mx-auto">
+                                <div className="text-center mb-8">
+                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">Test Aleatorio</h2>
+                                    <p className="text-lg text-gray-600">
+                                        Practica con hasta 10 preguntas aleatorias en 15 minutos
+                                    </p>
+                                </div>
+
+                                {questions.length === 0 ? (
+                                    <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+                                        <Shuffle />
+                                        <h3 className="text-xl font-semibold text-gray-500 mb-2">
+                                            No hay preguntas disponibles
+                                        </h3>
+                                        <p className="text-gray-400 mb-6">
+                                            Necesitas tener preguntas en tu banco para crear un test
+                                        </p>
+                                        <button
+                                            onClick={() => setCurrentView('upload')}
+                                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                                        >
+                                            Subir Preguntas
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="bg-white rounded-2xl shadow-lg p-8">
+                                        <div className="text-center">
+                                            <div className="p-4 bg-purple-100 rounded-full w-fit mx-auto mb-6">
+                                                <Shuffle />
+                                            </div>
+                                            
+                                            <h3 className="text-2xl font-semibold text-gray-800 mb-4">
+                                                Comenzar Test Aleatorio
+                                            </h3>
+                                            
+                                            <div className="bg-gray-50 rounded-xl p-6 mb-8">
+                                                <div className="grid md:grid-cols-3 gap-6 text-center">
+                                                    <div>
+                                                        <div className="text-2xl font-bold text-purple-600">
+                                                            {Math.min(10, questions.length)}
+                                                        </div>
+                                                        <div className="text-gray-600">Preguntas</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-2xl font-bold text-blue-600">15</div>
+                                                        <div className="text-gray-600">Minutos</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-2xl font-bold text-green-600">
+                                                            {questions.length}
+                                                        </div>
+                                                        <div className="text-gray-600">Disponibles</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <button
+                                                onClick={startRandomTest}
+                                                className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg font-medium transition-colors flex items-center gap-3 mx-auto"
+                                            >
+                                                <Play />
+                                                Comenzar Test
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Active Test View */}
+                        {currentView === 'random' && currentTest && !testResults && (
+                            <div className="max-w-4xl mx-auto">
+                                {/* Test Header */}
+                                <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-lg font-semibold text-gray-800">
+                                                Pregunta {currentQuestionIndex + 1} de {currentTest.length}
+                                            </span>
+                                            <div className="w-48 bg-gray-200 rounded-full h-2">
+                                                <div
+                                                    className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                                                    style={{ width: `${((currentQuestionIndex + 1) / currentTest.length) * 100}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-4">
+                                            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                                                timeLeft <= 300 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                                            }`}>
+                                                <Clock />
+                                                {formatTime(timeLeft)}
+                                            </div>
+                                            <button
+                                                onClick={finishTest}
+                                                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+                                            >
+                                                Finalizar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Question */}
+                                <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
+                                    <h3 className="text-xl font-semibold text-gray-800 mb-6">
+                                        {currentTest[currentQuestionIndex].text}
+                                    </h3>
+                                    
+                                    <div className="space-y-4">
+                                        {currentTest[currentQuestionIndex].options.map((option, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={() => selectAnswer(currentTest[currentQuestionIndex].id, index)}
+                                                className={`w-full p-4 text-left rounded-lg border-2 transition-colors ${
+                                                    userAnswers[currentTest[currentQuestionIndex].id] === index
+                                                        ? 'border-purple-500 bg-purple-50'
+                                                        : 'border-gray-300 hover:border-purple-300 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-medium ${
+                                                        userAnswers[currentTest[currentQuestionIndex].id] === index
+                                                            ? 'border-purple-500 bg-purple-500 text-white'
+                                                            : 'border-gray-300'
+                                                    }`}>
+                                                        {String.fromCharCode(97 + index)}
+                                                    </span>
+                                                    <span className="flex-1">{option}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Navigation */}
+                                <div className="bg-white rounded-2xl shadow-lg p-6">
+                                    <div className="flex justify-between items-center">
+                                        <button
+                                            onClick={prevQuestion}
+                                            disabled={currentQuestionIndex === 0}
+                                            className="px-6 py-3 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-300 text-white rounded-lg font-medium transition-colors"
+                                        >
+                                            Anterior
+                                        </button>
+                                        
+                                        <div className="flex gap-2">
+                                            {currentTest.map((_, index) => (
+                                                <button
+                                                    key={index}
+                                                    onClick={() => setCurrentQuestionIndex(index)}
+                                                    className={`w-10 h-10 rounded-lg font-medium transition-colors ${
+                                                        index === currentQuestionIndex
+                                                            ? 'bg-purple-600 text-white'
+                                                            : userAnswers[currentTest[index].id] !== undefined
+                                                            ? 'bg-green-100 text-green-700'
+                                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                    }`}
+                                                >
+                                                    {index + 1}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        
+                                        {currentQuestionIndex === currentTest.length - 1 ? (
+                                            <button
+                                                onClick={finishTest}
+                                                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                                            >
+                                                Finalizar Test
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={nextQuestion}
+                                                className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+                                            >
+                                                Siguiente
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Test Results View */}
+                        {currentView === 'random' && testResults && (
+                            <div className="max-w-6xl mx-auto">
+                                <div className="text-center mb-8">
+                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">Resultados del Test</h2>
+                                    <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md mx-auto">
+                                        <div className={`text-6xl font-bold mb-4 ${
+                                            testResults.percentage >= 70 ? 'text-green-600' : 
+                                            testResults.percentage >= 50 ? 'text-yellow-600' : 'text-red-600'
+                                        }`}>
+                                            {testResults.percentage}%
+                                        </div>
+                                        <div className="text-xl text-gray-600 mb-2">
+                                            {testResults.score} de {testResults.total} correctas
+                                        </div>
+                                        <div className={`text-lg font-medium ${
+                                            testResults.percentage >= 70 ? 'text-green-600' : 
+                                            testResults.percentage >= 50 ? 'text-yellow-600' : 'text-red-600'
+                                        }`}>
+                                            {testResults.percentage >= 70 ? '¡Excelente!' : 
+                                             testResults.percentage >= 50 ? 'Bien, sigue practicando' : 'Necesitas más práctica'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Detailed Results */}
+                                <div className="space-y-6">
+                                    {testResults.results.map((result, index) => (
+                                        <div key={index} className="bg-white rounded-2xl shadow-lg p-6">
+                                            <div className="flex items-start gap-4">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-medium ${
+                                                    result.correct ? 'bg-green-500' : 'bg-red-500'
+                                                }`}>
+                                                    {index + 1}
+                                                </div>
+                                                
+                                                <div className="flex-1">
+                                                    <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                                                        {result.question.text}
+                                                    </h3>
+                                                    
+                                                    <div className="space-y-3">
+                                                        {result.question.options.map((option, optIndex) => (
+                                                            <div
+                                                                key={optIndex}
+                                                                className={`p-3 rounded-lg border ${
+                                                                    optIndex === result.question.correctAnswer && optIndex === result.userAnswer
+                                                                        ? 'bg-green-50 border-green-300 text-green-800' // Correcto y seleccionado
+                                                                        : optIndex === result.question.correctAnswer
+                                                                        ? 'bg-green-50 border-green-300 text-green-800' // Respuesta correcta
+                                                                        : optIndex === result.userAnswer
+                                                                        ? 'bg-red-50 border-red-300 text-red-800' // Respuesta incorrecta seleccionada
+                                                                        : 'bg-gray-50 border-gray-200' // No seleccionado
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className={`w-6 h-6 rounded-full border flex items-center justify-center text-sm font-medium ${
+                                                                        optIndex === result.question.correctAnswer
+                                                                            ? 'border-green-500 bg-green-500 text-white'
+                                                                            : optIndex === result.userAnswer && !result.correct
+                                                                            ? 'border-red-500 bg-red-500 text-white'
+                                                                            : 'border-gray-400'
+                                                                    }`}>
+                                                                        {String.fromCharCode(97 + optIndex)}
+                                                                    </span>
+                                                                    <span className="flex-1">{option}</span>
+                                                                    {optIndex === result.question.correctAnswer && (
+                                                                        <CheckCircle />
+                                                                    )}
+                                                                    {optIndex === result.userAnswer && optIndex !== result.question.correctAnswer && (
+                                                                        <X />
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    
+                                                    <div className="mt-4 text-sm">
+                                                        {result.userAnswer === undefined ? (
+                                                            <span className="text-gray-600">No respondida</span>
+                                                        ) : result.correct ? (
+                                                            <span className="text-green-600">✓ Respuesta correcta</span>
+                                                        ) : (
+                                                            <span className="text-red-600">✗ Respuesta incorrecta</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Actions */}
+                                <div className="text-center mt-8">
+                                    <div className="flex gap-4 justify-center">
+                                        <button
+                                            onClick={() => {
+                                                setCurrentTest(null);
+                                                setTestResults(null);
+                                                setCurrentView('random');
+                                            }}
+                                            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+                                        >
+                                            Nuevo Test
+                                        </button>
+                                        <button
+                                            onClick={() => setCurrentView('bank')}
+                                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                                        >
+                                            Ver Banco de Preguntas
+                                        </button>
+                                        <button
+                                            onClick={() => setCurrentView('main')}
+                                            className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+                                        >
+                                            Inicio
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<ExamSystem />, document.getElementById('root'));
+    </script>
+</body>
+</html>
+                setTestResults(null);
+                setIsTestActive(true);
+                setCurrentView('test');
+            };
+
+            const selectAnswer = (questionId, answerIndex) => {
+                setUserAnswers(prev => ({
+                    ...prev,
+                    [questionId]: answerIndex
+                }));
+            };
+
+            const nextQuestion = () => {
+                if (currentQuestionIndex < currentTest.length - 1) {
+                    setCurrentQuestionIndex(prev => prev + 1);
+                }
+            };
+
+            const prevQuestion = () => {
+                if (currentQuestionIndex > 0) {
+                    setCurrentQuestionIndex(prev => prev - 1);
+                }
+            };
+
+            const finishTest = () => {
+                setIsTestActive(false);
+                
+                const results = currentTest.map(question => ({
+                    question,
+                    userAnswer: userAnswers[question.id],
+                    correct: userAnswers[question.id] === question.correctAnswer
+                }));
+                
+                const score = results.filter(r => r.correct).length;
+                
+                setTestResults({
+                    results,
+                    score,
+                    total: currentTest.length,
+                    percentage: Math.round((score / currentTest.length) * 100)
+                });
+            };
+
+            const formatTime = (seconds) => {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            };
+
+            // Login component
+            if (!isLoggedIn) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+                        <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
+                            <div className="text-center mb-8">
+                                <div className="p-3 bg-blue-600 rounded-full w-fit mx-auto mb-4">
+                                    <User />
+                                </div>
+                                <h1 className="text-2xl font-bold text-gray-800">
+                                    {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
+                                </h1>
+                            </div>
+
+                            {error && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-center gap-2">
+                                    <AlertCircle />
+                                    <p className="text-red-700 text-sm">{error}</p>
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                {isRegistering ? (
+                                    <>
+                                        <input
+                                            type="text"
+                                            placeholder="Usuario"
+                                            value={registerForm.username}
+                                            onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
+                                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <input
+                                            type="password"
+                                            placeholder="Contraseña"
+                                            value={registerForm.password}
+                                            onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
+                                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <input
+                                            type="password"
+                                            placeholder="Confirmar contraseña"
+                                            value={registerForm.confirmPassword}
+                                            onChange={(e) => setRegisterForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <button
+                                            onClick={handleRegister}
+                                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                                        >
+                                            Crear Cuenta
+                                        </button>
+                                        <button
+                                            onClick={() => setIsRegistering(false)}
+                                            className="w-full py-2 text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                                        >
+                                            ¿Ya tienes cuenta? Inicia sesión
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <input
+                                            type="text"
+                                            placeholder="Usuario"
+                                            value={loginForm.username}
+                                            onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
+                                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <input
+                                            type="password"
+                                            placeholder="Contraseña"
+                                            value={loginForm.password}
+                                            onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <button
+                                            onClick={handleLogin}
+                                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                                        >
+                                            Iniciar Sesión
+                                        </button>
+                                        <button
+                                            onClick={() => setIsRegistering(true)}
+                                            className="w-full py-2 text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                                        >
+                                            ¿No tienes cuenta? Regístrate
+                                        </button>
+                                        <div className="text-center text-sm text-gray-500 mt-4">
+                                            Demo: usuario "demo", contraseña "demo123"
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+                    {/* Header */}
+                    <div className="bg-white shadow-sm border-b">
+                        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-600 rounded-lg">
+                                    <FileText />
+                                </div>
+                                <h1 className="text-xl font-bold text-gray-800">Sistema de Exámenes</h1>
+                            </div>
+                            
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    {isApiKeySet ? (
+                                        <>
+                                            <span className="text-green-600 text-sm">✅ API configurada</span>
+                                            <button
+                                                onClick={removeApiKey}
+                                                className="text-red-600 hover:text-red-700 text-sm underline"
+                                            >
+                                                Eliminar
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={configureApiKey}
+                                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded"
+                                        >
+                                            Configurar API
+                                        </button>
+                                    )}
+                                </div>
+                                
+                                <span className="text-gray-600">Hola, {currentUser.username}</span>
+                                <button
+                                    onClick={handleLogout}
+                                    className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                                >
+                                    <LogOut />
+                                    Cerrar Sesión
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Navigation */}
+                    <div className="bg-gray-50 border-b">
+                        <div className="container mx-auto px-4">
+                            <div className="flex gap-1">
+                                <button
+                                    onClick={() => setCurrentView('main')}
+                                    className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${
+                                        currentView === 'main' 
+                                            ? 'bg-white text-blue-600 border-b-2 border-blue-600' 
+                                            : 'text-gray-600 hover:text-gray-800'
+                                    }`}
+                                >
+                                    <Home />
+                                    Inicio
+                                </button>
+                                <button
+                                    onClick={() => setCurrentView('upload')}
+                                    className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${
+                                        currentView === 'upload' 
+                                            ? 'bg-white text-blue-600 border-b-2 border-blue-600' 
+                                            : 'text-gray-600 hover:text-gray-800'
+                                    }`}
+                                >
+                                    <Upload />
+                                    Subir Test
+                                </button>
+                                <button
+                                    onClick={() => setCurrentView('bank')}
+                                    className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${
+                                        currentView === 'bank' 
+                                            ? 'bg-white text-blue-600 border-b-2 border-blue-600' 
+                                            : 'text-gray-600 hover:text-gray-800'
+                                    }`}
+                                >
+                                    <BookOpen />
+                                    Banco de Preguntas ({questions.length})
+                                </button>
+                                <button
+                                    onClick={() => setCurrentView('random')}
+                                    className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${
+                                        currentView === 'random' 
+                                            ? 'bg-white text-blue-600 border-b-2 border-blue-600' 
+                                            : 'text-gray-600 hover:text-gray-800'
+                                    }`}
+                                >
+                                    <Shuffle />
+                                    Test Aleatorio
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="container mx-auto px-4 py-8">
+                        {/* Main View */}
+                        {currentView === 'main' && (
+                            <div className="max-w-4xl mx-auto">
+                                <div className="text-center mb-12">
+                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">
+                                        Bienvenido a tu Sistema de Exámenes
+                                    </h2>
+                                    <p className="text-lg text-gray-600">
+                                        Transcribe, organiza y practica con tus exámenes de forma inteligente
+                                    </p>
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-6">
+                                        <p className="text-green-800 text-sm">
+                                            <strong>✅ Versión mejorada:</strong> Transcripción automática con API directa. 
+                                            ¡Funciona perfectamente!
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-3 gap-6">
+                                    <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => setCurrentView('upload')}>
+                                        <div className="p-4 bg-blue-100 rounded-full w-fit mx-auto mb-4">
+                                            <Upload />
+                                        </div>
+                                        <h3 className="text-xl font-semibold text-gray-800 text-center mb-2">
+                                            Subir Test
+                                        </h3>
+                                        <p className="text-gray-600 text-center">
+                                            Convierte imágenes de exámenes en preguntas digitales automáticamente
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => setCurrentView('bank')}>
+                                        <div className="p-4 bg-green-100 rounded-full w-fit mx-auto mb-4">
+                                            <BookOpen />
+                                        </div>
+                                        <h3 className="text-xl font-semibold text-gray-800 text-center mb-2">
+                                            Banco de Preguntas
+                                        </h3>
+                                        <p className="text-gray-600 text-center">
+                                            Organiza tus preguntas, define respuestas correctas y gestiona tu biblioteca
+                                        </p>
+                                        <div className="text-center mt-3">
+                                            <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                                                {questions.length} preguntas
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => setCurrentView('random')}>
+                                        <div className="p-4 bg-purple-100 rounded-full w-fit mx-auto mb-4">
+                                            <Shuffle />
+                                        </div>
+                                        <h3 className="text-xl font-semibold text-gray-800 text-center mb-2">
+                                            Test Aleatorio
+                                        </h3>
+                                        <p className="text-gray-600 text-center">
+                                            Practica con hasta 10 preguntas aleatorias en 15 minutos cronometrados
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {questions.length > 0 && (
+                                    <div className="mt-12 bg-white rounded-2xl shadow-lg p-6">
+                                        <h3 className="text-xl font-semibold text-gray-800 mb-4">Estadísticas</h3>
+                                        <div className="grid md:grid-cols-3 gap-4">
+                                            <div className="text-center">
+                                                <div className="text-2xl font-bold text-blue-600">{questions.length}</div>
+                                                <div className="text-gray-600">Total de Preguntas</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-2xl font-bold text-green-600">
+                                                    {questions.filter(q => q.options.some(opt => opt.trim())).length}
+                                                </div>
+                                                <div className="text-gray-600">Con Opciones</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-2xl font-bold text-purple-600">
+                                                    {Math.min(10, questions.length)}
+                                                </div>
+                                                <div className="text-gray-600">Próximo Test</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Upload View */}
+                        {currentView === 'upload' && (
+                            <div className="max-w-6xl mx-auto">
+                                <div className="text-center mb-8">
+                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">Subir Test</h2>
+                                    <p className="text-lg text-gray-600">
+                                        Convierte imágenes de exámenes en preguntas digitales automáticamente
+                                    </p>
+                                </div>
+
+                                <div className="grid lg:grid-cols-2 gap-8">
+                                    {/* Upload Section */}
+                                    <div className="space-y-6">
+                                        <div className="bg-white rounded-2xl shadow-lg border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors">
+                                            <div
+                                                className="p-8 text-center cursor-pointer"
+                                                onDragOver={handleDragOver}
+                                                onDrop={handleDrop}
+                                                onClick={() => document.getElementById('fileInput').click()}
+                                            >
+                                                <Upload />
+                                                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                                                    Sube tu imagen de examen
+                                                </h3>
+                                                <p className="text-gray-500 mb-4">
+                                                    Arrastra y suelta o haz clic para seleccionar
+                                                </p>
+                                                <p className="text-sm text-gray-400">
+                                                    Formatos: JPG, PNG, GIF (máx. 10MB)
+                                                </p>
+                                                <input
+                                                    id="fileInput"
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleFileInput}
+                                                    className="hidden"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {error && (
+                                            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+                                                <AlertCircle />
+                                                <p className="text-red-700">{error}</p>
+                                            </div>
+                                        )}
+
+                                        {imagePreview && (
+                                            <div className="bg-white rounded-2xl shadow-lg p-6">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <Image />
+                                                        <h3 className="text-lg font-semibold text-gray-700">Vista previa</h3>
+                                                    </div>
+                                                    <button
+                                                        onClick={processImage}
+                                                        disabled={isProcessing}
+                                                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                                    >
+                                                        {isProcessing ? (
+                                                            <>
+                                                                <Loader />
+                                                                Procesando...
+                                                            </>
+                                                        ) : isApiKeySet ? (
+                                                            <>
+                                                                <FileText />
+                                                                Transcribir Automático
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <FileText />
+                                                                Configurar API
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                                <div className="rounded-lg overflow-hidden">
+                                                    <img
+                                                        src={imagePreview}
+                                                        alt="Vista previa"
+                                                        className="w-full max-h-96 object-contain bg-gray-50"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Results Section */}
+                                    <div className="space-y-6">
+                                        <div className="bg-white rounded-2xl shadow-lg">
+                                            <div className="p-6 border-b border-gray-200">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <FileText />
+                                                        <h3 className="text-lg font-semibold text-gray-700">Texto transcrito</h3>
+                                                    </div>
+                                                    
+                                                    {transcribedText && (
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={copyToClipboard}
+                                                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                                            >
+                                                                {copySuccess ? (
+                                                                    <>
+                                                                        <CheckCircle />
+                                                                        ¡Copiado!
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Copy />
+                                                                        Copiar
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                            <button
+                                                                onClick={downloadText}
+                                                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                                            >
+                                                                <Download />
+                                                                Descargar
+                                                            </button>
+                                                            <button
+                                                                onClick={parseTextToQuestions}
+                                                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                                            >
+                                                                <Plus />
+                                                                Añadir al Banco
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="p-6">
+                                                {isProcessing ? (
+                                                    <div className="text-center py-12">
+                                                        <Loader />
+                                                        <p className="text-gray-600">Analizando la imagen...</p>
+                                                    </div>
+                                                ) : transcribedText ? (
+                                                    <textarea
+                                                        value={transcribedText}
+                                                        onChange={(e) => setTranscribedText(e.target.value)}
+                                                        className="w-full h-96 p-4 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        placeholder="El texto transcrito aparecerá aquí..."
+                                                    />
+                                                ) : (
+                                                    <div className="text-center py-12">
+                                                        <FileText />
+                                                        <p className="text-gray-500">
+                                                            Sube una imagen para comenzar la transcripción
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-blue-50 rounded-2xl p-6 border border-blue-200">
+                                            <h4 className="font-semibold text-blue-800 mb-3">💡 Consejos para mejores resultados:</h4>
+                                            <ul className="text-blue-700 text-sm space-y-2">
+                                                <li>• Asegúrate de que el texto esté bien iluminado y enfocado</li>
+                                                <li>• Evita sombras o reflejos sobre el texto</li>
+                                                <li>• Las imágenes con mayor contraste funcionan mejor</li>
+                                                <li>• Puedes editar el texto transcrito antes de añadirlo al banco</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Question Bank View */}
+                        {currentView === 'bank' && (
+                            <div className="max-w-6xl mx-auto">
+                                <div className="flex justify-between items-center mb-8">
+                                    <div>
+                                        <h2 className="text-3xl font-bold text-gray-800 mb-2">Banco de Preguntas</h2>
+                                        <p className="text-lg text-gray-600">
+                                            {questions.length} preguntas guardadas
+                                        </p>
+                                    </div>
+                                    
+                                    {questions.length > 0 && (
+                                        <button
+                                            onClick={deleteAllQuestions}
+                                            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                        >
+                                            <Trash2 />
+                                            Eliminar Todo
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Add New Question */}
+                                <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+                                    <h3 className="text-xl font-semibold text-gray-800 mb-4">Añadir Nueva Pregunta</h3>
+                                    
+                                    <div className="space-y-4">
+                                        <textarea
+                                            value={newQuestion.text}
+                                            onChange={(e) => setNewQuestion(prev => ({ ...prev, text: e.target.value }))}
+                                            placeholder="Escribe la pregunta..."
+                                            className="w-full p-4 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            rows="3"
+                                        />
+                                        
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            {newQuestion.options.map((option, index) => (
+                                                <div key={index} className="flex items-center gap-3">
+                                                    <input
+                                                        type="radio"
+                                                        name="newCorrectAnswer"
+                                                        checked={newQuestion.correctAnswer === index}
+                                                        onChange={() => setNewQuestion(prev => ({ ...prev, correctAnswer: index }))}
+                                                        className="text-blue-600"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={option}
+                                                        onChange={(e) => {
+                                                            const newOptions = [...newQuestion.options];
+                                                            newOptions[index] = e.target.value;
+                                                            setNewQuestion(prev => ({ ...prev, options: newOptions }));
+                                                        }}
+                                                        placeholder={`Opción ${String.fromCharCode(97 + index)}`}
+                                                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        
+                                        <button
+                                            onClick={addNewQuestion}
+                                            disabled={!newQuestion.text.trim()}
+                                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                        >
+                                            <Plus />
+                                            Añadir Pregunta
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Questions List */}
+                                <div className="space-y-4">
+                                    {questions.length === 0 ? (
+                                        <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+                                            <BookOpen />
+                                            <h3 className="text-xl font-semibold text-gray-500 mb-2">No hay preguntas</h3>
+                                            <p className="text-gray-400">Sube un test o añade preguntas manualmente</p>
+                                        </div>
+                                    ) : (
+                                        questions.map((question, index) => (
+                                            <div key={question.id} className="bg-white rounded-2xl shadow-lg p-6">
+                                                {editingQuestion === question.id ? (
+                                                    <div className="space-y-4">
+                                                        <textarea
+                                                            value={question.text}
+                                                            onChange={(e) => setQuestions(prev => prev.map(q => 
+                                                                q.id === question.id ? { ...q, text: e.target.value } : q
+                                                            ))}
+                                                            className="w-full p-4 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                            rows="3"
+                                                        />
+                                                        
+                                                        <div className="grid md:grid-cols-2 gap-4">
+                                                            {question.options.map((option, optIndex) => (
+                                                                <div key={optIndex} className="flex items-center gap-3">
+                                                                    <input
+                                                                        type="radio"
+                                                                        name={`correct-${question.id}`}
+                                                                        checked={question.correctAnswer === optIndex}
+                                                                        onChange={() => setQuestions(prev => prev.map(q => 
+                                                                            q.id === question.id ? { ...q, correctAnswer: optIndex } : q
+                                                                        ))}
+                                                                        className="text-blue-600"
+                                                                    />
+                                                                    <input
+                                                                        type="text"
+                                                                        value={option}
+                                                                        onChange={(e) => {
+                                                                            const newOptions = [...question.options];
+                                                                            newOptions[optIndex] = e.target.value;
+                                                                            setQuestions(prev => prev.map(q => 
+                                                                                q.id === question.id ? { ...q, options: newOptions } : q
+                                                                            ));
+                                                                        }}
+                                                                        className="flex-1 p-3 border border-gray-300 rounded-lg<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -417,30 +1436,6 @@
                             ]
                         })
                     });
-                        body: JSON.stringify({
-                            model: "claude-3-sonnet-20240229",
-                            max_tokens: 2000,
-                            messages: [
-                                {
-                                    role: "user",
-                                    content: [
-                                        {
-                                            type: "image",
-                                            source: {
-                                                type: "base64",
-                                                media_type: imageType,
-                                                data: base64Data,
-                                            }
-                                        },
-                                        {
-                                            type: "text",
-                                            text: "Por favor, transcribe todo el texto que veas en esta imagen de forma precisa y completa. Si son preguntas de examen o test:\n\n1. Mantén la numeración original de las preguntas\n2. Si hay opciones múltiples, inclúyelas todas con su letra correspondiente\n3. Conserva todo el texto de cada opción, incluso si son largas\n4. Mantén el formato y estructura original\n5. No añadas comentarios, solo transcribe el texto exacto\n\nProporciona SOLO el texto transcrito tal como aparece en la imagen."
-                                        }
-                                    ]
-                                }
-                            ]
-                        })
-                    });
 
                     if (!response.ok) {
                         if (response.status === 401) {
@@ -688,1019 +1683,3 @@
                 setCurrentQuestionIndex(0);
                 setUserAnswers({});
                 setTimeLeft(900);
-                setTestResults(null);
-                setIsTestActive(true);
-                setCurrentView('test');
-            };
-
-            const selectAnswer = (questionId, answerIndex) => {
-                setUserAnswers(prev => ({
-                    ...prev,
-                    [questionId]: answerIndex
-                }));
-            };
-
-            const nextQuestion = () => {
-                if (currentQuestionIndex < currentTest.length - 1) {
-                    setCurrentQuestionIndex(prev => prev + 1);
-                }
-            };
-
-            const prevQuestion = () => {
-                if (currentQuestionIndex > 0) {
-                    setCurrentQuestionIndex(prev => prev - 1);
-                }
-            };
-
-            const finishTest = () => {
-                setIsTestActive(false);
-                
-                const results = currentTest.map(question => ({
-                    question,
-                    userAnswer: userAnswers[question.id],
-                    correct: userAnswers[question.id] === question.correctAnswer
-                }));
-                
-                const score = results.filter(r => r.correct).length;
-                
-                setTestResults({
-                    results,
-                    score,
-                    total: currentTest.length,
-                    percentage: Math.round((score / currentTest.length) * 100)
-                });
-            };
-
-            const formatTime = (seconds) => {
-                const mins = Math.floor(seconds / 60);
-                const secs = seconds % 60;
-                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-            };
-
-            // Login component
-            if (!isLoggedIn) {
-                return (
-                    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-                        <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
-                            <div className="text-center mb-8">
-                                <div className="p-3 bg-blue-600 rounded-full w-fit mx-auto mb-4">
-                                    <User />
-                                </div>
-                                <h1 className="text-2xl font-bold text-gray-800">
-                                    {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
-                                </h1>
-                            </div>
-
-                            {error && (
-                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-center gap-2">
-                                    <AlertCircle />
-                                    <p className="text-red-700 text-sm">{error}</p>
-                                </div>
-                            )}
-
-                            <div className="space-y-4">
-                                {isRegistering ? (
-                                    <>
-                                        <input
-                                            type="text"
-                                            placeholder="Usuario"
-                                            value={registerForm.username}
-                                            onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
-                                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                        <input
-                                            type="password"
-                                            placeholder="Contraseña"
-                                            value={registerForm.password}
-                                            onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
-                                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                        <input
-                                            type="password"
-                                            placeholder="Confirmar contraseña"
-                                            value={registerForm.confirmPassword}
-                                            onChange={(e) => setRegisterForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                        <button
-                                            onClick={handleRegister}
-                                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                                        >
-                                            Crear Cuenta
-                                        </button>
-                                        <button
-                                            onClick={() => setIsRegistering(false)}
-                                            className="w-full py-2 text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                                        >
-                                            ¿Ya tienes cuenta? Inicia sesión
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <input
-                                            type="text"
-                                            placeholder="Usuario"
-                                            value={loginForm.username}
-                                            onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
-                                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                        <input
-                                            type="password"
-                                            placeholder="Contraseña"
-                                            value={loginForm.password}
-                                            onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
-                                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                        <button
-                                            onClick={handleLogin}
-                                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                                        >
-                                            Iniciar Sesión
-                                        </button>
-                                        <button
-                                            onClick={() => setIsRegistering(true)}
-                                            className="w-full py-2 text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                                        >
-                                            ¿No tienes cuenta? Regístrate
-                                        </button>
-                                        <div className="text-center text-sm text-gray-500 mt-4">
-                                            Demo: usuario "demo", contraseña "demo123"
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                );
-            }
-
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-                    {/* Header */}
-                    <div className="bg-white shadow-sm border-b">
-                        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-blue-600 rounded-lg">
-                                    <FileText />
-                                </div>
-                                <h1 className="text-xl font-bold text-gray-800">Sistema de Exámenes</h1>
-                            </div>
-                            
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                    {isApiKeySet ? (
-                                        <>
-                                            <span className="text-green-600 text-sm">✅ API configurada</span>
-                                            <button
-                                                onClick={removeApiKey}
-                                                className="text-red-600 hover:text-red-700 text-sm underline"
-                                            >
-                                                Eliminar
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <button
-                                            onClick={configureApiKey}
-                                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded"
-                                        >
-                                            Configurar API
-                                        </button>
-                                    )}
-                                </div>
-                                
-                                <span className="text-gray-600">Hola, {currentUser.username}</span>
-                                <button
-                                    onClick={handleLogout}
-                                    className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                                >
-                                    <LogOut />
-                                    Cerrar Sesión
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Navigation */}
-                    <div className="bg-gray-50 border-b">
-                        <div className="container mx-auto px-4">
-                            <div className="flex gap-1">
-                                <button
-                                    onClick={() => setCurrentView('main')}
-                                    className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${
-                                        currentView === 'main' 
-                                            ? 'bg-white text-blue-600 border-b-2 border-blue-600' 
-                                            : 'text-gray-600 hover:text-gray-800'
-                                    }`}
-                                >
-                                    <Home />
-                                    Inicio
-                                </button>
-                                <button
-                                    onClick={() => setCurrentView('upload')}
-                                    className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${
-                                        currentView === 'upload' 
-                                            ? 'bg-white text-blue-600 border-b-2 border-blue-600' 
-                                            : 'text-gray-600 hover:text-gray-800'
-                                    }`}
-                                >
-                                    <Upload />
-                                    Subir Test
-                                </button>
-                                <button
-                                    onClick={() => setCurrentView('bank')}
-                                    className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${
-                                        currentView === 'bank' 
-                                            ? 'bg-white text-blue-600 border-b-2 border-blue-600' 
-                                            : 'text-gray-600 hover:text-gray-800'
-                                    }`}
-                                >
-                                    <BookOpen />
-                                    Banco de Preguntas ({questions.length})
-                                </button>
-                                <button
-                                    onClick={() => setCurrentView('random')}
-                                    className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${
-                                        currentView === 'random' 
-                                            ? 'bg-white text-blue-600 border-b-2 border-blue-600' 
-                                            : 'text-gray-600 hover:text-gray-800'
-                                    }`}
-                                >
-                                    <Shuffle />
-                                    Test Aleatorio
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="container mx-auto px-4 py-8">
-                        {/* Main View */}
-                        {currentView === 'main' && (
-                            <div className="max-w-4xl mx-auto">
-                                <div className="text-center mb-12">
-                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">
-                                        Bienvenido a tu Sistema de Exámenes
-                                    </h2>
-                                    <p className="text-lg text-gray-600">
-                                        Transcribe, organiza y practica con tus exámenes de forma inteligente
-                                    </p>
-                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-6">
-                                        <p className="text-green-800 text-sm">
-                                            <strong>✅ Versión mejorada:</strong> Transcripción automática con proxy funcional. 
-                                            ¡Ya no necesitas modo manual!
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="grid md:grid-cols-3 gap-6">
-                                    <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => setCurrentView('upload')}>
-                                        <div className="p-4 bg-blue-100 rounded-full w-fit mx-auto mb-4">
-                                            <Upload />
-                                        </div>
-                                        <h3 className="text-xl font-semibold text-gray-800 text-center mb-2">
-                                            Subir Test
-                                        </h3>
-                                        <p className="text-gray-600 text-center">
-                                            Convierte imágenes de exámenes en preguntas digitales automáticamente
-                                        </p>
-                                    </div>
-
-                                    <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => setCurrentView('bank')}>
-                                        <div className="p-4 bg-green-100 rounded-full w-fit mx-auto mb-4">
-                                            <BookOpen />
-                                        </div>
-                                        <h3 className="text-xl font-semibold text-gray-800 text-center mb-2">
-                                            Banco de Preguntas
-                                        </h3>
-                                        <p className="text-gray-600 text-center">
-                                            Organiza tus preguntas, define respuestas correctas y gestiona tu biblioteca
-                                        </p>
-                                        <div className="text-center mt-3">
-                                            <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                                                {questions.length} preguntas
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => setCurrentView('random')}>
-                                        <div className="p-4 bg-purple-100 rounded-full w-fit mx-auto mb-4">
-                                            <Shuffle />
-                                        </div>
-                                        <h3 className="text-xl font-semibold text-gray-800 text-center mb-2">
-                                            Test Aleatorio
-                                        </h3>
-                                        <p className="text-gray-600 text-center">
-                                            Practica con hasta 10 preguntas aleatorias en 15 minutos cronometrados
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {questions.length > 0 && (
-                                    <div className="mt-12 bg-white rounded-2xl shadow-lg p-6">
-                                        <h3 className="text-xl font-semibold text-gray-800 mb-4">Estadísticas</h3>
-                                        <div className="grid md:grid-cols-3 gap-4">
-                                            <div className="text-center">
-                                                <div className="text-2xl font-bold text-blue-600">{questions.length}</div>
-                                                <div className="text-gray-600">Total de Preguntas</div>
-                                            </div>
-                                            <div className="text-center">
-                                                <div className="text-2xl font-bold text-green-600">
-                                                    {questions.filter(q => q.options.some(opt => opt.trim())).length}
-                                                </div>
-                                                <div className="text-gray-600">Con Opciones</div>
-                                            </div>
-                                            <div className="text-center">
-                                                <div className="text-2xl font-bold text-purple-600">
-                                                    {Math.min(10, questions.length)}
-                                                </div>
-                                                <div className="text-gray-600">Próximo Test</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Upload View */}
-                        {currentView === 'upload' && (
-                            <div className="max-w-6xl mx-auto">
-                                <div className="text-center mb-8">
-                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">Subir Test</h2>
-                                    <p className="text-lg text-gray-600">
-                                        Convierte imágenes de exámenes en preguntas digitales automáticamente
-                                    </p>
-                                </div>
-
-                                <div className="grid lg:grid-cols-2 gap-8">
-                                    {/* Upload Section */}
-                                    <div className="space-y-6">
-                                        <div className="bg-white rounded-2xl shadow-lg border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors">
-                                            <div
-                                                className="p-8 text-center cursor-pointer"
-                                                onDragOver={handleDragOver}
-                                                onDrop={handleDrop}
-                                                onClick={() => document.getElementById('fileInput').click()}
-                                            >
-                                                <Upload />
-                                                <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                                                    Sube tu imagen de examen
-                                                </h3>
-                                                <p className="text-gray-500 mb-4">
-                                                    Arrastra y suelta o haz clic para seleccionar
-                                                </p>
-                                                <p className="text-sm text-gray-400">
-                                                    Formatos: JPG, PNG, GIF (máx. 10MB)
-                                                </p>
-                                                <input
-                                                    id="fileInput"
-                                                    type="file"
-                                                    accept="image/*"
-                                                    onChange={handleFileInput}
-                                                    className="hidden"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {error && (
-                                            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-                                                <AlertCircle />
-                                                <p className="text-red-700">{error}</p>
-                                            </div>
-                                        )}
-
-                                        {imagePreview && (
-                                            <div className="bg-white rounded-2xl shadow-lg p-6">
-                                                <div className="flex items-center justify-between mb-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <Image />
-                                                        <h3 className="text-lg font-semibold text-gray-700">Vista previa</h3>
-                                                    </div>
-                                                    <button
-                                                        onClick={processImage}
-                                                        disabled={isProcessing}
-                                                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                                                    >
-                                                        {isProcessing ? (
-                                                            <>
-                                                                <Loader />
-                                                                Procesando...
-                                                            </>
-                                                        ) : isApiKeySet ? (
-                                                            <>
-                                                                <FileText />
-                                                                Transcribir Automático
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <FileText />
-                                                                Configurar API
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                </div>
-                                                <div className="rounded-lg overflow-hidden">
-                                                    <img
-                                                        src={imagePreview}
-                                                        alt="Vista previa"
-                                                        className="w-full max-h-96 object-contain bg-gray-50"
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Results Section */}
-                                    <div className="space-y-6">
-                                        <div className="bg-white rounded-2xl shadow-lg">
-                                            <div className="p-6 border-b border-gray-200">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <FileText />
-                                                        <h3 className="text-lg font-semibold text-gray-700">Texto transcrito</h3>
-                                                    </div>
-                                                    
-                                                    {transcribedText && (
-                                                        <div className="flex gap-2">
-                                                            <button
-                                                                onClick={copyToClipboard}
-                                                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                                                            >
-                                                                {copySuccess ? (
-                                                                    <>
-                                                                        <CheckCircle />
-                                                                        ¡Copiado!
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <Copy />
-                                                                        Copiar
-                                                                    </>
-                                                                )}
-                                                            </button>
-                                                            <button
-                                                                onClick={downloadText}
-                                                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                                                            >
-                                                                <Download />
-                                                                Descargar
-                                                            </button>
-                                                            <button
-                                                                onClick={parseTextToQuestions}
-                                                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                                                            >
-                                                                <Plus />
-                                                                Añadir al Banco
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="p-6">
-                                                {isProcessing ? (
-                                                    <div className="text-center py-12">
-                                                        <Loader />
-                                                        <p className="text-gray-600">Analizando la imagen...</p>
-                                                    </div>
-                                                ) : transcribedText ? (
-                                                    <textarea
-                                                        value={transcribedText}
-                                                        onChange={(e) => setTranscribedText(e.target.value)}
-                                                        className="w-full h-96 p-4 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        placeholder="El texto transcrito aparecerá aquí..."
-                                                    />
-                                                ) : (
-                                                    <div className="text-center py-12">
-                                                        <FileText />
-                                                        <p className="text-gray-500">
-                                                            Sube una imagen para comenzar la transcripción
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-blue-50 rounded-2xl p-6 border border-blue-200">
-                                            <h4 className="font-semibold text-blue-800 mb-3">💡 Consejos para mejores resultados:</h4>
-                                            <ul className="text-blue-700 text-sm space-y-2">
-                                                <li>• Asegúrate de que el texto esté bien iluminado y enfocado</li>
-                                                <li>• Evita sombras o reflejos sobre el texto</li>
-                                                <li>• Las imágenes con mayor contraste funcionan mejor</li>
-                                                <li>• Puedes editar el texto transcrito antes de añadirlo al banco</li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Question Bank View */}
-                        {currentView === 'bank' && (
-                            <div className="max-w-6xl mx-auto">
-                                <div className="flex justify-between items-center mb-8">
-                                    <div>
-                                        <h2 className="text-3xl font-bold text-gray-800 mb-2">Banco de Preguntas</h2>
-                                        <p className="text-lg text-gray-600">
-                                            {questions.length} preguntas guardadas
-                                        </p>
-                                    </div>
-                                    
-                                    {questions.length > 0 && (
-                                        <button
-                                            onClick={deleteAllQuestions}
-                                            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                                        >
-                                            <Trash2 />
-                                            Eliminar Todo
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* Add New Question */}
-                                <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-                                    <h3 className="text-xl font-semibold text-gray-800 mb-4">Añadir Nueva Pregunta</h3>
-                                    
-                                    <div className="space-y-4">
-                                        <textarea
-                                            value={newQuestion.text}
-                                            onChange={(e) => setNewQuestion(prev => ({ ...prev, text: e.target.value }))}
-                                            placeholder="Escribe la pregunta..."
-                                            className="w-full p-4 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            rows="3"
-                                        />
-                                        
-                                        <div className="grid md:grid-cols-2 gap-4">
-                                            {newQuestion.options.map((option, index) => (
-                                                <div key={index} className="flex items-center gap-3">
-                                                    <input
-                                                        type="radio"
-                                                        name="newCorrectAnswer"
-                                                        checked={newQuestion.correctAnswer === index}
-                                                        onChange={() => setNewQuestion(prev => ({ ...prev, correctAnswer: index }))}
-                                                        className="text-blue-600"
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        value={option}
-                                                        onChange={(e) => {
-                                                            const newOptions = [...newQuestion.options];
-                                                            newOptions[index] = e.target.value;
-                                                            setNewQuestion(prev => ({ ...prev, options: newOptions }));
-                                                        }}
-                                                        placeholder={`Opción ${String.fromCharCode(97 + index)}`}
-                                                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-                                        
-                                        <button
-                                            onClick={addNewQuestion}
-                                            disabled={!newQuestion.text.trim()}
-                                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                                        >
-                                            <Plus />
-                                            Añadir Pregunta
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Questions List */}
-                                <div className="space-y-4">
-                                    {questions.length === 0 ? (
-                                        <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-                                            <BookOpen />
-                                            <h3 className="text-xl font-semibold text-gray-500 mb-2">No hay preguntas</h3>
-                                            <p className="text-gray-400">Sube un test o añade preguntas manualmente</p>
-                                        </div>
-                                    ) : (
-                                        questions.map((question, index) => (
-                                            <div key={question.id} className="bg-white rounded-2xl shadow-lg p-6">
-                                                {editingQuestion === question.id ? (
-                                                    <div className="space-y-4">
-                                                        <textarea
-                                                            value={question.text}
-                                                            onChange={(e) => setQuestions(prev => prev.map(q => 
-                                                                q.id === question.id ? { ...q, text: e.target.value } : q
-                                                            ))}
-                                                            className="w-full p-4 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                            rows="3"
-                                                        />
-                                                        
-                                                        <div className="grid md:grid-cols-2 gap-4">
-                                                            {question.options.map((option, optIndex) => (
-                                                                <div key={optIndex} className="flex items-center gap-3">
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`correct-${question.id}`}
-                                                                        checked={question.correctAnswer === optIndex}
-                                                                        onChange={() => setQuestions(prev => prev.map(q => 
-                                                                            q.id === question.id ? { ...q, correctAnswer: optIndex } : q
-                                                                        ))}
-                                                                        className="text-blue-600"
-                                                                    />
-                                                                    <input
-                                                                        type="text"
-                                                                        value={option}
-                                                                        onChange={(e) => {
-                                                                            const newOptions = [...question.options];
-                                                                            newOptions[optIndex] = e.target.value;
-                                                                            setQuestions(prev => prev.map(q => 
-                                                                                q.id === question.id ? { ...q, options: newOptions } : q
-                                                                            ));
-                                                                        }}
-                                                                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                                    />
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        
-                                                        <div className="flex gap-3">
-                                                            <button
-                                                                onClick={() => {
-                                                                    updateQuestion(question.id, question);
-                                                                    setEditingQuestion(null);
-                                                                }}
-                                                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                                                            >
-                                                                <Save />
-                                                                Guardar
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setEditingQuestion(null)}
-                                                                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                                                            >
-                                                                <X />
-                                                                Cancelar
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div>
-                                                        <div className="flex justify-between items-start mb-4">
-                                                            <h3 className="text-lg font-semibold text-gray-800">
-                                                                {index + 1}. {question.text}
-                                                            </h3>
-                                                            <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={() => setEditingQuestion(question.id)}
-                                                                    className="p-2 text-gray-600 hover:text-blue-600 transition-colors"
-                                                                >
-                                                                    <Edit />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => deleteQuestion(question.id)}
-                                                                    className="p-2 text-gray-600 hover:text-red-600 transition-colors"
-                                                                >
-                                                                    <Trash2 />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        <div className="space-y-3">
-                                                            {question.options.map((option, optIndex) => (
-                                                                <div
-                                                                    key={optIndex}
-                                                                    className={`p-4 rounded-lg border ${
-                                                                        question.correctAnswer === optIndex
-                                                                            ? 'bg-green-50 border-green-300 text-green-800'
-                                                                            : 'bg-gray-50 border-gray-300'
-                                                                    }`}
-                                                                >
-                                                                    <div className="flex items-center gap-3">
-                                                                        <span className="w-6 h-6 rounded-full border border-gray-400 flex items-center justify-center text-sm font-medium">
-                                                                            {String.fromCharCode(97 + optIndex)}
-                                                                        </span>
-                                                                        <span className="flex-1">{option}</span>
-                                                                        {question.correctAnswer === optIndex && (
-                                                                            <CheckCircle />
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Random Test View */}
-                        {currentView === 'random' && !currentTest && (
-                            <div className="max-w-4xl mx-auto">
-                                <div className="text-center mb-8">
-                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">Test Aleatorio</h2>
-                                    <p className="text-lg text-gray-600">
-                                        Practica con hasta 10 preguntas aleatorias en 15 minutos
-                                    </p>
-                                </div>
-
-                                {questions.length === 0 ? (
-                                    <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-                                        <Shuffle />
-                                        <h3 className="text-xl font-semibold text-gray-500 mb-2">
-                                            No hay preguntas disponibles
-                                        </h3>
-                                        <p className="text-gray-400 mb-6">
-                                            Necesitas tener preguntas en tu banco para crear un test
-                                        </p>
-                                        <button
-                                            onClick={() => setCurrentView('upload')}
-                                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                                        >
-                                            Subir Preguntas
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="bg-white rounded-2xl shadow-lg p-8">
-                                        <div className="text-center">
-                                            <div className="p-4 bg-purple-100 rounded-full w-fit mx-auto mb-6">
-                                                <Shuffle />
-                                            </div>
-                                            
-                                            <h3 className="text-2xl font-semibold text-gray-800 mb-4">
-                                                Comenzar Test Aleatorio
-                                            </h3>
-                                            
-                                            <div className="bg-gray-50 rounded-xl p-6 mb-8">
-                                                <div className="grid md:grid-cols-3 gap-6 text-center">
-                                                    <div>
-                                                        <div className="text-2xl font-bold text-purple-600">
-                                                            {Math.min(10, questions.length)}
-                                                        </div>
-                                                        <div className="text-gray-600">Preguntas</div>
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-2xl font-bold text-blue-600">15</div>
-                                                        <div className="text-gray-600">Minutos</div>
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-2xl font-bold text-green-600">
-                                                            {questions.length}
-                                                        </div>
-                                                        <div className="text-gray-600">Disponibles</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            
-                                            <button
-                                                onClick={startRandomTest}
-                                                className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg font-medium transition-colors flex items-center gap-3 mx-auto"
-                                            >
-                                                <Play />
-                                                Comenzar Test
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Active Test View */}
-                        {currentView === 'random' && currentTest && !testResults && (
-                            <div className="max-w-4xl mx-auto">
-                                {/* Test Header */}
-                                <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-lg font-semibold text-gray-800">
-                                                Pregunta {currentQuestionIndex + 1} de {currentTest.length}
-                                            </span>
-                                            <div className="w-48 bg-gray-200 rounded-full h-2">
-                                                <div
-                                                    className="bg-purple-600 h-2 rounded-full transition-all duration-300"
-                                                    style={{ width: `${((currentQuestionIndex + 1) / currentTest.length) * 100}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-4">
-                                            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                                                timeLeft <= 300 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-                                            }`}>
-                                                <Clock />
-                                                {formatTime(timeLeft)}
-                                            </div>
-                                            <button
-                                                onClick={finishTest}
-                                                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
-                                            >
-                                                Finalizar
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Question */}
-                                <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-                                    <h3 className="text-xl font-semibold text-gray-800 mb-6">
-                                        {currentTest[currentQuestionIndex].text}
-                                    </h3>
-                                    
-                                    <div className="space-y-4">
-                                        {currentTest[currentQuestionIndex].options.map((option, index) => (
-                                            <button
-                                                key={index}
-                                                onClick={() => selectAnswer(currentTest[currentQuestionIndex].id, index)}
-                                                className={`w-full p-4 text-left rounded-lg border-2 transition-colors ${
-                                                    userAnswers[currentTest[currentQuestionIndex].id] === index
-                                                        ? 'border-purple-500 bg-purple-50'
-                                                        : 'border-gray-300 hover:border-purple-300 hover:bg-gray-50'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-medium ${
-                                                        userAnswers[currentTest[currentQuestionIndex].id] === index
-                                                            ? 'border-purple-500 bg-purple-500 text-white'
-                                                            : 'border-gray-300'
-                                                    }`}>
-                                                        {String.fromCharCode(97 + index)}
-                                                    </span>
-                                                    <span className="flex-1">{option}</span>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Navigation */}
-                                <div className="bg-white rounded-2xl shadow-lg p-6">
-                                    <div className="flex justify-between items-center">
-                                        <button
-                                            onClick={prevQuestion}
-                                            disabled={currentQuestionIndex === 0}
-                                            className="px-6 py-3 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-300 text-white rounded-lg font-medium transition-colors"
-                                        >
-                                            Anterior
-                                        </button>
-                                        
-                                        <div className="flex gap-2">
-                                            {currentTest.map((_, index) => (
-                                                <button
-                                                    key={index}
-                                                    onClick={() => setCurrentQuestionIndex(index)}
-                                                    className={`w-10 h-10 rounded-lg font-medium transition-colors ${
-                                                        index === currentQuestionIndex
-                                                            ? 'bg-purple-600 text-white'
-                                                            : userAnswers[currentTest[index].id] !== undefined
-                                                            ? 'bg-green-100 text-green-700'
-                                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                    }`}
-                                                >
-                                                    {index + 1}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        
-                                        {currentQuestionIndex === currentTest.length - 1 ? (
-                                            <button
-                                                onClick={finishTest}
-                                                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
-                                            >
-                                                Finalizar Test
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={nextQuestion}
-                                                className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
-                                            >
-                                                Siguiente
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Test Results View */}
-                        {currentView === 'random' && testResults && (
-                            <div className="max-w-6xl mx-auto">
-                                <div className="text-center mb-8">
-                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">Resultados del Test</h2>
-                                    <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md mx-auto">
-                                        <div className={`text-6xl font-bold mb-4 ${
-                                            testResults.percentage >= 70 ? 'text-green-600' : 
-                                            testResults.percentage >= 50 ? 'text-yellow-600' : 'text-red-600'
-                                        }`}>
-                                            {testResults.percentage}%
-                                        </div>
-                                        <div className="text-xl text-gray-600 mb-2">
-                                            {testResults.score} de {testResults.total} correctas
-                                        </div>
-                                        <div className={`text-lg font-medium ${
-                                            testResults.percentage >= 70 ? 'text-green-600' : 
-                                            testResults.percentage >= 50 ? 'text-yellow-600' : 'text-red-600'
-                                        }`}>
-                                            {testResults.percentage >= 70 ? '¡Excelente!' : 
-                                             testResults.percentage >= 50 ? 'Bien, sigue practicando' : 'Necesitas más práctica'}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Detailed Results */}
-                                <div className="space-y-6">
-                                    {testResults.results.map((result, index) => (
-                                        <div key={index} className="bg-white rounded-2xl shadow-lg p-6">
-                                            <div className="flex items-start gap-4">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-medium ${
-                                                    result.correct ? 'bg-green-500' : 'bg-red-500'
-                                                }`}>
-                                                    {index + 1}
-                                                </div>
-                                                
-                                                <div className="flex-1">
-                                                    <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                                                        {result.question.text}
-                                                    </h3>
-                                                    
-                                                    <div className="space-y-3">
-                                                        {result.question.options.map((option, optIndex) => (
-                                                            <div
-                                                                key={optIndex}
-                                                                className={`p-3 rounded-lg border ${
-                                                                    optIndex === result.question.correctAnswer && optIndex === result.userAnswer
-                                                                        ? 'bg-green-50 border-green-300 text-green-800' // Correcto y seleccionado
-                                                                        : optIndex === result.question.correctAnswer
-                                                                        ? 'bg-green-50 border-green-300 text-green-800' // Respuesta correcta
-                                                                        : optIndex === result.userAnswer
-                                                                        ? 'bg-red-50 border-red-300 text-red-800' // Respuesta incorrecta seleccionada
-                                                                        : 'bg-gray-50 border-gray-200' // No seleccionado
-                                                                }`}
-                                                            >
-                                                                <div className="flex items-center gap-3">
-                                                                    <span className={`w-6 h-6 rounded-full border flex items-center justify-center text-sm font-medium ${
-                                                                        optIndex === result.question.correctAnswer
-                                                                            ? 'border-green-500 bg-green-500 text-white'
-                                                                            : optIndex === result.userAnswer && !result.correct
-                                                                            ? 'border-red-500 bg-red-500 text-white'
-                                                                            : 'border-gray-400'
-                                                                    }`}>
-                                                                        {String.fromCharCode(97 + optIndex)}
-                                                                    </span>
-                                                                    <span className="flex-1">{option}</span>
-                                                                    {optIndex === result.question.correctAnswer && (
-                                                                        <CheckCircle />
-                                                                    )}
-                                                                    {optIndex === result.userAnswer && optIndex !== result.question.correctAnswer && (
-                                                                        <X />
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    
-                                                    <div className="mt-4 text-sm">
-                                                        {result.userAnswer === undefined ? (
-                                                            <span className="text-gray-600">No respondida</span>
-                                                        ) : result.correct ? (
-                                                            <span className="text-green-600">✓ Respuesta correcta</span>
-                                                        ) : (
-                                                            <span className="text-red-600">✗ Respuesta incorrecta</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Actions */}
-                                <div className="text-center mt-8">
-                                    <div className="flex gap-4 justify-center">
-                                        <button
-                                            onClick={() => {
-                                                setCurrentTest(null);
-                                                setTestResults(null);
-                                                setCurrentView('random');
-                                            }}
-                                            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
-                                        >
-                                            Nuevo Test
-                                        </button>
-                                        <button
-                                            onClick={() => setCurrentView('bank')}
-                                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                                        >
-                                            Ver Banco de Preguntas
-                                        </button>
-                                        <button
-                                            onClick={() => setCurrentView('main')}
-                                            className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
-                                        >
-                                            Inicio
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
-
-        ReactDOM.render(<ExamSystem />, document.getElementById('root'));
-    </script>
-</body>
-</html>
