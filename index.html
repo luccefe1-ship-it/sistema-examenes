@@ -775,15 +775,31 @@
                             type: "text",
                             text: `Actúa como un transcriptor de texto para una persona ciega. Analiza ${batch.length > 1 ? 'estas imágenes' : 'esta imagen'} y extrae todo el texto visible de manera secuencial.
 
-INSTRUCCIONES:
+INSTRUCCIONES CRÍTICAS:
 - Solo dicta las palabras que ves, como si estuvieras hablando en voz alta
 - Encuentra las preguntas numeradas y sus opciones de respuesta
-- No describas símbolos, no menciones colores, no incluyas marcas visuales
+- CONSERVA y DESCRIBE todos los símbolos visuales de respuesta correcta que veas
+- MANTÉN símbolos como: ✓, ✔, checkmarks, asteriscos, viñetas, flechas
+- DESCRIBE elementos visuales importantes: "opción marcada en verde", "con tick", "con check", "respuesta correcta", "marcada"
+- PRESERVA cualquier indicación visual de que una opción es la correcta
 - Si hay múltiples imágenes, procesa cada una en orden
 - Separa claramente el contenido de cada imagen
-- Solo texto puro, sin descripciones visuales
 
-Responde con el texto extraído de forma clara y ordenada.`
+IMPORTANTE: NO elimines símbolos de respuesta correcta - los necesitamos para el siguiente paso.
+
+Ejemplo de lo que SÍ debes incluir:
+- "a) Madrid"
+- "b) ✓ París" 
+- "c) Londres"
+- "d) Roma"
+
+O:
+- "a) Madrid"
+- "b) París (marcada en verde)"
+- "c) Londres" 
+- "d) Roma"
+
+Responde con el texto extraído conservando TODOS los símbolos y marcas visuales.`
                         }
                     ];
 
@@ -862,38 +878,32 @@ Responde con el texto extraído de forma clara y ordenada.`
 TEXTO A LIMPIAR:
 ${transcribedText}
 
-INSTRUCCIONES CRÍTICAS:
-- Extrae solo las preguntas y opciones de respuesta de todas las imágenes
-- DETECTA símbolos de respuesta correcta: ✓, ✔, *, •, →, >, checkmarks, asteriscos, viñetas especiales, etc.
-- MARCA EN NEGRITA las opciones que tengan símbolos de respuesta correcta usando **texto**
-- Elimina los símbolos visuales pero CONSERVA el formato en negrita para respuestas correctas
-- Ignora texto que no sean preguntas (títulos, instrucciones, etc.)
+INSTRUCCIONES CRÍTICAS PARA DETECTAR RESPUESTAS CORRECTAS:
+- Busca símbolos visuales: ✓, ✔, *, •, →, >, checkmarks, ticks
+- Busca descripciones: "marcada", "marcada en verde", "respuesta correcta", "con tick", "con check"
+- Busca colores mencionados: "verde", "resaltada", "seleccionada"
+- MARCA EN NEGRITA las opciones que tengan cualquiera de estos indicadores usando **texto**
+- Elimina los símbolos y descripciones visuales DESPUÉS de identificar las correctas
+- Extrae solo las preguntas y opciones de respuesta
 - Numera las preguntas secuencialmente
 
 FORMATO DE SALIDA ESTRICTO:
 PREGUNTA: [texto de la pregunta]
 OPCION_A: [opción a normal]
-OPCION_B: **[opción b si tiene símbolo de correcta]**
+OPCION_B: **[opción b si tiene símbolo/marca de correcta]**
 OPCION_C: [opción c normal]
-OPCION_D: **[opción d si tiene símbolo de correcta]**
+OPCION_D: **[opción d si tiene símbolo/marca de correcta]**
 
-PREGUNTA: [siguiente pregunta]
-OPCION_A: **[opción a si tiene símbolo de correcta]**
-OPCION_B: [opción b normal]
-OPCION_C: [opción c normal]
-OPCION_D: [opción d normal]
+EJEMPLOS DE LO QUE DETECTAR:
+- "b) ✓ París" → "OPCION_B: **París**"
+- "c) Londres (marcada)" → "OPCION_C: **Londres**"
+- "a) Madrid marcada en verde" → "OPCION_A: **Madrid**"
+- "d) ✔ Roma" → "OPCION_D: **Roma**"
+- "b) * París" → "OPCION_B: **París**"
+- "c) → Londres" → "OPCION_C: **Londres**"
+- "a) Madrid respuesta correcta" → "OPCION_A: **Madrid**"
 
-EJEMPLOS DE SÍMBOLOS A DETECTAR:
-- ✓ opción correcta
-- ✔ opción correcta  
-- * opción correcta
-- • opción correcta
-- → opción correcta
-- > opción correcta
-- (marcada) opción correcta
-- [X] opción correcta
-
-IMPORTANTE: Si una opción tiene cualquier símbolo que indique que es correcta, ponla entre **asteriscos dobles** y quita el símbolo.`
+IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descripción de "correcta" debe ir en **negritas**.`
                         }]
                     })
                 });
