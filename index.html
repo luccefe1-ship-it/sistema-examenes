@@ -802,34 +802,76 @@
                 for (let line of lines) {
                     line = line.trim();
                     
-                    // Detectar pregunta - líneas que parecen preguntas (contienen "?" o terminan con ":")
-                    if ((line.includes('?') || line.endsWith(':') || /^\d+[.)]\s*/.test(line)) && 
-                        !(/^[a-d][.)]\s*/i.test(line)) && 
-                        line.length > 10) {
-                        
+                    // Detectar pregunta - múltiples formatos
+                    const isQuestion = (
+                        (line.includes('?') && line.length > 10) ||
+                        (line.endsWith(':') && line.length > 10) ||
+                        /^\d+[.)]\s*/.test(line) ||
+                        (/^\d+\.\s*¿/.test(line))  // Formato "03. ¿pregunta?"
+                    );
+                    
+                    // Detectar opciones - múltiples formatos
+                    const isOption = (
+                        /^[a-d][.)]\s*/i.test(line) ||      // a) b) c) d)
+                        /^[●○]\s*/.test(line) ||            // ● ○
+                        /^[-•]\s*/.test(line) ||            // - •
+                        /^[A-D]\)\s*/.test(line)            // A) B) C) D)
+                    );
+                    
+                    if (isQuestion && !isOption) {
                         // Guardar pregunta anterior si existe
                         if (currentQuestion && currentQuestion.options.length > 0) {
                             questions.push(currentQuestion);
                         }
                         
+                        // Limpiar número de pregunta
+                        let questionText = line.replace(/^\d+[.)]\s*/, '')
+                                              .replace(/^\d+\.\s*/, '')
+                                              .trim();
+                        
                         currentQuestion = {
                             id: Date.now() + Math.random() + questions.length,
-                            question: line.replace(/^\d+[.)]\s*/, ''),
+                            question: questionText,
                             options: [],
                             correctAnswer: 0,
                             addedAt: new Date().toISOString()
                         };
                     }
-                    // Detectar opciones A), B), C), D) o a), b), c), d)
-                    else if (/^[a-d][.)]\s*/i.test(line) && currentQuestion) {
-                        const optionText = line.replace(/^[a-d][.)]\s*/i, '').trim();
+                    // Detectar opciones
+                    else if (isOption && currentQuestion) {
+                        // Verificar si esta opción está marcada como correcta
+                        const isCorrect = line.includes('✓') || line.includes('X') || 
+                                        line.includes('[CORRECTA]') || line.includes('*') ||
+                                        line.includes('(X)') || line.includes('[X]') ||
+                                        /●.*[✓X]/i.test(line) || // círculo negro con marca
+                                        line.includes('CORRECTA');
+                        
+                        // Limpiar el texto de la opción
+                        let optionText = line.replace(/^[a-d][.)]\s*/i, '')      // a) b) c) d)
+                                           .replace(/^[●○]\s*/, '')              // ● ○
+                                           .replace(/^[-•]\s*/, '')              // - •
+                                           .replace(/^[A-D]\)\s*/, '')           // A) B) C) D)
+                                           .replace(/\[CORRECTA\]/gi, '')
+                                           .replace(/\*+/g, '')
+                                           .replace(/✓/g, '')
+                                           .replace(/\(X\)/gi, '')
+                                           .replace(/\[X\]/gi, '')
+                                           .replace(/\bX\b/g, '')                // X aislada
+                                           .replace(/CORRECTA/gi, '')
+                                           .trim();
+                        
                         if (optionText.length > 0) {
                             currentQuestion.options.push(optionText);
+                            
+                            // Si esta opción es correcta, actualizar el índice
+                            if (isCorrect) {
+                                currentQuestion.correctAnswer = currentQuestion.options.length - 1;
+                            }
                         }
                     }
                     // Si es continuación de pregunta (no es opción)
                     else if (currentQuestion && currentQuestion.options.length === 0 && 
-                             !(/^[a-d][.)]\s*/i.test(line)) && line.length > 3) {
+                             !isOption && line.length > 3) {
                         currentQuestion.question += ' ' + line;
                     }
                 }
@@ -839,7 +881,9 @@
                     questions.push(currentQuestion);
                 }
                 
-                // Filtrar preguntas que no tienen 4 opciones
+                console.log('Preguntas procesadas:', questions); // Para debug
+                
+                // Filtrar preguntas que no tienen 2+ opciones
                 return questions.filter(q => q.options.length >= 2);
             };
             
