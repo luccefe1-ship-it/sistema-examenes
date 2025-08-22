@@ -592,9 +592,12 @@
             const selector = document.getElementById('topic-selector');
             if (selector && selector.value) {
                 state.selectedTopicForNewQuestions = selector.value;
-                showMessage(`Tema "${getTopicName(selector.value)}" seleccionado`, 'success');
+                const topicName = getTopicName(selector.value);
+                console.log('Tema seleccionado:', selector.value, 'Nombre:', topicName); // Debug
+                showMessage(`Tema "${topicName}" seleccionado`, 'success');
             } else {
                 state.selectedTopicForNewQuestions = null;
+                console.log('No hay tema seleccionado'); // Debug
             }
             render();
         }
@@ -995,8 +998,9 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
         }
 
         function getTopicName(topicId) {
-            const topic = state.topics.find(t => t.id === topicId);
-            return topic ? topic.name : 'Sin tema';
+            if (!topicId) return 'Sin tema';
+            const topic = state.topics.find(t => t.id === topicId || t.id == topicId);
+            return topic ? topic.name : 'Tema no encontrado';
         }
 
         function getTopicQuestionCount(topicId) {
