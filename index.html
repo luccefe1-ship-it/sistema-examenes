@@ -357,7 +357,7 @@
                 handleFileSelect(file);
             }, [handleFileSelect]);
 
-            // FUNCIÓN MEJORADA CON PROXY QUE FUNCIONA
+            // FUNCIÓN DEFINITIVA - API DIRECTA SIN PROXY
             const processImage = async () => {
                 if (!selectedFile) return;
 
@@ -366,21 +366,8 @@
 
                 try {
                     if (!isApiKeySet || !apiKey) {
-                        const sampleText = `¿De quién depende el Archivo Judicial Territorial?
-A) Del Secretario de Gobierno del Tribunal Superior de Justicia
-B) Del Presidente del Tribunal Superior de Justicia
-C) Del Presidente del Tribunal Supremo
-D) Del Presidente de la Audiencia Provincial
-
-En el juicio verbal, la contestación del demandado a la demanda:
-A) Se producirá por escrito en el plazo de diez días conforme a lo dispuesto para el juicio ordinario
-B) Se producirá por escrito en el plazo de quince días o en su defecto en el acto de la vista oralmente
-C) Se producirá oralmente en el acto de la vista
-D) Se producirá por escrito en impreso normalizado`;
-                        
-                        setTranscribedText(sampleText);
-                        setError('');
-                        alert('⚙️ Configura tu API key para transcripción automática o edita el texto manualmente.');
+                        setError('⚙️ Configura tu API key para usar transcripción automática.');
+                        setIsProcessing(false);
                         return;
                     }
 
@@ -397,14 +384,39 @@ D) Se producirá por escrito en impreso normalizado`;
 
                     const imageType = selectedFile.type;
 
-                    // PROXY ALTERNATIVO - SOLUCIÓN AL ERROR 403
-                    const response = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://api.anthropic.com/v1/messages'), {
+                    // API DIRECTA - SIN PROXY
+                    const response = await fetch('https://api.anthropic.com/v1/messages', {
                         method: "POST",
+                        mode: 'cors',
                         headers: {
                             "Content-Type": "application/json",
                             "x-api-key": apiKey,
                             "anthropic-version": "2023-06-01"
                         },
+                        body: JSON.stringify({
+                            model: "claude-3-sonnet-20240229",
+                            max_tokens: 2000,
+                            messages: [
+                                {
+                                    role: "user",
+                                    content: [
+                                        {
+                                            type: "image",
+                                            source: {
+                                                type: "base64",
+                                                media_type: imageType,
+                                                data: base64Data,
+                                            }
+                                        },
+                                        {
+                                            type: "text",
+                                            text: "Por favor, transcribe todo el texto que veas en esta imagen de forma precisa y completa. Si son preguntas de examen o test:\n\n1. Mantén la numeración original de las preguntas\n2. Si hay opciones múltiples, inclúyelas todas con su letra correspondiente\n3. Conserva todo el texto de cada opción, incluso si son largas\n4. Mantén el formato y estructura original\n5. No añadas comentarios, solo transcribe el texto exacto\n\nProporciona SOLO el texto transcrito tal como aparece en la imagen."
+                                        }
+                                    ]
+                                }
+                            ]
+                        })
+                    });
                         body: JSON.stringify({
                             model: "claude-3-sonnet-20240229",
                             max_tokens: 2000,
@@ -449,12 +461,75 @@ D) Se producirá por escrito en impreso normalizado`;
                 } catch (error) {
                     console.error('Error procesando imagen:', error);
                     
-                    if (error.message.includes('API key inválida')) {
+                    // Si es error CORS, intentar con proxy de respaldo
+                    if (error.message.includes('CORS') || error.message.includes('fetch')) {
+                        try {
+                            setError('🔄 Reintentando con método alternativo...');
+                            
+                            // Convert image to base64 again
+                            const base64Data = await new Promise((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                    const base64 = reader.result.split(",")[1];
+                                    resolve(base64);
+                                };
+                                reader.onerror = () => reject(new Error("Error al leer el archivo"));
+                                reader.readAsDataURL(selectedFile);
+                            });
+
+                            const imageType = selectedFile.type;
+                            
+                            // Proxy de respaldo
+                            const proxyResponse = await fetch('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://api.anthropic.com/v1/messages'), {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "x-api-key": apiKey,
+                                    "anthropic-version": "2023-06-01"
+                                },
+                                body: JSON.stringify({
+                                    model: "claude-3-sonnet-20240229",
+                                    max_tokens: 2000,
+                                    messages: [
+                                        {
+                                            role: "user",
+                                            content: [
+                                                {
+                                                    type: "image",
+                                                    source: {
+                                                        type: "base64",
+                                                        media_type: imageType,
+                                                        data: base64Data,
+                                                    }
+                                                },
+                                                {
+                                                    type: "text",
+                                                    text: "Por favor, transcribe todo el texto que veas en esta imagen de forma precisa y completa. Si son preguntas de examen o test:\n\n1. Mantén la numeración original de las preguntas\n2. Si hay opciones múltiples, inclúyelas todas con su letra correspondiente\n3. Conserva todo el texto de cada opción, incluso si son largas\n4. Mantén el formato y estructura original\n5. No añadas comentarios, solo transcribe el texto exacto\n\nProporciona SOLO el texto transcrito tal como aparece en la imagen."
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                })
+                            });
+
+                            if (!proxyResponse.ok) {
+                                throw new Error(`Error en proxy: ${proxyResponse.status}`);
+                            }
+
+                            const proxyData = await proxyResponse.json();
+                            const extractedText = proxyData.content[0].text;
+                            setTranscribedText(extractedText);
+                            setError('');
+                            alert('✅ ¡Imagen transcrita correctamente con método alternativo! Revisa el texto y haz clic en "Añadir al Banco".');
+                            
+                        } catch (proxyError) {
+                            console.error('Error con proxy de respaldo:', proxyError);
+                            setError('❌ No se puede conectar con la API de transcripción. Verifica tu conexión a internet y tu API key.');
+                        }
+                    } else if (error.message.includes('API key inválida')) {
                         setError('❌ API key inválida. Haz clic en "Configurar API" para corregirla.');
                     } else if (error.message.includes('límite')) {
                         setError('⏳ Límite alcanzado. Verifica tu saldo en console.anthropic.com');
-                    } else if (error.message.includes('fetch')) {
-                        setError('🌐 Error de conexión. Verifica tu internet.');
                     } else {
                         setError(`❌ Error: ${error.message}`);
                     }
