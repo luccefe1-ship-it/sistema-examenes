@@ -862,26 +862,38 @@ Responde con el texto extraído de forma clara y ordenada.`
 TEXTO A LIMPIAR:
 ${transcribedText}
 
-INSTRUCCIONES:
+INSTRUCCIONES CRÍTICAS:
 - Extrae solo las preguntas y opciones de respuesta de todas las imágenes
-- Elimina TODOS los símbolos, emojis, marcas visuales, separadores
+- DETECTA símbolos de respuesta correcta: ✓, ✔, *, •, →, >, checkmarks, asteriscos, viñetas especiales, etc.
+- MARCA EN NEGRITA las opciones que tengan símbolos de respuesta correcta usando **texto**
+- Elimina los símbolos visuales pero CONSERVA el formato en negrita para respuestas correctas
 - Ignora texto que no sean preguntas (títulos, instrucciones, etc.)
 - Numera las preguntas secuencialmente
-- Formato de salida estricto:
 
+FORMATO DE SALIDA ESTRICTO:
 PREGUNTA: [texto de la pregunta]
-OPCION_A: [opción a]
-OPCION_B: [opción b]
-OPCION_C: [opción c]
-OPCION_D: [opción d]
+OPCION_A: [opción a normal]
+OPCION_B: **[opción b si tiene símbolo de correcta]**
+OPCION_C: [opción c normal]
+OPCION_D: **[opción d si tiene símbolo de correcta]**
 
 PREGUNTA: [siguiente pregunta]
-OPCION_A: [opción a]
-OPCION_B: [opción b]
-OPCION_C: [opción c]
-OPCION_D: [opción d]
+OPCION_A: **[opción a si tiene símbolo de correcta]**
+OPCION_B: [opción b normal]
+OPCION_C: [opción c normal]
+OPCION_D: [opción d normal]
 
-Solo texto limpio, sin símbolos, sin descripciones. Extrae todas las preguntas encontradas en las imágenes.`
+EJEMPLOS DE SÍMBOLOS A DETECTAR:
+- ✓ opción correcta
+- ✔ opción correcta  
+- * opción correcta
+- • opción correcta
+- → opción correcta
+- > opción correcta
+- (marcada) opción correcta
+- [X] opción correcta
+
+IMPORTANTE: Si una opción tiene cualquier símbolo que indique que es correcta, ponla entre **asteriscos dobles** y quita el símbolo.`
                         }]
                     })
                 });
@@ -964,11 +976,21 @@ Solo texto limpio, sin símbolos, sin descripciones. Extrae todas las preguntas 
                 
                 const questionText = lines[0].trim();
                 const options = [];
+                let correctAnswer = 0; // Por defecto la primera opción
                 
                 for (let i = 1; i < lines.length; i++) {
                     const line = lines[i].trim();
                     if (line.match(/^OPCION_[A-D]:/i)) {
-                        const optionText = line.replace(/^OPCION_[A-D]:/i, '').trim();
+                        let optionText = line.replace(/^OPCION_[A-D]:/i, '').trim();
+                        
+                        // Detectar si la opción está en negrita (respuesta correcta)
+                        if (optionText.startsWith('**') && optionText.endsWith('**')) {
+                            // Quitar las negritas para el texto de la opción
+                            optionText = optionText.slice(2, -2);
+                            // Marcar como respuesta correcta
+                            correctAnswer = options.length;
+                        }
+                        
                         if (optionText) {
                             options.push(optionText);
                         }
@@ -980,7 +1002,7 @@ Solo texto limpio, sin símbolos, sin descripciones. Extrae todas las preguntas 
                         id: Date.now() + Math.random(),
                         question: questionText,
                         options: options,
-                        correctAnswer: 0
+                        correctAnswer: correctAnswer
                     });
                 }
             });
