@@ -1,1332 +1,9 @@
-// Función para configurar API key
-            const configureApiKey = () => {
-                const key = prompt("Introduce tu API key de Anthropic:\n\n(Se guardará de forma segura en tu navegador)", apiKey);
-                if (key && key.trim()) {
-                    const finalKey = key.trim();
-                    setApiKey(finalKey);
-                    setIsApiKeySet(true);
-                    localStorage.setItem('anthropic_api_key', finalKey);
-                    alert('✅ API key guardada correctamente. Ya puedes transcribir imágenes automáticamente.');
-                }
-            };
-
-            // Función para eliminar API key
-            const removeApiKey = () => {
-                if (confirm('¿Estás seguro de que quieres eliminar la API key guardada?')) {
-                    setApiKey('');
-                    setIsApiKeySet(false);
-                    localStorage.removeItem('anthropic_api_key');
-                    alert('API key eliminada.');
-                }
-            };
-
-            // File handling functions
-            const handleFileSelect = useCallback((file) => {
-                if (!file || !file.type.startsWith('image/')) {
-                    setError('Por favor selecciona un archivo de imagen válido');
-                    return;
-                }
-
-                if (file.size > 10 * 1024 * 1024) {
-                    setError('El archivo es demasiado grande. Máximo 10MB');
-                    return;
-                }
-
-                setError('');
-                setSelectedFile(file);
-                setTranscribedText('');
-                setCopySuccess(false);
-
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    setImagePreview(e.target.result);
-                };
-                reader.readAsDataURL(file);
-            }, []);
-
-            const handleDragOver = useCallback((e) => {
-                e.preventDefault();
-            }, []);
-
-            const handleDrop = useCallback((e) => {
-                e.preventDefault();
-                const file = e.dataTransfer.files[0];
-                handleFileSelect(file);
-            }, [handleFileSelect]);
-
-            const handleFileInput = useCallback((e) => {
-                const file = e.target.files[0];
-                handleFileSelect(file);
-            }, [handleFileSelect]);
-
-            // FUNCIÓN DE TRANSCRIPCIÓN
-            const processImage = async () => {
-                if (!selectedFile) return;
-
-                setIsProcessing(true);
-                setError('');
-
-                try {
-                    if (!isApiKeySet || !apiKey) {
-                        setError('⚙️ Configura tu API key para usar transcripción automática.');
-                        setIsProcessing(false);
-                        return;
-                    }
-
-                    // Convert image to base64
-                    const base64Data = await new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                            const base64 = reader.result.split(",")[1];
-                            resolve(base64);
-                        };
-                        reader.onerror = () => reject(new Error("Error al leer el archivo"));
-                        reader.readAsDataURL(selectedFile);
-                    });
-
-                    const imageType = selectedFile.type;
-
-                    // API DIRECTA
-                    const response = await fetch('https://api.anthropic.com/v1/messages', {
-                        method: "POST",
-                        mode: 'cors',
-                        headers: {
-                            "Content-Type": "application/json",
-                            "x-api-key": apiKey,
-                            "anthropic-version": "2023-06-01"
-                        },
-                        body: JSON.stringify({
-                            model: "claude-3-sonnet-20240229",
-                            max_tokens: 2000,
-                            messages: [
-                                {
-                                    role: "user",
-                                    content: [
-                                        {
-                                            type: "image",
-                                            source: {
-                                                type: "base64",
-                                                media_type: imageType,
-                                                data: base64Data,
-                                            }
-                                        },
-                                        {
-                                            type: "text",
-                                            text: "Transcribe todo el texto de esta imagen manteniendo el formato original."
-                                        }
-                                    ]
-                                }
-                            ]
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`Error en la API: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    const extractedText = data.content[0].text;
-                    setTranscribedText(extractedText);
-                    setError('');
-                    alert('✅ ¡Imagen transcrita correctamente!');
-
-                } catch (error) {
-                    console.error('Error:', error);
-                    setError(`❌ Error: ${error.message}`);
-                } finally {
-                    setIsProcessing(false);
-                }
-            };
-
-            const copyToClipboard = async () => {
-                try {
-                    await navigator.clipboard.writeText(transcribedText);
-                    setCopySuccess(true);
-                    setTimeout(() => setCopySuccess(false), 2000);
-                } catch (error) {
-                    setError('Error al copiar al portapapeles');
-                }
-            };
-
-            const downloadText = () => {
-                const element = document.createElement('a');
-                const file = new Blob([transcribedText], { type: 'text/plain' });
-                element.href = URL.createObjectURL(file);
-                element.download = 'preguntas_transcritas.txt';
-                document.body.appendChild(element);
-                element.click();
-                document.body.removeChild(element);
-            };
-
-            // Question bank functions
-            const parseTextToQuestions = () => {
-                if (!transcribedText.trim()) return;
-                
-                const text = transcribedText.trim();
-                const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                const newQuestions = [];
-                let currentQuestion = null;
-                
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-                    
-                    if (line.includes('?') || line.endsWith(':')) {
-                        if (currentQuestion && currentQuestion.options.length > 0) {
-                            newQuestions.push(currentQuestion);
-                        }
-                        
-                        currentQuestion = {
-                            id: Date.now() + Math.random() + i,
-                            text: line,
-                            options: [],
-                            correctAnswer: 0
-                        };
-                    }
-                    else if (currentQuestion && (
-                        line.match(/^[a-z]\)/i) ||
-                        line.match(/^[a-z]\./i) ||
-                        line.match(/^[a-z]\s+/i) ||
-                        line.match(/^\d+\)/i) ||
-                        line.match(/^\d+\./i) ||
-                        line.match(/^-\s+/) ||
-                        line.match(/^\*\s+/) ||
-                        line.match(/^•\s+/)
-                    )) {
-                        let optionText = line.replace(/^[a-z0-9\-\*•]+[\)\.\s]+/i, '');
-                        currentQuestion.options.push(optionText);
-                    }
-                    else if (currentQuestion) {
-                        if (currentQuestion.options.length > 0) {
-                            const lastIndex = currentQuestion.options.length - 1;
-                            currentQuestion.options[lastIndex] += ' ' + line;
-                        } else {
-                            currentQuestion.text += ' ' + line;
-                        }
-                    }
-                }
-                
-                if (currentQuestion && currentQuestion.options.length > 0) {
-                    newQuestions.push(currentQuestion);
-                }
-                
-                const validQuestions = newQuestions.filter(q => 
-                    q.text.length > 5 && q.options.length >= 2
-                );
-                
-                validQuestions.forEach(q => {
-                    if (q.options.length > 4) {
-                        q.options = q.options.slice(0, 4);
-                    }
-                    while (q.options.length < 4) {
-                        q.options.push('');
-                    }
-                });
-                
-                if (validQuestions.length === 0) {
-                    setError('No se encontraron preguntas válidas.');
-                    return;
-                }
-                
-                const updatedQuestions = [...questions, ...validQuestions];
-                setQuestions(updatedQuestions);
-                saveQuestions(updatedQuestions);
-                setTranscribedText('');
-                setCurrentView('bank');
-                
-                setError('');
-                alert(`✅ Se añadieron ${validQuestions.length} preguntas al banco.`);
-            };
-
-            const deleteQuestion = (id) => {
-                const updatedQuestions = questions.filter(q => q.id !== id);
-                setQuestions(updatedQuestions);
-                saveQuestions(updatedQuestions);
-            };
-
-            const deleteAllQuestions = () => {
-                const updatedQuestions = [];
-                setQuestions(updatedQuestions);
-                saveQuestions(updatedQuestions);
-            };
-
-            const updateQuestion = (id, updatedQuestion) => {
-                const updatedQuestions = questions.map(q => q.id === id ? { ...updatedQuestion, id } : q);
-                setQuestions(updatedQuestions);
-                saveQuestions(updatedQuestions);
-                setEditingQuestion(null);
-            };
-
-            const addNewQuestion = () => {
-                if (!newQuestion.text.trim()) return;
-                
-                const question = {
-                    ...newQuestion,
-                    id: Date.now() + Math.random()
-                };
-                
-                const updatedQuestions = [...questions, question];
-                setQuestions(updatedQuestions);
-                saveQuestions(updatedQuestions);
-                setNewQuestion({
-                    text: '',
-                    options: ['', '', '', ''],
-                    correctAnswer: 0
-                });
-            };
-
-            // Test functions
-            const startRandomTest = () => {
-                if (questions.length === 0) {
-                    setError('No hay preguntas en el banco para crear un test');
-                    return;
-                }
-                
-                const shuffled = [...questions].sort(() => Math.random() - 0.5);
-                const testQuestions = shuffled.slice(0, Math.min(10, questions.length));
-                
-                setCurrentTest(testQuestions);
-                setCurrentQuestionIndex(0);
-                setUserAnswers({});
-                setTimeLeft(900);
-                setTestResults(null);
-                setIsTestActive(true);
-                setCurrentView('test');
-            };
-
-            const selectAnswer = (questionId, answerIndex) => {
-                setUserAnswers(prev => ({
-                    ...prev,
-                    [questionId]: answerIndex
-                }));
-            };
-
-            const nextQuestion = () => {
-                if (currentQuestionIndex < currentTest.length - 1) {
-                    setCurrentQuestionIndex(prev => prev + 1);
-                }
-            };
-
-            const prevQuestion = () => {
-                if (currentQuestionIndex > 0) {
-                    setCurrentQuestionIndex(prev => prev - 1);
-                }
-            };
-
-            const finishTest = () => {
-                setIsTestActive(false);
-                
-                const results = currentTest.map(question => ({
-                    question,
-                    userAnswer: userAnswers[question.id],
-                    correct: userAnswers[question.id] === question.correctAnswer
-                }));
-                
-                const score = results.filter(r => r.correct).length;
-                
-                setTestResults({
-                    results,
-                    score,
-                    total: currentTest.length,
-                    percentage: Math.round((score / currentTest.length) * 100)
-                });
-            };
-
-            const formatTime = (seconds) => {
-                const mins = Math.floor(seconds / 60);
-                const secs = seconds % 60;
-                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-            };
-
-            // Login component
-            if (!isLoggedIn) {
-                return (
-                    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <div className="card" style={{ width: '100%', maxWidth: '28rem' }}>
-                            <div className="text-center mb-8">
-                                <div style={{ padding: '0.75rem', background: '#2563eb', borderRadius: '9999px', width: 'fit-content', margin: '0 auto 1rem' }}>
-                                    <User />
-                                </div>
-                                <h1 className="text-2xl font-bold text-gray-800">
-                                    {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
-                                </h1>
-                            </div>
-
-                            {error && (
-                                <div className="alert alert-error">
-                                    <AlertCircle />
-                                    <p>{error}</p>
-                                </div>
-                            )}
-
-                            <div className="space-y-4">
-                                {isRegistering ? (
-                                    <>
-                                        <input
-                                            type="text"
-                                            placeholder="Usuario"
-                                            value={registerForm.username}
-                                            onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
-                                            className="input"
-                                        />
-                                        <input
-                                            type="password"
-                                            placeholder="Contraseña"
-                                            value={registerForm.password}
-                                            onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
-                                            className="input"
-                                        />
-                                        <input
-                                            type="password"
-                                            placeholder="Confirmar contraseña"
-                                            value={registerForm.confirmPassword}
-                                            onChange={(e) => setRegisterForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                                            className="input"
-                                        />
-                                        <button
-                                            onClick={handleRegister}
-                                            className="btn btn-primary w-full"
-                                        >
-                                            Crear Cuenta
-                                        </button>
-                                        <button
-                                            onClick={() => setIsRegistering(false)}
-                                            style={{ width: '100%', padding: '0.5rem', background: 'transparent', border: 'none', color: '#2563eb', fontWeight: 500, cursor: 'pointer' }}
-                                        >
-                                            ¿Ya tienes cuenta? Inicia sesión
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <input
-                                            type="text"
-                                            placeholder="Usuario"
-                                            value={loginForm.username}
-                                            onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
-                                            className="input"
-                                        />
-                                        <input
-                                            type="password"
-                                            placeholder="Contraseña"
-                                            value={loginForm.password}
-                                            onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
-                                            className="input"
-                                        />
-                                        <button
-                                            onClick={handleLogin}
-                                            className="btn btn-primary w-full"
-                                        >
-                                            Iniciar Sesión
-                                        </button>
-                                        <button
-                                            onClick={() => setIsRegistering(true)}
-                                            style={{ width: '100%', padding: '0.5rem', background: 'transparent', border: 'none', color: '#2563eb', fontWeight: 500, cursor: 'pointer' }}
-                                        >
-                                            ¿No tienes cuenta? Regístrate
-                                        </button>
-                                        <div className="text-center text-sm text-gray-600" style={{ marginTop: '1rem' }}>
-                                            Demo: usuario "demo", contraseña "demo123"
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                );
-            }
-
-            return (
-                <div style={{ minHeight: '100vh' }}>
-                    {/* Header */}
-                    <div className="header">
-                        <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem' }}>
-                            <div className="flex items-center gap-3">
-                                <div style={{ padding: '0.5rem', background: '#2563eb', borderRadius: '0.5rem' }}>
-                                    <FileText />
-                                </div>
-                                <h1 className="text-xl font-bold text-gray-800">Sistema de Exámenes</h1>
-                            </div>
-                            
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                    {isApiKeySet ? (
-                                        <>
-                                            <span className="text-sm text-green-600">✅ API configurada</span>
-                                            <button
-                                                onClick={removeApiKey}
-                                                style={{ color: '#dc2626', fontSize: '0.875rem', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
-                                            >
-                                                Eliminar
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <button
-                                            onClick={configureApiKey}
-                                            className="btn btn-primary"
-                                            style={{ fontSize: '0.875rem' }}
-                                        >
-                                            Configurar API
-                                        </button>
-                                    )}
-                                </div>
-                                
-                                <span className="text-gray-600">Hola, {currentUser.username}</span>
-                                <button
-                                    onClick={handleLogout}
-                                    className="btn btn-gray"
-                                    style={{ fontSize: '0.875rem' }}
-                                >
-                                    <LogOut />
-                                    Cerrar Sesión
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Navigation */}
-                    <div className="nav-bar">
-                        <div className="container">
-                            <div className="flex">
-                                <button
-                                    onClick={() => setCurrentView('main')}
-                                    className={`nav-tab ${currentView === 'main' ? 'active' : ''}`}
-                                >
-                                    <Home />
-                                    Inicio
-                                </button>
-                                <button
-                                    onClick={() => setCurrentView('upload')}
-                                    className={`nav-tab ${currentView === 'upload' ? 'active' : ''}`}
-                                >
-                                    <Upload />
-                                    Subir Test
-                                </button>
-                                <button
-                                    onClick={() => setCurrentView('bank')}
-                                    className={`nav-tab ${currentView === 'bank' ? 'active' : ''}`}
-                                >
-                                    <BookOpen />
-                                    Banco de Preguntas ({questions.length})
-                                </button>
-                                <button
-                                    onClick={() => setCurrentView('random')}
-                                    className={`nav-tab ${currentView === 'random' ? 'active' : ''}`}
-                                >
-                                    <Shuffle />
-                                    Test Aleatorio
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="container py-8">
-                        {/* Main View */}
-                        {currentView === 'main' && (
-                            <div className="max-w-4xl mx-auto">
-                                <div className="text-center mb-12">
-                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">
-                                        Bienvenido a tu Sistema de Exámenes
-                                    </h2>
-                                    <p className="text-lg text-gray-600">
-                                        Transcribe, organiza y practica con tus exámenes de forma inteligente
-                                    </p>
-                                    <div className="alert alert-success mt-6">
-                                        <p>
-                                            <strong>✅ Versión mejorada:</strong> Transcripción automática funcional.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-3">
-                                    <div className="card cursor-pointer transition-shadow hover:shadow-xl" onClick={() => setCurrentView('upload')}>
-                                        <div style={{ padding: '1rem', background: '#dbeafe', borderRadius: '9999px', width: 'fit-content', margin: '0 auto 1rem' }}>
-                                            <Upload />
-                                        </div>
-                                        <h3 className="text-xl font-semibold text-gray-800 text-center mb-2">
-                                            Subir Test
-                                        </h3>
-                                        <p className="text-gray-600 text-center">
-                                            Convierte imágenes de exámenes en preguntas digitales automáticamente
-                                        </p>
-                                    </div>
-
-                                    <div className="card cursor-pointer transition-shadow hover:shadow-xl" onClick={() => setCurrentView('bank')}>
-                                        <div style={{ padding: '1rem', background: '#dcfce7', borderRadius: '9999px', width: 'fit-content', margin: '0 auto 1rem' }}>
-                                            <BookOpen />
-                                        </div>
-                                        <h3 className="text-xl font-semibold text-gray-800 text-center mb-2">
-                                            Banco de Preguntas
-                                        </h3>
-                                        <p className="text-gray-600 text-center">
-                                            Organiza tus preguntas, define respuestas correctas y gestiona tu biblioteca
-                                        </p>
-                                        <div className="text-center mt-3">
-                                            <span style={{ background: '#dcfce7', color: '#15803d', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.875rem', fontWeight: 500 }}>
-                                                {questions.length} preguntas
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="card cursor-pointer transition-shadow hover:shadow-xl" onClick={() => setCurrentView('random')}>
-                                        <div style={{ padding: '1rem', background: '#f3e8ff', borderRadius: '9999px', width: 'fit-content', margin: '0 auto 1rem' }}>
-                                            <Shuffle />
-                                        </div>
-                                        <h3 className="text-xl font-semibold text-gray-800 text-center mb-2">
-                                            Test Aleatorio
-                                        </h3>
-                                        <p className="text-gray-600 text-center">
-                                            Practica con hasta 10 preguntas aleatorias en 15 minutos cronometrados
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {questions.length > 0 && (
-                                    <div className="card mt-12">
-                                        <h3 className="text-xl font-semibold text-gray-800 mb-4">Estadísticas</h3>
-                                        <div className="grid grid-cols-3">
-                                            <div className="stats-card">
-                                                <div className="stats-number blue">{questions.length}</div>
-                                                <div className="text-gray-600">Total de Preguntas</div>
-                                            </div>
-                                            <div className="stats-card">
-                                                <div className="stats-number green">
-                                                    {questions.filter(q => q.options.some(opt => opt.trim())).length}
-                                                </div>
-                                                <div className="text-gray-600">Con Opciones</div>
-                                            </div>
-                                            <div className="stats-card">
-                                                <div className="stats-number purple">
-                                                    {Math.min(10, questions.length)}
-                                                </div>
-                                                <div className="text-gray-600">Próximo Test</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Upload View */}
-                        {currentView === 'upload' && (
-                            <div className="max-w-6xl mx-auto">
-                                <div className="text-center mb-8">
-                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">Subir Test</h2>
-                                    <p className="text-lg text-gray-600">
-                                        Convierte imágenes de exámenes en preguntas digitales automáticamente
-                                    </p>
-                                </div>
-
-                                <div className="grid lg:grid-cols-2">
-                                    {/* Upload Section */}
-                                    <div className="space-y-6">
-                                        <div className="card upload-zone"
-                                            onDragOver={handleDragOver}
-                                            onDrop={handleDrop}
-                                            onClick={() => document.getElementById('fileInput').click()}
-                                        >
-                                            <Upload />
-                                            <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                                                Sube tu imagen de examen
-                                            </h3>
-                                            <p className="text-gray-500 mb-4">
-                                                Arrastra y suelta o haz clic para seleccionar
-                                            </p>
-                                            <p className="text-sm text-gray-400">
-                                                Formatos: JPG, PNG, GIF (máx. 10MB)
-                                            </p>
-                                            <input
-                                                id="fileInput"
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={handleFileInput}
-                                                className="hidden"
-                                            />
-                                        </div>
-
-                                        {error && (
-                                            <div className="alert alert-error">
-                                                <AlertCircle />
-                                                <p>{error}</p>
-                                            </div>
-                                        )}
-
-                                        {imagePreview && (
-                                            <div className="card">
-                                                <div className="flex items-center justify-between mb-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <Image />
-                                                        <h3 className="text-lg font-semibold text-gray-700">Vista previa</h3>
-                                                    </div>
-                                                    <button
-                                                        onClick={processImage}
-                                                        disabled={isProcessing}
-                                                        className={`btn ${isApiKeySet ? 'btn-primary' : 'btn-gray'}`}
-                                                    >
-                                                        {isProcessing ? (
-                                                            <>
-                                                                <Loader />
-                                                                Procesando...
-                                                            </>
-                                                        ) : isApiKeySet ? (
-                                                            <>
-                                                                <FileText />
-                                                                Transcribir Automático
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <FileText />
-                                                                Configurar API
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                </div>
-                                                <div style={{ borderRadius: '0.5rem', overflow: 'hidden' }}>
-                                                    <img
-                                                        src={imagePreview}
-                                                        alt="Vista previa"
-                                                        style={{ width: '100%', maxHeight: '24rem', objectFit: 'contain', background: '#f9fafb' }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Results Section */}
-                                    <div className="space-y-6">
-                                        <div className="card">
-                                            <div className="flex items-center justify-between mb-4" style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: '1rem' }}>
-                                                <div className="flex items-center gap-3">
-                                                    <FileText />
-                                                    <h3 className="text-lg font-semibold text-gray-700">Texto transcrito</h3>
-                                                </div>
-                                                
-                                                {transcribedText && (
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={copyToClipboard}
-                                                            className="btn btn-green"
-                                                        >
-                                                            {copySuccess ? (
-                                                                <>
-                                                                    <CheckCircle />
-                                                                    ¡Copiado!
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Copy />
-                                                                    Copiar
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                        <button
-                                                            onClick={downloadText}
-                                                            className="btn btn-purple"
-                                                        >
-                                                            <Download />
-                                                            Descargar
-                                                        </button>
-                                                        <button
-                                                            onClick={parseTextToQuestions}
-                                                            className="btn btn-primary"
-                                                        >
-                                                            <Plus />
-                                                            Añadir al Banco
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            
-                                            <div>
-                                                {isProcessing ? (
-                                                    <div className="text-center py-12">
-                                                        <Loader />
-                                                        <p className="text-gray-600">Analizando la imagen...</p>
-                                                    </div>
-                                                ) : transcribedText ? (
-                                                    <textarea
-                                                        value={transcribedText}
-                                                        onChange={(e) => setTranscribedText(e.target.value)}
-                                                        className="textarea"
-                                                        style={{ height: '24rem' }}
-                                                        placeholder="El texto transcrito aparecerá aquí..."
-                                                    />
-                                                ) : (
-                                                    <div className="text-center py-12">
-                                                        <FileText />
-                                                        <p className="text-gray-500">
-                                                            Sube una imagen para comenzar la transcripción
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div style={{ background: '#eff6ff', borderRadius: '1rem', padding: '1.5rem', border: '1px solid #bfdbfe' }}>
-                                        <div style={{ background: '#eff6ff', borderRadius: '1rem', padding: '1.5rem', border: '1px solid #bfdbfe' }}>
-                                            <h4 className="font-semibold text-blue-800 mb-3">💡 Consejos para mejores resultados:</h4>
-                                            <ul style={{ color: '#1d4ed8', fontSize: '0.875rem', lineHeight: '1.25rem' }}>
-                                                <li style={{ marginBottom: '0.5rem' }}>• Asegúrate de que el texto esté bien iluminado y enfocado</li>
-                                                <li style={{ marginBottom: '0.5rem' }}>• Evita sombras o reflejos sobre el texto</li>
-                                                <li style={{ marginBottom: '0.5rem' }}>• Las imágenes con mayor contraste funcionan mejor</li>
-                                                <li>• Puedes editar el texto transcrito antes de añadirlo al banco</li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Question Bank View */}
-                        {currentView === 'bank' && (
-                            <div className="max-w-6xl mx-auto">
-                                <div className="flex justify-between items-center mb-8">
-                                    <div>
-                                        <h2 className="text-3xl font-bold text-gray-800 mb-2">Banco de Preguntas</h2>
-                                        <p className="text-lg text-gray-600">
-                                            {questions.length} preguntas guardadas
-                                        </p>
-                                    </div>
-                                    
-                                    {questions.length > 0 && (
-                                        <button
-                                            onClick={deleteAllQuestions}
-                                            className="btn btn-red"
-                                        >
-                                            <Trash2 />
-                                            Eliminar Todo
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* Add New Question */}
-                                <div className="card mb-8">
-                                    <h3 className="text-xl font-semibold text-gray-800 mb-4">Añadir Nueva Pregunta</h3>
-                                    
-                                    <div className="space-y-4">
-                                        <textarea
-                                            value={newQuestion.text}
-                                            onChange={(e) => setNewQuestion(prev => ({ ...prev, text: e.target.value }))}
-                                            placeholder="Escribe la pregunta..."
-                                            className="textarea"
-                                            style={{ height: '4.5rem' }}
-                                        />
-                                        
-                                        <div className="grid grid-cols-2">
-                                            {newQuestion.options.map((option, index) => (
-                                                <div key={index} className="flex items-center gap-3">
-                                                    <input
-                                                        type="radio"
-                                                        name="newCorrectAnswer"
-                                                        checked={newQuestion.correctAnswer === index}
-                                                        onChange={() => setNewQuestion(prev => ({ ...prev, correctAnswer: index }))}
-                                                        style={{ accentColor: '#2563eb' }}
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        value={option}
-                                                        onChange={(e) => {
-                                                            const newOptions = [...newQuestion.options];
-                                                            newOptions[index] = e.target.value;
-                                                            setNewQuestion(prev => ({ ...prev, options: newOptions }));
-                                                        }}
-                                                        placeholder={`Opción ${String.fromCharCode(97 + index)}`}
-                                                        className="input"
-                                                        style={{ flex: 1 }}
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-                                        
-                                        <button
-                                            onClick={addNewQuestion}
-                                            disabled={!newQuestion.text.trim()}
-                                            className="btn btn-primary"
-                                        >
-                                            <Plus />
-                                            Añadir Pregunta
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Questions List */}
-                                <div className="space-y-4">
-                                    {questions.length === 0 ? (
-                                        <div className="card text-center py-12">
-                                            <BookOpen />
-                                            <h3 className="text-xl font-semibold text-gray-500 mb-2">No hay preguntas</h3>
-                                            <p className="text-gray-400">Sube un test o añade preguntas manualmente</p>
-                                        </div>
-                                    ) : (
-                                        questions.map((question, index) => (
-                                            <div key={question.id} className="card">
-                                                {editingQuestion === question.id ? (
-                                                    <div className="space-y-4">
-                                                        <textarea
-                                                            value={question.text}
-                                                            onChange={(e) => setQuestions(prev => prev.map(q => 
-                                                                q.id === question.id ? { ...q, text: e.target.value } : q
-                                                            ))}
-                                                            className="textarea"
-                                                            style={{ height: '4.5rem' }}
-                                                        />
-                                                        
-                                                        <div className="grid grid-cols-2">
-                                                            {question.options.map((option, optIndex) => (
-                                                                <div key={optIndex} className="flex items-center gap-3">
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`correct-${question.id}`}
-                                                                        checked={question.correctAnswer === optIndex}
-                                                                        onChange={() => setQuestions(prev => prev.map(q => 
-                                                                            q.id === question.id ? { ...q, correctAnswer: optIndex } : q
-                                                                        ))}
-                                                                        style={{ accentColor: '#2563eb' }}
-                                                                    />
-                                                                    <input
-                                                                        type="text"
-                                                                        value={option}
-                                                                        onChange={(e) => {
-                                                                            const newOptions = [...question.options];
-                                                                            newOptions[optIndex] = e.target.value;
-                                                                            setQuestions(prev => prev.map(q => 
-                                                                                q.id === question.id ? { ...q, options: newOptions } : q
-                                                                            ));
-                                                                        }}
-                                                                        className="input"
-                                                                        style={{ flex: 1 }}
-                                                                    />
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        
-                                                        <div className="flex gap-3">
-                                                            <button
-                                                                onClick={() => {
-                                                                    updateQuestion(question.id, question);
-                                                                    setEditingQuestion(null);
-                                                                }}
-                                                                className="btn btn-green"
-                                                            >
-                                                                <Save />
-                                                                Guardar
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setEditingQuestion(null)}
-                                                                className="btn btn-gray"
-                                                            >
-                                                                <X />
-                                                                Cancelar
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div>
-                                                        <div className="flex justify-between items-start mb-4">
-                                                            <h3 className="text-lg font-semibold text-gray-800">
-                                                                {index + 1}. {question.text}
-                                                            </h3>
-                                                            <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={() => setEditingQuestion(question.id)}
-                                                                    style={{ padding: '0.5rem', background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}
-                                                                    onMouseOver={(e) => e.target.style.color = '#2563eb'}
-                                                                    onMouseOut={(e) => e.target.style.color = '#6b7280'}
-                                                                >
-                                                                    <Edit />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => deleteQuestion(question.id)}
-                                                                    style={{ padding: '0.5rem', background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}
-                                                                    onMouseOver={(e) => e.target.style.color = '#dc2626'}
-                                                                    onMouseOut={(e) => e.target.style.color = '#6b7280'}
-                                                                >
-                                                                    <Trash2 />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        <div className="space-y-3">
-                                                            {question.options.map((option, optIndex) => (
-                                                                <div
-                                                                    key={optIndex}
-                                                                    className={`option-item ${question.correctAnswer === optIndex ? 'correct' : ''}`}
-                                                                >
-                                                                    <span style={{ 
-                                                                        width: '1.5rem', 
-                                                                        height: '1.5rem', 
-                                                                        borderRadius: '9999px', 
-                                                                        border: '1px solid #9ca3af', 
-                                                                        display: 'flex', 
-                                                                        alignItems: 'center', 
-                                                                        justifyContent: 'center', 
-                                                                        fontSize: '0.875rem', 
-                                                                        fontWeight: 500 
-                                                                    }}>
-                                                                        {String.fromCharCode(97 + optIndex)}
-                                                                    </span>
-                                                                    <span style={{ flex: 1 }}>{option}</span>
-                                                                    {question.correctAnswer === optIndex && (
-                                                                        <CheckCircle />
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Random Test View */}
-                        {currentView === 'random' && !currentTest && (
-                            <div className="max-w-4xl mx-auto">
-                                <div className="text-center mb-8">
-                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">Test Aleatorio</h2>
-                                    <p className="text-lg text-gray-600">
-                                        Practica con hasta 10 preguntas aleatorias en 15 minutos
-                                    </p>
-                                </div>
-
-                                {questions.length === 0 ? (
-                                    <div className="card text-center py-12">
-                                        <Shuffle />
-                                        <h3 className="text-xl font-semibold text-gray-500 mb-2">
-                                            No hay preguntas disponibles
-                                        </h3>
-                                        <p className="text-gray-400 mb-6">
-                                            Necesitas tener preguntas en tu banco para crear un test
-                                        </p>
-                                        <button
-                                            onClick={() => setCurrentView('upload')}
-                                            className="btn btn-primary"
-                                        >
-                                            Subir Preguntas
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="card p-8">
-                                        <div className="text-center">
-                                            <div style={{ padding: '1rem', background: '#f3e8ff', borderRadius: '9999px', width: 'fit-content', margin: '0 auto 1.5rem' }}>
-                                                <Shuffle />
-                                            </div>
-                                            
-                                            <h3 className="text-2xl font-semibold text-gray-800 mb-4">
-                                                Comenzar Test Aleatorio
-                                            </h3>
-                                            
-                                            <div style={{ background: '#f9fafb', borderRadius: '0.75rem', padding: '1.5rem', marginBottom: '2rem' }}>
-                                                <div className="grid grid-cols-3">
-                                                    <div className="stats-card">
-                                                        <div className="stats-number purple">
-                                                            {Math.min(10, questions.length)}
-                                                        </div>
-                                                        <div className="text-gray-600">Preguntas</div>
-                                                    </div>
-                                                    <div className="stats-card">
-                                                        <div className="stats-number blue">15</div>
-                                                        <div className="text-gray-600">Minutos</div>
-                                                    </div>
-                                                    <div className="stats-card">
-                                                        <div className="stats-number green">
-                                                            {questions.length}
-                                                        </div>
-                                                        <div className="text-gray-600">Disponibles</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            
-                                            <button
-                                                onClick={startRandomTest}
-                                                className="btn btn-purple"
-                                                style={{ fontSize: '1.125rem', padding: '1rem 2rem' }}
-                                            >
-                                                <Play />
-                                                Comenzar Test
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Active Test View */}
-                        {currentView === 'random' && currentTest && !testResults && (
-                            <div className="max-w-4xl mx-auto">
-                                {/* Test Header */}
-                                <div className="card mb-6">
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-lg font-semibold text-gray-800">
-                                                Pregunta {currentQuestionIndex + 1} de {currentTest.length}
-                                            </span>
-                                            <div className="progress-bar">
-                                                <div
-                                                    className="progress-fill"
-                                                    style={{ width: `${((currentQuestionIndex + 1) / currentTest.length) * 100}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-4">
-                                            <div className={`timer ${timeLeft <= 300 ? 'warning' : 'normal'}`}>
-                                                <Clock />
-                                                {formatTime(timeLeft)}
-                                            </div>
-                                            <button
-                                                onClick={finishTest}
-                                                className="btn btn-gray"
-                                            >
-                                                Finalizar
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Question */}
-                                <div className="card p-8 mb-6">
-                                    <h3 className="text-xl font-semibold text-gray-800 mb-6">
-                                        {currentTest[currentQuestionIndex].text}
-                                    </h3>
-                                    
-                                    <div className="space-y-4">
-                                        {currentTest[currentQuestionIndex].options.map((option, index) => (
-                                            <button
-                                                key={index}
-                                                onClick={() => selectAnswer(currentTest[currentQuestionIndex].id, index)}
-                                                className={`option-item ${userAnswers[currentTest[currentQuestionIndex].id] === index ? 'selected' : ''}`}
-                                                style={{ 
-                                                    width: '100%', 
-                                                    textAlign: 'left', 
-                                                    cursor: 'pointer',
-                                                    border: userAnswers[currentTest[currentQuestionIndex].id] === index ? '2px solid #7c3aed' : '1px solid #d1d5db'
-                                                }}
-                                            >
-                                                <span style={{ 
-                                                    width: '2rem', 
-                                                    height: '2rem', 
-                                                    borderRadius: '9999px', 
-                                                    border: '2px solid', 
-                                                    borderColor: userAnswers[currentTest[currentQuestionIndex].id] === index ? '#7c3aed' : '#d1d5db',
-                                                    background: userAnswers[currentTest[currentQuestionIndex].id] === index ? '#7c3aed' : 'transparent',
-                                                    color: userAnswers[currentTest[currentQuestionIndex].id] === index ? 'white' : '#6b7280',
-                                                    display: 'flex', 
-                                                    alignItems: 'center', 
-                                                    justifyContent: 'center', 
-                                                    fontSize: '0.875rem', 
-                                                    fontWeight: 500 
-                                                }}>
-                                                    {String.fromCharCode(97 + index)}
-                                                </span>
-                                                <span style={{ flex: 1 }}>{option}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Navigation */}
-                                <div className="card">
-                                    <div className="flex justify-between items-center">
-                                        <button
-                                            onClick={prevQuestion}
-                                            disabled={currentQuestionIndex === 0}
-                                            className="btn btn-gray"
-                                        >
-                                            Anterior
-                                        </button>
-                                        
-                                        <div className="question-nav">
-                                            {currentTest.map((_, index) => (
-                                                <button
-                                                    key={index}
-                                                    onClick={() => setCurrentQuestionIndex(index)}
-                                                    className={`question-nav-btn ${
-                                                        index === currentQuestionIndex
-                                                            ? 'current'
-                                                            : userAnswers[currentTest[index].id] !== undefined
-                                                            ? 'answered'
-                                                            : 'unanswered'
-                                                    }`}
-                                                >
-                                                    {index + 1}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        
-                                        {currentQuestionIndex === currentTest.length - 1 ? (
-                                            <button
-                                                onClick={finishTest}
-                                                className="btn btn-green"
-                                            >
-                                                Finalizar Test
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={nextQuestion}
-                                                className="btn btn-purple"
-                                            >
-                                                Siguiente
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Test Results View */}
-                        {currentView === 'random' && testResults && (
-                            <div className="max-w-6xl mx-auto">
-                                <div className="text-center mb-8">
-                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">Resultados del Test</h2>
-                                    <div className="card p-8 max-w-md mx-auto">
-                                        <div className={`stats-number mb-4 ${
-                                            testResults.percentage >= 70 ? 'green' : 
-                                            testResults.percentage >= 50 ? 'yellow' : 'red'
-                                        }`} style={{ fontSize: '3.75rem' }}>
-                                            {testResults.percentage}%
-                                        </div>
-                                        <div className="text-xl text-gray-600 mb-2">
-                                            {testResults.score} de {testResults.total} correctas
-                                        </div>
-                                        <div className={`text-lg font-medium ${
-                                            testResults.percentage >= 70 ? 'text-green-600' : 
-                                            testResults.percentage >= 50 ? 'text-yellow-600' : 'text-red-600'
-                                        }`}>
-                                            {testResults.percentage >= 70 ? '¡Excelente!' : 
-                                             testResults.percentage >= 50 ? 'Bien, sigue practicando' : 'Necesitas más práctica'}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Detailed Results */}
-                                <div className="space-y-6">
-                                    {testResults.results.map((result, index) => (
-                                        <div key={index} className="card">
-                                            <div className="flex items-start gap-4">
-                                                <div style={{ 
-                                                    width: '2rem', 
-                                                    height: '2rem', 
-                                                    borderRadius: '9999px', 
-                                                    display: 'flex', 
-                                                    alignItems: 'center', 
-                                                    justifyContent: 'center', 
-                                                    color: 'white', 
-                                                    fontWeight: 500,
-                                                    background: result.correct ? '#10b981' : '#ef4444'
-                                                }}>
-                                                    {index + 1}
-                                                </div>
-                                                
-                                                <div style={{ flex: 1 }}>
-                                                    <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                                                        {result.question.text}
-                                                    </h3>
-                                                    
-                                                    <div className="space-y-3">
-                                                        {result.question.options.map((option, optIndex) => (
-                                                            <div
-                                                                key={optIndex}
-                                                                className={`option-item ${
-                                                                    optIndex === result.question.correctAnswer && optIndex === result.userAnswer
-                                                                        ? 'correct' // Correcto y seleccionado
-                                                                        : optIndex === result.question.correctAnswer
-                                                                        ? 'correct' // Respuesta correcta
-                                                                        : optIndex === result.userAnswer
-                                                                        ? 'wrong' // Respuesta incorrecta seleccionada
-                                                                        : '' // No seleccionado
-                                                                }`}
-                                                            >
-                                                                <span style={{ 
-                                                                    width: '1.5rem', 
-                                                                    height: '1.5rem', 
-                                                                    borderRadius: '9999px', 
-                                                                    border: '1px solid', 
-                                                                    borderColor: optIndex === result.question.correctAnswer ? '#10b981' : 
-                                                                                optIndex === result.userAnswer && !result.correct ? '#ef4444' : '#9ca3af',
-                                                                    background: optIndex === result.question.correctAnswer ? '#10b981' : 
-                                                                               optIndex === result.userAnswer && !result.correct ? '#ef4444' : 'transparent',
-                                                                    color: optIndex === result.question.correctAnswer || (optIndex === result.userAnswer && !result.correct) ? 'white' : '#6b7280',
-                                                                    display: 'flex', 
-                                                                    alignItems: 'center', 
-                                                                    justifyContent: 'center', 
-                                                                    fontSize: '0.875rem', 
-                                                                    fontWeight: 500 
-                                                                }}>
-                                                                    {String.fromCharCode(97 + optIndex)}
-                                                                </span>
-                                                                <span style={{ flex: 1 }}>{option}</span>
-                                                                {optIndex === result.question.correctAnswer && (
-                                                                    <CheckCircle />
-                                                                )}
-                                                                {optIndex === result.userAnswer && optIndex !== result.question.correctAnswer && (
-                                                                    <X />
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    
-                                                    <div style={{ marginTop: '1rem', fontSize: '0.875rem' }}>
-                                                        {result.userAnswer === undefined ? (
-                                                            <span className="text-gray-600">No respondida</span>
-                                                        ) : result.correct ? (
-                                                            <span className="text-green-600">✓ Respuesta correcta</span>
-                                                        ) : (
-                                                            <span className="text-red-600">✗ Respuesta incorrecta</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Actions */}
-                                <div className="text-center mt-8">
-                                    <div className="flex gap-4 justify-center">
-                                        <button
-                                            onClick={() => {
-                                                setCurrentTest(null);
-                                                setTestResults(null);
-                                                setCurrentView('random');
-                                            }}
-                                            className="btn btn-purple"
-                                        >
-                                            Nuevo Test
-                                        </button>
-                                        <button
-                                            onClick={() => setCurrentView('bank')}
-                                            className="btn btn-primary"
-                                        >
-                                            Ver Banco de Preguntas
-                                        </button>
-                                        <button
-                                            onClick={() => setCurrentView('main')}
-                                            className="btn btn-gray"
-                                        >
-                                            Inicio
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
-
-        ReactDOM.render(<ExamSystem />, document.getElementById('root'));
-    </script>
-</body>
-</html><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Exámenes</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -1335,18 +12,208 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-            background: linear-gradient(135deg, #eff6ff 0%, #ffffff 50%, #faf5ff 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            color: #333;
         }
         
-        .lucide {
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            margin: 4px;
             display: inline-block;
-            width: 1em;
-            height: 1em;
-            stroke-width: 2;
-            stroke: currentColor;
-            fill: none;
+            text-decoration: none;
+            text-align: center;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .btn-purple {
+            background: #8b5cf6;
+            color: white;
+        }
+        
+        .input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 16px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            background: white;
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .nav-item {
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .nav-item.active {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .nav-item:not(.active) {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+        
+        .nav-item:hover {
+            background: #e5e7eb;
+        }
+        
+        .nav-item.active:hover {
+            background: #2563eb;
+        }
+        
+        .grid {
+            display: grid;
+            gap: 20px;
+        }
+        
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+        
+        .grid-3 {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .text-lg {
+            font-size: 18px;
+        }
+        
+        .text-xl {
+            font-size: 20px;
+        }
+        
+        .text-2xl {
+            font-size: 24px;
+        }
+        
+        .font-bold {
+            font-weight: bold;
+        }
+        
+        .mb-4 {
+            margin-bottom: 16px;
+        }
+        
+        .mb-2 {
+            margin-bottom: 8px;
+        }
+        
+        .mt-4 {
+            margin-top: 16px;
+        }
+        
+        .p-4 {
+            padding: 16px;
+        }
+        
+        .rounded {
+            border-radius: 8px;
+        }
+        
+        .border {
+            border: 1px solid #e5e7eb;
+        }
+        
+        .bg-gray-50 {
+            background-color: #f9fafb;
+        }
+        
+        .bg-green-100 {
+            background-color: #dcfce7;
+        }
+        
+        .bg-red-100 {
+            background-color: #fee2e2;
+        }
+        
+        .text-green-800 {
+            color: #166534;
+        }
+        
+        .text-red-800 {
+            color: #991b1b;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
         }
         
         @keyframes spin {
@@ -1354,679 +221,1243 @@
             100% { transform: rotate(360deg); }
         }
         
-        .animate-spin {
-            animation: spin 1s linear infinite;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 1rem;
-        }
-        
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            font-weight: 500;
-            border-radius: 0.5rem;
-            border: none;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            text-decoration: none;
-            font-size: 14px;
-        }
-        
-        .btn-primary {
-            background-color: #2563eb;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background-color: #1d4ed8;
-        }
-        
-        .btn-green {
-            background-color: #16a34a;
-            color: white;
-        }
-        
-        .btn-green:hover {
-            background-color: #15803d;
-        }
-        
-        .btn-red {
-            background-color: #dc2626;
-            color: white;
-        }
-        
-        .btn-red:hover {
-            background-color: #b91c1c;
-        }
-        
-        .btn-gray {
-            background-color: #6b7280;
-            color: white;
-        }
-        
-        .btn-gray:hover {
-            background-color: #4b5563;
-        }
-        
-        .btn-purple {
-            background-color: #7c3aed;
-            color: white;
-        }
-        
-        .btn-purple:hover {
-            background-color: #6d28d9;
-        }
-        
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .card {
-            background: white;
-            border-radius: 1rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        .input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            font-size: 14px;
-        }
-        
-        .input:focus {
-            outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-        
-        .textarea {
-            width: 100%;
-            padding: 1rem;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            resize: none;
-            font-family: inherit;
-        }
-        
-        .textarea:focus {
-            outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-        
-        .nav-tab {
-            padding: 0.75rem 1.5rem;
-            background: transparent;
-            border: none;
-            color: #6b7280;
-            font-weight: 500;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            border-bottom: 2px solid transparent;
-        }
-        
-        .nav-tab.active {
-            background: white;
-            color: #2563eb;
-            border-bottom-color: #2563eb;
-        }
-        
-        .nav-tab:hover {
-            color: #374151;
-        }
-        
-        .alert {
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .alert-error {
-            background-color: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #b91c1c;
-        }
-        
-        .alert-success {
-            background-color: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            color: #15803d;
-        }
-        
-        .upload-zone {
-            border: 2px dashed #d1d5db;
-            border-radius: 1rem;
-            padding: 2rem;
+        .drag-area {
+            border: 2px dashed #3b82f6;
+            border-radius: 12px;
+            padding: 40px;
             text-align: center;
+            background: #f8faff;
+            transition: all 0.3s ease;
             cursor: pointer;
-            transition: border-color 0.15s ease;
         }
         
-        .upload-zone:hover {
+        .drag-area:hover {
+            background: #f1f5ff;
             border-color: #2563eb;
         }
         
-        .grid {
-            display: grid;
-            gap: 1.5rem;
+        .drag-area.dragover {
+            background: #eff6ff;
+            border-color: #1d4ed8;
         }
         
-        .grid-cols-3 {
-            grid-template-columns: repeat(3, 1fr);
+        .question-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            background: white;
         }
         
-        .grid-cols-2 {
-            grid-template-columns: repeat(2, 1fr);
+        .question-card.correct {
+            border-color: #10b981;
+            background: #f0fdf4;
         }
         
-        .option-item {
-            padding: 1rem;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            margin-bottom: 0.75rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-        
-        .option-item.correct {
-            background-color: #f0fdf4;
-            border-color: #bbf7d0;
-            color: #15803d;
-        }
-        
-        .option-item.selected {
-            border-color: #7c3aed;
-            background-color: #f3f4f6;
-        }
-        
-        .option-item.wrong {
-            background-color: #fef2f2;
-            border-color: #fecaca;
-            color: #b91c1c;
-        }
-        
-        .question-nav {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
-        
-        .question-nav-btn {
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 0.5rem;
-            border: none;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-        
-        .question-nav-btn.current {
-            background-color: #7c3aed;
-            color: white;
-        }
-        
-        .question-nav-btn.answered {
-            background-color: #dcfce7;
-            color: #15803d;
-        }
-        
-        .question-nav-btn.unanswered {
-            background-color: #f3f4f6;
-            color: #6b7280;
-        }
-        
-        .question-nav-btn:hover {
-            background-color: #e5e7eb;
-        }
-        
-        .progress-bar {
-            width: 12rem;
-            height: 0.5rem;
-            background-color: #e5e7eb;
-            border-radius: 9999px;
-            overflow: hidden;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background-color: #7c3aed;
-            transition: width 0.3s ease;
+        .question-card.incorrect {
+            border-color: #ef4444;
+            background: #fef2f2;
         }
         
         .timer {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            font-weight: 500;
-        }
-        
-        .timer.warning {
-            background-color: #fef2f2;
-            color: #b91c1c;
-        }
-        
-        .timer.normal {
-            background-color: #eff6ff;
-            color: #1d4ed8;
-        }
-        
-        .stats-card {
-            text-align: center;
-            padding: 1rem;
-        }
-        
-        .stats-number {
-            font-size: 1.5rem;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #1f2937;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
             font-weight: bold;
-            margin-bottom: 0.25rem;
+            z-index: 1000;
         }
         
-        .stats-number.blue { color: #2563eb; }
-        .stats-number.green { color: #16a34a; }
-        .stats-number.purple { color: #7c3aed; }
-        .stats-number.red { color: #dc2626; }
-        .stats-number.yellow { color: #d97706; }
-        
-        .header {
-            background: white;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            border-bottom: 1px solid #e5e7eb;
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
         }
         
-        .nav-bar {
-            background: #f9fafb;
-            border-bottom: 1px solid #e5e7eb;
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
         }
         
-        .text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
-        .text-2xl { font-size: 1.5rem; line-height: 2rem; }
-        .text-xl { font-size: 1.25rem; line-height: 1.75rem; }
-        .text-lg { font-size: 1.125rem; line-height: 1.75rem; }
-        .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
-        .font-bold { font-weight: 700; }
-        .font-semibold { font-weight: 600; }
-        .font-medium { font-weight: 500; }
-        .text-center { text-align: center; }
-        .text-gray-600 { color: #4b5563; }
-        .text-gray-700 { color: #374151; }
-        .text-gray-800 { color: #1f2937; }
-        .text-blue-600 { color: #2563eb; }
-        .text-green-600 { color: #16a34a; }
-        .text-red-600 { color: #dc2626; }
-        .text-green-800 { color: #166534; }
-        .mb-2 { margin-bottom: 0.5rem; }
-        .mb-4 { margin-bottom: 1rem; }
-        .mb-6 { margin-bottom: 1.5rem; }
-        .mb-8 { margin-bottom: 2rem; }
-        .mb-12 { margin-bottom: 3rem; }
-        .mt-3 { margin-top: 0.75rem; }
-        .mt-4 { margin-top: 1rem; }
-        .mt-6 { margin-top: 1.5rem; }
-        .mt-8 { margin-top: 2rem; }
-        .mt-12 { margin-top: 3rem; }
-        .p-1 { padding: 0.25rem; }
-        .p-2 { padding: 0.5rem; }
-        .p-3 { padding: 0.75rem; }
-        .p-4 { padding: 1rem; }
-        .p-6 { padding: 1.5rem; }
-        .p-8 { padding: 2rem; }
-        .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
-        .px-4 { padding-left: 1rem; padding-right: 1rem; }
-        .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
-        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-        .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
-        .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
-        .py-12 { padding-top: 3rem; padding-bottom: 3rem; }
-        .flex { display: flex; }
-        .items-center { align-items: center; }
-        .justify-center { justify-content: center; }
-        .justify-between { justify-content: space-between; }
-        .gap-2 { gap: 0.5rem; }
-        .gap-3 { gap: 0.75rem; }
-        .gap-4 { gap: 1rem; }
-        .gap-6 { gap: 1.5rem; }
-        .w-full { width: 100%; }
-        .w-fit { width: fit-content; }
-        .max-w-md { max-width: 28rem; }
-        .max-w-4xl { max-width: 56rem; }
-        .max-w-6xl { max-width: 72rem; }
-        .mx-auto { margin-left: auto; margin-right: auto; }
-        .hidden { display: none; }
-        .bg-blue-100 { background-color: #dbeafe; }
-        .bg-green-100 { background-color: #dcfce7; }
-        .bg-purple-100 { background-color: #f3e8ff; }
-        .bg-green-50 { background-color: #f0fdf4; }
-        .border-green-200 { border-color: #bbf7d0; }
-        .rounded-full { border-radius: 9999px; }
-        .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-        .transition-shadow { transition: box-shadow 0.15s ease; }
-        .hover\:shadow-xl:hover { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
-        .cursor-pointer { cursor: pointer; }
-        .space-y-4 > * + * { margin-top: 1rem; }
-        .space-y-6 > * + * { margin-top: 1.5rem; }
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            opacity: 0.9;
+            font-size: 14px;
+        }
         
         @media (max-width: 768px) {
-            .grid-cols-3 { grid-template-columns: 1fr; }
-            .grid-cols-2 { grid-template-columns: 1fr; }
-            .container { padding: 0 0.5rem; }
-            .progress-bar { width: 8rem; }
-        }
-        
-        @media (min-width: 1024px) {
-            .lg\:grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+            .container {
+                padding: 12px;
+            }
+            
+            .nav {
+                flex-wrap: wrap;
+            }
+            
+            .nav-item {
+                flex: 1;
+                text-align: center;
+                min-width: 120px;
+            }
+            
+            .btn {
+                width: 100%;
+                margin: 4px 0;
+            }
+            
+            .timer {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-bottom: 20px;
+            }
         }
     </style>
 </head>
 <body>
     <div id="root"></div>
-
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
     <script type="text/babel">
-        const { useState, useCallback, useEffect } = React;
-
-        // Iconos SVG simplificados
-        const Upload = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7,10 12,15 17,10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-        );
-
-        const FileText = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <path d="M14,2 L6,2 C4.9,2 4,2.9 4,4 L4,20 C4,21.1 4.9,22 6,22 L18,22 C19.1,22 20,21.1 20,20 L20,8 L14,2 Z"/>
-                <polyline points="14,2 14,8 20,8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10,9 9,9 8,9"/>
-            </svg>
-        );
-
-        const Download = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-15"/>
-                <polyline points="7,10 12,15 17,10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-        );
-
-        const Copy = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-        );
-
-        const Image = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <polyline points="21,15 16,10 5,21"/>
-            </svg>
-        );
-
-        const Loader = () => (
-            <svg className="lucide animate-spin" viewBox="0 0 24 24">
-                <line x1="12" y1="2" x2="12" y2="6"/>
-                <line x1="12" y1="18" x2="12" y2="22"/>
-                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>
-                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
-                <line x1="2" y1="12" x2="6" y2="12"/>
-                <line x1="18" y1="12" x2="22" y2="12"/>
-                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/>
-                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>
-            </svg>
-        );
-
-        const CheckCircle = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22,4 12,14.01 9,11.01"/>
-            </svg>
-        );
-
-        const AlertCircle = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-        );
-
-        const User = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-            </svg>
-        );
-
-        const LogOut = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16,17 21,12 16,7"/>
-                <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-        );
-
-        const Home = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <polyline points="9,22 9,12 15,12 15,22"/>
-            </svg>
-        );
-
-        const BookOpen = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-            </svg>
-        );
-
-        const Shuffle = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <polyline points="16,3 21,3 21,8"/>
-                <line x1="4" y1="20" x2="21" y2="3"/>
-                <polyline points="21,16 21,21 16,21"/>
-                <line x1="15" y1="15" x2="21" y2="21"/>
-                <line x1="4" y1="4" x2="9" y2="9"/>
-            </svg>
-        );
-
-        const Trash2 = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <polyline points="3,6 5,6 21,6"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                <line x1="10" y1="11" x2="10" y2="17"/>
-                <line x1="14" y1="11" x2="14" y2="17"/>
-            </svg>
-        );
-
-        const Edit = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-        );
-
-        const Clock = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12,6 12,12 16,14"/>
-            </svg>
-        );
-
-        const Play = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <polygon points="5,3 19,12 5,21"/>
-            </svg>
-        );
-
-        const Save = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                <polyline points="17,21 17,13 7,13 7,21"/>
-                <polyline points="7,3 7,8 15,8"/>
-            </svg>
-        );
-
-        const X = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-        );
-
-        const Plus = () => (
-            <svg className="lucide" viewBox="0 0 24 24">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-        );
-
+        const { useState, useEffect, useRef } = React;
+        
         // Componente principal
-        const ExamSystem = () => {
-            // Auth state
+        const App = () => {
             const [isLoggedIn, setIsLoggedIn] = useState(false);
             const [currentUser, setCurrentUser] = useState(null);
-            const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-            const [registerForm, setRegisterForm] = useState({ username: '', password: '', confirmPassword: '' });
-            const [isRegistering, setIsRegistering] = useState(false);
-            
-            // App state
-            const [currentView, setCurrentView] = useState('main');
-            const [questions, setQuestions] = useState([]);
-            
-            // Upload states
-            const [selectedFile, setSelectedFile] = useState(null);
-            const [imagePreview, setImagePreview] = useState(null);
-            const [transcribedText, setTranscribedText] = useState('');
-            const [isProcessing, setIsProcessing] = useState(false);
-            const [copySuccess, setCopySuccess] = useState(false);
-            const [error, setError] = useState('');
-            
-            // Question bank states
-            const [editingQuestion, setEditingQuestion] = useState(null);
-            const [newQuestion, setNewQuestion] = useState({
-                text: '',
-                options: ['', '', '', ''],
-                correctAnswer: 0
-            });
-            
-            // Test states
-            const [currentTest, setCurrentTest] = useState(null);
-            const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-            const [userAnswers, setUserAnswers] = useState({});
-            const [timeLeft, setTimeLeft] = useState(900);
-            const [testResults, setTestResults] = useState(null);
-            const [isTestActive, setIsTestActive] = useState(false);
-
-            // Estado para API key
+            const [activeTab, setActiveTab] = useState('dashboard');
             const [apiKey, setApiKey] = useState('');
-            const [isApiKeySet, setIsApiKeySet] = useState(false);
-
-            // Mock users database
-            const [users] = useState([
-                { username: 'demo', password: 'demo123' }
-            ]);
-
-            // Timer effect
+            const [showApiConfig, setShowApiConfig] = useState(false);
+            
             useEffect(() => {
-                let timer;
-                if (isTestActive && timeLeft > 0) {
-                    timer = setInterval(() => {
-                        setTimeLeft(prev => {
-                            if (prev <= 1) {
-                                finishTest();
-                                return 0;
-                            }
-                            return prev - 1;
-                        });
-                    }, 1000);
-                }
-                return () => clearInterval(timer);
-            }, [isTestActive, timeLeft]);
-
-            // Cargar API key al iniciar
-            useEffect(() => {
+                const savedUser = localStorage.getItem('currentUser');
                 const savedApiKey = localStorage.getItem('anthropic_api_key');
+                
+                if (savedUser) {
+                    setCurrentUser(JSON.parse(savedUser));
+                    setIsLoggedIn(true);
+                }
+                
                 if (savedApiKey) {
                     setApiKey(savedApiKey);
-                    setIsApiKeySet(true);
                 }
             }, []);
-
-            // Auth functions
-            const handleLogin = () => {
-                const user = users.find(u => u.username === loginForm.username && u.password === loginForm.password);
-                if (user) {
-                    setIsLoggedIn(true);
-                    setCurrentUser(user);
-                    setError('');
-                    const savedQuestions = JSON.parse(localStorage.getItem(`questions_${user.username}`) || '[]');
-                    setQuestions(savedQuestions);
-                } else {
-                    setError('Usuario o contraseña incorrectos');
-                }
-            };
-
-            const handleRegister = () => {
-                if (registerForm.password !== registerForm.confirmPassword) {
-                    setError('Las contraseñas no coinciden');
-                    return;
-                }
-                if (users.find(u => u.username === registerForm.username)) {
-                    setError('El usuario ya existe');
-                    return;
-                }
-                users.push({ username: registerForm.username, password: registerForm.password });
+            
+            const handleLogin = (userData) => {
+                setCurrentUser(userData);
                 setIsLoggedIn(true);
-                setCurrentUser({ username: registerForm.username, password: registerForm.password });
-                setError('');
-                setQuestions([]);
+                localStorage.setItem('currentUser', JSON.stringify(userData));
             };
-
+            
             const handleLogout = () => {
                 setIsLoggedIn(false);
                 setCurrentUser(null);
-                setCurrentView('main');
-                setQuestions([]);
-                setCurrentTest(null);
-                setIsTestActive(false);
+                setActiveTab('dashboard');
+                localStorage.removeItem('currentUser');
             };
-
-            // Save questions to localStorage
-            const saveQuestions = (updatedQuestions) => {
-                if (currentUser) {
-                    localStorage.setItem(`questions_${currentUser.username}`, JSON.stringify(updatedQuestions));
+            
+            const saveApiKey = (key) => {
+                setApiKey(key);
+                localStorage.setItem('anthropic_api_key', key);
+                setShowApiConfig(false);
+            };
+            
+            const removeApiKey = () => {
+                setApiKey('');
+                localStorage.removeItem('anthropic_api_key');
+                setShowApiConfig(true);
+            };
+            
+            if (!isLoggedIn) {
+                return <LoginComponent onLogin={handleLogin} />;
+            }
+            
+            return (
+                <div className="container">
+                    <div className="card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                            <h1 className="text-2xl font-bold">Sistema de Exámenes</h1>
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                {apiKey ? (
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <span style={{ color: '#10b981', fontWeight: '500' }}>✅ API configurada</span>
+                                        <button className="btn btn-danger" onClick={removeApiKey}>Eliminar</button>
+                                    </div>
+                                ) : (
+                                    <button className="btn btn-primary" onClick={() => setShowApiConfig(true)}>
+                                        Configurar API
+                                    </button>
+                                )}
+                                <span className="text-lg">👋 {currentUser.username}</span>
+                                <button className="btn btn-danger" onClick={handleLogout}>Cerrar Sesión</button>
+                            </div>
+                        </div>
+                        
+                        <div className="nav">
+                            <div 
+                                className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('dashboard')}
+                            >
+                                🏠 Dashboard
+                            </div>
+                            <div 
+                                className={`nav-item ${activeTab === 'upload' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('upload')}
+                            >
+                                📤 Subir Test
+                            </div>
+                            <div 
+                                className={`nav-item ${activeTab === 'questions' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('questions')}
+                            >
+                                📚 Banco de Preguntas
+                            </div>
+                            <div 
+                                className={`nav-item ${activeTab === 'test' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('test')}
+                            >
+                                🎲 Test Aleatorio
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {showApiConfig && (
+                        <ApiConfigModal 
+                            onSave={saveApiKey} 
+                            onClose={() => setShowApiConfig(false)} 
+                        />
+                    )}
+                    
+                    {activeTab === 'dashboard' && <Dashboard currentUser={currentUser} />}
+                    {activeTab === 'upload' && <UploadComponent currentUser={currentUser} apiKey={apiKey} />}
+                    {activeTab === 'questions' && <QuestionsBank currentUser={currentUser} />}
+                    {activeTab === 'test' && <RandomTest currentUser={currentUser} />}
+                </div>
+            );
+        };
+        
+        // Componente de Login
+        const LoginComponent = ({ onLogin }) => {
+            const [isRegistering, setIsRegistering] = useState(false);
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [error, setError] = useState('');
+            
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                setError('');
+                
+                if (isRegistering) {
+                    if (password !== confirmPassword) {
+                        setError('Las contraseñas no coinciden');
+                        return;
+                    }
+                    
+                    const users = JSON.parse(localStorage.getItem('users') || '{}');
+                    if (users[username]) {
+                        setError('El usuario ya existe');
+                        return;
+                    }
+                    
+                    users[username] = { password, createdAt: new Date().toISOString() };
+                    localStorage.setItem('users', JSON.stringify(users));
+                    
+                    onLogin({ username });
+                } else {
+                    // Demo user
+                    if (username === 'demo' && password === 'demo123') {
+                        onLogin({ username: 'demo' });
+                        return;
+                    }
+                    
+                    const users = JSON.parse(localStorage.getItem('users') || '{}');
+                    if (!users[username] || users[username].password !== password) {
+                        setError('Usuario o contraseña incorrectos');
+                        return;
+                    }
+                    
+                    onLogin({ username });
                 }
             };
-
-            // Función para configurar API key
-            const configureApiKey = () => {
-                const key = prompt("Introduce tu API key de Anthropic:\n\n(Se guardará de forma segura en tu navegador)", apiKey);
-                if (key && key.trim()) {
-                    const finalKey = key.trim();
-                    setApiKey(finalKey);
-                    setIsApiKeySet(true);
-                    localStorage.setItem('anthropic_api_key', finalKey);
-                    alert('✅ API key guardada correctamente. Ya puedes transc
+            
+            return (
+                <div className="container">
+                    <div className="card" style={{ maxWidth: '400px', margin: '50px auto' }}>
+                        <h2 className="text-2xl font-bold text-center mb-4">
+                            {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
+                        </h2>
+                        
+                        {error && (
+                            <div className="bg-red-100 text-red-800 p-4 rounded mb-4">
+                                {error}
+                            </div>
+                        )}
+                        
+                        <form onSubmit={handleSubmit}>
+                            <input
+                                type="text"
+                                placeholder="Usuario"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                className="input"
+                                required
+                            />
+                            
+                            <input
+                                type="password"
+                                placeholder="Contraseña"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="input"
+                                required
+                            />
+                            
+                            {isRegistering && (
+                                <input
+                                    type="password"
+                                    placeholder="Confirmar Contraseña"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    className="input"
+                                    required
+                                />
+                            )}
+                            
+                            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+                                {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
+                            </button>
+                        </form>
+                        
+                        <div className="text-center mt-4">
+                            <button 
+                                className="btn" 
+                                style={{ background: 'transparent', color: '#3b82f6' }}
+                                onClick={() => setIsRegistering(!isRegistering)}
+                            >
+                                {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+                            </button>
+                        </div>
+                        
+                        <div className="bg-gray-50 p-4 rounded mt-4">
+                            <strong>Demo:</strong> usuario "demo", contraseña "demo123"
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // Modal de configuración de API
+        const ApiConfigModal = ({ onSave, onClose }) => {
+            const [key, setKey] = useState('');
+            
+            return (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div className="card" style={{ maxWidth: '500px', width: '90%' }}>
+                        <h3 className="text-xl font-bold mb-4">Configurar API Key de Anthropic</h3>
+                        <p className="mb-4">Introduce tu API key de Anthropic para habilitar la transcripción automática:</p>
+                        
+                        <input
+                            type="text"
+                            placeholder="sk-ant-api03-..."
+                            value={key}
+                            onChange={(e) => setKey(e.target.value)}
+                            className="input"
+                        />
+                        
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                            <button className="btn" onClick={onClose}>Cancelar</button>
+                            <button 
+                                className="btn btn-primary" 
+                                onClick={() => onSave(key)}
+                                disabled={!key.trim()}
+                            >
+                                Guardar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // Dashboard
+        const Dashboard = ({ currentUser }) => {
+            const [stats, setStats] = useState({ total: 0, recent: 0 });
+            
+            useEffect(() => {
+                const questions = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
+                const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+                const recent = questions.filter(q => new Date(q.addedAt) > oneWeekAgo).length;
+                
+                setStats({ total: questions.length, recent });
+            }, [currentUser]);
+            
+            return (
+                <div>
+                    <div className="stats-grid">
+                        <div className="stat-card">
+                            <div className="stat-number">{stats.total}</div>
+                            <div className="stat-label">Preguntas Total</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">{stats.recent}</div>
+                            <div className="stat-label">Añadidas Esta Semana</div>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-2">
+                        <div className="card">
+                            <h3 className="text-xl font-bold mb-4">🚀 Acceso Rápido</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <button className="btn btn-primary">📤 Subir Nuevo Test</button>
+                                <button className="btn btn-success">🎲 Empezar Test Aleatorio</button>
+                                <button className="btn btn-purple">📚 Ver Banco de Preguntas</button>
+                            </div>
+                        </div>
+                        
+                        <div className="card">
+                            <h3 className="text-xl font-bold mb-4">📊 Estadísticas</h3>
+                            <p>• Total de preguntas: <strong>{stats.total}</strong></p>
+                            <p>• Preguntas recientes: <strong>{stats.recent}</strong></p>
+                            <p>• Última actividad: <strong>Hoy</strong></p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // Componente de Subida
+        const UploadComponent = ({ currentUser, apiKey }) => {
+            const [selectedFile, setSelectedFile] = useState(null);
+            const [previewUrl, setPreviewUrl] = useState(null);
+            const [transcribedText, setTranscribedText] = useState('');
+            const [isTranscribing, setIsTranscribing] = useState(false);
+            const [manualText, setManualText] = useState('');
+            const [showManualInput, setShowManualInput] = useState(false);
+            const fileInputRef = useRef();
+            
+            const handleFileSelect = (file) => {
+                if (file && file.type.startsWith('image/')) {
+                    setSelectedFile(file);
+                    const url = URL.createObjectURL(file);
+                    setPreviewUrl(url);
+                    setTranscribedText('');
+                    setManualText('');
+                    setShowManualInput(false);
+                }
+            };
+            
+            const handleDrop = (e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files[0];
+                handleFileSelect(file);
+            };
+            
+            const handleDragOver = (e) => {
+                e.preventDefault();
+            };
+            
+            const transcribeImage = async () => {
+                if (!selectedFile || !apiKey) {
+                    alert('Necesitas configurar una API key primero');
+                    return;
+                }
+                
+                setIsTranscribing(true);
+                
+                try {
+                    const base64 = await convertToBase64(selectedFile);
+                    
+                    const requestBody = {
+                        model: "claude-3-sonnet-20240229",
+                        max_tokens: 1500,
+                        messages: [{
+                            role: "user",
+                            content: [
+                                {
+                                    type: "image",
+                                    source: {
+                                        type: "base64",
+                                        media_type: selectedFile.type,
+                                        data: base64
+                                    }
+                                },
+                                {
+                                    type: "text",
+                                    text: "Transcribe todo el texto de esta imagen manteniendo el formato original. Si hay preguntas de examen, mantén el formato tal como aparece."
+                                }
+                            ]
+                        }]
+                    };
+                    
+                    // Primer intento: API directa
+                    let response;
+                    try {
+                        response = await fetch('https://api.anthropic.com/v1/messages', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'x-api-key': apiKey,
+                                'anthropic-version': '2023-06-01'
+                            },
+                            body: JSON.stringify(requestBody)
+                        });
+                    } catch (corsError) {
+                        // Segundo intento: Con proxy
+                        response = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://api.anthropic.com/v1/messages'), {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'x-api-key': apiKey,
+                                'anthropic-version': '2023-06-01'
+                            },
+                            body: JSON.stringify(requestBody)
+                        });
+                    }
+                    
+                    if (!response.ok) {
+                        throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    const extractedText = data.content[0].text;
+                    setTranscribedText(extractedText);
+                    
+                } catch (error) {
+                    console.error('Error en transcripción:', error);
+                    alert(`Error en la transcripción: ${error.message}`);
+                } finally {
+                    setIsTranscribing(false);
+                }
+            };
+            
+            const convertToBase64 = (file) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const base64 = reader.result.split(',')[1];
+                        resolve(base64);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            };
+            
+            const processToQuestions = (text) => {
+                if (!text.trim()) return [];
+                
+                const lines = text.split('\n').filter(line => line.trim());
+                const questions = [];
+                let currentQuestion = null;
+                
+                for (let line of lines) {
+                    line = line.trim();
+                    
+                    // Detectar pregunta (números seguidos de punto, paréntesis o letras)
+                    if (/^\d+[.)]\s*/.test(line) || /^[A-Z]\)\s*/.test(line)) {
+                        if (currentQuestion) {
+                            questions.push(currentQuestion);
+                        }
+                        currentQuestion = {
+                            id: Date.now() + Math.random(),
+                            question: line.replace(/^\d+[.)]\s*/, '').replace(/^[A-Z]\)\s*/, ''),
+                            options: [],
+                            correctAnswer: 0,
+                            addedAt: new Date().toISOString()
+                        };
+                    }
+                    // Detectar opciones (a), b), c), etc.
+                    else if (/^[a-d][.)]\s*/i.test(line) && currentQuestion) {
+                        currentQuestion.options.push(line.replace(/^[a-d][.)]\s*/i, ''));
+                    }
+                    // Si no es opción y hay pregunta actual, agregar a la pregunta
+                    else if (currentQuestion && !currentQuestion.options.length) {
+                        currentQuestion.question += ' ' + line;
+                    }
+                }
+                
+                if (currentQuestion) {
+                    questions.push(currentQuestion);
+                }
+                
+                return questions;
+            };
+            
+            const addToBank = () => {
+                const textToProcess = transcribedText || manualText;
+                if (!textToProcess.trim()) {
+                    alert('No hay texto para procesar');
+                    return;
+                }
+                
+                const newQuestions = processToQuestions(textToProcess);
+                if (newQuestions.length === 0) {
+                    alert('No se pudieron extraer preguntas del texto');
+                    return;
+                }
+                
+                const existingQuestions = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
+                const updatedQuestions = [...existingQuestions, ...newQuestions];
+                localStorage.setItem(`questions_${currentUser.username}`, JSON.stringify(updatedQuestions));
+                
+                alert(`✅ Se añadieron ${newQuestions.length} preguntas al banco`);
+                
+                // Limpiar formulario
+                setSelectedFile(null);
+                setPreviewUrl(null);
+                setTranscribedText('');
+                setManualText('');
+                setShowManualInput(false);
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                }
+            };
+            
+            return (
+                <div className="grid grid-2">
+                    <div className="card">
+                        <h3 className="text-xl font-bold mb-4">📤 Subir Imagen</h3>
+                        
+                        <div 
+                            className="drag-area"
+                            onDrop={handleDrop}
+                            onDragOver={handleDragOver}
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            {previewUrl ? (
+                                <div>
+                                    <img src={previewUrl} alt="Preview" style={{ maxWidth: '100%', maxHeight: '200px', marginBottom: '16px' }} />
+                                    <p>✅ Imagen cargada</p>
+                                </div>
+                            ) : (
+                                <div>
+                                    <p className="text-lg">📁 Arrastra una imagen aquí</p>
+                                    <p>o haz clic para seleccionar</p>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={(e) => handleFileSelect(e.target.files[0])}
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                        />
+                        
+                        <div className="mt-4" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                            <button 
+                                className="btn btn-primary" 
+                                onClick={transcribeImage}
+                                disabled={!selectedFile || !apiKey || isTranscribing}
+                            >
+                                {isTranscribing ? (
+                                    <>
+                                        <span className="spinner"></span>
+                                        Transcribiendo...
+                                    </>
+                                ) : (
+                                    '🤖 Transcribir Automático'
+                                )}
+                            </button>
+                            
+                            <button 
+                                className="btn btn-warning" 
+                                onClick={() => setShowManualInput(!showManualInput)}
+                            >
+                                ✏️ Modo Manual
+                            </button>
+                        </div>
+                        
+                        {!apiKey && (
+                            <div className="bg-red-100 text-red-800 p-4 rounded mt-4">
+                                ⚠️ Configura tu API key primero para usar la transcripción automática
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="card">
+                        <h3 className="text-xl font-bold mb-4">📝 Texto Extraído</h3>
+                        
+                        {showManualInput ? (
+                            <div>
+                                <h4 className="font-bold mb-2">Modo Manual:</h4>
+                                <textarea
+                                    value={manualText}
+                                    onChange={(e) => setManualText(e.target.value)}
+                                    placeholder="Escribe o pega aquí las preguntas manualmente..."
+                                    style={{
+                                        width: '100%',
+                                        height: '300px',
+                                        padding: '12px',
+                                        border: '2px solid #e5e7eb',
+                                        borderRadius: '8px',
+                                        fontSize: '14px',
+                                        fontFamily: 'monospace'
+                                    }}
+                                />
+                            </div>
+                        ) : (
+                            <div>
+                                <h4 className="font-bold mb-2">Transcripción Automática:</h4>
+                                <textarea
+                                    value={transcribedText}
+                                    onChange={(e) => setTranscribedText(e.target.value)}
+                                    placeholder="El texto transcrito aparecerá aquí..."
+                                    style={{
+                                        width: '100%',
+                                        height: '300px',
+                                        padding: '12px',
+                                        border: '2px solid #e5e7eb',
+                                        borderRadius: '8px',
+                                        fontSize: '14px',
+                                        fontFamily: 'monospace'
+                                    }}
+                                />
+                            </div>
+                        )}
+                        
+                        <button 
+                            className="btn btn-success mt-4" 
+                            onClick={addToBank}
+                            disabled={!(transcribedText.trim() || manualText.trim())}
+                            style={{ width: '100%' }}
+                        >
+                            ✅ Añadir al Banco de Preguntas
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+        
+        // Banco de Preguntas
+        const QuestionsBank = ({ currentUser }) => {
+            const [questions, setQuestions] = useState([]);
+            const [editingQuestion, setEditingQuestion] = useState(null);
+            const [showAddForm, setShowAddForm] = useState(false);
+            
+            useEffect(() => {
+                loadQuestions();
+            }, [currentUser]);
+            
+            const loadQuestions = () => {
+                const saved = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
+                setQuestions(saved);
+            };
+            
+            const saveQuestions = (updatedQuestions) => {
+                localStorage.setItem(`questions_${currentUser.username}`, JSON.stringify(updatedQuestions));
+                setQuestions(updatedQuestions);
+            };
+            
+            const deleteQuestion = (id) => {
+                if (confirm('¿Estás seguro de que quieres eliminar esta pregunta?')) {
+                    const updated = questions.filter(q => q.id !== id);
+                    saveQuestions(updated);
+                }
+            };
+            
+            const updateQuestion = (id, updatedQuestion) => {
+                const updated = questions.map(q => q.id === id ? { ...updatedQuestion, id } : q);
+                saveQuestions(updated);
+                setEditingQuestion(null);
+            };
+            
+            const addNewQuestion = (newQuestion) => {
+                const question = {
+                    ...newQuestion,
+                    id: Date.now() + Math.random(),
+                    addedAt: new Date().toISOString()
+                };
+                saveQuestions([...questions, question]);
+                setShowAddForm(false);
+            };
+            
+            const clearAllQuestions = () => {
+                if (confirm('¿Estás seguro de que quieres eliminar TODAS las preguntas?')) {
+                    saveQuestions([]);
+                }
+            };
+            
+            return (
+                <div>
+                    <div className="card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h3 className="text-xl font-bold">📚 Banco de Preguntas ({questions.length})</h3>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button className="btn btn-primary" onClick={() => setShowAddForm(true)}>
+                                    ➕ Añadir Pregunta
+                                </button>
+                                {questions.length > 0 && (
+                                    <button className="btn btn-danger" onClick={clearAllQuestions}>
+                                        🗑️ Limpiar Todo
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {showAddForm && (
+                            <QuestionForm 
+                                onSave={addNewQuestion}
+                                onCancel={() => setShowAddForm(false)}
+                            />
+                        )}
+                        
+                        {questions.length === 0 ? (
+                            <div className="text-center p-4 bg-gray-50 rounded">
+                                <p className="text-lg">📝 No hay preguntas en el banco</p>
+                                <p>Sube un test o añade preguntas manualmente</p>
+                            </div>
+                        ) : (
+                            <div>
+                                {questions.map((question, index) => (
+                                    <div key={question.id} className="question-card">
+                                        {editingQuestion === question.id ? (
+                                            <QuestionForm 
+                                                question={question}
+                                                onSave={(updated) => updateQuestion(question.id, updated)}
+                                                onCancel={() => setEditingQuestion(null)}
+                                            />
+                                        ) : (
+                                            <div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <h4 className="font-bold mb-2">
+                                                            {index + 1}. {question.question}
+                                                        </h4>
+                                                        <div style={{ marginLeft: '20px' }}>
+                                                            {question.options.map((option, optIndex) => (
+                                                                <div 
+                                                                    key={optIndex}
+                                                                    className={`p-2 rounded mb-1 ${
+                                                                        question.correctAnswer === optIndex
+                                                                            ? 'bg-green-100 text-green-800'
+                                                                            : 'bg-gray-50'
+                                                                    }`}
+                                                                >
+                                                                    {String.fromCharCode(97 + optIndex)}) {option}
+                                                                    {question.correctAnswer === optIndex && ' ✅'}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '8px', marginLeft: '12px' }}>
+                                                        <button 
+                                                            className="btn btn-primary"
+                                                            onClick={() => setEditingQuestion(question.id)}
+                                                        >
+                                                            ✏️
+                                                        </button>
+                                                        <button 
+                                                            className="btn btn-danger"
+                                                            onClick={() => deleteQuestion(question.id)}
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+        
+        // Formulario de Pregunta
+        const QuestionForm = ({ question = null, onSave, onCancel }) => {
+            const [formData, setFormData] = useState({
+                question: question?.question || '',
+                options: question?.options || ['', '', '', ''],
+                correctAnswer: question?.correctAnswer || 0
+            });
+            
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                
+                if (!formData.question.trim()) {
+                    alert('La pregunta no puede estar vacía');
+                    return;
+                }
+                
+                if (formData.options.some(opt => !opt.trim())) {
+                    alert('Todas las opciones deben tener contenido');
+                    return;
+                }
+                
+                onSave(formData);
+            };
+            
+            const updateOption = (index, value) => {
+                const newOptions = [...formData.options];
+                newOptions[index] = value;
+                setFormData({ ...formData, options: newOptions });
+            };
+            
+            return (
+                <div className="card" style={{ background: '#f8faff', border: '2px solid #3b82f6' }}>
+                    <h4 className="font-bold mb-4">
+                        {question ? 'Editar Pregunta' : 'Nueva Pregunta'}
+                    </h4>
+                    
+                    <form onSubmit={handleSubmit}>
+                        <div className="mb-4">
+                            <label className="font-bold mb-2" style={{ display: 'block' }}>Pregunta:</label>
+                            <textarea
+                                value={formData.question}
+                                onChange={(e) => setFormData({ ...formData, question: e.target.value })}
+                                className="input"
+                                style={{ minHeight: '80px' }}
+                                placeholder="Escribe la pregunta aquí..."
+                                required
+                            />
+                        </div>
+                        
+                        <div className="mb-4">
+                            <label className="font-bold mb-2" style={{ display: 'block' }}>Opciones:</label>
+                            {formData.options.map((option, index) => (
+                                <div key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', gap: '8px' }}>
+                                    <input
+                                        type="radio"
+                                        name="correctAnswer"
+                                        checked={formData.correctAnswer === index}
+                                        onChange={() => setFormData({ ...formData, correctAnswer: index })}
+                                    />
+                                    <span style={{ minWidth: '20px', fontWeight: 'bold' }}>
+                                        {String.fromCharCode(97 + index)})
+                                    </span>
+                                    <input
+                                        type="text"
+                                        value={option}
+                                        onChange={(e) => updateOption(index, e.target.value)}
+                                        className="input"
+                                        style={{ marginBottom: 0, flex: 1 }}
+                                        placeholder={`Opción ${String.fromCharCode(97 + index)}`}
+                                        required
+                                    />
+                                </div>
+                            ))}
+                            <small style={{ color: '#6b7280' }}>
+                                Selecciona el radio button de la respuesta correcta
+                            </small>
+                        </div>
+                        
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                            <button type="button" className="btn" onClick={onCancel}>
+                                Cancelar
+                            </button>
+                            <button type="submit" className="btn btn-success">
+                                {question ? 'Actualizar' : 'Añadir'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            );
+        };
+        
+        // Test Aleatorio
+        const RandomTest = ({ currentUser }) => {
+            const [questions, setQuestions] = useState([]);
+            const [testQuestions, setTestQuestions] = useState([]);
+            const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+            const [userAnswers, setUserAnswers] = useState({});
+            const [isTestActive, setIsTestActive] = useState(false);
+            const [showResults, setShowResults] = useState(false);
+            const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 minutos
+            
+            useEffect(() => {
+                const saved = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
+                setQuestions(saved);
+            }, [currentUser]);
+            
+            useEffect(() => {
+                let timer;
+                if (isTestActive && timeLeft > 0) {
+                    timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+                } else if (timeLeft === 0 && isTestActive) {
+                    finishTest();
+                }
+                return () => clearTimeout(timer);
+            }, [isTestActive, timeLeft]);
+            
+            const startTest = () => {
+                if (questions.length === 0) {
+                    alert('No hay preguntas en el banco');
+                    return;
+                }
+                
+                const shuffled = [...questions].sort(() => Math.random() - 0.5);
+                const selected = shuffled.slice(0, Math.min(10, questions.length));
+                
+                setTestQuestions(selected);
+                setCurrentQuestionIndex(0);
+                setUserAnswers({});
+                setIsTestActive(true);
+                setShowResults(false);
+                setTimeLeft(15 * 60);
+            };
+            
+            const selectAnswer = (questionId, answerIndex) => {
+                setUserAnswers({
+                    ...userAnswers,
+                    [questionId]: answerIndex
+                });
+            };
+            
+            const nextQuestion = () => {
+                if (currentQuestionIndex < testQuestions.length - 1) {
+                    setCurrentQuestionIndex(currentQuestionIndex + 1);
+                } else {
+                    finishTest();
+                }
+            };
+            
+            const prevQuestion = () => {
+                if (currentQuestionIndex > 0) {
+                    setCurrentQuestionIndex(currentQuestionIndex - 1);
+                }
+            };
+            
+            const finishTest = () => {
+                setIsTestActive(false);
+                setShowResults(true);
+            };
+            
+            const calculateResults = () => {
+                let correct = 0;
+                testQuestions.forEach(question => {
+                    if (userAnswers[question.id] === question.correctAnswer) {
+                        correct++;
+                    }
+                });
+                
+                const total = testQuestions.length;
+                const percentage = Math.round((correct / total) * 100);
+                
+                return { correct, total, percentage };
+            };
+            
+            const formatTime = (seconds) => {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            };
+            
+            if (showResults) {
+                const results = calculateResults();
+                
+                return (
+                    <div className="card">
+                        <h3 className="text-2xl font-bold text-center mb-4">🎉 Resultados del Test</h3>
+                        
+                        <div className="text-center mb-6">
+                            <div className="stat-number" style={{ fontSize: '48px', color: results.percentage >= 70 ? '#10b981' : '#ef4444' }}>
+                                {results.percentage}%
+                            </div>
+                            <p className="text-lg">
+                                {results.correct} de {results.total} correctas
+                            </p>
+                        </div>
+                        
+                        <div style={{ marginBottom: '24px' }}>
+                            {testQuestions.map((question, index) => {
+                                const userAnswer = userAnswers[question.id];
+                                const isCorrect = userAnswer === question.correctAnswer;
+                                
+                                return (
+                                    <div 
+                                        key={question.id} 
+                                        className={`question-card ${isCorrect ? 'correct' : 'incorrect'}`}
+                                    >
+                                        <h4 className="font-bold mb-2">
+                                            {index + 1}. {question.question}
+                                        </h4>
+                                        <div style={{ marginLeft: '20px' }}>
+                                            {question.options.map((option, optIndex) => (
+                                                <div 
+                                                    key={optIndex}
+                                                    className={`p-2 rounded mb-1 ${
+                                                        optIndex === question.correctAnswer
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : optIndex === userAnswer && userAnswer !== question.correctAnswer
+                                                            ? 'bg-red-100 text-red-800'
+                                                            : 'bg-gray-50'
+                                                    }`}
+                                                >
+                                                    {String.fromCharCode(97 + optIndex)}) {option}
+                                                    {optIndex === question.correctAnswer && ' ✅ Correcta'}
+                                                    {optIndex === userAnswer && userAnswer !== question.correctAnswer && ' ❌ Tu respuesta'}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        <div className="text-center">
+                            <button className="btn btn-primary" onClick={startTest}>
+                                🔄 Nuevo Test
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+            
+            if (isTestActive) {
+                const currentQuestion = testQuestions[currentQuestionIndex];
+                
+                return (
+                    <div>
+                        <div className="timer">
+                            ⏰ {formatTime(timeLeft)}
+                        </div>
+                        
+                        <div className="card">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <h3 className="text-xl font-bold">
+                                    Pregunta {currentQuestionIndex + 1} de {testQuestions.length}
+                                </h3>
+                                <button className="btn btn-danger" onClick={finishTest}>
+                                    Finalizar Test
+                                </button>
+                            </div>
+                            
+                            <div className="question-card">
+                                <h4 className="text-lg font-bold mb-4">{currentQuestion.question}</h4>
+                                
+                                <div>
+                                    {currentQuestion.options.map((option, optIndex) => (
+                                        <div 
+                                            key={optIndex}
+                                            className={`p-3 rounded mb-2 border cursor-pointer ${
+                                                userAnswers[currentQuestion.id] === optIndex
+                                                    ? 'border-blue-500 bg-blue-50'
+                                                    : 'border-gray-300 hover:bg-gray-50'
+                                            }`}
+                                            onClick={() => selectAnswer(currentQuestion.id, optIndex)}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name={`question-${currentQuestion.id}`}
+                                                checked={userAnswers[currentQuestion.id] === optIndex}
+                                                onChange={() => selectAnswer(currentQuestion.id, optIndex)}
+                                                style={{ marginRight: '8px' }}
+                                            />
+                                            {String.fromCharCode(97 + optIndex)}) {option}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
+                                <button 
+                                    className="btn btn-warning" 
+                                    onClick={prevQuestion}
+                                    disabled={currentQuestionIndex === 0}
+                                >
+                                    ⬅️ Anterior
+                                </button>
+                                
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    {testQuestions.map((_, index) => (
+                                        <div
+                                            key={index}
+                                            style={{
+                                                width: '30px',
+                                                height: '30px',
+                                                borderRadius: '50%',
+                                                background: index === currentQuestionIndex 
+                                                    ? '#3b82f6' 
+                                                    : userAnswers[testQuestions[index].id] !== undefined 
+                                                    ? '#10b981' 
+                                                    : '#e5e7eb',
+                                                color: index === currentQuestionIndex || userAnswers[testQuestions[index].id] !== undefined ? 'white' : '#666',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: '12px',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer'
+                                            }}
+                                            onClick={() => setCurrentQuestionIndex(index)}
+                                        >
+                                            {index + 1}
+                                        </div>
+                                    ))}
+                                </div>
+                                
+                                <button 
+                                    className="btn btn-success" 
+                                    onClick={nextQuestion}
+                                >
+                                    {currentQuestionIndex === testQuestions.length - 1 ? 'Finalizar' : 'Siguiente ➡️'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            
+            return (
+                <div className="card text-center">
+                    <h3 className="text-2xl font-bold mb-4">🎲 Test Aleatorio</h3>
+                    
+                    {questions.length === 0 ? (
+                        <div>
+                            <p className="text-lg mb-4">📝 No hay preguntas disponibles</p>
+                            <p>Añade preguntas al banco primero</p>
+                        </div>
+                    ) : (
+                        <div>
+                            <p className="text-lg mb-4">
+                                📊 {questions.length} preguntas disponibles
+                            </p>
+                            <p className="mb-6">
+                                Se seleccionarán máximo 10 preguntas aleatorias.<br/>
+                                Tiempo límite: 15 minutos.
+                            </p>
+                            
+                            <button className="btn btn-primary" onClick={startTest}>
+                                🚀 Empezar Test
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+        
+        // Renderizar la aplicación
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
