@@ -802,34 +802,45 @@
                 for (let line of lines) {
                     line = line.trim();
                     
-                    // Detectar pregunta (números seguidos de punto, paréntesis o letras)
-                    if (/^\d+[.)]\s*/.test(line) || /^[A-Z]\)\s*/.test(line)) {
-                        if (currentQuestion) {
+                    // Detectar pregunta - líneas que parecen preguntas (contienen "?" o terminan con ":")
+                    if ((line.includes('?') || line.endsWith(':') || /^\d+[.)]\s*/.test(line)) && 
+                        !(/^[a-d][.)]\s*/i.test(line)) && 
+                        line.length > 10) {
+                        
+                        // Guardar pregunta anterior si existe
+                        if (currentQuestion && currentQuestion.options.length > 0) {
                             questions.push(currentQuestion);
                         }
+                        
                         currentQuestion = {
-                            id: Date.now() + Math.random(),
-                            question: line.replace(/^\d+[.)]\s*/, '').replace(/^[A-Z]\)\s*/, ''),
+                            id: Date.now() + Math.random() + questions.length,
+                            question: line.replace(/^\d+[.)]\s*/, ''),
                             options: [],
                             correctAnswer: 0,
                             addedAt: new Date().toISOString()
                         };
                     }
-                    // Detectar opciones (a), b), c), etc.
+                    // Detectar opciones A), B), C), D) o a), b), c), d)
                     else if (/^[a-d][.)]\s*/i.test(line) && currentQuestion) {
-                        currentQuestion.options.push(line.replace(/^[a-d][.)]\s*/i, ''));
+                        const optionText = line.replace(/^[a-d][.)]\s*/i, '').trim();
+                        if (optionText.length > 0) {
+                            currentQuestion.options.push(optionText);
+                        }
                     }
-                    // Si no es opción y hay pregunta actual, agregar a la pregunta
-                    else if (currentQuestion && !currentQuestion.options.length) {
+                    // Si es continuación de pregunta (no es opción)
+                    else if (currentQuestion && currentQuestion.options.length === 0 && 
+                             !(/^[a-d][.)]\s*/i.test(line)) && line.length > 3) {
                         currentQuestion.question += ' ' + line;
                     }
                 }
                 
-                if (currentQuestion) {
+                // Añadir la última pregunta si tiene opciones
+                if (currentQuestion && currentQuestion.options.length > 0) {
                     questions.push(currentQuestion);
                 }
                 
-                return questions;
+                // Filtrar preguntas que no tienen 4 opciones
+                return questions.filter(q => q.options.length >= 2);
             };
             
             const addToBank = () => {
