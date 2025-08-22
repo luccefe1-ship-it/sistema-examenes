@@ -120,7 +120,6 @@
             border-left: 4px solid #ef4444;
         }
 
-        /* Layout de 3 columnas - SIMPLIFICADO */
         .three-column-layout {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
@@ -180,7 +179,6 @@
             margin-bottom: 10px;
         }
 
-        /* Estilos para múltiples imágenes */
         .images-preview {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
@@ -242,13 +240,6 @@
             font-family: monospace;
             font-size: 14px;
             resize: vertical;
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
         }
 
         .form-group {
@@ -359,89 +350,6 @@
             border-color: #4f46e5;
         }
 
-        .edit-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .edit-modal-content {
-            background: white;
-            border-radius: 16px;
-            padding: 30px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-        }
-
-        .option-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-            padding: 8px;
-            border-radius: 8px;
-            transition: background 0.2s ease;
-        }
-
-        .option-row:hover {
-            background: #f8fafc;
-        }
-
-        .option-radio {
-            cursor: pointer;
-            transform: scale(1.2);
-        }
-
-        .option-label {
-            font-weight: 500;
-            color: #4f46e5;
-            min-width: 25px;
-        }
-
-        .option-input {
-            flex: 1;
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-
-        .option-input:focus {
-            outline: none;
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-        }
-
-        .instructions-box {
-            background: #f0f9ff;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border-left: 4px solid #0ea5e9;
-        }
-
-        .instructions-title {
-            font-weight: 500;
-            color: #0c4a6e;
-            margin-bottom: 5px;
-        }
-
-        .instructions-text {
-            color: #075985;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-
         .progress-bar {
             background: #f3f4f6;
             border-radius: 6px;
@@ -509,27 +417,38 @@
     </style>
 </head>
 <body>
-    <div id="app"></div>
+    <div id="app">
+        <div class="container">
+            <div class="header">
+                <div class="title">Sistema de Exámenes</div>
+                <div style="color: #10b981; font-weight: 500;">✅ Sistema Funcionando</div>
+            </div>
+            <div style="text-align: center; padding: 40px;">
+                <h2>Cargando sistema...</h2>
+                <p>Si no se carga en unos segundos, hay un error en el JavaScript.</p>
+            </div>
+        </div>
+    </div>
 
     <script>
         // Estado global
         let currentUser = null;
         let questions = JSON.parse(localStorage.getItem('questions') || '[]');
-        let topics = JSON.parse(localStorage.getItem('topics') || '[]'); // NUEVO: array de temas
+        let topics = JSON.parse(localStorage.getItem('topics') || '[]');
         let currentTest = null;
         let apiKey = localStorage.getItem('anthropic_api_key') || '';
         let transcribedText = '';
         let cleanedText = '';
-        let selectedImages = []; // Array para múltiples imágenes
-        let currentTab = 'upload'; // Estado de navegación
-        let selectedTopicFilter = 'all'; // NUEVO: filtro de tema seleccionado
+        let selectedImages = [];
+        let currentTab = 'upload';
+        let selectedTopicFilter = 'all';
 
         // Usuarios predefinidos
         const users = {
             'demo': { password: 'demo123', name: 'Usuario Demo' }
         };
 
-        // Renderizar aplicación
+        // Función principal de renderizado
         function renderApp() {
             const app = document.getElementById('app');
             
@@ -538,8 +457,6 @@
             } else {
                 app.innerHTML = renderMainApp();
             }
-            
-            attachEventListeners();
         }
 
         function renderLogin() {
@@ -572,7 +489,7 @@
                     <div class="header">
                         <div class="title">Sistema de Exámenes</div>
                         <div class="header-controls">
-                            <span style="color: #10b981; font-weight: 500;">✅ API configurada</span>
+                            <span style="color: #10b981; font-weight: 500;">✅ API ${apiKey ? 'configurada' : 'no configurada'}</span>
                             <button onclick="configureAPI()" class="btn btn-secondary btn-sm">Configurar API</button>
                             <button onclick="deleteAPI()" class="btn btn-danger btn-sm">Eliminar</button>
                             <span style="color: #f59e0b;">📝 ${currentUser.name}</span>
@@ -590,7 +507,7 @@
                         <div id="success-message" style="display: none;"></div>
                         <div id="error-message" style="display: none;"></div>
                         
-                        <!-- NUEVA SECCIÓN DE TEMAS -->
+                        <!-- SECCIÓN DE TEMAS -->
                         <div class="topic-section">
                             <div style="font-size: 1.1rem; font-weight: bold; color: #92400e; margin-bottom: 10px;">🏷️ Gestión de Temas</div>
                             <div style="color: #78350f; font-size: 14px; margin-bottom: 15px;">
@@ -673,7 +590,7 @@
                             <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
                         </div>
                         
-                        <!-- NUEVO: Filtro por temas -->
+                        <!-- Filtro por temas -->
                         <div class="topic-filter">
                             <span style="font-weight: 500; color: #374151;">Filtrar por tema:</span>
                             <select id="topic-filter" onchange="filterByTopic(this.value)" class="form-input" style="width: auto;">
@@ -694,7 +611,7 @@
                     <div id="test-tab" class="tab-content ${currentTab === 'test' ? 'active' : ''}">
                         <h2>Test Aleatorio</h2>
                         
-                        <!-- NUEVA: Sección de selección de tema para test -->
+                        <!-- Selección de tema para test -->
                         ${topics.length > 0 ? `
                             <div class="test-topic-selector">
                                 <div style="font-weight: bold; color: #0c4a6e; margin-bottom: 15px;">🎯 Seleccionar Tipo de Test</div>
@@ -735,7 +652,7 @@
                 return `<div style="text-align: center; padding: 40px; color: #9ca3af;">${filterText}</div>`;
             }
 
-            return filteredQuestions.map((q, originalIndex) => {
+            return filteredQuestions.map((q) => {
                 const actualIndex = questions.findIndex(question => question.id === q.id);
                 const topicName = q.topicId ? getTopicName(q.topicId) : null;
                 
@@ -820,11 +737,6 @@
             `;
         }
 
-        // Event Listeners
-        function attachEventListeners() {
-            // Los event listeners se manejan directamente con onclick en el HTML
-        }
-
         // Funciones de autenticación
         function login() {
             const username = document.getElementById('username').value;
@@ -865,7 +777,7 @@
             renderApp();
         }
 
-        // NUEVAS FUNCIONES PARA MANEJO DE TEMAS
+        // FUNCIONES PARA MANEJO DE TEMAS
         function createTopic() {
             const topicName = prompt('Ingresa el nombre del nuevo tema:');
             if (topicName && topicName.trim()) {
@@ -893,7 +805,6 @@
                 return;
             }
 
-            // Mostrar modal para seleccionar tema
             showTopicSelectionModal();
         }
 
@@ -972,7 +883,6 @@
 
             document.body.appendChild(modal);
 
-            // Cerrar modal al hacer click fuera
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     closeTopicModal();
@@ -997,7 +907,6 @@
             const selectedTopicId = selectedRadio.value;
             const topicName = getTopicName(selectedTopicId);
             
-            // Guardar el tema seleccionado para cuando se procesen las preguntas
             window.selectedTopicForNewQuestions = selectedTopicId;
             
             closeTopicModal();
@@ -1005,12 +914,12 @@
         }
 
         function getTopicName(topicId) {
-            const topic = topics.find(t => t.id === topicId);
+            const topic = topics.find(t => t.id == topicId);
             return topic ? topic.name : 'Sin tema';
         }
 
         function getTopicQuestionCount(topicId) {
-            return questions.filter(q => q.topicId === topicId).length;
+            return questions.filter(q => q.topicId == topicId).length;
         }
 
         function filterByTopic(topicId) {
@@ -1022,16 +931,12 @@
             if (selectedTopicFilter === 'all') {
                 return questions;
             }
-            return questions.filter(q => q.topicId === selectedTopicFilter);
+            return questions.filter(q => q.topicId == selectedTopicFilter);
         }
 
         function updateTestType() {
             const selectedType = document.querySelector('input[name="test-type"]:checked');
             if (selectedType) {
-                const questionsCount = selectedType.value === 'all' 
-                    ? questions.length 
-                    : getTopicQuestionCount(selectedType.value);
-                
                 const countElement = document.getElementById('available-questions-count');
                 if (countElement) {
                     countElement.textContent = getAvailableQuestionsText();
@@ -1052,11 +957,10 @@
             }
         }
 
-        // Funciones de upload y transcripción (MÚLTIPLES IMÁGENES)
+        // Funciones de upload y transcripción
         function handleImagesUpload(event) {
             const files = Array.from(event.target.files);
             
-            // Filtrar solo imágenes y limitar a 10
             const imageFiles = files.filter(file => file.type.startsWith('image/')).slice(0, 10);
             
             if (imageFiles.length === 0) {
@@ -1129,7 +1033,6 @@
                 return;
             }
 
-            // Mostrar progreso
             const progressBar = document.getElementById('transcription-progress');
             const progressFill = document.getElementById('progress-fill');
             progressBar.style.display = 'block';
@@ -1140,12 +1043,10 @@
             try {
                 let allTranscriptions = [];
                 
-                // Procesar imágenes en lotes de 5 para evitar límites de la API
                 const batchSize = 5;
                 for (let i = 0; i < selectedImages.length; i += batchSize) {
                     const batch = selectedImages.slice(i, i + batchSize);
                     
-                    // Convertir imágenes del lote a base64
                     const imageContents = await Promise.all(
                         batch.map(async (file) => {
                             const base64 = await fileToBase64(file);
@@ -1160,7 +1061,6 @@
                         })
                     );
 
-                    // Crear contenido del mensaje con todas las imágenes del lote
                     const messageContent = [
                         ...imageContents,
                         {
@@ -1178,18 +1078,6 @@ INSTRUCCIONES CRÍTICAS:
 - Separa claramente el contenido de cada imagen
 
 IMPORTANTE: NO elimines símbolos de respuesta correcta - los necesitamos para el siguiente paso.
-
-Ejemplo de lo que SÍ debes incluir:
-- "a) Madrid"
-- "b) ✓ París" 
-- "c) Londres"
-- "d) Roma"
-
-O:
-- "a) Madrid"
-- "b) París (marcada en verde)"
-- "c) Londres" 
-- "d) Roma"
 
 Responde con el texto extraído conservando TODOS los símbolos y marcas visuales.`
                         }
@@ -1220,12 +1108,10 @@ Responde con el texto extraído conservando TODOS los símbolos y marcas visuale
                     const data = await response.json();
                     allTranscriptions.push(data.content[0].text);
                     
-                    // Actualizar progreso
                     const progress = ((i + batch.length) / selectedImages.length) * 100;
                     progressFill.style.width = progress + '%';
                 }
 
-                // Combinar todas las transcripciones
                 transcribedText = allTranscriptions.join('\n\n--- SIGUIENTE IMAGEN ---\n\n');
                 
                 document.getElementById('transcribedText').value = transcribedText;
@@ -1286,15 +1172,6 @@ OPCION_B: **[opción b si tiene símbolo/marca de correcta]**
 OPCION_C: [opción c normal]
 OPCION_D: **[opción d si tiene símbolo/marca de correcta]**
 
-EJEMPLOS DE LO QUE DETECTAR:
-- "b) ✓ París" → "OPCION_B: **París**"
-- "c) Londres (marcada)" → "OPCION_C: **Londres**"
-- "a) Madrid marcada en verde" → "OPCION_A: **Madrid**"
-- "d) ✔ Roma" → "OPCION_D: **Roma**"
-- "b) * París" → "OPCION_B: **París**"
-- "c) → Londres" → "OPCION_C: **Londres**"
-- "a) Madrid respuesta correcta" → "OPCION_A: **Madrid**"
-
 IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descripción de "correcta" debe ir en **negritas**.`
                         }]
                     })
@@ -1333,7 +1210,6 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                     return;
                 }
 
-                // NUEVO: Asignar tema a las preguntas si hay uno seleccionado
                 if (window.selectedTopicForNewQuestions) {
                     newQuestions.forEach(question => {
                         question.topicId = window.selectedTopicForNewQuestions;
@@ -1347,7 +1223,6 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 questions.push(...newQuestions);
                 localStorage.setItem('questions', JSON.stringify(questions));
                 
-                // Limpiar formularios
                 resetUploadForm();
                 renderApp();
                 
@@ -1357,26 +1232,21 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
         }
 
         function resetUploadForm() {
-            // Limpiar textos
             document.getElementById('transcribedText').value = '';
             document.getElementById('cleanedText').value = '';
             transcribedText = '';
             cleanedText = '';
             
-            // Limpiar imágenes
             selectedImages = [];
             updateImagesPreview();
             updateFileCounter();
             
-            // Deshabilitar botones
             document.getElementById('cleanBtn').disabled = true;
             document.getElementById('addBtn').disabled = true;
             document.getElementById('transcribeBtn').disabled = true;
             
-            // Limpiar input
             document.getElementById('imageInput').value = '';
             
-            // NUEVO: Limpiar selección de tema
             window.selectedTopicForNewQuestions = null;
         }
 
@@ -1390,18 +1260,15 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 
                 const questionText = lines[0].trim();
                 const options = [];
-                let correctAnswer = 0; // Por defecto la primera opción
+                let correctAnswer = 0;
                 
                 for (let i = 1; i < lines.length; i++) {
                     const line = lines[i].trim();
                     if (line.match(/^OPCION_[A-D]:/i)) {
                         let optionText = line.replace(/^OPCION_[A-D]:/i, '').trim();
                         
-                        // Detectar si la opción está en negrita (respuesta correcta)
                         if (optionText.startsWith('**') && optionText.endsWith('**')) {
-                            // Quitar las negritas para el texto de la opción
                             optionText = optionText.slice(2, -2);
-                            // Marcar como respuesta correcta
                             correctAnswer = options.length;
                         }
                         
@@ -1417,7 +1284,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                         question: questionText,
                         options: options,
                         correctAnswer: correctAnswer,
-                        topicId: null // Se asignará después si hay tema seleccionado
+                        topicId: null
                     });
                 }
             });
@@ -1430,7 +1297,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             if (confirm('¿Estás seguro de que quieres eliminar todas las preguntas?')) {
                 questions = [];
                 localStorage.setItem('questions', JSON.stringify(questions));
-                currentTab = 'questions'; // Mantener en banco de preguntas
+                currentTab = 'questions';
                 renderApp();
             }
         }
@@ -1439,7 +1306,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             if (confirm('¿Eliminar esta pregunta?')) {
                 questions.splice(index, 1);
                 localStorage.setItem('questions', JSON.stringify(questions));
-                currentTab = 'questions'; // Mantener en banco de preguntas
+                currentTab = 'questions';
                 renderApp();
                 showSuccess('Pregunta eliminada exitosamente');
             }
@@ -1496,14 +1363,13 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                         <textarea id="edit-question-text" class="form-input" style="height: 80px; resize: vertical;">${question.question}</textarea>
                     </div>
 
-                    <!-- NUEVO: Selector de tema -->
                     ${topics.length > 0 ? `
                         <div class="form-group" style="margin-bottom: 20px;">
                             <label class="form-label">Tema:</label>
                             <select id="edit-question-topic" class="form-input">
                                 <option value="">Sin tema</option>
                                 ${topics.map(topic => `
-                                    <option value="${topic.id}" ${question.topicId === topic.id ? 'selected' : ''}>
+                                    <option value="${topic.id}" ${question.topicId == topic.id ? 'selected' : ''}>
                                         ${topic.name}
                                     </option>
                                 `).join('')}
@@ -1523,16 +1389,6 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                         `).join('')}
                     </div>
 
-                    <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #0ea5e9;">
-                        <div style="font-weight: 500; color: #0c4a6e; margin-bottom: 5px;">💡 Instrucciones:</div>
-                        <div style="color: #075985; font-size: 14px;">
-                            • Modifica el texto de la pregunta y las opciones<br>
-                            • Selecciona el tema correspondiente<br>
-                            • Selecciona el radio button de la respuesta correcta<br>
-                            • La opción correcta aparecerá en verde en el banco
-                        </div>
-                    </div>
-
                     <div style="display: flex; gap: 10px; justify-content: flex-end;">
                         <button onclick="closeEditModal()" class="btn btn-secondary">Cancelar</button>
                         <button onclick="saveEditedQuestion(${index})" class="btn btn-primary">Guardar Cambios</button>
@@ -1542,7 +1398,6 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
 
             document.body.appendChild(modal);
 
-            // Cerrar modal al hacer click fuera
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     closeEditModal();
@@ -1559,10 +1414,181 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
 
         function saveEditedQuestion(index) {
             try {
-                // Obtener datos del formulario
                 const questionText = document.getElementById('edit-question-text').value.trim();
                 const options = [];
                 
                 for (let i = 0; i < 4; i++) {
                     const optionInput = document.getElementById(`edit-option-${i}`);
-                    if
+                    if (optionInput) {
+                        const optionText = optionInput.value.trim();
+                        if (optionText) {
+                            options.push(optionText);
+                        }
+                    }
+                }
+
+                const correctAnswerRadio = document.querySelector('input[name="correct-answer"]:checked');
+                const correctAnswer = correctAnswerRadio ? parseInt(correctAnswerRadio.value) : 0;
+
+                let selectedTopicId = null;
+                const topicSelect = document.getElementById('edit-question-topic');
+                if (topicSelect && topicSelect.value) {
+                    selectedTopicId = topicSelect.value;
+                }
+
+                if (!questionText) {
+                    alert('La pregunta no puede estar vacía');
+                    return;
+                }
+
+                if (options.length < 2) {
+                    alert('Debe haber al menos 2 opciones de respuesta');
+                    return;
+                }
+
+                if (correctAnswer >= options.length) {
+                    alert('Selecciona una respuesta correcta válida');
+                    return;
+                }
+
+                questions[index] = {
+                    ...questions[index],
+                    question: questionText,
+                    options: options,
+                    correctAnswer: correctAnswer,
+                    topicId: selectedTopicId
+                };
+
+                localStorage.setItem('questions', JSON.stringify(questions));
+
+                closeEditModal();
+                currentTab = 'questions';
+                renderApp();
+                
+                showSuccess('¡Pregunta actualizada exitosamente!');
+
+            } catch (error) {
+                showError(`Error al guardar: ${error.message}`);
+            }
+        }
+
+        // Funciones del test
+        function startRandomTest() {
+            let availableQuestions = questions;
+            const selectedTestType = document.querySelector('input[name="test-type"]:checked');
+            
+            if (selectedTestType && selectedTestType.value !== 'all') {
+                availableQuestions = questions.filter(q => q.topicId == selectedTestType.value);
+            }
+
+            if (availableQuestions.length === 0) {
+                showError('No hay preguntas disponibles para el tipo de test seleccionado');
+                return;
+            }
+
+            const shuffled = [...availableQuestions].sort(() => Math.random() - 0.5);
+            currentTest = {
+                questions: shuffled.slice(0, Math.min(10, availableQuestions.length)),
+                currentQuestion: 0,
+                answers: {},
+                timeLeft: 600,
+                timer: null,
+                testType: selectedTestType ? selectedTestType.value : 'all'
+            };
+            
+            currentTest.timer = setInterval(() => {
+                currentTest.timeLeft--;
+                if (currentTest.timeLeft <= 0) {
+                    finishTest();
+                } else {
+                    const timerElement = document.getElementById('timer');
+                    if (timerElement) {
+                        timerElement.textContent = `⏱️ ${formatTime(currentTest.timeLeft)}`;
+                    }
+                }
+            }, 1000);
+            
+            currentTab = 'test';
+            renderApp();
+        }
+
+        function selectAnswer(answerIndex) {
+            currentTest.answers[currentTest.currentQuestion] = answerIndex;
+        }
+
+        function previousQuestion() {
+            if (currentTest.currentQuestion > 0) {
+                currentTest.currentQuestion--;
+                currentTab = 'test';
+                renderApp();
+            }
+        }
+
+        function nextQuestion() {
+            if (currentTest.currentQuestion === currentTest.questions.length - 1) {
+                finishTest();
+            } else {
+                currentTest.currentQuestion++;
+                currentTab = 'test';
+                renderApp();
+            }
+        }
+
+        function finishTest() {
+            clearInterval(currentTest.timer);
+            
+            let correct = 0;
+            currentTest.questions.forEach((q, i) => {
+                if (currentTest.answers[i] === q.correctAnswer) {
+                    correct++;
+                }
+            });
+            
+            const percentage = Math.round((correct / currentTest.questions.length) * 100);
+            
+            let testTypeText = 'Test General';
+            if (currentTest.testType !== 'all') {
+                const topicName = getTopicName(currentTest.testType);
+                testTypeText = `Test de ${topicName}`;
+            }
+            
+            alert(`${testTypeText} completado!\n\nRespuestas correctas: ${correct}/${currentTest.questions.length}\nPorcentaje: ${percentage}%`);
+            
+            currentTest = null;
+            currentTab = 'test';
+            renderApp();
+        }
+
+        // Funciones de utilidad
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function showSuccess(message) {
+            const element = document.getElementById('success-message');
+            if (element) {
+                element.className = 'success-message';
+                element.textContent = message;
+                element.style.display = 'block';
+                setTimeout(() => element.style.display = 'none', 5000);
+            }
+        }
+
+        function showError(message) {
+            const element = document.getElementById('error-message');
+            if (element) {
+                element.className = 'error-message';
+                element.textContent = message;
+                element.style.display = 'block';
+                setTimeout(() => element.style.display = 'none',
