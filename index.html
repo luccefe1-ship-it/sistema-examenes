@@ -822,9 +822,28 @@
                     }
                     // Detectar opciones A), B), C), D) o a), b), c), d)
                     else if (/^[a-d][.)]\s*/i.test(line) && currentQuestion) {
-                        const optionText = line.replace(/^[a-d][.)]\s*/i, '').trim();
+                        // Verificar si esta opción está marcada como correcta
+                        const isCorrect = line.includes('[CORRECTA]') || line.includes('*') || 
+                                        line.includes('✓') || line.includes('(X)') || 
+                                        line.includes('[X]') || line.includes('CORRECTA');
+                        
+                        // Limpiar el texto de la opción
+                        let optionText = line.replace(/^[a-d][.)]\s*/i, '')
+                                           .replace(/\[CORRECTA\]/gi, '')
+                                           .replace(/\*+/g, '')
+                                           .replace(/✓/g, '')
+                                           .replace(/\(X\)/gi, '')
+                                           .replace(/\[X\]/gi, '')
+                                           .replace(/CORRECTA/gi, '')
+                                           .trim();
+                        
                         if (optionText.length > 0) {
                             currentQuestion.options.push(optionText);
+                            
+                            // Si esta opción es correcta, actualizar el índice
+                            if (isCorrect) {
+                                currentQuestion.correctAnswer = currentQuestion.options.length - 1;
+                            }
                         }
                     }
                     // Si es continuación de pregunta (no es opción)
@@ -839,7 +858,7 @@
                     questions.push(currentQuestion);
                 }
                 
-                // Filtrar preguntas que no tienen 4 opciones
+                // Filtrar preguntas que no tienen 2+ opciones
                 return questions.filter(q => q.options.length >= 2);
             };
             
