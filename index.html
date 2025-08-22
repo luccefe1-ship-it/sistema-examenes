@@ -584,61 +584,198 @@
         }
 
         async function transcribeImages() {
-            if (!state.apiKey || state.selectedImages.length === 0) return;
+            if (!state.apiKey) {
+                showMessage('Configura tu API key primero', 'error');
+                return;
+            }
+
+            if (state.selectedImages.length === 0) {
+                showMessage('Selecciona al menos una imagen', 'error');
+                return;
+            }
 
             showMessage('Transcribiendo imágenes...', 'success');
             
             try {
-                // Simulación por ahora - aquí iría la lógica real de transcripción
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                let allTranscriptions = [];
                 
-                state.transcribedText = `Texto transcrito de ${state.selectedImages.length} imágenes:
+                // Procesar imágenes en lotes de 5 para evitar límites de la API
+                const batchSize = 5;
+                for (let i = 0; i < state.selectedImages.length; i += batchSize) {
+                    const batch = state.selectedImages.slice(i, i + batchSize);
+                    
+                    // Convertir imágenes del lote a base64
+                    const imageContents = await Promise.all(
+                        batch.map(async (file) => {
+                            const base64 = await fileToBase64(file);
+                            return {
+                                type: "image",
+                                source: {
+                                    type: "base64",
+                                    media_type: file.type,
+                                    data: base64
+                                }
+                            };
+                        })
+                    );
 
-PREGUNTA: ¿Cuál es la capital de Francia?
-a) Madrid
-b) ✓ París
-c) Londres
-d) Roma
+                    // Crear contenido del mensaje con todas las imágenes del lote
+                    const messageContent = [
+                        ...imageContents,
+                        {
+                            type: "text",
+                            text: `Actúa como un transcriptor de texto para una persona ciega. Analiza ${batch.length > 1 ? 'estas imágenes' : 'esta imagen'} y extrae todo el texto visible de manera secuencial.
 
-PREGUNTA: ¿En qué año comenzó la Segunda Guerra Mundial?
-a) ✓ 1939
-b) 1940
-c) 1938
-d) 1941`;
+INSTRUCCIONES CRÍTICAS:
+- Solo dicta las palabras que ves, como si estuvieras hablando en voz alta
+- Encuentra las preguntas numeradas y sus opciones de respuesta
+- CONSERVA y DESCRIBE todos los símbolos visuales de respuesta correcta que veas
+- MANTÉN símbolos como: ✓, ✔, checkmarks, asteriscos, viñetas, flechas
+- DESCRIBE elementos visuales importantes: "opción marcada en verde", "con tick", "con check", "respuesta correcta", "marcada"
+- PRESERVA cualquier indicación visual de que una opción es la correcta
+- Si hay múltiples imágenes, procesa cada una en orden
+- Separa claramente el contenido de cada imagen
 
+IMPORTANTE: NO elimines símbolos de respuesta correcta - los necesitamos para el siguiente paso.
+
+Ejemplo de lo que SÍ debes incluir:
+- "a) Madrid"
+- "b) ✓ París" 
+- "c) Londres"
+- "d) Roma"
+
+O:
+- "a) Madrid"
+- "b) París (marcada en verde)"
+- "c) Londres" 
+- "d) Roma"
+
+Responde con el texto extraído conservando TODOS los símbolos y marcas visuales.`
+                        }
+                    ];
+
+                    const response = await fetch("https://api.anthropic.com/v1/messages", {
+                        method: "POST",
+                        headers: {
+                            "x-api-key": state.apiKey,
+                            "anthropic-version": "2023-06-01",
+                            "content-type": "application/json",
+                            "anthropic-dangerous-direct-browser-access": "true"
+                        },
+                        body: JSON.stringify({
+                            model: "claude-sonnet-4-20250514",
+                            max_tokens: 4000,
+                            messages: [{
+                                role: "user",
+                                content: messageContent
+                            }]
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    allTranscriptions.push(data.content[0].text);
+                }
+
+                // Combinar todas las transcripciones
+                state.transcribedText = allTranscriptions.join('\n\n--- SIGUIENTE IMAGEN ---\n\n');
+                
                 render();
-                showMessage('Transcripción completada', 'success');
+                showMessage(`¡Transcripción completada exitosamente! Procesadas ${state.selectedImages.length} imágenes.`, 'success');
+                
             } catch (error) {
-                showMessage('Error en la transcripción: ' + error.message, 'error');
+                showMessage(`Error en la transcripción: ${error.message}`, 'error');
             }
         }
 
         async function cleanText() {
-            if (!state.transcribedText) return;
+            if (!state.transcribedText) {
+                showMessage('Primero transcribe las imágenes', 'error');
+                return;
+            }
+
+            if (!state.apiKey) {
+                showMessage('Configura tu API key primero', 'error');
+                return;
+            }
 
             showMessage('Limpiando texto...', 'success');
             
             try {
-                // Simulación por ahora
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: {
+                        "x-api-key": state.apiKey,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                        "anthropic-dangerous-direct-browser-access": "true"
+                    },
+                    body: JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: 4000,
+                        messages: [{
+                            role: "user",
+                            content: `Limpia este texto extraído de múltiples imágenes y conviértelo en formato de preguntas para banco de preguntas:
+
+TEXTO A LIMPIAR:
+${state.transcribedText}
+
+INSTRUCCIONES CRÍTICAS PARA DETECTAR RESPUESTAS CORRECTAS:
+- Busca símbolos visuales: ✓, ✔, *, •, →, >, checkmarks, ticks
+- Busca descripciones: "marcada", "marcada en verde", "respuesta correcta", "con tick", "con check"
+- Busca colores mencionados: "verde", "resaltada", "seleccionada"
+- MARCA EN NEGRITA las opciones que tengan cualquiera de estos indicadores usando **texto**
+- Elimina los símbolos y descripciones visuales DESPUÉS de identificar las correctas
+- Extrae solo las preguntas y opciones de respuesta
+- Numera las preguntas secuencialmente
+
+FORMATO DE SALIDA ESTRICTO:
+PREGUNTA: [texto de la pregunta]
+OPCION_A: [opción a normal]
+OPCION_B: **[opción b si tiene símbolo/marca de correcta]**
+OPCION_C: [opción c normal]
+OPCION_D: **[opción d si tiene símbolo/marca de correcta]**
+
+EJEMPLOS DE LO QUE DETECTAR:
+- "b) ✓ París" → "OPCION_B: **París**"
+- "c) Londres (marcada)" → "OPCION_C: **Londres**"
+- "a) Madrid marcada en verde" → "OPCION_A: **Madrid**"
+- "d) ✔ Roma" → "OPCION_D: **Roma**"
+- "b) * París" → "OPCION_B: **París**"
+- "c) → Londres" → "OPCION_C: **Londres**"
+- "a) Madrid respuesta correcta" → "OPCION_A: **Madrid**"
+
+IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descripción de "correcta" debe ir en **negritas**.`
+                        }]
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                state.cleanedText = data.content[0].text;
                 
-                state.cleanedText = `PREGUNTA: ¿Cuál es la capital de Francia?
-OPCION_A: Madrid
-OPCION_B: **París**
-OPCION_C: Londres
-OPCION_D: Roma
-
-PREGUNTA: ¿En qué año comenzó la Segunda Guerra Mundial?
-OPCION_A: **1939**
-OPCION_B: 1940
-OPCION_C: 1938
-OPCION_D: 1941`;
-
                 render();
-                showMessage('Texto limpiado exitosamente', 'success');
+                showMessage('¡Texto limpiado exitosamente!', 'success');
+                
             } catch (error) {
-                showMessage('Error en la limpieza: ' + error.message, 'error');
+                showMessage(`Error en la limpieza: ${error.message}`, 'error');
             }
+        }
+
+        // Función auxiliar para convertir archivos a base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = error => reject(error);
+            });
         }
 
         function addToQuestions() {
