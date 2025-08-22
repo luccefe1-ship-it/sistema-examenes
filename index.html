@@ -695,7 +695,7 @@
                     const base64 = await convertToBase64(selectedFile);
                     
                     const requestBody = {
-                        model: "claude-3-sonnet-20240229",
+                        model: "claude-3-5-sonnet-20241022",
                         max_tokens: 1500,
                         messages: [{
                             role: "user",
@@ -716,10 +716,20 @@
                         }]
                     };
                     
-                    // Primer intento: API directa
-                    let response;
+                    // Múltiples proxies para asegurar que funcione
+                    const proxies = [
+                        'https://cors-anywhere.herokuapp.com/',
+                        'https://api.allorigins.win/raw?url=',
+                        'https://thingproxy.freeboard.io/fetch/',
+                        'https://cors-proxy.fringe.zone/'
+                    ];
+                    
+                    let lastError = null;
+                    let success = false;
+                    
+                    // Intentar API directa primero
                     try {
-                        response = await fetch('https://api.anthropic.com/v1/messages', {
+                        const directResponse = await fetch('https://api.anthropic.com/v1/messages', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -728,30 +738,76 @@
                             },
                             body: JSON.stringify(requestBody)
                         });
-                    } catch (corsError) {
-                        // Segundo intento: Con proxy
-                        response = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://api.anthropic.com/v1/messages'), {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'x-api-key': apiKey,
-                                'anthropic-version': '2023-06-01'
-                            },
-                            body: JSON.stringify(requestBody)
-                        });
+                        
+                        if (directResponse.ok) {
+                            const data = await directResponse.json();
+                            const extractedText = data.content[0].text;
+                            setTranscribedText(extractedText);
+                            success = true;
+                        }
+                    } catch (directError) {
+                        console.log('API directa falló, probando proxies...');
+                        lastError = directError;
                     }
                     
-                    if (!response.ok) {
-                        throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    // Si la API directa falla, probar con proxies
+                    if (!success) {
+                        for (const proxy of proxies) {
+                            try {
+                                console.log(`Probando proxy: ${proxy}`);
+                                
+                                let url, options;
+                                
+                                if (proxy.includes('allorigins')) {
+                                    url = proxy + encodeURIComponent('https://api.anthropic.com/v1/messages');
+                                    options = {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'x-api-key': apiKey,
+                                            'anthropic-version': '2023-06-01'
+                                        },
+                                        body: JSON.stringify(requestBody)
+                                    };
+                                } else {
+                                    url = proxy + 'https://api.anthropic.com/v1/messages';
+                                    options = {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'x-api-key': apiKey,
+                                            'anthropic-version': '2023-06-01',
+                                            'X-Requested-With': 'XMLHttpRequest'
+                                        },
+                                        body: JSON.stringify(requestBody)
+                                    };
+                                }
+                                
+                                const response = await fetch(url, options);
+                                
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    const extractedText = data.content[0].text;
+                                    setTranscribedText(extractedText);
+                                    success = true;
+                                    console.log(`✅ Funcionó con proxy: ${proxy}`);
+                                    break;
+                                }
+                            } catch (proxyError) {
+                                console.log(`❌ Falló proxy ${proxy}:`, proxyError.message);
+                                lastError = proxyError;
+                                continue;
+                            }
+                        }
                     }
                     
-                    const data = await response.json();
-                    const extractedText = data.content[0].text;
-                    setTranscribedText(extractedText);
+                    if (!success) {
+                        throw new Error('Todos los métodos de conexión fallaron. CORS está bloqueando la API.');
+                    }
                     
                 } catch (error) {
                     console.error('Error en transcripción:', error);
-                    alert(`Error en la transcripción: ${error.message}`);
+                    alert(`❌ Error en la transcripción: ${error.message}\n\n🔧 Solución temporal: Usa el "Modo Manual" para transcribir las preguntas que ves en la imagen.`);
                 } finally {
                     setIsTranscribing(false);
                 }
