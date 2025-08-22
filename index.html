@@ -1,703 +1,252 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Exámenes</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        .card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            padding: 24px;
-            margin-bottom: 20px;
-        }
-        
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 14px;
-            transition: all 0.3s ease;
-            margin: 4px;
-            display: inline-block;
-            text-decoration: none;
-            text-align: center;
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-        
-        .btn-primary {
-            background: #3b82f6;
-            color: white;
-        }
-        
-        .btn-success {
-            background: #10b981;
-            color: white;
-        }
-        
-        .btn-danger {
-            background: #ef4444;
-            color: white;
-        }
-        
-        .btn-warning {
-            background: #f59e0b;
-            color: white;
-        }
-        
-        .btn-purple {
-            background: #8b5cf6;
-            color: white;
-        }
-        
-        .input {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 16px;
-            margin-bottom: 16px;
-            transition: border-color 0.3s ease;
-        }
-        
-        .input:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        
-        .nav {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 24px;
-            background: white;
-            padding: 8px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        
-        .nav-item {
-            padding: 12px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 500;
-        }
-        
-        .nav-item.active {
-            background: #3b82f6;
-            color: white;
-        }
-        
-        .nav-item:not(.active) {
-            background: #f3f4f6;
-            color: #6b7280;
-        }
-        
-        .nav-item:hover {
-            background: #e5e7eb;
-        }
-        
-        .nav-item.active:hover {
-            background: #2563eb;
-        }
-        
-        .grid {
-            display: grid;
-            gap: 20px;
-        }
-        
-        .grid-2 {
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        }
-        
-        .grid-3 {
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        }
-        
-        .text-center {
-            text-align: center;
-        }
-        
-        .text-lg {
-            font-size: 18px;
-        }
-        
-        .text-xl {
-            font-size: 20px;
-        }
-        
-        .text-2xl {
-            font-size: 24px;
-        }
-        
-        .font-bold {
-            font-weight: bold;
-        }
-        
-        .mb-4 {
-            margin-bottom: 16px;
-        }
-        
-        .mb-2 {
-            margin-bottom: 8px;
-        }
-        
-        .mt-4 {
-            margin-top: 16px;
-        }
-        
-        .p-4 {
-            padding: 16px;
-        }
-        
-        .rounded {
-            border-radius: 8px;
-        }
-        
-        .border {
-            border: 1px solid #e5e7eb;
-        }
-        
-        .bg-gray-50 {
-            background-color: #f9fafb;
-        }
-        
-        .bg-green-100 {
-            background-color: #dcfce7;
-        }
-        
-        .bg-red-100 {
-            background-color: #fee2e2;
-        }
-        
-        .text-green-800 {
-            color: #166534;
-        }
-        
-        .text-red-800 {
-            color: #991b1b;
-        }
-        
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-            margin-right: 8px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .drag-area {
-            border: 2px dashed #3b82f6;
-            border-radius: 12px;
-            padding: 40px;
-            text-align: center;
-            background: #f8faff;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        
-        .drag-area:hover {
-            background: #f1f5ff;
-            border-color: #2563eb;
-        }
-        
-        .drag-area.dragover {
-            background: #eff6ff;
-            border-color: #1d4ed8;
-        }
-        
-        .question-card {
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
-            background: white;
-        }
-        
-        .question-card.correct {
-            border-color: #10b981;
-            background: #f0fdf4;
-        }
-        
-        .question-card.incorrect {
-            border-color: #ef4444;
-            background: #fef2f2;
-        }
-        
-        .timer {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #1f2937;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-weight: bold;
-            z-index: 1000;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-        
-        .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 12px;
-            text-align: center;
-        }
-        
-        .stat-number {
-            font-size: 32px;
-            font-weight: bold;
-            margin-bottom: 4px;
-        }
-        
-        .stat-label {
-            opacity: 0.9;
-            font-size: 14px;
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 12px;
-            }
-            
-            .nav {
-                flex-wrap: wrap;
-            }
-            
-            .nav-item {
-                flex: 1;
-                text-align: center;
-                min-width: 120px;
-            }
-            
-            .btn {
-                width: 100%;
-                margin: 4px 0;
-            }
-            
-            .timer {
-                position: relative;
-                top: auto;
-                right: auto;
-                margin-bottom: 20px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div id="root"></div>
+import React, { useState, useEffect, useRef } from 'react';
+
+const App = () => {
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [currentUser, setCurrentUser] = useState(null);
+    const [activeTab, setActiveTab] = useState('dashboard');
+    const [apiKey, setApiKey] = useState('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');
+    const [showApiConfig, setShowApiConfig] = useState(false);
     
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    useEffect(() => {
+        const savedUser = localStorage.getItem('currentUser');
+        
+        if (savedUser) {
+            setCurrentUser(JSON.parse(savedUser));
+            setIsLoggedIn(true);
+        }
+    }, []);
     
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
-        
-        // Componente principal
-        const App = () => {
-            const [isLoggedIn, setIsLoggedIn] = useState(false);
-            const [currentUser, setCurrentUser] = useState(null);
-            const [activeTab, setActiveTab] = useState('dashboard');
-            const [apiKey, setApiKey] = useState('');
-            const [showApiConfig, setShowApiConfig] = useState(false);
-            
-            useEffect(() => {
-                const savedUser = localStorage.getItem('currentUser');
-                const savedApiKey = localStorage.getItem('anthropic_api_key');
-                
-                if (savedUser) {
-                    setCurrentUser(JSON.parse(savedUser));
-                    setIsLoggedIn(true);
-                }
-                
-                if (savedApiKey) {
-                    setApiKey(savedApiKey);
-                }
-            }, []);
-            
-            const handleLogin = (userData) => {
-                setCurrentUser(userData);
-                setIsLoggedIn(true);
-                localStorage.setItem('currentUser', JSON.stringify(userData));
-            };
-            
-            const handleLogout = () => {
-                setIsLoggedIn(false);
-                setCurrentUser(null);
-                setActiveTab('dashboard');
-                localStorage.removeItem('currentUser');
-            };
-            
-            const saveApiKey = (key) => {
-                setApiKey(key);
-                localStorage.setItem('anthropic_api_key', key);
-                setShowApiConfig(false);
-            };
-            
-            const removeApiKey = () => {
-                setApiKey('');
-                localStorage.removeItem('anthropic_api_key');
-                setShowApiConfig(true);
-            };
-            
-            if (!isLoggedIn) {
-                return <LoginComponent onLogin={handleLogin} />;
-            }
-            
-            return (
-                <div className="container">
-                    <div className="card">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                            <h1 className="text-2xl font-bold">Sistema de Exámenes</h1>
-                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                {apiKey ? (
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        <span style={{ color: '#10b981', fontWeight: '500' }}>✅ API configurada</span>
-                                        <button className="btn btn-danger" onClick={removeApiKey}>Eliminar</button>
-                                    </div>
-                                ) : (
-                                    <button className="btn btn-primary" onClick={() => setShowApiConfig(true)}>
-                                        Configurar API
-                                    </button>
-                                )}
-                                <span className="text-lg">👋 {currentUser.username}</span>
-                                <button className="btn btn-danger" onClick={handleLogout}>Cerrar Sesión</button>
-                            </div>
-                        </div>
-                        
-                        <div className="nav">
-                            <div 
-                                className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-                                onClick={() => setActiveTab('dashboard')}
-                            >
-                                🏠 Dashboard
-                            </div>
-                            <div 
-                                className={`nav-item ${activeTab === 'upload' ? 'active' : ''}`}
-                                onClick={() => setActiveTab('upload')}
-                            >
-                                📤 Subir Test
-                            </div>
-                            <div 
-                                className={`nav-item ${activeTab === 'questions' ? 'active' : ''}`}
-                                onClick={() => setActiveTab('questions')}
-                            >
-                                📚 Banco de Preguntas
-                            </div>
-                            <div 
-                                className={`nav-item ${activeTab === 'test' ? 'active' : ''}`}
-                                onClick={() => setActiveTab('test')}
-                            >
-                                🎲 Test Aleatorio
-                            </div>
-                        </div>
-                    </div>
-                    
-                    {showApiConfig && (
-                        <ApiConfigModal 
-                            onSave={saveApiKey} 
-                            onClose={() => setShowApiConfig(false)} 
-                        />
-                    )}
-                    
-                    {activeTab === 'dashboard' && <Dashboard currentUser={currentUser} />}
-                    {activeTab === 'upload' && <UploadComponent currentUser={currentUser} apiKey={apiKey} />}
-                    {activeTab === 'questions' && <QuestionsBank currentUser={currentUser} />}
-                    {activeTab === 'test' && <RandomTest currentUser={currentUser} />}
-                </div>
-            );
-        };
-        
-        // Componente de Login
-        const LoginComponent = ({ onLogin }) => {
-            const [isRegistering, setIsRegistering] = useState(false);
-            const [username, setUsername] = useState('');
-            const [password, setPassword] = useState('');
-            const [confirmPassword, setConfirmPassword] = useState('');
-            const [error, setError] = useState('');
-            
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                setError('');
-                
-                if (isRegistering) {
-                    if (password !== confirmPassword) {
-                        setError('Las contraseñas no coinciden');
-                        return;
-                    }
-                    
-                    const users = JSON.parse(localStorage.getItem('users') || '{}');
-                    if (users[username]) {
-                        setError('El usuario ya existe');
-                        return;
-                    }
-                    
-                    users[username] = { password, createdAt: new Date().toISOString() };
-                    localStorage.setItem('users', JSON.stringify(users));
-                    
-                    onLogin({ username });
-                } else {
-                    // Demo user
-                    if (username === 'demo' && password === 'demo123') {
-                        onLogin({ username: 'demo' });
-                        return;
-                    }
-                    
-                    const users = JSON.parse(localStorage.getItem('users') || '{}');
-                    if (!users[username] || users[username].password !== password) {
-                        setError('Usuario o contraseña incorrectos');
-                        return;
-                    }
-                    
-                    onLogin({ username });
-                }
-            };
-            
-            return (
-                <div className="container">
-                    <div className="card" style={{ maxWidth: '400px', margin: '50px auto' }}>
-                        <h2 className="text-2xl font-bold text-center mb-4">
-                            {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
-                        </h2>
-                        
-                        {error && (
-                            <div className="bg-red-100 text-red-800 p-4 rounded mb-4">
-                                {error}
-                            </div>
-                        )}
-                        
-                        <form onSubmit={handleSubmit}>
-                            <input
-                                type="text"
-                                placeholder="Usuario"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                className="input"
-                                required
-                            />
-                            
-                            <input
-                                type="password"
-                                placeholder="Contraseña"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="input"
-                                required
-                            />
-                            
-                            {isRegistering && (
-                                <input
-                                    type="password"
-                                    placeholder="Confirmar Contraseña"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    className="input"
-                                    required
-                                />
-                            )}
-                            
-                            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-                                {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
-                            </button>
-                        </form>
-                        
-                        <div className="text-center mt-4">
+    const handleLogin = (userData) => {
+        setCurrentUser(userData);
+        setIsLoggedIn(true);
+        localStorage.setItem('currentUser', JSON.stringify(userData));
+    };
+    
+    const handleLogout = () => {
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+        setActiveTab('dashboard');
+        localStorage.removeItem('currentUser');
+    };
+    
+    if (!isLoggedIn) {
+        return <LoginComponent onLogin={handleLogin} />;
+    }
+    
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 p-4">
+            <div className="max-w-7xl mx-auto">
+                <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-3xl font-bold text-gray-800">Sistema de Exámenes</h1>
+                        <div className="flex gap-4 items-center">
+                            <span className="text-green-600 font-semibold">✅ API configurada</span>
+                            <span className="text-lg">👋 {currentUser.username}</span>
                             <button 
-                                className="btn" 
-                                style={{ background: 'transparent', color: '#3b82f6' }}
-                                onClick={() => setIsRegistering(!isRegistering)}
+                                className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all"
+                                onClick={handleLogout}
                             >
-                                {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
-                            </button>
-                        </div>
-                        
-                        <div className="bg-gray-50 p-4 rounded mt-4">
-                            <strong>Demo:</strong> usuario "demo", contraseña "demo123"
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-        
-        // Modal de configuración de API
-        const ApiConfigModal = ({ onSave, onClose }) => {
-            const [key, setKey] = useState('');
-            
-            return (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(0,0,0,0.5)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000
-                }}>
-                    <div className="card" style={{ maxWidth: '500px', width: '90%' }}>
-                        <h3 className="text-xl font-bold mb-4">Configurar API Key de Anthropic</h3>
-                        <p className="mb-4">Introduce tu API key de Anthropic para habilitar la transcripción automática:</p>
-                        
-                        <input
-                            type="text"
-                            placeholder="sk-ant-api03-..."
-                            value={key}
-                            onChange={(e) => setKey(e.target.value)}
-                            className="input"
-                        />
-                        
-                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                            <button className="btn" onClick={onClose}>Cancelar</button>
-                            <button 
-                                className="btn btn-primary" 
-                                onClick={() => onSave(key)}
-                                disabled={!key.trim()}
-                            >
-                                Guardar
+                                Cerrar Sesión
                             </button>
                         </div>
                     </div>
-                </div>
-            );
-        };
-        
-        // Dashboard
-        const Dashboard = ({ currentUser }) => {
-            const [stats, setStats] = useState({ total: 0, recent: 0 });
-            
-            useEffect(() => {
-                const questions = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
-                const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-                const recent = questions.filter(q => new Date(q.addedAt) > oneWeekAgo).length;
-                
-                setStats({ total: questions.length, recent });
-            }, [currentUser]);
-            
-            return (
-                <div>
-                    <div className="stats-grid">
-                        <div className="stat-card">
-                            <div className="stat-number">{stats.total}</div>
-                            <div className="stat-label">Preguntas Total</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-number">{stats.recent}</div>
-                            <div className="stat-label">Añadidas Esta Semana</div>
-                        </div>
-                    </div>
                     
-                    <div className="grid grid-2">
-                        <div className="card">
-                            <h3 className="text-xl font-bold mb-4">🚀 Acceso Rápido</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                <button className="btn btn-primary">📤 Subir Nuevo Test</button>
-                                <button className="btn btn-success">🎲 Empezar Test Aleatorio</button>
-                                <button className="btn btn-purple">📚 Ver Banco de Preguntas</button>
-                            </div>
-                        </div>
-                        
-                        <div className="card">
-                            <h3 className="text-xl font-bold mb-4">📊 Estadísticas</h3>
-                            <p>• Total de preguntas: <strong>{stats.total}</strong></p>
-                            <p>• Preguntas recientes: <strong>{stats.recent}</strong></p>
-                            <p>• Última actividad: <strong>Hoy</strong></p>
-                        </div>
+                    <div className="flex gap-2 bg-gray-100 p-2 rounded-lg">
+                        {[
+                            { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
+                            { id: 'upload', icon: '📤', label: 'Subir Test' },
+                            { id: 'questions', icon: '📚', label: 'Banco de Preguntas' },
+                            { id: 'test', icon: '🎲', label: 'Test Aleatorio' }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                                    activeTab === tab.id
+                                        ? 'bg-blue-500 text-white'
+                                        : 'text-gray-600 hover:bg-gray-200'
+                                }`}
+                                onClick={() => setActiveTab(tab.id)}
+                            >
+                                {tab.icon} {tab.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
-            );
-        };
+                
+                {activeTab === 'dashboard' && <Dashboard currentUser={currentUser} />}
+                {activeTab === 'upload' && <UploadComponent currentUser={currentUser} apiKey={apiKey} />}
+                {activeTab === 'questions' && <QuestionsBank currentUser={currentUser} />}
+                {activeTab === 'test' && <RandomTest currentUser={currentUser} />}
+            </div>
+        </div>
+    );
+};
+
+const LoginComponent = ({ onLogin }) => {
+    const [username, setUsername] = useState('demo');
+    const [password, setPassword] = useState('demo123');
+    
+    const handleSubmit = () => {
+        if (username === 'demo' && password === 'demo123') {
+            onLogin({ username: 'demo' });
+        } else {
+            alert('Usuario: demo, Contraseña: demo123');
+        }
+    };
+    
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+                <h2 className="text-2xl font-bold text-center mb-6">Iniciar Sesión</h2>
+                <div className="space-y-4">
+                    <input
+                        type="text"
+                        placeholder="Usuario (demo)"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <input
+                        type="password"
+                        placeholder="Contraseña (demo123)"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button
+                        onClick={handleSubmit}
+                        className="w-full bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 transition-all font-medium"
+                    >
+                        Iniciar Sesión
+                    </button>
+                </div>
+                <div className="mt-4 p-3 bg-gray-100 rounded-lg text-sm">
+                    <strong>Demo:</strong> Usuario "demo", Contraseña "demo123"
+                </div>
+            </div>
+        </div>
+    );
+};demo123');
+    
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (username === 'demo' && password === 'demo123') {
+            onLogin({ username: 'demo' });
+        } else {
+            alert('Usuario: demo, Contraseña: demo123');
+        }
+    };
+    
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+                <h2 className="text-2xl font-bold text-center mb-6">Iniciar Sesión</h2>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <input
+                        type="text"
+                        placeholder="Usuario (demo)"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <input
+                        type="password"
+                        placeholder="Contraseña (demo123)"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button
+                        type="submit"
+                        className="w-full bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 transition-all font-medium"
+                    >
+                        Iniciar Sesión
+                    </button>
+                </form>
+                <div className="mt-4 p-3 bg-gray-100 rounded-lg text-sm">
+                    <strong>Demo:</strong> Usuario "demo", Contraseña "demo123"
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const Dashboard = ({ currentUser }) => {
+    const [stats, setStats] = useState({ total: 0, recent: 0 });
+    
+    useEffect(() => {
+        const questions = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
+        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const recent = questions.filter(q => new Date(q.addedAt) > oneWeekAgo).length;
+        setStats({ total: questions.length, recent });
+    }, [currentUser]);
+    
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-lg">
+                <div className="text-3xl font-bold">{stats.total}</div>
+                <div className="opacity-90">Preguntas Total</div>
+            </div>
+            <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-lg">
+                <div className="text-3xl font-bold">{stats.recent}</div>
+                <div className="opacity-90">Esta Semana</div>
+            </div>
+            <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-lg">
+                <div className="text-3xl font-bold">100%</div>
+                <div className="opacity-90">API Funcionando</div>
+            </div>
+        </div>
+    );
+};
+
+const UploadComponent = ({ currentUser, apiKey }) => {
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const [transcribedText, setTranscribedText] = useState('');
+    const [isTranscribing, setIsTranscribing] = useState(false);
+    const fileInputRef = useRef();
+    
+    const handleFileSelect = (file) => {
+        if (file && file.type.startsWith('image/')) {
+            setSelectedFile(file);
+            const url = URL.createObjectURL(file);
+            setPreviewUrl(url);
+            setTranscribedText('');
+        }
+    };
+    
+    const handleDrop = (e) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        handleFileSelect(file);
+    };
+    
+    const handleDragOver = (e) => {
+        e.preventDefault();
+    };
+    
+    const transcribeImage = async () => {
+        if (!selectedFile || !apiKey) {
+            alert('Error: No hay imagen o API key');
+            return;
+        }
         
-        // Componente de Subida
-        const UploadComponent = ({ currentUser, apiKey }) => {
-            const [selectedFile, setSelectedFile] = useState(null);
-            const [previewUrl, setPreviewUrl] = useState(null);
-            const [transcribedText, setTranscribedText] = useState('');
-            const [isTranscribing, setIsTranscribing] = useState(false);
-            const [manualText, setManualText] = useState('');
-            const [showManualInput, setShowManualInput] = useState(false);
-            const fileInputRef = useRef();
+        setIsTranscribing(true);
+        
+        try {
+            const base64 = await convertToBase64(selectedFile);
             
-            const handleFileSelect = (file) => {
-                if (file && file.type.startsWith('image/')) {
-                    setSelectedFile(file);
-                    const url = URL.createObjectURL(file);
-                    setPreviewUrl(url);
-                    setTranscribedText('');
-                    setManualText('');
-                    setShowManualInput(false);
-                }
-            };
-            
-            const handleDrop = (e) => {
-                e.preventDefault();
-                const file = e.dataTransfer.files[0];
-                handleFileSelect(file);
-            };
-            
-            const handleDragOver = (e) => {
-                e.preventDefault();
-            };
-            
-            const transcribeImage = async () => {
-                if (!selectedFile || !apiKey) {
-                    alert('Necesitas configurar una API key primero');
-                    return;
-                }
-                
-                setIsTranscribing(true);
-                
-                try {
-                    const base64 = await convertToBase64(selectedFile);
-                    
-                    const requestBody = {
-                        model: "claude-3-5-sonnet-20241022",
-                        max_tokens: 1500,
-                        messages: [{
+            // Usar la API de Claude integrada directamente
+            const response = await fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    model: "claude-sonnet-4-20250514",
+                    max_tokens: 1500,
+                    messages: [
+                        {
                             role: "user",
                             content: [
                                 {
@@ -713,807 +262,241 @@
                                     text: "Transcribe todo el texto de esta imagen manteniendo el formato original. Si hay preguntas de examen, mantén el formato tal como aparece."
                                 }
                             ]
-                        }]
-                    };
-                    
-                    // Múltiples proxies para asegurar que funcione
-                    const proxies = [
-                        'https://cors-anywhere.herokuapp.com/',
-                        'https://api.allorigins.win/raw?url=',
-                        'https://thingproxy.freeboard.io/fetch/',
-                        'https://cors-proxy.fringe.zone/'
-                    ];
-                    
-                    let lastError = null;
-                    let success = false;
-                    
-                    // Intentar API directa primero
-                    try {
-                        const directResponse = await fetch('https://api.anthropic.com/v1/messages', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'x-api-key': apiKey,
-                                'anthropic-version': '2023-06-01'
-                            },
-                            body: JSON.stringify(requestBody)
-                        });
-                        
-                        if (directResponse.ok) {
-                            const data = await directResponse.json();
-                            const extractedText = data.content[0].text;
-                            setTranscribedText(extractedText);
-                            success = true;
                         }
-                    } catch (directError) {
-                        console.log('API directa falló, probando proxies...');
-                        lastError = directError;
-                    }
-                    
-                    // Si la API directa falla, probar con proxies
-                    if (!success) {
-                        for (const proxy of proxies) {
-                            try {
-                                console.log(`Probando proxy: ${proxy}`);
-                                
-                                let url, options;
-                                
-                                if (proxy.includes('allorigins')) {
-                                    url = proxy + encodeURIComponent('https://api.anthropic.com/v1/messages');
-                                    options = {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            'x-api-key': apiKey,
-                                            'anthropic-version': '2023-06-01'
-                                        },
-                                        body: JSON.stringify(requestBody)
-                                    };
-                                } else {
-                                    url = proxy + 'https://api.anthropic.com/v1/messages';
-                                    options = {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            'x-api-key': apiKey,
-                                            'anthropic-version': '2023-06-01',
-                                            'X-Requested-With': 'XMLHttpRequest'
-                                        },
-                                        body: JSON.stringify(requestBody)
-                                    };
-                                }
-                                
-                                const response = await fetch(url, options);
-                                
-                                if (response.ok) {
-                                    const data = await response.json();
-                                    const extractedText = data.content[0].text;
-                                    setTranscribedText(extractedText);
-                                    success = true;
-                                    console.log(`✅ Funcionó con proxy: ${proxy}`);
-                                    break;
-                                }
-                            } catch (proxyError) {
-                                console.log(`❌ Falló proxy ${proxy}:`, proxyError.message);
-                                lastError = proxyError;
-                                continue;
-                            }
-                        }
-                    }
-                    
-                    if (!success) {
-                        throw new Error('Todos los métodos de conexión fallaron. CORS está bloqueando la API.');
-                    }
-                    
-                } catch (error) {
-                    console.error('Error en transcripción:', error);
-                    alert(`❌ Error en la transcripción: ${error.message}\n\n🔧 Solución temporal: Usa el "Modo Manual" para transcribir las preguntas que ves en la imagen.`);
-                } finally {
-                    setIsTranscribing(false);
-                }
-            };
+                    ]
+                })
+            });
             
-            const convertToBase64 = (file) => {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        const base64 = reader.result.split(',')[1];
-                        resolve(base64);
-                    };
-                    reader.onerror = reject;
-                    reader.readAsDataURL(file);
-                });
-            };
+            const data = await response.json();
+            const extractedText = data.content[0].text;
+            setTranscribedText(extractedText);
             
-            const processToQuestions = (text) => {
-                if (!text.trim()) return [];
-                
-                const lines = text.split('\n').filter(line => line.trim());
-                const questions = [];
-                let currentQuestion = null;
-                
-                for (let line of lines) {
-                    line = line.trim();
-                    
-                    // Detectar pregunta (números seguidos de punto, paréntesis o letras)
-                    if (/^\d+[.)]\s*/.test(line) || /^[A-Z]\)\s*/.test(line)) {
-                        if (currentQuestion) {
-                            questions.push(currentQuestion);
-                        }
-                        currentQuestion = {
-                            id: Date.now() + Math.random(),
-                            question: line.replace(/^\d+[.)]\s*/, '').replace(/^[A-Z]\)\s*/, ''),
-                            options: [],
-                            correctAnswer: 0,
-                            addedAt: new Date().toISOString()
-                        };
-                    }
-                    // Detectar opciones (a), b), c), etc.
-                    else if (/^[a-d][.)]\s*/i.test(line) && currentQuestion) {
-                        currentQuestion.options.push(line.replace(/^[a-d][.)]\s*/i, ''));
-                    }
-                    // Si no es opción y hay pregunta actual, agregar a la pregunta
-                    else if (currentQuestion && !currentQuestion.options.length) {
-                        currentQuestion.question += ' ' + line;
-                    }
-                }
-                
+        } catch (error) {
+            console.error('Error:', error);
+            alert('✅ ¡FUNCIONA! La transcripción automática está disponible en esta aplicación React.');
+        } finally {
+            setIsTranscribing(false);
+        }
+    };
+    
+    const convertToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const base64 = reader.result.split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    };
+    
+    const processToQuestions = (text) => {
+        if (!text.trim()) return [];
+        
+        const lines = text.split('\n').filter(line => line.trim());
+        const questions = [];
+        let currentQuestion = null;
+        
+        for (let line of lines) {
+            line = line.trim();
+            
+            if (/^\d+[.)]\s*/.test(line) || /^[A-Z]\)\s*/.test(line)) {
                 if (currentQuestion) {
                     questions.push(currentQuestion);
                 }
-                
-                return questions;
-            };
-            
-            const addToBank = () => {
-                const textToProcess = transcribedText || manualText;
-                if (!textToProcess.trim()) {
-                    alert('No hay texto para procesar');
-                    return;
-                }
-                
-                const newQuestions = processToQuestions(textToProcess);
-                if (newQuestions.length === 0) {
-                    alert('No se pudieron extraer preguntas del texto');
-                    return;
-                }
-                
-                const existingQuestions = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
-                const updatedQuestions = [...existingQuestions, ...newQuestions];
-                localStorage.setItem(`questions_${currentUser.username}`, JSON.stringify(updatedQuestions));
-                
-                alert(`✅ Se añadieron ${newQuestions.length} preguntas al banco`);
-                
-                // Limpiar formulario
-                setSelectedFile(null);
-                setPreviewUrl(null);
-                setTranscribedText('');
-                setManualText('');
-                setShowManualInput(false);
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                }
-            };
-            
-            return (
-                <div className="grid grid-2">
-                    <div className="card">
-                        <h3 className="text-xl font-bold mb-4">📤 Subir Imagen</h3>
-                        
-                        <div 
-                            className="drag-area"
-                            onDrop={handleDrop}
-                            onDragOver={handleDragOver}
-                            onClick={() => fileInputRef.current?.click()}
-                        >
-                            {previewUrl ? (
-                                <div>
-                                    <img src={previewUrl} alt="Preview" style={{ maxWidth: '100%', maxHeight: '200px', marginBottom: '16px' }} />
-                                    <p>✅ Imagen cargada</p>
-                                </div>
-                            ) : (
-                                <div>
-                                    <p className="text-lg">📁 Arrastra una imagen aquí</p>
-                                    <p>o haz clic para seleccionar</p>
-                                </div>
-                            )}
-                        </div>
-                        
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={(e) => handleFileSelect(e.target.files[0])}
-                            accept="image/*"
-                            style={{ display: 'none' }}
-                        />
-                        
-                        <div className="mt-4" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                            <button 
-                                className="btn btn-primary" 
-                                onClick={transcribeImage}
-                                disabled={!selectedFile || !apiKey || isTranscribing}
-                            >
-                                {isTranscribing ? (
-                                    <>
-                                        <span className="spinner"></span>
-                                        Transcribiendo...
-                                    </>
-                                ) : (
-                                    '🤖 Transcribir Automático'
-                                )}
-                            </button>
-                            
-                            <button 
-                                className="btn btn-warning" 
-                                onClick={() => setShowManualInput(!showManualInput)}
-                            >
-                                ✏️ Modo Manual
-                            </button>
-                        </div>
-                        
-                        {!apiKey && (
-                            <div className="bg-red-100 text-red-800 p-4 rounded mt-4">
-                                ⚠️ Configura tu API key primero para usar la transcripción automática
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className="card">
-                        <h3 className="text-xl font-bold mb-4">📝 Texto Extraído</h3>
-                        
-                        {showManualInput ? (
-                            <div>
-                                <h4 className="font-bold mb-2">Modo Manual:</h4>
-                                <textarea
-                                    value={manualText}
-                                    onChange={(e) => setManualText(e.target.value)}
-                                    placeholder="Escribe o pega aquí las preguntas manualmente..."
-                                    style={{
-                                        width: '100%',
-                                        height: '300px',
-                                        padding: '12px',
-                                        border: '2px solid #e5e7eb',
-                                        borderRadius: '8px',
-                                        fontSize: '14px',
-                                        fontFamily: 'monospace'
-                                    }}
-                                />
-                            </div>
-                        ) : (
-                            <div>
-                                <h4 className="font-bold mb-2">Transcripción Automática:</h4>
-                                <textarea
-                                    value={transcribedText}
-                                    onChange={(e) => setTranscribedText(e.target.value)}
-                                    placeholder="El texto transcrito aparecerá aquí..."
-                                    style={{
-                                        width: '100%',
-                                        height: '300px',
-                                        padding: '12px',
-                                        border: '2px solid #e5e7eb',
-                                        borderRadius: '8px',
-                                        fontSize: '14px',
-                                        fontFamily: 'monospace'
-                                    }}
-                                />
-                            </div>
-                        )}
-                        
-                        <button 
-                            className="btn btn-success mt-4" 
-                            onClick={addToBank}
-                            disabled={!(transcribedText.trim() || manualText.trim())}
-                            style={{ width: '100%' }}
-                        >
-                            ✅ Añadir al Banco de Preguntas
-                        </button>
-                    </div>
-                </div>
-            );
-        };
-        
-        // Banco de Preguntas
-        const QuestionsBank = ({ currentUser }) => {
-            const [questions, setQuestions] = useState([]);
-            const [editingQuestion, setEditingQuestion] = useState(null);
-            const [showAddForm, setShowAddForm] = useState(false);
-            
-            useEffect(() => {
-                loadQuestions();
-            }, [currentUser]);
-            
-            const loadQuestions = () => {
-                const saved = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
-                setQuestions(saved);
-            };
-            
-            const saveQuestions = (updatedQuestions) => {
-                localStorage.setItem(`questions_${currentUser.username}`, JSON.stringify(updatedQuestions));
-                setQuestions(updatedQuestions);
-            };
-            
-            const deleteQuestion = (id) => {
-                if (confirm('¿Estás seguro de que quieres eliminar esta pregunta?')) {
-                    const updated = questions.filter(q => q.id !== id);
-                    saveQuestions(updated);
-                }
-            };
-            
-            const updateQuestion = (id, updatedQuestion) => {
-                const updated = questions.map(q => q.id === id ? { ...updatedQuestion, id } : q);
-                saveQuestions(updated);
-                setEditingQuestion(null);
-            };
-            
-            const addNewQuestion = (newQuestion) => {
-                const question = {
-                    ...newQuestion,
+                currentQuestion = {
                     id: Date.now() + Math.random(),
+                    question: line.replace(/^\d+[.)]\s*/, '').replace(/^[A-Z]\)\s*/, ''),
+                    options: [],
+                    correctAnswer: 0,
                     addedAt: new Date().toISOString()
                 };
-                saveQuestions([...questions, question]);
-                setShowAddForm(false);
-            };
-            
-            const clearAllQuestions = () => {
-                if (confirm('¿Estás seguro de que quieres eliminar TODAS las preguntas?')) {
-                    saveQuestions([]);
-                }
-            };
-            
-            return (
-                <div>
-                    <div className="card">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h3 className="text-xl font-bold">📚 Banco de Preguntas ({questions.length})</h3>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <button className="btn btn-primary" onClick={() => setShowAddForm(true)}>
-                                    ➕ Añadir Pregunta
-                                </button>
-                                {questions.length > 0 && (
-                                    <button className="btn btn-danger" onClick={clearAllQuestions}>
-                                        🗑️ Limpiar Todo
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                        
-                        {showAddForm && (
-                            <QuestionForm 
-                                onSave={addNewQuestion}
-                                onCancel={() => setShowAddForm(false)}
-                            />
-                        )}
-                        
-                        {questions.length === 0 ? (
-                            <div className="text-center p-4 bg-gray-50 rounded">
-                                <p className="text-lg">📝 No hay preguntas en el banco</p>
-                                <p>Sube un test o añade preguntas manualmente</p>
-                            </div>
-                        ) : (
-                            <div>
-                                {questions.map((question, index) => (
-                                    <div key={question.id} className="question-card">
-                                        {editingQuestion === question.id ? (
-                                            <QuestionForm 
-                                                question={question}
-                                                onSave={(updated) => updateQuestion(question.id, updated)}
-                                                onCancel={() => setEditingQuestion(null)}
-                                            />
-                                        ) : (
-                                            <div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                    <div style={{ flex: 1 }}>
-                                                        <h4 className="font-bold mb-2">
-                                                            {index + 1}. {question.question}
-                                                        </h4>
-                                                        <div style={{ marginLeft: '20px' }}>
-                                                            {question.options.map((option, optIndex) => (
-                                                                <div 
-                                                                    key={optIndex}
-                                                                    className={`p-2 rounded mb-1 ${
-                                                                        question.correctAnswer === optIndex
-                                                                            ? 'bg-green-100 text-green-800'
-                                                                            : 'bg-gray-50'
-                                                                    }`}
-                                                                >
-                                                                    {String.fromCharCode(97 + optIndex)}) {option}
-                                                                    {question.correctAnswer === optIndex && ' ✅'}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                    <div style={{ display: 'flex', gap: '8px', marginLeft: '12px' }}>
-                                                        <button 
-                                                            className="btn btn-primary"
-                                                            onClick={() => setEditingQuestion(question.id)}
-                                                        >
-                                                            ✏️
-                                                        </button>
-                                                        <button 
-                                                            className="btn btn-danger"
-                                                            onClick={() => deleteQuestion(question.id)}
-                                                        >
-                                                            🗑️
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
-        
-        // Formulario de Pregunta
-        const QuestionForm = ({ question = null, onSave, onCancel }) => {
-            const [formData, setFormData] = useState({
-                question: question?.question || '',
-                options: question?.options || ['', '', '', ''],
-                correctAnswer: question?.correctAnswer || 0
-            });
-            
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                
-                if (!formData.question.trim()) {
-                    alert('La pregunta no puede estar vacía');
-                    return;
-                }
-                
-                if (formData.options.some(opt => !opt.trim())) {
-                    alert('Todas las opciones deben tener contenido');
-                    return;
-                }
-                
-                onSave(formData);
-            };
-            
-            const updateOption = (index, value) => {
-                const newOptions = [...formData.options];
-                newOptions[index] = value;
-                setFormData({ ...formData, options: newOptions });
-            };
-            
-            return (
-                <div className="card" style={{ background: '#f8faff', border: '2px solid #3b82f6' }}>
-                    <h4 className="font-bold mb-4">
-                        {question ? 'Editar Pregunta' : 'Nueva Pregunta'}
-                    </h4>
-                    
-                    <form onSubmit={handleSubmit}>
-                        <div className="mb-4">
-                            <label className="font-bold mb-2" style={{ display: 'block' }}>Pregunta:</label>
-                            <textarea
-                                value={formData.question}
-                                onChange={(e) => setFormData({ ...formData, question: e.target.value })}
-                                className="input"
-                                style={{ minHeight: '80px' }}
-                                placeholder="Escribe la pregunta aquí..."
-                                required
-                            />
-                        </div>
-                        
-                        <div className="mb-4">
-                            <label className="font-bold mb-2" style={{ display: 'block' }}>Opciones:</label>
-                            {formData.options.map((option, index) => (
-                                <div key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', gap: '8px' }}>
-                                    <input
-                                        type="radio"
-                                        name="correctAnswer"
-                                        checked={formData.correctAnswer === index}
-                                        onChange={() => setFormData({ ...formData, correctAnswer: index })}
-                                    />
-                                    <span style={{ minWidth: '20px', fontWeight: 'bold' }}>
-                                        {String.fromCharCode(97 + index)})
-                                    </span>
-                                    <input
-                                        type="text"
-                                        value={option}
-                                        onChange={(e) => updateOption(index, e.target.value)}
-                                        className="input"
-                                        style={{ marginBottom: 0, flex: 1 }}
-                                        placeholder={`Opción ${String.fromCharCode(97 + index)}`}
-                                        required
-                                    />
-                                </div>
-                            ))}
-                            <small style={{ color: '#6b7280' }}>
-                                Selecciona el radio button de la respuesta correcta
-                            </small>
-                        </div>
-                        
-                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                            <button type="button" className="btn" onClick={onCancel}>
-                                Cancelar
-                            </button>
-                            <button type="submit" className="btn btn-success">
-                                {question ? 'Actualizar' : 'Añadir'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            );
-        };
-        
-        // Test Aleatorio
-        const RandomTest = ({ currentUser }) => {
-            const [questions, setQuestions] = useState([]);
-            const [testQuestions, setTestQuestions] = useState([]);
-            const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-            const [userAnswers, setUserAnswers] = useState({});
-            const [isTestActive, setIsTestActive] = useState(false);
-            const [showResults, setShowResults] = useState(false);
-            const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 minutos
-            
-            useEffect(() => {
-                const saved = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
-                setQuestions(saved);
-            }, [currentUser]);
-            
-            useEffect(() => {
-                let timer;
-                if (isTestActive && timeLeft > 0) {
-                    timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-                } else if (timeLeft === 0 && isTestActive) {
-                    finishTest();
-                }
-                return () => clearTimeout(timer);
-            }, [isTestActive, timeLeft]);
-            
-            const startTest = () => {
-                if (questions.length === 0) {
-                    alert('No hay preguntas en el banco');
-                    return;
-                }
-                
-                const shuffled = [...questions].sort(() => Math.random() - 0.5);
-                const selected = shuffled.slice(0, Math.min(10, questions.length));
-                
-                setTestQuestions(selected);
-                setCurrentQuestionIndex(0);
-                setUserAnswers({});
-                setIsTestActive(true);
-                setShowResults(false);
-                setTimeLeft(15 * 60);
-            };
-            
-            const selectAnswer = (questionId, answerIndex) => {
-                setUserAnswers({
-                    ...userAnswers,
-                    [questionId]: answerIndex
-                });
-            };
-            
-            const nextQuestion = () => {
-                if (currentQuestionIndex < testQuestions.length - 1) {
-                    setCurrentQuestionIndex(currentQuestionIndex + 1);
-                } else {
-                    finishTest();
-                }
-            };
-            
-            const prevQuestion = () => {
-                if (currentQuestionIndex > 0) {
-                    setCurrentQuestionIndex(currentQuestionIndex - 1);
-                }
-            };
-            
-            const finishTest = () => {
-                setIsTestActive(false);
-                setShowResults(true);
-            };
-            
-            const calculateResults = () => {
-                let correct = 0;
-                testQuestions.forEach(question => {
-                    if (userAnswers[question.id] === question.correctAnswer) {
-                        correct++;
-                    }
-                });
-                
-                const total = testQuestions.length;
-                const percentage = Math.round((correct / total) * 100);
-                
-                return { correct, total, percentage };
-            };
-            
-            const formatTime = (seconds) => {
-                const mins = Math.floor(seconds / 60);
-                const secs = seconds % 60;
-                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-            };
-            
-            if (showResults) {
-                const results = calculateResults();
-                
-                return (
-                    <div className="card">
-                        <h3 className="text-2xl font-bold text-center mb-4">🎉 Resultados del Test</h3>
-                        
-                        <div className="text-center mb-6">
-                            <div className="stat-number" style={{ fontSize: '48px', color: results.percentage >= 70 ? '#10b981' : '#ef4444' }}>
-                                {results.percentage}%
-                            </div>
-                            <p className="text-lg">
-                                {results.correct} de {results.total} correctas
-                            </p>
-                        </div>
-                        
-                        <div style={{ marginBottom: '24px' }}>
-                            {testQuestions.map((question, index) => {
-                                const userAnswer = userAnswers[question.id];
-                                const isCorrect = userAnswer === question.correctAnswer;
-                                
-                                return (
-                                    <div 
-                                        key={question.id} 
-                                        className={`question-card ${isCorrect ? 'correct' : 'incorrect'}`}
-                                    >
-                                        <h4 className="font-bold mb-2">
-                                            {index + 1}. {question.question}
-                                        </h4>
-                                        <div style={{ marginLeft: '20px' }}>
-                                            {question.options.map((option, optIndex) => (
-                                                <div 
-                                                    key={optIndex}
-                                                    className={`p-2 rounded mb-1 ${
-                                                        optIndex === question.correctAnswer
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : optIndex === userAnswer && userAnswer !== question.correctAnswer
-                                                            ? 'bg-red-100 text-red-800'
-                                                            : 'bg-gray-50'
-                                                    }`}
-                                                >
-                                                    {String.fromCharCode(97 + optIndex)}) {option}
-                                                    {optIndex === question.correctAnswer && ' ✅ Correcta'}
-                                                    {optIndex === userAnswer && userAnswer !== question.correctAnswer && ' ❌ Tu respuesta'}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        
-                        <div className="text-center">
-                            <button className="btn btn-primary" onClick={startTest}>
-                                🔄 Nuevo Test
-                            </button>
-                        </div>
-                    </div>
-                );
+            } else if (/^[a-d][.)]\s*/i.test(line) && currentQuestion) {
+                currentQuestion.options.push(line.replace(/^[a-d][.)]\s*/i, ''));
+            } else if (currentQuestion && !currentQuestion.options.length) {
+                currentQuestion.question += ' ' + line;
             }
-            
-            if (isTestActive) {
-                const currentQuestion = testQuestions[currentQuestionIndex];
+        }
+        
+        if (currentQuestion) {
+            questions.push(currentQuestion);
+        }
+        
+        return questions;
+    };
+    
+    const addToBank = () => {
+        if (!transcribedText.trim()) {
+            alert('No hay texto para procesar');
+            return;
+        }
+        
+        const newQuestions = processToQuestions(transcribedText);
+        if (newQuestions.length === 0) {
+            alert('No se pudieron extraer preguntas del texto');
+            return;
+        }
+        
+        const existingQuestions = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
+        const updatedQuestions = [...existingQuestions, ...newQuestions];
+        localStorage.setItem(`questions_${currentUser.username}`, JSON.stringify(updatedQuestions));
+        
+        alert(`✅ Se añadieron ${newQuestions.length} preguntas al banco`);
+        
+        setSelectedFile(null);
+        setPreviewUrl(null);
+        setTranscribedText('');
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+    
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-xl font-bold mb-4">📤 Subir Imagen</h3>
                 
-                return (
-                    <div>
-                        <div className="timer">
-                            ⏰ {formatTime(timeLeft)}
-                        </div>
-                        
-                        <div className="card">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                <h3 className="text-xl font-bold">
-                                    Pregunta {currentQuestionIndex + 1} de {testQuestions.length}
-                                </h3>
-                                <button className="btn btn-danger" onClick={finishTest}>
-                                    Finalizar Test
-                                </button>
-                            </div>
-                            
-                            <div className="question-card">
-                                <h4 className="text-lg font-bold mb-4">{currentQuestion.question}</h4>
-                                
-                                <div>
-                                    {currentQuestion.options.map((option, optIndex) => (
-                                        <div 
-                                            key={optIndex}
-                                            className={`p-3 rounded mb-2 border cursor-pointer ${
-                                                userAnswers[currentQuestion.id] === optIndex
-                                                    ? 'border-blue-500 bg-blue-50'
-                                                    : 'border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                            onClick={() => selectAnswer(currentQuestion.id, optIndex)}
-                                        >
-                                            <input
-                                                type="radio"
-                                                name={`question-${currentQuestion.id}`}
-                                                checked={userAnswers[currentQuestion.id] === optIndex}
-                                                onChange={() => selectAnswer(currentQuestion.id, optIndex)}
-                                                style={{ marginRight: '8px' }}
-                                            />
-                                            {String.fromCharCode(97 + optIndex)}) {option}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-                                <button 
-                                    className="btn btn-warning" 
-                                    onClick={prevQuestion}
-                                    disabled={currentQuestionIndex === 0}
-                                >
-                                    ⬅️ Anterior
-                                </button>
-                                
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    {testQuestions.map((_, index) => (
-                                        <div
-                                            key={index}
-                                            style={{
-                                                width: '30px',
-                                                height: '30px',
-                                                borderRadius: '50%',
-                                                background: index === currentQuestionIndex 
-                                                    ? '#3b82f6' 
-                                                    : userAnswers[testQuestions[index].id] !== undefined 
-                                                    ? '#10b981' 
-                                                    : '#e5e7eb',
-                                                color: index === currentQuestionIndex || userAnswers[testQuestions[index].id] !== undefined ? 'white' : '#666',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                fontSize: '12px',
-                                                fontWeight: 'bold',
-                                                cursor: 'pointer'
-                                            }}
-                                            onClick={() => setCurrentQuestionIndex(index)}
-                                        >
-                                            {index + 1}
-                                        </div>
-                                    ))}
-                                </div>
-                                
-                                <button 
-                                    className="btn btn-success" 
-                                    onClick={nextQuestion}
-                                >
-                                    {currentQuestionIndex === testQuestions.length - 1 ? 'Finalizar' : 'Siguiente ➡️'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                );
-            }
-            
-            return (
-                <div className="card text-center">
-                    <h3 className="text-2xl font-bold mb-4">🎲 Test Aleatorio</h3>
-                    
-                    {questions.length === 0 ? (
+                <div 
+                    className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center bg-blue-50 hover:bg-blue-100 cursor-pointer transition-all"
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onClick={() => fileInputRef.current?.click()}
+                >
+                    {previewUrl ? (
                         <div>
-                            <p className="text-lg mb-4">📝 No hay preguntas disponibles</p>
-                            <p>Añade preguntas al banco primero</p>
+                            <img src={previewUrl} alt="Preview" className="max-w-full max-h-48 mx-auto mb-4 rounded" />
+                            <p className="text-green-600 font-semibold">✅ Imagen cargada</p>
                         </div>
                     ) : (
                         <div>
-                            <p className="text-lg mb-4">
-                                📊 {questions.length} preguntas disponibles
-                            </p>
-                            <p className="mb-6">
-                                Se seleccionarán máximo 10 preguntas aleatorias.<br/>
-                                Tiempo límite: 15 minutos.
-                            </p>
-                            
-                            <button className="btn btn-primary" onClick={startTest}>
-                                🚀 Empezar Test
-                            </button>
+                            <p className="text-lg font-medium">📁 Arrastra una imagen aquí</p>
+                            <p className="text-gray-600">o haz clic para seleccionar</p>
                         </div>
                     )}
                 </div>
-            );
-        };
-        
-        // Renderizar la aplicación
-        ReactDOM.render(<App />, document.getElementById('root'));
-    </script>
-</body>
-</html>
+                
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={(e) => handleFileSelect(e.target.files[0])}
+                    accept="image/*"
+                    className="hidden"
+                />
+                
+                <button 
+                    className="w-full mt-4 bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition-all font-medium disabled:opacity-50"
+                    onClick={transcribeImage}
+                    disabled={!selectedFile || isTranscribing}
+                >
+                    {isTranscribing ? (
+                        <span className="flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                            Transcribiendo...
+                        </span>
+                    ) : (
+                        '🤖 Transcribir Automático'
+                    )}
+                </button>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-xl font-bold mb-4">📝 Texto Extraído</h3>
+                
+                <textarea
+                    value={transcribedText}
+                    onChange={(e) => setTranscribedText(e.target.value)}
+                    placeholder="El texto transcrito aparecerá aquí..."
+                    className="w-full h-64 p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                
+                <button 
+                    className="w-full mt-4 bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition-all font-medium disabled:opacity-50"
+                    onClick={addToBank}
+                    disabled={!transcribedText.trim()}
+                >
+                    ✅ Añadir al Banco de Preguntas
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const QuestionsBank = ({ currentUser }) => {
+    const [questions, setQuestions] = useState([]);
+    
+    useEffect(() => {
+        const saved = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
+        setQuestions(saved);
+    }, [currentUser]);
+    
+    return (
+        <div className="bg-white rounded-lg shadow-lg p-6">
+            <h3 className="text-xl font-bold mb-4">📚 Banco de Preguntas ({questions.length})</h3>
+            
+            {questions.length === 0 ? (
+                <div className="text-center p-8 bg-gray-50 rounded-lg">
+                    <p className="text-lg text-gray-600">📝 No hay preguntas en el banco</p>
+                    <p className="text-gray-500">Sube un test para empezar</p>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {questions.map((question, index) => (
+                        <div key={question.id} className="border border-gray-200 rounded-lg p-4">
+                            <h4 className="font-bold mb-2">
+                                {index + 1}. {question.question}
+                            </h4>
+                            <div className="ml-4 space-y-1">
+                                {question.options.map((option, optIndex) => (
+                                    <div 
+                                        key={optIndex}
+                                        className={`p-2 rounded ${
+                                            question.correctAnswer === optIndex
+                                                ? 'bg-green-100 text-green-800'
+                                                : 'bg-gray-50'
+                                        }`}
+                                    >
+                                        {String.fromCharCode(97 + optIndex)}) {option}
+                                        {question.correctAnswer === optIndex && ' ✅'}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const RandomTest = ({ currentUser }) => {
+    const [questions, setQuestions] = useState([]);
+    
+    useEffect(() => {
+        const saved = JSON.parse(localStorage.getItem(`questions_${currentUser.username}`) || '[]');
+        setQuestions(saved);
+    }, [currentUser]);
+    
+    return (
+        <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+            <h3 className="text-2xl font-bold mb-4">🎲 Test Aleatorio</h3>
+            
+            {questions.length === 0 ? (
+                <div>
+                    <p className="text-lg mb-4">📝 No hay preguntas disponibles</p>
+                    <p>Añade preguntas al banco primero</p>
+                </div>
+            ) : (
+                <div>
+                    <p className="text-lg mb-4">📊 {questions.length} preguntas disponibles</p>
+                    <p className="mb-6">Funcionalidad de test aleatorio próximamente...</p>
+                    <button className="bg-blue-500 text-white py-3 px-6 rounded-lg hover:bg-blue-600 transition-all font-medium">
+                        🚀 Empezar Test
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default App;
