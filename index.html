@@ -455,19 +455,21 @@
             
             return `
                 <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
-                    <div style="flex: 1;">
-                        <div style="font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
-                            ${q.question}
-                            ${q.isVerified ? '<span style="color: #3b82f6; font-size: 16px; filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5));" title="Pregunta verificada">⭐</span>' : ''}
-                            ${topicName && state.selectedTopicFilter !== q.topicId ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px; margin-left: 8px;">${topicName}</span>` : ''}
+                    <div style="flex: 1; display: flex; gap: 8px;">
+                        ${q.isVerified ? '<span style="color: #3b82f6; font-size: 16px; filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5)); flex-shrink: 0; margin-top: 2px;" title="Pregunta verificada">⭐</span>' : '<span style="width: 16px; flex-shrink: 0;"></span>'}
+                        <div style="flex: 1;">
+                            <div style="font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                                ${q.question}
+                                ${topicName && state.selectedTopicFilter !== q.topicId ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px;">${topicName}</span>` : ''}
+                            </div>
+                            <ul style="list-style: none; margin: 0; padding: 0;">
+                                ${q.options.map((opt, optIndex) => `
+                                    <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#059669' : '#6b7280'}; ${q.correctAnswer === optIndex ? 'font-weight: 500;' : ''}">
+                                        ${String.fromCharCode(97 + optIndex)}) ${opt}
+                                    </li>
+                                `).join('')}
+                            </ul>
                         </div>
-                        <ul style="list-style: none; margin: 0; padding: 0;">
-                            ${q.options.map((opt, optIndex) => `
-                                <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#059669' : '#6b7280'}; ${q.correctAnswer === optIndex ? 'font-weight: 500;' : ''}">
-                                    ${String.fromCharCode(97 + optIndex)}) ${opt}
-                                </li>
-                            `).join('')}
-                        </ul>
                     </div>
                     <div style="display: flex; gap: 5px; align-items: flex-start;">
                         <button onclick="toggleVerified(${actualIndex})" class="btn ${q.isVerified ? 'btn-primary' : 'btn-secondary'}" style="padding: 4px 8px; font-size: 14px; ${q.isVerified ? 'background: linear-gradient(135deg, #3b82f6, #1d4ed8);' : ''}" title="${q.isVerified ? 'Pregunta verificada - Click para desmarcar' : 'Marcar como verificada'}">
