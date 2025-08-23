@@ -193,7 +193,8 @@
             selectedTopicForNewQuestions: null,
             selectedTopicFilter: 'all',
             currentTest: null,
-            testResults: null
+            testResults: JSON.parse(localStorage.getItem('testResults') || '[]'),
+            currentViewingResult: null
         };
 
         const users = {
@@ -251,8 +252,8 @@
                             <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
                                 🎯 Test Aleatorio
                             </button>
-                            <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')" ${!state.testResults ? 'style="display: none;"' : ''}>
-                                📊 Resultados
+                            <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                                📊 Resultados (${state.testResults.length})
                             </button>
                         </div>
 
@@ -547,6 +548,14 @@
                                 </div>
                             </div>
                         ` : ''}
+
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Nombre del test:</label>
+                            <input type="text" id="test-name" placeholder="Ej: Test de Matemáticas - Sesión 1" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                            <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">
+                                Si no especificas un nombre, se generará automáticamente
+                            </div>
+                        </div>
                     </div>
 
                     <div style="text-align: center; padding: 40px;">
@@ -574,8 +583,9 @@
                     
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 20px; background: #f8fafc; border-radius: 12px;">
                         <div>
-                            <h2 style="margin: 0; color: #1f2937;">Test: ${state.currentTest.questions.length} Preguntas</h2>
-                            ${state.currentTest.testType !== 'all' ? `<p style="margin: 5px 0 0 0; color: #6b7280;">Tema: ${getTopicName(state.currentTest.testType)}</p>` : ''}
+                            <h2 style="margin: 0; color: #1f2937;">${state.currentTest.name}</h2>
+                            <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">${state.currentTest.questions.length} preguntas</p>
+                            ${state.currentTest.testType !== 'all' ? `<p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Tema: ${getTopicName(state.currentTest.testType)}</p>` : ''}
                         </div>
                         ${hasTimer ? `<div style="color: #6b7280; font-size: 14px;">El tiempo se muestra arriba a la derecha</div>` : ''}
                     </div>
@@ -613,12 +623,102 @@
         }
 
         function renderResultsTab() {
-            if (!state.testResults) {
-                return '<div style="text-align: center; padding: 40px;">No hay resultados disponibles</div>';
+            if (state.currentViewingResult) {
+                // Mostrar resultado específico
+                return renderSpecificResult(state.currentViewingResult);
             }
 
-            const results = state.testResults;
-            const percentage = Math.round((results.correct / results.total) * 100);
+            // Mostrar lista de resultados
+            if (state.testResults.length === 0) {
+                return `
+                    <div style="text-align: center; padding: 60px; color: #9ca3af;">
+                        <div style="font-size: 3rem; margin-bottom: 20px;">📊</div>
+                        <h3 style="color: #6b7280; margin-bottom: 10px;">No hay resultados disponibles</h3>
+                        <p style="color: #9ca3af;">Realiza tu primer test para ver los resultados aquí</p>
+                    </div>
+                `;
+            }
+
+            return `
+                <div style="max-width: 1000px; margin: 0 auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                        <h2 style="color: #1f2937; margin: 0;">📊 Historial de Tests (${state.testResults.length})</h2>
+                        <button onclick="clearTestHistory()" class="btn btn-danger">
+                            🗑️ Limpiar Historial
+                        </button>
+                    </div>
+
+                    <div style="display: grid; gap: 20px;">
+                        ${state.testResults.map((result, index) => {
+                            const percentage = Math.round((result.correct / result.total) * 100);
+                            let scoreColor = '#ef4444';
+                            let scoreIcon = '📉';
+                            
+                            if (percentage >= 90) {
+                                scoreColor = '#059669';
+                                scoreIcon = '🌟';
+                            } else if (percentage >= 70) {
+                                scoreColor = '#0ea5e9';
+                                scoreIcon = '👍';
+                            } else if (percentage >= 50) {
+                                scoreColor = '#f59e0b';
+                                scoreIcon = '⚡';
+                            }
+
+                            return `
+                                <div onclick="viewTestResult(${index})" style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" 
+                                     onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';" 
+                                     onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
+                                    
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                        <h3 style="margin: 0; color: #1f2937; display: flex; align-items: center; gap: 10px;">
+                                            <span style="font-size: 1.2em;">${scoreIcon}</span>
+                                            ${result.name}
+                                        </h3>
+                                        <div style="background: ${scoreColor}; color: white; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 1.1rem;">
+                                            ${percentage}%
+                                        </div>
+                                    </div>
+
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                                        <div style="text-align: center;">
+                                            <div style="font-size: 1.5rem; font-weight: bold; color: #059669;">${result.correct}</div>
+                                            <div style="font-size: 12px; color: #6b7280;">Correctas</div>
+                                        </div>
+                                        <div style="text-align: center;">
+                                            <div style="font-size: 1.5rem; font-weight: bold; color: #ef4444;">${result.incorrect}</div>
+                                            <div style="font-size: 12px; color: #6b7280;">Incorrectas</div>
+                                        </div>
+                                        <div style="text-align: center;">
+                                            <div style="font-size: 1.5rem; font-weight: bold; color: #f59e0b;">${result.unanswered}</div>
+                                            <div style="font-size: 12px; color: #6b7280;">Sin responder</div>
+                                        </div>
+                                        <div style="text-align: center;">
+                                            <div style="font-size: 1.5rem; font-weight: bold; color: #6b7280;">${result.total}</div>
+                                            <div style="font-size: 12px; color: #6b7280;">Total</div>
+                                        </div>
+                                    </div>
+
+                                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #6b7280;">
+                                        <span>${result.testType}</span>
+                                        <span>${result.date}</span>
+                                    </div>
+                                    
+                                    ${result.timeUsedText ? `
+                                        <div style="font-size: 12px; color: #9ca3af; margin-top: 5px; text-align: right;">
+                                            ${result.timeUsedText}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }).reverse().join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSpecificResult(result) {
+            const percentage = Math.round((result.correct / result.total) * 100);
             
             // Determinar color y mensaje según porcentaje
             let scoreColor = '#ef4444'; // Rojo por defecto
@@ -641,38 +741,47 @@
 
             return `
                 <div style="max-width: 1000px; margin: 0 auto;">
+                    <!-- Botón Volver -->
+                    <div style="margin-bottom: 20px;">
+                        <button onclick="state.currentViewingResult = null; render();" class="btn btn-secondary">
+                            ← Volver al Historial
+                        </button>
+                    </div>
+
                     <!-- Header de Resultados -->
                     <div style="text-align: center; background: linear-gradient(135deg, ${scoreColor}15, ${scoreColor}05); border: 2px solid ${scoreColor}30; border-radius: 20px; padding: 40px; margin-bottom: 30px;">
                         <div style="font-size: 4rem; margin-bottom: 15px;">${scoreIcon}</div>
                         <h1 style="color: ${scoreColor}; font-size: 2.5rem; margin: 0 0 10px 0;">${percentage}%</h1>
                         <p style="color: ${scoreColor}; font-size: 1.3rem; font-weight: 600; margin: 0 0 15px 0;">${scoreMessage}</p>
-                        <p style="color: #6b7280; font-size: 1rem; margin: 0;">${results.testType}</p>
-                        ${results.timeUsedText ? `<p style="color: #6b7280; font-size: 0.9rem; margin: 5px 0 0 0;">${results.timeUsedText}</p>` : ''}
+                        <h2 style="color: #6b7280; font-size: 1.2rem; margin: 0;">${result.name}</h2>
+                        <p style="color: #6b7280; font-size: 1rem; margin: 5px 0 0 0;">${result.testType}</p>
+                        ${result.timeUsedText ? `<p style="color: #6b7280; font-size: 0.9rem; margin: 5px 0 0 0;">${result.timeUsedText}</p>` : ''}
+                        <p style="color: #9ca3af; font-size: 0.85rem; margin: 10px 0 0 0;">${result.date}</p>
                     </div>
 
                     <!-- Métricas Generales -->
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
                         <div style="background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 12px; padding: 20px; text-align: center;">
                             <div style="font-size: 2rem; color: #0ea5e9; margin-bottom: 10px;">✅</div>
-                            <div style="font-size: 1.8rem; font-weight: bold; color: #0c4a6e; margin-bottom: 5px;">${results.correct}</div>
+                            <div style="font-size: 1.8rem; font-weight: bold; color: #0c4a6e; margin-bottom: 5px;">${result.correct}</div>
                             <div style="color: #0369a1; font-weight: 500;">Correctas</div>
                         </div>
 
                         <div style="background: #fef2f2; border: 2px solid #ef4444; border-radius: 12px; padding: 20px; text-align: center;">
                             <div style="font-size: 2rem; color: #ef4444; margin-bottom: 10px;">❌</div>
-                            <div style="font-size: 1.8rem; font-weight: bold; color: #991b1b; margin-bottom: 5px;">${results.incorrect}</div>
+                            <div style="font-size: 1.8rem; font-weight: bold; color: #991b1b; margin-bottom: 5px;">${result.incorrect}</div>
                             <div style="color: #dc2626; font-weight: 500;">Incorrectas</div>
                         </div>
 
                         <div style="background: #fffbeb; border: 2px solid #f59e0b; border-radius: 12px; padding: 20px; text-align: center;">
                             <div style="font-size: 2rem; color: #f59e0b; margin-bottom: 10px;">⏭️</div>
-                            <div style="font-size: 1.8rem; font-weight: bold; color: #92400e; margin-bottom: 5px;">${results.unanswered}</div>
+                            <div style="font-size: 1.8rem; font-weight: bold; color: #92400e; margin-bottom: 5px;">${result.unanswered}</div>
                             <div style="color: #d97706; font-weight: 500;">Sin responder</div>
                         </div>
 
                         <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; padding: 20px; text-align: center;">
                             <div style="font-size: 2rem; color: #22c55e; margin-bottom: 10px;">📊</div>
-                            <div style="font-size: 1.8rem; font-weight: bold; color: #166534; margin-bottom: 5px;">${results.total}</div>
+                            <div style="font-size: 1.8rem; font-weight: bold; color: #166534; margin-bottom: 5px;">${result.total}</div>
                             <div style="color: #16a34a; font-weight: 500;">Total</div>
                         </div>
                     </div>
@@ -681,14 +790,14 @@
                     <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
                         <h3 style="margin: 0 0 20px 0; color: #374151;">📈 Distribución de Respuestas</h3>
                         <div style="background: #f3f4f6; border-radius: 10px; overflow: hidden; height: 30px; display: flex; margin-bottom: 15px;">
-                            <div style="background: #22c55e; width: ${(results.correct/results.total)*100}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
-                                ${results.correct > 0 ? `${results.correct}✓` : ''}
+                            <div style="background: #22c55e; width: ${(result.correct/result.total)*100}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
+                                ${result.correct > 0 ? `${result.correct}✓` : ''}
                             </div>
-                            <div style="background: #ef4444; width: ${(results.incorrect/results.total)*100}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
-                                ${results.incorrect > 0 ? `${results.incorrect}✗` : ''}
+                            <div style="background: #ef4444; width: ${(result.incorrect/result.total)*100}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
+                                ${result.incorrect > 0 ? `${result.incorrect}✗` : ''}
                             </div>
-                            <div style="background: #f59e0b; width: ${(results.unanswered/results.total)*100}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
-                                ${results.unanswered > 0 ? `${results.unanswered}?` : ''}
+                            <div style="background: #f59e0b; width: ${(result.unanswered/result.total)*100}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
+                                ${result.unanswered > 0 ? `${result.unanswered}?` : ''}
                             </div>
                         </div>
                         <div style="display: flex; justify-content: space-between; font-size: 14px; color: #6b7280;">
@@ -701,32 +810,32 @@
                     <!-- Revisión Detallada -->
                     <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
                         <h3 style="margin: 0 0 20px 0; color: #374151;">🔍 Revisión Detallada</h3>
-                        ${results.detailedResults.map((result, index) => `
-                            <div style="border: 2px solid ${result.isCorrect ? '#22c55e' : (result.userAnswer !== null ? '#ef4444' : '#f59e0b')}; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
-                                <div style="background: ${result.isCorrect ? '#22c55e' : (result.userAnswer !== null ? '#ef4444' : '#f59e0b')}; color: white; padding: 12px 15px; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+                        ${result.detailedResults.map((resultItem, index) => `
+                            <div style="border: 2px solid ${resultItem.isCorrect ? '#22c55e' : (resultItem.userAnswer !== null ? '#ef4444' : '#f59e0b')}; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
+                                <div style="background: ${resultItem.isCorrect ? '#22c55e' : (resultItem.userAnswer !== null ? '#ef4444' : '#f59e0b')}; color: white; padding: 12px 15px; font-weight: 600; display: flex; align-items: center; gap: 10px;">
                                     <span style="font-size: 1.1em;">
-                                        ${result.isCorrect ? '✅' : (result.userAnswer !== null ? '❌' : '⏭️')}
+                                        ${resultItem.isCorrect ? '✅' : (resultItem.userAnswer !== null ? '❌' : '⏭️')}
                                     </span>
                                     <span>Pregunta ${index + 1}</span>
-                                    ${result.question.isVerified ? '<span style="filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));" title="Pregunta verificada">⭐</span>' : ''}
+                                    ${resultItem.question.isVerified ? '<span style="filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));" title="Pregunta verificada">⭐</span>' : ''}
                                 </div>
                                 <div style="padding: 15px;">
-                                    <p style="font-weight: 500; margin: 0 0 15px 0; color: #374151;">${result.question.question}</p>
+                                    <p style="font-weight: 500; margin: 0 0 15px 0; color: #374151;">${resultItem.question.question}</p>
                                     <div style="display: grid; gap: 8px;">
-                                        ${result.question.options.map((option, optIndex) => {
+                                        ${resultItem.question.options.map((option, optIndex) => {
                                             let bgColor = '#f9fafb';
                                             let textColor = '#374151';
                                             let border = '#e5e7eb';
                                             let prefix = '';
                                             
-                                            if (optIndex === result.question.correctAnswer) {
+                                            if (optIndex === resultItem.question.correctAnswer) {
                                                 bgColor = '#dcfce7';
                                                 textColor = '#166534';
                                                 border = '#22c55e';
                                                 prefix = '✓ ';
                                             }
                                             
-                                            if (result.userAnswer === optIndex && optIndex !== result.question.correctAnswer) {
+                                            if (resultItem.userAnswer === optIndex && optIndex !== resultItem.question.correctAnswer) {
                                                 bgColor = '#fee2e2';
                                                 textColor = '#991b1b';
                                                 border = '#ef4444';
@@ -740,7 +849,7 @@
                                             `;
                                         }).join('')}
                                     </div>
-                                    ${result.userAnswer === null ? `
+                                    ${resultItem.userAnswer === null ? `
                                         <div style="background: #fffbeb; border: 1px solid #f59e0b; border-radius: 6px; padding: 10px; margin-top: 10px; color: #92400e; text-align: center; font-style: italic;">
                                             No respondida
                                         </div>
@@ -755,8 +864,8 @@
                         <button onclick="startNewTest()" class="btn btn-primary" style="font-size: 1.1rem; padding: 15px 30px; margin: 0 10px;">
                             🎯 Nuevo Test
                         </button>
-                        <button onclick="state.testResults = null; render();" class="btn btn-secondary" style="font-size: 1.1rem; padding: 15px 30px; margin: 0 10px;">
-                            🏠 Volver al Inicio
+                        <button onclick="state.currentViewingResult = null; render();" class="btn btn-secondary" style="font-size: 1.1rem; padding: 15px 30px; margin: 0 10px;">
+                            📊 Ver Historial
                         </button>
                     </div>
                 </div>
@@ -795,6 +904,7 @@
 
         function setTab(tab) {
             state.currentTab = tab;
+            state.currentViewingResult = null;
             render();
         }
 
@@ -1260,20 +1370,38 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             // Obtener configuraciones
             const questionsCountSelect = document.getElementById('test-questions-count');
             const durationSelect = document.getElementById('test-duration');
+            const testNameInput = document.getElementById('test-name');
             
             const questionsCount = questionsCountSelect.value === 'all' ? availableQuestions.length : parseInt(questionsCountSelect.value);
             const duration = parseInt(durationSelect.value);
+
+            // Generar nombre del test
+            let testName = testNameInput.value.trim();
+            if (!testName) {
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('es-ES');
+                const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                
+                if (selectedTestType && selectedTestType.value !== 'all') {
+                    const topicName = getTopicName(selectedTestType.value);
+                    testName = `Test ${topicName} - ${dateStr} ${timeStr}`;
+                } else {
+                    testName = `Test General - ${dateStr} ${timeStr}`;
+                }
+            }
 
             const finalQuestionsCount = Math.min(questionsCount, availableQuestions.length);
             const shuffled = [...availableQuestions].sort(() => Math.random() - 0.5);
             
             state.currentTest = {
+                name: testName,
                 questions: shuffled.slice(0, finalQuestionsCount),
                 answers: {},
                 duration: duration,
                 timeLeft: duration,
                 timer: null,
-                testType: selectedTestType ? selectedTestType.value : 'all'
+                testType: selectedTestType ? selectedTestType.value : 'all',
+                startTime: Date.now()
             };
             
             // Solo iniciar timer si hay duración
@@ -1350,8 +1478,9 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 timeUsedText = `Tiempo empleado: ${formatTime(timeUsed)} de ${formatTime(state.currentTest.duration)}`;
             }
             
-            // Guardar resultados en el estado
-            state.testResults = {
+            // Crear objeto de resultado
+            const testResult = {
+                name: state.currentTest.name,
                 correct: correct,
                 incorrect: incorrect,
                 unanswered: unanswered,
@@ -1359,8 +1488,16 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 testType: testTypeText,
                 timeUsedText: timeUsedText,
                 detailedResults: detailedResults,
-                date: new Date().toLocaleString()
+                date: new Date().toLocaleString('es-ES'),
+                id: Date.now()
             };
+            
+            // Añadir al historial
+            state.testResults.push(testResult);
+            localStorage.setItem('testResults', JSON.stringify(state.testResults));
+            
+            // Mostrar el resultado específico
+            state.currentViewingResult = testResult;
             
             // Limpiar test actual y cambiar a pestaña de resultados
             state.currentTest = null;
@@ -1376,7 +1513,23 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
 
         function startNewTest() {
             state.currentTab = 'test';
+            state.currentViewingResult = null;
             render();
+        }
+
+        function viewTestResult(index) {
+            state.currentViewingResult = state.testResults[index];
+            render();
+        }
+
+        function clearTestHistory() {
+            if (confirm('¿Eliminar todo el historial de tests? Esta acción no se puede deshacer.')) {
+                state.testResults = [];
+                state.currentViewingResult = null;
+                localStorage.setItem('testResults', JSON.stringify(state.testResults));
+                render();
+                showMessage('Historial de tests eliminado', 'success');
+            }
         }
 
         function showMessage(message, type) {
