@@ -396,8 +396,9 @@
             
             let html = '';
             
+            // Mostrar preguntas por cada tema que TENGA preguntas
             state.topics.forEach(topic => {
-                const topicQuestions = state.questions.filter(q => q.topicId === topic.id);
+                const topicQuestions = state.questions.filter(q => q.topicId == topic.id || q.topicId === topic.id);
                 if (topicQuestions.length > 0) {
                     html += `
                         <div style="margin-bottom: 30px;">
@@ -416,6 +417,7 @@
                 }
             });
             
+            // Mostrar preguntas sin tema asignado SI existen
             if (questionsWithoutTopic.length > 0) {
                 html += `
                     <div style="margin-bottom: 30px;">
@@ -433,7 +435,12 @@
                 `;
             }
             
-            return html || '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles</div>';
+            // Si no hay preguntas en absoluto
+            if (html === '') {
+                return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
+            }
+            
+            return html;
         }
 
         function renderQuestionsFiltered(filteredQuestions) {
