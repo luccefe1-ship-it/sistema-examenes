@@ -456,8 +456,9 @@
             return `
                 <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
                     <div style="flex: 1;">
-                        <div style="font-weight: 500; margin-bottom: 8px;">
+                        <div style="font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
                             ${q.question}
+                            ${q.isVerified ? '<span style="color: #10b981; font-size: 14px;">✓</span>' : ''}
                             ${topicName && state.selectedTopicFilter !== q.topicId ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px; margin-left: 8px;">${topicName}</span>` : ''}
                         </div>
                         <ul style="list-style: none; margin: 0; padding: 0;">
@@ -468,7 +469,10 @@
                             `).join('')}
                         </ul>
                     </div>
-                    <div style="display: flex; gap: 5px;">
+                    <div style="display: flex; gap: 5px; align-items: flex-start;">
+                        <button onclick="toggleVerified(${actualIndex})" class="btn ${q.isVerified ? 'btn-success' : 'btn-secondary'}" style="padding: 4px 8px; font-size: 11px;" title="${q.isVerified ? 'Pregunta verificada' : 'Marcar como verificada'}">
+                            ${q.isVerified ? '✓' : '?'}
+                        </button>
                         <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
                         <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
                     </div>
@@ -522,8 +526,9 @@
                     </div>
                     
                     <div style="background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-                        <div style="font-size: 1.1rem; font-weight: 500; margin-bottom: 15px;">
+                        <div style="font-size: 1.1rem; font-weight: 500; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
                             ${question.question}
+                            ${question.isVerified ? '<span style="color: #10b981; font-size: 16px;" title="Pregunta verificada">✓</span>' : ''}
                         </div>
                         
                         <div style="display: grid; gap: 10px;">
@@ -883,6 +888,15 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             });
             
             return questions;
+        }
+
+        function toggleVerified(index) {
+            if (state.questions[index]) {
+                state.questions[index].isVerified = !state.questions[index].isVerified;
+                localStorage.setItem('questions', JSON.stringify(state.questions));
+                render();
+                showMessage(`Pregunta ${state.questions[index].isVerified ? 'verificada' : 'sin verificar'}`, 'success');
+            }
         }
 
         function clearQuestions() {
