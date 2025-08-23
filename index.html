@@ -667,49 +667,58 @@
                             }
 
                             return `
-                                <div onclick="viewTestResult(${index})" style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" 
+                                <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative;" 
                                      onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';" 
                                      onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
                                     
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                        <h3 style="margin: 0; color: #1f2937; display: flex; align-items: center; gap: 10px;">
-                                            <span style="font-size: 1.2em;">${scoreIcon}</span>
-                                            ${result.name}
-                                        </h3>
-                                        <div style="background: ${scoreColor}; color: white; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 1.1rem;">
-                                            ${percentage}%
-                                        </div>
-                                    </div>
-
-                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 15px;">
-                                        <div style="text-align: center;">
-                                            <div style="font-size: 1.5rem; font-weight: bold; color: #059669;">${result.correct}</div>
-                                            <div style="font-size: 12px; color: #6b7280;">Correctas</div>
-                                        </div>
-                                        <div style="text-align: center;">
-                                            <div style="font-size: 1.5rem; font-weight: bold; color: #ef4444;">${result.incorrect}</div>
-                                            <div style="font-size: 12px; color: #6b7280;">Incorrectas</div>
-                                        </div>
-                                        <div style="text-align: center;">
-                                            <div style="font-size: 1.5rem; font-weight: bold; color: #f59e0b;">${result.unanswered}</div>
-                                            <div style="font-size: 12px; color: #6b7280;">Sin responder</div>
-                                        </div>
-                                        <div style="text-align: center;">
-                                            <div style="font-size: 1.5rem; font-weight: bold; color: #6b7280;">${result.total}</div>
-                                            <div style="font-size: 12px; color: #6b7280;">Total</div>
-                                        </div>
-                                    </div>
-
-                                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #6b7280;">
-                                        <span>${result.testType}</span>
-                                        <span>${result.date}</span>
-                                    </div>
+                                    <!-- Botón eliminar individual -->
+                                    <button onclick="event.stopPropagation(); deleteIndividualTest(${index})" 
+                                            style="position: absolute; top: 10px; right: 10px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0.7; transition: opacity 0.2s;" 
+                                            onmouseover="this.style.opacity='1'" 
+                                            onmouseout="this.style.opacity='0.7'" 
+                                            title="Eliminar este test">×</button>
                                     
-                                    ${result.timeUsedText ? `
-                                        <div style="font-size: 12px; color: #9ca3af; margin-top: 5px; text-align: right;">
-                                            ${result.timeUsedText}
+                                    <div onclick="viewTestResult(${index})" style="width: 100%;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                            <h3 style="margin: 0; color: #1f2937; display: flex; align-items: center; gap: 10px; padding-right: 30px;">
+                                                <span style="font-size: 1.2em;">${scoreIcon}</span>
+                                                ${result.name}
+                                            </h3>
+                                            <div style="background: ${scoreColor}; color: white; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 1.1rem;">
+                                                ${percentage}%
+                                            </div>
                                         </div>
-                                    ` : ''}
+
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                                            <div style="text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: bold; color: #059669;">${result.correct}</div>
+                                                <div style="font-size: 12px; color: #6b7280;">Correctas</div>
+                                            </div>
+                                            <div style="text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: bold; color: #ef4444;">${result.incorrect}</div>
+                                                <div style="font-size: 12px; color: #6b7280;">Incorrectas</div>
+                                            </div>
+                                            <div style="text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: bold; color: #f59e0b;">${result.unanswered}</div>
+                                                <div style="font-size: 12px; color: #6b7280;">Sin responder</div>
+                                            </div>
+                                            <div style="text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: bold; color: #6b7280;">${result.total}</div>
+                                                <div style="font-size: 12px; color: #6b7280;">Total</div>
+                                            </div>
+                                        </div>
+
+                                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #6b7280;">
+                                            <span>${result.testType}</span>
+                                            <span>${result.date}</span>
+                                        </div>
+                                        
+                                        ${result.timeUsedText ? `
+                                            <div style="font-size: 12px; color: #9ca3af; margin-top: 5px; text-align: right;">
+                                                ${result.timeUsedText}
+                                            </div>
+                                        ` : ''}
+                                    </div>
                                 </div>
                             `;
                         }).reverse().join('')}
@@ -1544,6 +1553,22 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 localStorage.setItem('testResults', JSON.stringify(state.testResults));
                 render();
                 showMessage('Historial de tests eliminado', 'success');
+            }
+        }
+
+        function deleteIndividualTest(index) {
+            const testName = state.testResults[index].name;
+            if (confirm(`¿Eliminar el test "${testName}"? Esta acción no se puede deshacer.`)) {
+                state.testResults.splice(index, 1);
+                localStorage.setItem('testResults', JSON.stringify(state.testResults));
+                
+                // Si estábamos viendo el test que se eliminó, volver al historial
+                if (state.currentViewingResult && state.currentViewingResult.id === state.testResults[index]?.id) {
+                    state.currentViewingResult = null;
+                }
+                
+                render();
+                showMessage('Test eliminado correctamente', 'success');
             }
         }
 
