@@ -405,7 +405,7 @@
             
             // Mostrar preguntas por cada tema que TENGA preguntas
             state.topics.forEach(topic => {
-                const topicQuestions = state.questions.filter(q => q.topicId == topic.id || q.topicId === topic.id);
+                const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
                 if (topicQuestions.length > 0) {
                     html += `
                         <div style="margin-bottom: 30px;">
@@ -1341,17 +1341,17 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             if (state.selectedTopicFilter === 'all') {
                 return state.questions;
             }
-            return state.questions.filter(q => q.topicId == state.selectedTopicFilter || q.topicId === state.selectedTopicFilter);
+            return state.questions.filter(q => q.topicId && q.topicId.toString() === state.selectedTopicFilter.toString());
         }
 
         function getTopicName(topicId) {
             if (!topicId) return 'Sin tema';
-            const topic = state.topics.find(t => t.id === topicId || t.id == topicId);
+            const topic = state.topics.find(t => t.id.toString() === topicId.toString());
             return topic ? topic.name : 'Tema no encontrado';
         }
 
         function getTopicQuestionCount(topicId) {
-            return state.questions.filter(q => q.topicId == topicId || q.topicId === topicId).length;
+            return state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
         }
 
         function startTest() {
@@ -1359,7 +1359,16 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             
             const selectedTestType = document.querySelector('input[name="test-type"]:checked');
             if (selectedTestType && selectedTestType.value !== 'all') {
-                availableQuestions = state.questions.filter(q => q.topicId === selectedTestType.value);
+                // Convertir ambos valores a string para comparación
+                const selectedTopicId = selectedTestType.value.toString();
+                availableQuestions = state.questions.filter(q => {
+                    // Comparar como strings para evitar problemas de tipo
+                    return q.topicId && q.topicId.toString() === selectedTopicId;
+                });
+                
+                console.log('Tema seleccionado:', selectedTopicId);
+                console.log('Preguntas filtradas:', availableQuestions.length);
+                console.log('Todas las preguntas:', state.questions.map(q => ({ id: q.id, topicId: q.topicId })));
             }
 
             if (availableQuestions.length === 0) {
