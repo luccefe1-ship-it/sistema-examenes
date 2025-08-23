@@ -810,17 +810,29 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                     return;
                 }
 
+                // Debug: Ver qué tema está seleccionado
+                console.log('=== DEBUG ASIGNACIÓN ===');
+                console.log('Tema seleccionado para nuevas preguntas:', state.selectedTopicForNewQuestions);
+                console.log('Tipo:', typeof state.selectedTopicForNewQuestions);
+                
                 if (state.selectedTopicForNewQuestions) {
-                    newQuestions.forEach(question => {
+                    newQuestions.forEach((question, index) => {
                         question.topicId = state.selectedTopicForNewQuestions;
+                        console.log(`Pregunta ${index} asignada a tema:`, question.topicId);
                     });
                     const topicName = getTopicName(state.selectedTopicForNewQuestions);
                     showMessage(`¡Se añadieron ${newQuestions.length} preguntas al tema "${topicName}"!`, 'success');
                 } else {
+                    console.log('No hay tema seleccionado, preguntas sin tema');
                     showMessage(`¡Se añadieron ${newQuestions.length} preguntas al banco!`, 'success');
                 }
 
+                console.log('Preguntas antes de añadir:', state.questions.length);
                 state.questions.push(...newQuestions);
+                console.log('Preguntas después de añadir:', state.questions.length);
+                console.log('Últimas preguntas añadidas:', newQuestions.map(q => ({id: q.id, topicId: q.topicId, question: q.question.substring(0, 50)})));
+                console.log('=== FIN DEBUG ASIGNACIÓN ===');
+                
                 localStorage.setItem('questions', JSON.stringify(state.questions));
                 
                 state.selectedImages = [];
