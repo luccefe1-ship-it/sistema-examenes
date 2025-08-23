@@ -355,8 +355,12 @@
                 if (state.selectedTopicFilter === 'all') {
                     return 'TODAS LAS PREGUNTAS DEL BANCO';
                 } else {
-                    const topicName = getTopicName(state.selectedTopicFilter);
-                    return `PREGUNTAS ${topicName.toUpperCase()}`;
+                    const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
+                    if (topic) {
+                        return `PREGUNTAS ${topic.name.toUpperCase()}`;
+                    } else {
+                        return 'PREGUNTAS DEL TEMA SELECCIONADO';
+                    }
                 }
             }
             
@@ -372,7 +376,7 @@
                         <select onchange="filterByTopic(this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #d1d5db;">
                             <option value="all" ${state.selectedTopicFilter === 'all' ? 'selected' : ''}>Todos los temas (${state.questions.length})</option>
                             ${state.topics.map(topic => `
-                                <option value="${topic.id}" ${state.selectedTopicFilter === topic.id ? 'selected' : ''}>
+                                <option value="${topic.id}" ${state.selectedTopicFilter == topic.id ? 'selected' : ''}>
                                     ${topic.name} (${getTopicQuestionCount(topic.id)})
                                 </option>
                             `).join('')}
@@ -1002,7 +1006,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
 
         function filterByTopic(topicId) {
             state.selectedTopicFilter = topicId;
-            render();
+            render(); // Importante: re-renderizar para actualizar el título
         }
 
         function getFilteredQuestions() {
