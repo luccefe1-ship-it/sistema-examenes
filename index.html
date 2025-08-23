@@ -589,9 +589,16 @@
         function updateSelectedTopic() {
             const selector = document.getElementById('topic-selector');
             if (selector && selector.value) {
-                state.selectedTopicForNewQuestions = selector.value;
-                const topicName = getTopicName(selector.value);
-                showMessage(`Tema "${topicName}" seleccionado`, 'success');
+                // Convertir el valor del selector al tipo correcto
+                const selectedValue = selector.value;
+                // Buscar el tema para obtener el ID en su formato original
+                const selectedTopic = state.topics.find(t => t.id == selectedValue);
+                if (selectedTopic) {
+                    state.selectedTopicForNewQuestions = selectedTopic.id;
+                    showMessage(`Tema "${selectedTopic.name}" seleccionado`, 'success');
+                } else {
+                    state.selectedTopicForNewQuestions = selectedValue;
+                }
             } else {
                 state.selectedTopicForNewQuestions = null;
             }
@@ -1003,7 +1010,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
         }
 
         function getTopicQuestionCount(topicId) {
-            return state.questions.filter(q => q.topicId === topicId).length;
+            return state.questions.filter(q => q.topicId == topicId || q.topicId === topicId).length;
         }
 
         function startTest() {
