@@ -489,23 +489,52 @@
 
             if (!state.currentTest) {
                 return `
-                    ${state.topics.length > 0 ? `
-                        <div style="background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-                            <h3 style="color: #0c4a6e; margin-bottom: 15px;">🎯 Tipo de Test</h3>
-                            <div style="display: grid; gap: 10px;">
-                                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                                    <input type="radio" name="test-type" value="all" checked>
-                                    <span>Test General (${state.questions.length} preguntas)</span>
-                                </label>
-                                ${state.topics.map(topic => `
-                                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                                        <input type="radio" name="test-type" value="${topic.id}">
-                                        <span>${topic.name} (${getTopicQuestionCount(topic.id)} preguntas)</span>
-                                    </label>
-                                `).join('')}
+                    <div style="background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                        <h3 style="color: #0c4a6e; margin-bottom: 15px;">🎯 Configuración del Test</h3>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-weight: 500;">Número de preguntas:</label>
+                                <select id="test-questions-count" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                    <option value="5">5 preguntas</option>
+                                    <option value="10" selected>10 preguntas</option>
+                                    <option value="15">15 preguntas</option>
+                                    <option value="20">20 preguntas</option>
+                                    <option value="all">Todas las preguntas disponibles</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-weight: 500;">Duración:</label>
+                                <select id="test-duration" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                    <option value="300">5 minutos</option>
+                                    <option value="600" selected>10 minutos</option>
+                                    <option value="900">15 minutos</option>
+                                    <option value="1200">20 minutos</option>
+                                    <option value="1800">30 minutos</option>
+                                    <option value="0">Sin límite de tiempo</option>
+                                </select>
                             </div>
                         </div>
-                    ` : ''}
+
+                        ${state.topics.length > 0 ? `
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 10px; font-weight: 500;">Tipo de test:</label>
+                                <div style="display: grid; gap: 10px;">
+                                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                        <input type="radio" name="test-type" value="all" checked>
+                                        <span>Test General (${state.questions.length} preguntas)</span>
+                                    </label>
+                                    ${state.topics.map(topic => `
+                                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                            <input type="radio" name="test-type" value="${topic.id}">
+                                            <span>${topic.name} (${getTopicQuestionCount(topic.id)} preguntas)</span>
+                                        </label>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
 
                     <div style="text-align: center; padding: 40px;">
                         <button onclick="startTest()" class="btn btn-primary" style="font-size: 1.2rem; padding: 15px 30px;">
@@ -519,36 +548,45 @@
         }
 
         function renderCurrentTest() {
-            const question = state.currentTest.questions[state.currentTest.currentQuestion];
+            const duration = state.currentTest.duration;
+            const hasTimer = duration > 0;
+            
             return `
-                <div style="max-width: 800px; margin: 0 auto;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-                        <div>Pregunta ${state.currentTest.currentQuestion + 1} de ${state.currentTest.questions.length}</div>
-                        <div id="timer" style="font-weight: bold; color: #ef4444;">⏱️ ${formatTime(state.currentTest.timeLeft)}</div>
+                <div style="max-width: 1000px; margin: 0 auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 20px; background: #f8fafc; border-radius: 12px;">
+                        <div>
+                            <h2 style="margin: 0; color: #1f2937;">Test: ${state.currentTest.questions.length} Preguntas</h2>
+                            ${state.currentTest.testType !== 'all' ? `<p style="margin: 5px 0 0 0; color: #6b7280;">Tema: ${getTopicName(state.currentTest.testType)}</p>` : ''}
+                        </div>
+                        ${hasTimer ? `<div id="timer" style="font-weight: bold; color: #ef4444; font-size: 1.2rem;">⏱️ ${formatTime(state.currentTest.timeLeft)}</div>` : ''}
                     </div>
                     
-                    <div style="background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-                        <div style="font-size: 1.1rem; font-weight: 500; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
-                            ${question.question}
-                            ${question.isVerified ? '<span style="color: #3b82f6; font-size: 18px; filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5));" title="Pregunta verificada">⭐</span>' : ''}
-                        </div>
-                        
-                        <div style="display: grid; gap: 10px;">
-                            ${question.options.map((option, index) => `
-                                <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: white; border-radius: 8px; cursor: pointer; border: 1px solid #e5e7eb;">
-                                    <input type="radio" name="answer" value="${index}" onchange="selectAnswer(${index})">
-                                    <span>${String.fromCharCode(97 + index)}) ${option}</span>
-                                </label>
-                            `).join('')}
-                        </div>
-                    </div>
+                    <form id="test-form">
+                        ${state.currentTest.questions.map((question, questionIndex) => `
+                            <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 25px; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; color: #1f2937;">
+                                    <span style="color: #4f46e5;">#{questionIndex + 1}</span>
+                                    ${question.question}
+                                    ${question.isVerified ? '<span style="color: #3b82f6; font-size: 16px; filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5));" title="Pregunta verificada">⭐</span>' : ''}
+                                </div>
+                                
+                                <div style="display: grid; gap: 12px;">
+                                    ${question.options.map((option, optionIndex) => `
+                                        <label style="display: flex; align-items: center; gap: 12px; padding: 15px; background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-size: 15px;" 
+                                               onmouseover="this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#d1d5db';" 
+                                               onmouseout="this.style.backgroundColor='#f9fafb'; this.style.borderColor='#e5e7eb';">
+                                            <input type="radio" name="question-${questionIndex}" value="${optionIndex}" style="transform: scale(1.2);">
+                                            <span><strong>${String.fromCharCode(97 + optionIndex)})</strong> ${option}</span>
+                                        </label>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </form>
                     
-                    <div style="display: flex; justify-content: space-between;">
-                        <button onclick="previousQuestion()" class="btn btn-secondary" ${state.currentTest.currentQuestion === 0 ? 'disabled' : ''}>
-                            ← Anterior
-                        </button>
-                        <button onclick="nextQuestion()" class="btn btn-primary">
-                            ${state.currentTest.currentQuestion === state.currentTest.questions.length - 1 ? 'Finalizar Test' : 'Siguiente →'}
+                    <div style="text-align: center; padding: 30px;">
+                        <button onclick="finishTest()" class="btn btn-primary" style="font-size: 1.2rem; padding: 15px 40px;">
+                            🏁 Finalizar Test
                         </button>
                     </div>
                 </div>
@@ -1055,28 +1093,39 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 return;
             }
 
+            // Obtener configuraciones
+            const questionsCountSelect = document.getElementById('test-questions-count');
+            const durationSelect = document.getElementById('test-duration');
+            
+            const questionsCount = questionsCountSelect.value === 'all' ? availableQuestions.length : parseInt(questionsCountSelect.value);
+            const duration = parseInt(durationSelect.value);
+
+            const finalQuestionsCount = Math.min(questionsCount, availableQuestions.length);
             const shuffled = [...availableQuestions].sort(() => Math.random() - 0.5);
             
             state.currentTest = {
-                questions: shuffled.slice(0, Math.min(10, availableQuestions.length)),
-                currentQuestion: 0,
+                questions: shuffled.slice(0, finalQuestionsCount),
                 answers: {},
-                timeLeft: 600,
+                duration: duration,
+                timeLeft: duration,
                 timer: null,
                 testType: selectedTestType ? selectedTestType.value : 'all'
             };
             
-            state.currentTest.timer = setInterval(() => {
-                state.currentTest.timeLeft--;
-                if (state.currentTest.timeLeft <= 0) {
-                    finishTest();
-                } else {
-                    const timerElement = document.getElementById('timer');
-                    if (timerElement) {
-                        timerElement.textContent = `⏱️ ${formatTime(state.currentTest.timeLeft)}`;
+            // Solo iniciar timer si hay duración
+            if (duration > 0) {
+                state.currentTest.timer = setInterval(() => {
+                    state.currentTest.timeLeft--;
+                    if (state.currentTest.timeLeft <= 0) {
+                        finishTest();
+                    } else {
+                        const timerElement = document.getElementById('timer');
+                        if (timerElement) {
+                            timerElement.textContent = `⏱️ ${formatTime(state.currentTest.timeLeft)}`;
+                        }
                     }
-                }
-            }, 1000);
+                }, 1000);
+            }
             
             render();
         }
@@ -1108,16 +1157,29 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
         function finishTest() {
             if (!state.currentTest) return;
             
-            clearInterval(state.currentTest.timer);
+            // Detener timer si existe
+            if (state.currentTest.timer) {
+                clearInterval(state.currentTest.timer);
+            }
             
+            // Recoger respuestas del formulario
+            const form = document.getElementById('test-form');
             let correct = 0;
-            state.currentTest.questions.forEach((q, i) => {
-                if (state.currentTest.answers[i] === q.correctAnswer) {
-                    correct++;
+            const answers = {};
+            
+            state.currentTest.questions.forEach((question, index) => {
+                const selectedOption = form.querySelector(`input[name="question-${index}"]:checked`);
+                if (selectedOption) {
+                    const answerIndex = parseInt(selectedOption.value);
+                    answers[index] = answerIndex;
+                    if (answerIndex === question.correctAnswer) {
+                        correct++;
+                    }
                 }
             });
             
-            const percentage = Math.round((correct / state.currentTest.questions.length) * 100);
+            const totalQuestions = state.currentTest.questions.length;
+            const percentage = Math.round((correct / totalQuestions) * 100);
             
             let testTypeText = 'Test General';
             if (state.currentTest.testType !== 'all') {
@@ -1125,7 +1187,14 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 testTypeText = `Test de ${topicName}`;
             }
             
-            alert(`${testTypeText} completado!\n\nRespuestas correctas: ${correct}/${state.currentTest.questions.length}\nPorcentaje: ${percentage}%`);
+            // Calcular tiempo usado
+            let timeUsedText = '';
+            if (state.currentTest.duration > 0) {
+                const timeUsed = state.currentTest.duration - state.currentTest.timeLeft;
+                timeUsedText = `\nTiempo empleado: ${formatTime(timeUsed)} de ${formatTime(state.currentTest.duration)}`;
+            }
+            
+            alert(`${testTypeText} completado!\n\nRespuestas correctas: ${correct}/${totalQuestions}\nPorcentaje: ${percentage}%${timeUsedText}\n\nPreguntas respondidas: ${Object.keys(answers).length}/${totalQuestions}`);
             
             state.currentTest = null;
             render();
