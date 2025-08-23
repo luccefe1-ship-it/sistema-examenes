@@ -552,20 +552,26 @@
             const hasTimer = duration > 0;
             
             return `
-                <div style="max-width: 1000px; margin: 0 auto;">
+                <div style="max-width: 1000px; margin: 0 auto; position: relative;">
+                    ${hasTimer ? `
+                        <div id="timer" style="position: fixed; top: 20px; right: 20px; background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-weight: bold; color: #ef4444; font-size: 1.2rem; z-index: 1000; border: 2px solid #fecaca;">
+                            ⏱️ ${formatTime(state.currentTest.timeLeft)}
+                        </div>
+                    ` : ''}
+                    
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 20px; background: #f8fafc; border-radius: 12px;">
                         <div>
                             <h2 style="margin: 0; color: #1f2937;">Test: ${state.currentTest.questions.length} Preguntas</h2>
                             ${state.currentTest.testType !== 'all' ? `<p style="margin: 5px 0 0 0; color: #6b7280;">Tema: ${getTopicName(state.currentTest.testType)}</p>` : ''}
                         </div>
-                        ${hasTimer ? `<div id="timer" style="font-weight: bold; color: #ef4444; font-size: 1.2rem;">⏱️ ${formatTime(state.currentTest.timeLeft)}</div>` : ''}
+                        ${hasTimer ? `<div style="color: #6b7280; font-size: 14px;">El tiempo se muestra arriba a la derecha</div>` : ''}
                     </div>
                     
                     <form id="test-form">
                         ${state.currentTest.questions.map((question, questionIndex) => `
                             <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 25px; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                                 <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; color: #1f2937;">
-                                    <span style="color: #4f46e5;">#{questionIndex + 1}</span>
+                                    <span style="color: #4f46e5;">#${questionIndex + 1}</span>
                                     ${question.question}
                                     ${question.isVerified ? '<span style="color: #3b82f6; font-size: 16px; filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5));" title="Pregunta verificada">⭐</span>' : ''}
                                 </div>
