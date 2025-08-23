@@ -138,7 +138,7 @@
 
         .three-column {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 20px;
             margin-top: 20px;
         }
@@ -299,19 +299,21 @@
                         ` : ''}
                         
                         <button onclick="transcribeImages()" class="btn btn-primary" style="width: 100%;" ${state.selectedImages.length === 0 || !state.apiKey ? 'disabled' : ''}>
-                            🤖 1. Transcribir y Procesar
+                            🤖 1. Transcribir Imágenes
                         </button>
-                        
-                        ${state.transcribedText && !state.cleanedText ? `
-                            <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; text-align: center;">
-                                <span style="color: #92400e;">🔄 Procesando texto automáticamente...</span>
-                            </div>
-                        ` : ''}
                     </div>
 
                     <div class="column">
-                        <h3 style="margin-bottom: 15px;">📝 Texto Transcrito</h3>
-                        <textarea id="cleanedText" class="textarea" placeholder="El texto procesado aparecerá aquí..." readonly>${state.cleanedText}</textarea>
+                        <h3 style="margin-bottom: 15px;">📝 Texto Extraído</h3>
+                        <textarea id="transcribedText" class="textarea" placeholder="El texto transcrito aparecerá aquí..." readonly>${state.transcribedText}</textarea>
+                        <button onclick="cleanText()" class="btn btn-primary" style="width: 100%; margin-top: 10px;" ${!state.transcribedText || !state.apiKey ? 'disabled' : ''}>
+                            🧹 2. Limpiar Texto
+                        </button>
+                    </div>
+
+                    <div class="column">
+                        <h3 style="margin-bottom: 15px;">✨ Texto Limpio</h3>
+                        <textarea id="cleanedText" class="textarea" placeholder="El texto limpio aparecerá aquí..." readonly>${state.cleanedText}</textarea>
                         
                         <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px;">
                             <h4 style="color: #92400e; margin-bottom: 10px;">🏷️ Gestión de Temas</h4>
@@ -324,11 +326,14 @@
                                 <div style="position: relative;">
                                     <select id="topic-selector" onchange="updateSelectedTopic()" style="width: 100%; padding: 8px; border: none; background: #f59e0b; color: white; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;" ${state.topics.length === 0 ? 'disabled' : ''}>
                                         <option value="">🏷️ Seleccionar Tema</option>
-                                        ${state.topics.map(topic => `
-                                            <option value="${topic.id}" ${state.selectedTopicForNewQuestions === topic.id ? 'selected' : ''}>
-                                                ${topic.name} (${getTopicQuestionCount(topic.id)})
-                                            </option>
-                                        `).join('')}
+                                        ${state.topics.map(topic => {
+                                            const count = getTopicQuestionCount(topic.id);
+                                            return `
+                                                <option value="${topic.id}" ${state.selectedTopicForNewQuestions === topic.id ? 'selected' : ''}>
+                                                    ${topic.name} (${count})
+                                                </option>
+                                            `;
+                                        }).join('')}
                                     </select>
                                 </div>
                             </div>
@@ -351,6 +356,11 @@
         function renderQuestionsTab() {
             const filteredQuestions = getFilteredQuestions();
             
+            // Debug: Ver los datos actuales
+            console.log('Temas disponibles:', state.topics);
+            console.log('Preguntas disponibles:', state.questions.map(q => ({id: q.id, topicId: q.topicId, question: q.question.substring(0, 50)})));
+            console.log('Filtro actual:', state.selectedTopicFilter);
+            
             return `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h2>Banco de Preguntas (${filteredQuestions.length})</h2>
@@ -362,11 +372,14 @@
                         <label style="margin-right: 10px; font-weight: 500;">Filtrar por tema:</label>
                         <select onchange="filterByTopic(this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #d1d5db;">
                             <option value="all" ${state.selectedTopicFilter === 'all' ? 'selected' : ''}>Todos los temas (${state.questions.length})</option>
-                            ${state.topics.map(topic => `
-                                <option value="${topic.id}" ${state.selectedTopicFilter === topic.id ? 'selected' : ''}>
-                                    ${topic.name} (${getTopicQuestionCount(topic.id)})
-                                </option>
-                            `).join('')}
+                            ${state.topics.map(topic => {
+                                const count = getTopicQuestionCount(topic.id);
+                                return `
+                                    <option value="${topic.id}" ${state.selectedTopicFilter === topic.id ? 'selected' : ''}>
+                                        ${topic.name} (${count})
+                                    </option>
+                                `;
+                            }).join('')}
                         </select>
                     </div>
                 ` : ''}
@@ -591,19 +604,21 @@
             if (selector && selector.value) {
                 state.selectedTopicForNewQuestions = selector.value;
                 const topicName = getTopicName(selector.value);
+                console.log('Tema seleccionado:', selector.value, 'Nombre:', topicName); // Debug
                 showMessage(`Tema "${topicName}" seleccionado`, 'success');
             } else {
                 state.selectedTopicForNewQuestions = null;
+                console.log('No hay tema seleccionado'); // Debug
             }
             render();
         }
 
         function getAddButtonText() {
             if (!state.selectedTopicForNewQuestions) {
-                return '✅ 2. Añadir al Banco';
+                return '✅ 3. Añadir al Banco';
             } else {
                 const topicName = getTopicName(state.selectedTopicForNewQuestions);
-                return `✅ 2. Asignar a "${topicName}"`;
+                return `✅ 3. Asignar a "${topicName}"`;
             }
         }
 
@@ -698,10 +713,7 @@ Responde con el texto extraído conservando TODOS los símbolos y marcas visuale
                 state.transcribedText = allTranscriptions.join('\n\n--- SIGUIENTE IMAGEN ---\n\n');
                 
                 render();
-                showMessage(`Transcripción completada. Procesando texto...`, 'success');
-                
-                // Automáticamente limpiar el texto después de transcribir
-                await cleanText();
+                showMessage(`¡Transcripción completada exitosamente! Procesadas ${state.selectedImages.length} imágenes.`, 'success');
                 
             } catch (error) {
                 showMessage(`Error en la transcripción: ${error.message}`, 'error');
@@ -719,7 +731,7 @@ Responde con el texto extraído conservando TODOS los símbolos y marcas visuale
                 return;
             }
 
-            render(); // Mostrar el indicador de procesamiento
+            showMessage('Limpiando texto...', 'success');
             
             try {
                 const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -769,7 +781,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 state.cleanedText = data.content[0].text;
                 
                 render();
-                showMessage('¡Texto procesado y listo para añadir al banco!', 'success');
+                showMessage('¡Texto limpiado exitosamente!', 'success');
                 
             } catch (error) {
                 showMessage(`Error en la limpieza: ${error.message}`, 'error');
@@ -787,7 +799,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
 
         function addToQuestions() {
             if (!state.cleanedText) {
-                showMessage('Primero procesa el texto', 'error');
+                showMessage('Primero limpia el texto', 'error');
                 return;
             }
 
