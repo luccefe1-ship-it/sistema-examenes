@@ -937,7 +937,9 @@
         function updateSelectedTopic() {
             const selector = document.getElementById('topic-selector');
             if (selector && selector.value) {
+                // Convertir el valor del selector al tipo correcto
                 const selectedValue = selector.value;
+                // Buscar el tema para obtener el ID en su formato original
                 const selectedTopic = state.topics.find(t => t.id == selectedValue);
                 if (selectedTopic) {
                     state.selectedTopicForNewQuestions = selectedTopic.id;
@@ -1015,6 +1017,93 @@ INSTRUCCIONES CRÍTICAS:
 - PRESERVA cualquier indicación visual de que una opción es la correcta
 - Si hay múltiples imágenes, procesa cada una en orden
 - Separa claramente el contenido de cada imagen
+
+IMPORTANTE: NO elimines símbolos de respuesta correcta - los necesitamos para el siguiente paso.
+
+Responde con el texto extraído conservando TODOS los símbolos y marcas visuales.`
+                        }
+                    ];
+
+                    const response = await fetch("https://api.anthropic.com/v1/messages", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            model: "claude-sonnet-4-20250514",
+                            max_tokens: 4000,
+                            messages: [{
+                                role: "user",
+                                content: messageContent
+                            }]
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    allTranscriptions.push(data.content[0].text);
+                }
+
+                state.transcribedText = allTranscriptions.join('\n\n--- SIGUIENTE IMAGEN ---\n\n');
+                
+                render();
+                showMessage(`Transcripción completada. Procesando texto...`, 'success');
+                
+                // Automáticamente limpiar el texto después de transcribir
+                await cleanText();
+                
+            } catch (error) {
+                showMessage(`Error en la transcripción: ${error.message}`, 'error');
+            }
+        }
+
+        async function cleanText() {
+            if (!state.transcribedText) {
+                showMessage('Primero transcribe las imágenes', 'error');
+                return;
+            }
+
+            if (!state.apiKey) {
+                showMessage('Configura tu API key primero', 'error');
+                return;
+            }
+
+            render(); // Mostrar el indicador de procesamiento
+            
+            try {
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: 4000,
+                        messages: [{
+                            role: "user",
+                            content: `Limpia este texto extraído de múltiples imágenes y conviértelo en formato de preguntas para banco de preguntas:
+
+TEXTO A LIMPIAR:
+${state.transcribedText}
+
+INSTRUCCIONES CRÍTICAS PARA DETECTAR RESPUESTAS CORRECTAS:
+- Busca símbolos visuales: ✓, ✔, *, •, →, >, checkmarks, ticks
+- Busca descripciones: "marcada", "marcada en verde", "respuesta correcta", "con tick", "con check"
+- Busca colores mencionados: "verde", "resaltada", "seleccionada"
+- MARCA EN NEGRITA las opciones que tengan cualquiera de estos indicadores usando **texto**
+- Elimina los símbolos y descripciones visuales DESPUÉS de identificar las correctas
+- Extrae solo las preguntas y opciones de respuesta
+- Numera las preguntas secuencialmente
+
+FORMATO DE SALIDA ESTRICTO:
+PREGUNTA: [texto de la pregunta]
+OPCION_A: [opción a normal]
+OPCION_B: **[opción b si tiene símbolo/marca de correcta]**
+OPCION_C: [opción c normal]
+OPCION_D: **[opción d si tiene símbolo/marca de correcta]**
 
 IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descripción de "correcta" debe ir en **negritas**.`
                         }]
@@ -1255,7 +1344,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
 
         function filterByTopic(topicId) {
             state.selectedTopicFilter = topicId;
-            render();
+            render(); // Importante: re-renderizar para actualizar el título
         }
 
         function getFilteredQuestions() {
@@ -1280,10 +1369,16 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             
             const selectedTestType = document.querySelector('input[name="test-type"]:checked');
             if (selectedTestType && selectedTestType.value !== 'all') {
+                // Convertir ambos valores a string para comparación
                 const selectedTopicId = selectedTestType.value.toString();
                 availableQuestions = state.questions.filter(q => {
+                    // Comparar como strings para evitar problemas de tipo
                     return q.topicId && q.topicId.toString() === selectedTopicId;
                 });
+                
+                console.log('Tema seleccionado:', selectedTopicId);
+                console.log('Preguntas filtradas:', availableQuestions.length);
+                console.log('Todas las preguntas:', state.questions.map(q => ({ id: q.id, topicId: q.topicId })));
             }
 
             if (availableQuestions.length === 0) {
@@ -1291,6 +1386,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 return;
             }
 
+            // Obtener configuraciones
             const questionsCountSelect = document.getElementById('test-questions-count');
             const durationSelect = document.getElementById('test-duration');
             const testNameInput = document.getElementById('test-name');
@@ -1298,6 +1394,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             const questionsCount = questionsCountSelect.value === 'all' ? availableQuestions.length : parseInt(questionsCountSelect.value);
             const duration = parseInt(durationSelect.value);
 
+            // Generar nombre del test
             let testName = testNameInput.value.trim();
             if (!testName) {
                 const now = new Date();
@@ -1326,6 +1423,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 startTime: Date.now()
             };
             
+            // Solo iniciar timer si hay duración
             if (duration > 0) {
                 state.currentTest.timer = setInterval(() => {
                     state.currentTest.timeLeft--;
@@ -1346,10 +1444,12 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
         function finishTest() {
             if (!state.currentTest) return;
             
+            // Detener timer si existe
             if (state.currentTest.timer) {
                 clearInterval(state.currentTest.timer);
             }
             
+            // Recoger respuestas del formulario
             const form = document.getElementById('test-form');
             let correct = 0;
             let incorrect = 0;
@@ -1390,12 +1490,14 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 testTypeText = `Test de ${topicName}`;
             }
             
+            // Calcular tiempo usado
             let timeUsedText = '';
             if (state.currentTest.duration > 0) {
                 const timeUsed = state.currentTest.duration - state.currentTest.timeLeft;
                 timeUsedText = `Tiempo empleado: ${formatTime(timeUsed)} de ${formatTime(state.currentTest.duration)}`;
             }
             
+            // Crear objeto de resultado
             const testResult = {
                 name: state.currentTest.name,
                 correct: correct,
@@ -1409,15 +1511,19 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 id: Date.now()
             };
             
+            // Añadir al historial
             state.testResults.push(testResult);
             localStorage.setItem('testResults', JSON.stringify(state.testResults));
             
+            // Mostrar el resultado específico
             state.currentViewingResult = testResult;
             
+            // Limpiar test actual y cambiar a pestaña de resultados
             state.currentTest = null;
             state.currentTab = 'results';
             render();
             
+            // Hacer scroll al inicio de la página después de renderizar
             setTimeout(() => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }, 100);
@@ -1456,6 +1562,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 state.testResults.splice(index, 1);
                 localStorage.setItem('testResults', JSON.stringify(state.testResults));
                 
+                // Si estábamos viendo el test que se eliminó, volver al historial
                 if (state.currentViewingResult && state.currentViewingResult.id === state.testResults[index]?.id) {
                     state.currentViewingResult = null;
                 }
@@ -1502,93 +1609,4 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
         }
     </script>
 </body>
-</html>: NO elimines símbolos de respuesta correcta - los necesitamos para el siguiente paso.
-
-Responde con el texto extraído conservando TODOS los símbolos y marcas visuales.`
-                        }
-                    ];
-
-                    const response = await fetch("/api/anthropic", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "x-api-key": state.apiKey,
-                        },
-                        body: JSON.stringify({
-                            model: "claude-sonnet-4-20250514",
-                            max_tokens: 4000,
-                            messages: [{
-                                role: "user",
-                                content: messageContent
-                            }]
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`Error ${response.status}: ${response.statusText}`);
-                    }
-
-                    const data = await response.json();
-                    allTranscriptions.push(data.content[0].text);
-                }
-
-                state.transcribedText = allTranscriptions.join('\n\n--- SIGUIENTE IMAGEN ---\n\n');
-                
-                render();
-                showMessage(`Transcripción completada. Procesando texto...`, 'success');
-                
-                // Automáticamente limpiar el texto después de transcribir
-                await cleanText();
-                
-            } catch (error) {
-                showMessage(`Error en la transcripción: ${error.message}`, 'error');
-            }
-        }
-
-        async function cleanText() {
-            if (!state.transcribedText) {
-                showMessage('Primero transcribe las imágenes', 'error');
-                return;
-            }
-
-            if (!state.apiKey) {
-                showMessage('Configura tu API key primero', 'error');
-                return;
-            }
-
-            render(); // Mostrar el indicador de procesamiento
-            
-            try {
-                const response = await fetch("/api/anthropic", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "x-api-key": state.apiKey,
-                    },
-                    body: JSON.stringify({
-                        model: "claude-sonnet-4-20250514",
-                        max_tokens: 4000,
-                        messages: [{
-                            role: "user",
-                            content: `Limpia este texto extraído de múltiples imágenes y conviértelo en formato de preguntas para banco de preguntas:
-
-TEXTO A LIMPIAR:
-${state.transcribedText}
-
-INSTRUCCIONES CRÍTICAS PARA DETECTAR RESPUESTAS CORRECTAS:
-- Busca símbolos visuales: ✓, ✔, *, •, →, >, checkmarks, ticks
-- Busca descripciones: "marcada", "marcada en verde", "respuesta correcta", "con tick", "con check"
-- Busca colores mencionados: "verde", "resaltada", "seleccionada"
-- MARCA EN NEGRITA las opciones que tengan cualquiera de estos indicadores usando **texto**
-- Elimina los símbolos y descripciones visuales DESPUÉS de identificar las correctas
-- Extrae solo las preguntas y opciones de respuesta
-- Numera las preguntas secuencialmente
-
-FORMATO DE SALIDA ESTRICTO:
-PREGUNTA: [texto de la pregunta]
-OPCION_A: [opción a normal]
-OPCION_B: **[opción b si tiene símbolo/marca de correcta]**
-OPCION_C: [opción c normal]
-OPCION_D: **[opción d si tiene símbolo/marca de correcta]**
-
-IMPORTANTE
+</html>
