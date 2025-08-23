@@ -299,16 +299,18 @@
                         ` : ''}
                         
                         <button onclick="transcribeImages()" class="btn btn-primary" style="width: 100%;" ${state.selectedImages.length === 0 || !state.apiKey ? 'disabled' : ''}>
-                            🤖 1. Transcribir Imágenes
+                            🤖 1. Transcribir y Procesar
                         </button>
                     </div>
 
                     <div class="column">
                         <h3 style="margin-bottom: 15px;">📝 Texto Extraído</h3>
                         <textarea id="transcribedText" class="textarea" placeholder="El texto transcrito aparecerá aquí..." readonly>${state.transcribedText}</textarea>
-                        <button onclick="cleanText()" class="btn btn-primary" style="width: 100%; margin-top: 10px;" ${!state.transcribedText || !state.apiKey ? 'disabled' : ''}>
-                            🧹 2. Limpiar Texto
-                        </button>
+                        ${state.transcribedText && !state.cleanedText ? `
+                            <div style="margin-top: 10px; padding: 10px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; text-align: center;">
+                                <span style="color: #92400e;">🔄 Procesando texto automáticamente...</span>
+                            </div>
+                        ` : ''}
                     </div>
 
                     <div class="column">
@@ -593,21 +595,19 @@
             if (selector && selector.value) {
                 state.selectedTopicForNewQuestions = selector.value;
                 const topicName = getTopicName(selector.value);
-                console.log('Tema seleccionado:', selector.value, 'Nombre:', topicName); // Debug
                 showMessage(`Tema "${topicName}" seleccionado`, 'success');
             } else {
                 state.selectedTopicForNewQuestions = null;
-                console.log('No hay tema seleccionado'); // Debug
             }
             render();
         }
 
         function getAddButtonText() {
             if (!state.selectedTopicForNewQuestions) {
-                return '✅ 3. Añadir al Banco';
+                return '✅ 2. Añadir al Banco';
             } else {
                 const topicName = getTopicName(state.selectedTopicForNewQuestions);
-                return `✅ 3. Asignar a "${topicName}"`;
+                return `✅ 2. Asignar a "${topicName}"`;
             }
         }
 
@@ -702,7 +702,10 @@ Responde con el texto extraído conservando TODOS los símbolos y marcas visuale
                 state.transcribedText = allTranscriptions.join('\n\n--- SIGUIENTE IMAGEN ---\n\n');
                 
                 render();
-                showMessage(`¡Transcripción completada exitosamente! Procesadas ${state.selectedImages.length} imágenes.`, 'success');
+                showMessage(`Transcripción completada. Procesando texto...`, 'success');
+                
+                // Automáticamente limpiar el texto después de transcribir
+                await cleanText();
                 
             } catch (error) {
                 showMessage(`Error en la transcripción: ${error.message}`, 'error');
@@ -720,7 +723,7 @@ Responde con el texto extraído conservando TODOS los símbolos y marcas visuale
                 return;
             }
 
-            showMessage('Limpiando texto...', 'success');
+            render(); // Mostrar el indicador de procesamiento
             
             try {
                 const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -770,7 +773,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
                 state.cleanedText = data.content[0].text;
                 
                 render();
-                showMessage('¡Texto limpiado exitosamente!', 'success');
+                showMessage('¡Texto procesado y listo para añadir al banco!', 'success');
                 
             } catch (error) {
                 showMessage(`Error en la limpieza: ${error.message}`, 'error');
@@ -788,7 +791,7 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
 
         function addToQuestions() {
             if (!state.cleanedText) {
-                showMessage('Primero limpia el texto', 'error');
+                showMessage('Primero procesa el texto', 'error');
                 return;
             }
 
