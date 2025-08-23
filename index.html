@@ -229,7 +229,7 @@
                 app.innerHTML = `
                     <div class="container">
                         <div class="header">
-                            <div class="title">Sistema de Exámenes</div>
+                            <div class="title">${state.currentTab === 'questions' ? 'Banco de Preguntas' : 'Sistema de Exámenes'}</div>
                             <div>
                                 <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
                                     ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
@@ -351,9 +351,18 @@
         function renderQuestionsTab() {
             const filteredQuestions = getFilteredQuestions();
             
+            function getQuestionsTitle() {
+                if (state.selectedTopicFilter === 'all') {
+                    return 'TODAS LAS PREGUNTAS DEL BANCO';
+                } else {
+                    const topicName = getTopicName(state.selectedTopicFilter);
+                    return `PREGUNTAS ${topicName.toUpperCase()}`;
+                }
+            }
+            
             return `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2>Banco de Preguntas (${filteredQuestions.length})</h2>
+                    <h2>${getQuestionsTitle()} (${filteredQuestions.length})</h2>
                     <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
                 </div>
 
