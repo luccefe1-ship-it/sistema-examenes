@@ -2976,8 +2976,266 @@ Este parche REEMPLAZA completamente la función renderTabContent para incluir 's
     
     console.log('✅ Corrección FINAL aplicada - Pestaña summary habilitada');
 </script>
+    <!-- 
+PARCHE URGENTE: DEFINIR FUNCIÓN RENDERSUMMARYTAB
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche define la función renderSummaryTab que falta
+-->
+
+<script>
+    // ========== PARCHE URGENTE: FUNCIÓN RENDERSUMMARYTAB ==========
+    
+    // Definir la función renderSummaryTab globalmente
+    function renderSummaryTab() {
+        return `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <div>
+                    <h2 style="color: #1f2937; margin: 0;">📄 Generador de Resúmenes con IA</h2>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Sube una imagen y obtén un resumen inteligente del contenido</p>
+                </div>
+                <button onclick="backToIntermediateScreen()" class="btn btn-secondary">
+                    ← Volver al Menú Principal
+                </button>
+            </div>
+            
+            <div class="three-column">
+                <div class="column">
+                    <h3 style="margin-bottom: 15px;">📤 Subir Imagen para Resumir</h3>
+                    <div class="upload-area" onclick="document.getElementById('summaryImageInput').click()">
+                        <div>📷 Seleccionar imagen</div>
+                        <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">Una imagen por vez</div>
+                        <div style="margin-top: 10px; color: #4f46e5; font-weight: 500;">
+                            ${summaryState.selectedImages.length}/1 archivo
+                        </div>
+                    </div>
+                    <input type="file" id="summaryImageInput" style="display: none;" accept="image/*">
+                    
+                    ${summaryState.selectedImages.length > 0 ? `
+                        <div style="margin-bottom: 15px; padding: 15px; background: #f3f4f6; border-radius: 8px; text-align: center;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="font-size: 12px; word-break: break-all; flex: 1;">${summaryState.selectedImages[0].name}</div>
+                                <button onclick="removeSummaryImage()" style="background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; cursor: pointer; margin-left: 10px;">×</button>
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <button onclick="generateSummary()" class="btn btn-primary" style="width: 100%;" ${summaryState.selectedImages.length === 0 || !state.apiKey || summaryState.isProcessing ? 'disabled' : ''}>
+                        ${summaryState.isProcessing ? '🔄 Generando Resumen...' : '🤖 Generar Resumen'}
+                    </button>
+                    
+                    ${summaryState.isProcessing ? `
+                        <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; text-align: center;">
+                            <span style="color: #92400e;">🔄 Procesando imagen y generando resumen...</span>
+                        </div>
+                    ` : ''}
+                    
+                    <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 8px;">
+                        <h4 style="color: #0c4a6e; margin-bottom: 10px;">💡 Consejos para mejores resúmenes</h4>
+                        <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #0369a1;">
+                            <li>Usa imágenes con texto claro y legible</li>
+                            <li>Evita imágenes muy pequeñas o borrosas</li>
+                            <li>Funciona mejor con documentos, artículos, o capturas de pantalla</li>
+                            <li>El resumen se adaptará al tipo de contenido detectado</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="column">
+                    <h3 style="margin-bottom: 15px;">📝 Resumen Generado</h3>
+                    <textarea id="generatedSummary" class="textarea" placeholder="El resumen aparecerá aquí una vez que proceses una imagen..." readonly>${summaryState.generatedSummary}</textarea>
+                    
+                    ${summaryState.generatedSummary ? `
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+                            <button onclick="copySummaryToClipboard()" class="btn btn-info" style="width: 100%; padding: 8px; font-size: 13px;">
+                                📋 Copiar al Portapapeles
+                            </button>
+                            <button onclick="clearSummary()" class="btn btn-secondary" style="width: 100%; padding: 8px; font-size: 13px;">
+                                🗑️ Limpiar Resumen
+                            </button>
+                        </div>
+                        
+                        <div style="margin-top: 15px; padding: 15px; background: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px;">
+                            <h4 style="color: #166534; margin-bottom: 10px;">✅ ¡Resumen generado exitosamente!</h4>
+                            <p style="margin: 0; font-size: 13px; color: #16a34a;">
+                                Puedes copiar el texto, procesarlo nuevamente, o subir una nueva imagen.
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Asegurar que las funciones auxiliares estén definidas
+    function backToIntermediateScreen() {
+        showIntermediateScreen = true;
+        state.currentTab = 'upload';
+        render();
+    }
+    
+    function removeSummaryImage() {
+        summaryState.selectedImages = [];
+        summaryState.generatedSummary = '';
+        render();
+        showMessage('Imagen eliminada', 'success');
+    }
+    
+    async function generateSummary() {
+        if (!state.apiKey) {
+            showMessage('Configura tu API key primero', 'error');
+            return;
+        }
+
+        if (summaryState.selectedImages.length === 0) {
+            showMessage('Selecciona una imagen primero', 'error');
+            return;
+        }
+
+        summaryState.isProcessing = true;
+        render();
+        showMessage('Generando resumen...', 'success');
+        
+        try {
+            const file = summaryState.selectedImages[0];
+            const base64 = await fileToBase64(file);
+            
+            const messageContent = [
+                {
+                    type: "image",
+                    source: {
+                        type: "base64",
+                        media_type: file.type,
+                        data: base64
+                    }
+                },
+                {
+                    type: "text",
+                    text: `Actúa como un asistente experto en análisis y síntesis de información. Analiza esta imagen y genera un resumen completo e inteligente del contenido.
+
+INSTRUCCIONES PARA EL RESUMEN:
+
+🎯 OBJETIVO: Crear un resumen estructurado, claro y útil que capture la esencia del contenido
+
+📋 FORMATO DEL RESUMEN:
+• Comienza con una breve descripción del tipo de documento/contenido
+• Organiza la información en secciones lógicas con encabezados
+• Usa viñetas y numeración cuando sea apropiado
+• Incluye los puntos más importantes y relevantes
+• Termina con conclusiones o puntos clave si es relevante
+
+🔍 QUÉ INCLUIR:
+- Ideas principales y conceptos clave
+- Datos importantes, cifras, fechas relevantes
+- Argumentos o puntos de vista presentados
+- Conclusiones o recomendaciones si las hay
+- Cualquier información práctica o accionable
+
+✨ ESTILO:
+- Lenguaje claro y profesional
+- Oraciones concisas pero informativas  
+- Estructura fácil de leer y escanear
+- Adapta el tono al tipo de contenido (académico, empresarial, técnico, etc.)
+
+🚫 EVITA:
+- Repetir información innecesaria
+- Incluir detalles muy técnicos a menos que sean cruciales
+- Hacer el resumen demasiado largo (máximo 500 palabras)
+- Copiar texto textualmente sin reorganizar
+
+Genera un resumen que sea verdaderamente útil para alguien que quiere entender rápidamente el contenido esencial del documento.`
+                }
+            ];
+
+            const response = await fetch("/api/anthropic", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": state.apiKey,
+                },
+                body: JSON.stringify({
+                    model: "claude-sonnet-4-20250514",
+                    max_tokens: 2000,
+                    messages: [{
+                        role: "user",
+                        content: messageContent
+                    }]
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            summaryState.generatedSummary = data.content[0].text;
+            summaryState.isProcessing = false;
+            
+            render();
+            showMessage('¡Resumen generado exitosamente!', 'success');
+            
+        } catch (error) {
+            summaryState.isProcessing = false;
+            render();
+            showMessage(`Error al generar resumen: ${error.message}`, 'error');
+        }
+    }
+    
+    async function copySummaryToClipboard() {
+        try {
+            await navigator.clipboard.writeText(summaryState.generatedSummary);
+            showMessage('Resumen copiado al portapapeles', 'success');
+        } catch (error) {
+            const textArea = document.createElement('textarea');
+            textArea.value = summaryState.generatedSummary;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showMessage('Resumen copiado al portapapeles', 'success');
+            } catch (err) {
+                showMessage('Error al copiar. Selecciona y copia manualmente', 'error');
+            }
+            document.body.removeChild(textArea);
+        }
+    }
+    
+    function clearSummary() {
+        if (confirm('¿Limpiar el resumen generado?')) {
+            summaryState.generatedSummary = '';
+            render();
+            showMessage('Resumen limpiado', 'success');
+        }
+    }
+    
+    // Asegurar que summaryState esté definido
+    if (typeof summaryState === 'undefined') {
+        window.summaryState = {
+            selectedImages: [],
+            generatedSummary: '',
+            isProcessing: false
+        };
+    }
+    
+    // Event listener para selección de imágenes
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.id === 'summaryImageInput') {
+            const files = Array.from(e.target.files);
+            const imageFile = files.filter(file => file.type.startsWith('image/'))[0];
+            
+            if (imageFile) {
+                summaryState.selectedImages = [imageFile];
+                summaryState.generatedSummary = '';
+                render();
+                showMessage('Imagen seleccionada correctamente', 'success');
+            }
+        }
+    });
+    
+    console.log('🔧 PARCHE URGENTE aplicado - Función renderSummaryTab definida correctamente');
+</script>
 </body>
 </html>
+
 
 
 
