@@ -4596,8 +4596,364 @@ Este parche limpia el contenido y lo presenta de forma elegante
     
     console.log('✅ Parche de limpieza y formato elegante aplicado correctamente');
 </script>
+    <!-- 
+PARCHE: MÚLTIPLES IMÁGENES PARA RESÚMENES
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche permite seleccionar hasta 10 imágenes para generar resúmenes
+-->
+
+<script>
+    // ========== PARCHE: MÚLTIPLES IMÁGENES PARA RESÚMENES ==========
+    
+    // REEMPLAZAR la función renderCreateSummary para soportar múltiples imágenes
+    function renderCreateSummary() {
+        return `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <div>
+                    <h2 style="color: #1f2937; margin: 0;">📄 Crear Nuevo Resumen</h2>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Sube hasta 10 imágenes y obtén un resumen inteligente del contenido</p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="showSummaryLibrary()" class="btn btn-info">
+                        📚 Ver Biblioteca
+                    </button>
+                    <button onclick="backToIntermediateScreen()" class="btn btn-secondary">
+                        ← Volver al Menú Principal
+                    </button>
+                </div>
+            </div>
+            
+            <div class="three-column">
+                <div class="column">
+                    <h3 style="margin-bottom: 15px;">📤 Subir Imágenes para Resumir</h3>
+                    
+                    <!-- Área de subida mejorada -->
+                    <div class="upload-area" onclick="document.getElementById('summaryImageInput').click()" style="border: 2px dashed #cbd5e0; border-radius: 12px; padding: 30px 20px; text-align: center; margin-bottom: 20px; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.borderColor='#4f46e5'; this.style.backgroundColor='#f8fafc'" onmouseout="this.style.borderColor='#cbd5e0'; this.style.backgroundColor='white'">
+                        <div style="font-size: 48px; margin-bottom: 10px; color: #9ca3af;">📁</div>
+                        <div style="font-size: 16px; font-weight: 500; color: #374151; margin-bottom: 5px;">Seleccionar múltiples imágenes</div>
+                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">Hasta 10 imágenes • PNG, JPG, JPEG</div>
+                        <div style="margin-top: 15px; color: #4f46e5; font-weight: 600; font-size: 18px;">
+                            ${summarySystemState.selectedImages.length}/10 archivos seleccionados
+                        </div>
+                    </div>
+                    
+                    <input type="file" id="summaryImageInput" style="display: none;" accept="image/*" multiple>
+                    
+                    <!-- Cuadrícula de imágenes seleccionadas -->
+                    ${summarySystemState.selectedImages.length > 0 ? `
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="color: #374151; font-size: 14px; font-weight: 600; margin-bottom: 12px;">Imágenes seleccionadas:</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; max-height: 300px; overflow-y: auto; padding: 10px; background: #f9fafb; border-radius: 8px;">
+                                ${summarySystemState.selectedImages.map((file, i) => `
+                                    <div style="position: relative; background: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 8px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                        <button onclick="removeSummaryImageByIndex(${i})" style="position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" onmouseover="this.style.backgroundColor='#dc2626'" onmouseout="this.style.backgroundColor='#ef4444'">×</button>
+                                        <div style="font-size: 24px; margin-bottom: 6px;">🖼️</div>
+                                        <div style="font-size: 10px; word-break: break-all; color: #6b7280; line-height: 1.2;">${file.name.length > 15 ? file.name.substring(0, 12) + '...' : file.name}</div>
+                                        <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">${Math.round(file.size/1024)}KB</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <!-- Botón de generar resumen -->
+                    <button onclick="generateMultipleSummary()" class="btn btn-primary" style="width: 100%; margin-bottom: 15px; padding: 12px; font-size: 15px; font-weight: 600;" ${summarySystemState.selectedImages.length === 0 || !state.apiKey || summarySystemState.isProcessing ? 'disabled' : ''}>
+                        ${summarySystemState.isProcessing ? '🔄 Generando Resumen...' : `🤖 Generar Resumen (${summarySystemState.selectedImages.length} imagen${summarySystemState.selectedImages.length === 1 ? '' : 'es'})`}
+                    </button>
+                    
+                    ${summarySystemState.isProcessing ? `
+                        <div style="margin-bottom: 15px; padding: 15px; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 12px; text-align: center;">
+                            <div style="color: #92400e; font-weight: 600; margin-bottom: 8px;">🔄 Procesando ${summarySystemState.selectedImages.length} imagen${summarySystemState.selectedImages.length === 1 ? '' : 'es'}</div>
+                            <div style="color: #78350f; font-size: 13px;">Esto puede tomar unos momentos...</div>
+                            <div style="width: 100%; background: #fed7aa; border-radius: 10px; height: 8px; margin-top: 10px; overflow: hidden;">
+                                <div style="width: 100%; height: 100%; background: #f59e0b; border-radius: 10px; animation: pulse 1.5s infinite;"></div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <!-- Gestión de Temas para Resúmenes -->
+                    <div style="padding: 15px; background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 8px;">
+                        <h4 style="color: #0c4a6e; margin-bottom: 15px;">🏷️ Organizar por Temas</h4>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                            <button onclick="createSummaryTopic()" class="btn btn-info" style="width: 100%; padding: 8px; font-size: 13px;">
+                                🆕 Crear Tema
+                            </button>
+                            
+                            <select id="summary-topic-selector" onchange="updateSelectedSummaryTopic()" style="width: 100%; padding: 8px; border: none; background: #0ea5e9; color: white; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;" ${summarySystemState.summaryTopics.length === 0 ? 'disabled' : ''}>
+                                <option value="">📂 Seleccionar Tema</option>
+                                ${summarySystemState.summaryTopics.map(topic => `
+                                    <option value="${topic.id}" ${summarySystemState.selectedTopicForSummary === topic.id ? 'selected' : ''}>
+                                        ${topic.name} (${getSummaryTopicCount(topic.id)})
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        
+                        ${summarySystemState.summaryTopics.length === 0 ? `
+                            <div style="font-size: 12px; color: #0c4a6e; font-style: italic; text-align: center;">
+                                Crea temas para organizar tus resúmenes
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <!-- Consejos mejorados -->
+                    <div style="margin-top: 20px; padding: 15px; background: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px;">
+                        <h4 style="color: #166534; margin-bottom: 10px;">💡 Consejos para resúmenes de múltiples imágenes</h4>
+                        <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #16a34a; line-height: 1.4;">
+                            <li>Sube imágenes relacionadas para un resumen coherente</li>
+                            <li>Ordena las imágenes en secuencia lógica</li>
+                            <li>Cada imagen adicional enriquece el resumen final</li>
+                            <li>El sistema analizará todas las imágenes como un conjunto</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="column">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0;">📝 Resumen Generado</h3>
+                        ${summarySystemState.generatedSummary ? `
+                            <button onclick="saveSummaryToLibrary()" class="btn btn-success" style="padding: 6px 12px; font-size: 12px;">
+                                💾 Guardar
+                            </button>
+                        ` : ''}
+                    </div>
+                    
+                    <textarea id="generatedSummary" class="textarea" style="min-height: 400px;" placeholder="El resumen de todas las imágenes aparecerá aquí una vez que las proceses..." readonly>${summarySystemState.generatedSummary}</textarea>
+                    
+                    ${summarySystemState.generatedSummary ? `
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+                            <button onclick="copySummaryToClipboard()" class="btn btn-info" style="width: 100%; padding: 8px; font-size: 13px;">
+                                📋 Copiar al Portapapeles
+                            </button>
+                            <button onclick="clearCurrentSummary()" class="btn btn-secondary" style="width: 100%; padding: 8px; font-size: 13px;">
+                                🗑️ Limpiar Resumen
+                            </button>
+                        </div>
+                        
+                        <div style="margin-top: 15px; padding: 15px; background: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px;">
+                            <h4 style="color: #166534; margin-bottom: 10px;">✅ ¡Resumen de ${summarySystemState.selectedImages.length} imagen${summarySystemState.selectedImages.length === 1 ? '' : 'es'} generado!</h4>
+                            <p style="margin: 0; font-size: 13px; color: #16a34a;">
+                                El resumen integra el contenido de todas las imágenes procesadas.
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <style>
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.5; }
+                }
+            </style>
+        `;
+    }
+    
+    // Nueva función para eliminar imagen por índice
+    function removeSummaryImageByIndex(index) {
+        summarySystemState.selectedImages.splice(index, 1);
+        summarySystemState.generatedSummary = ''; // Limpiar resumen al cambiar imágenes
+        render();
+        showMessage(`Imagen eliminada (${summarySystemState.selectedImages.length}/10 restantes)`, 'success');
+    }
+    
+    // ACTUALIZAR el event listener para múltiples imágenes
+    document.removeEventListener('change', handleSummaryImageChange); // Remover listener anterior si existe
+    
+    function handleSummaryImageChange(e) {
+        if (e.target && e.target.id === 'summaryImageInput') {
+            const files = Array.from(e.target.files);
+            const imageFiles = files.filter(file => file.type.startsWith('image/'));
+            
+            if (imageFiles.length > 0) {
+                // Calcular cuántas imágenes podemos añadir
+                const currentCount = summarySystemState.selectedImages.length;
+                const maxNew = Math.min(imageFiles.length, 10 - currentCount);
+                
+                if (maxNew > 0) {
+                    const newImages = imageFiles.slice(0, maxNew);
+                    summarySystemState.selectedImages.push(...newImages);
+                    summarySystemState.generatedSummary = ''; // Limpiar resumen al cambiar imágenes
+                    render();
+                    
+                    if (maxNew === imageFiles.length) {
+                        showMessage(`${maxNew} imagen${maxNew === 1 ? '' : 'es'} añadida${maxNew === 1 ? '' : 's'} (${summarySystemState.selectedImages.length}/10)`, 'success');
+                    } else {
+                        showMessage(`Solo se pudieron añadir ${maxNew} de ${imageFiles.length} imágenes (límite: 10)`, 'error');
+                    }
+                } else {
+                    showMessage('Ya tienes el máximo de 10 imágenes seleccionadas', 'error');
+                }
+            }
+            
+            // Limpiar el input para permitir seleccionar los mismos archivos de nuevo
+            e.target.value = '';
+        }
+    }
+    
+    document.addEventListener('change', handleSummaryImageChange);
+    
+    // Nueva función para generar resumen de múltiples imágenes
+    async function generateMultipleSummary() {
+        if (!state.apiKey) {
+            showMessage('Configura tu API key primero', 'error');
+            return;
+        }
+
+        if (summarySystemState.selectedImages.length === 0) {
+            showMessage('Selecciona al menos una imagen', 'error');
+            return;
+        }
+
+        summarySystemState.isProcessing = true;
+        render();
+        showMessage(`Generando resumen de ${summarySystemState.selectedImages.length} imagen${summarySystemState.selectedImages.length === 1 ? '' : 'es'}...`, 'success');
+        
+        try {
+            // Procesar imágenes en lotes de 5 para evitar límites de la API
+            let allTranscriptions = [];
+            const batchSize = 5;
+            
+            for (let i = 0; i < summarySystemState.selectedImages.length; i += batchSize) {
+                const batch = summarySystemState.selectedImages.slice(i, i + batchSize);
+                
+                const imageContents = await Promise.all(
+                    batch.map(async (file) => {
+                        const base64 = await fileToBase64(file);
+                        return {
+                            type: "image",
+                            source: {
+                                type: "base64",
+                                media_type: file.type,
+                                data: base64
+                            }
+                        };
+                    })
+                );
+
+                const messageContent = [
+                    ...imageContents,
+                    {
+                        type: "text",
+                        text: `Analiza ${batch.length > 1 ? 'estas imágenes' : 'esta imagen'} y genera un resumen completo e inteligente del contenido conjunto.
+
+INSTRUCCIONES PARA RESUMEN DE MÚLTIPLES IMÁGENES:
+
+🎯 OBJETIVO: Crear un resumen unificado que integre toda la información de las imágenes
+
+📋 PROCESO:
+• Analiza cada imagen individualmente
+• Identifica temas y conceptos comunes entre las imágenes
+• Integra la información en un resumen coherente y estructurado
+• Organiza por temas principales y subtemas relevantes
+
+🔍 QUE INCLUIR:
+- Información principal de cada imagen
+- Conexiones y relaciones entre las imágenes
+- Conceptos clave que aparecen en múltiples imágenes
+- Datos, cifras y hechos importantes
+- Conclusiones derivadas del conjunto completo
+
+✨ FORMATO:
+- Comienza con una descripción general del contenido conjunto
+- Organiza en secciones lógicas con encabezados claros
+- Usa viñetas para información específica
+- Termina con conclusiones o puntos clave del conjunto
+
+🚫 EVITA:
+- Repetir información idéntica de diferentes imágenes
+- Hacer el resumen excesivamente largo
+- Perder información importante por resumir demasiado
+
+Genera un resumen que capture la esencia completa del material presentado en todas las imágenes.`
+                    }
+                ];
+
+                const response = await fetch("/api/anthropic", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "x-api-key": state.apiKey,
+                    },
+                    body: JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: 3000,
+                        messages: [{
+                            role: "user",
+                            content: messageContent
+                        }]
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                allTranscriptions.push(data.content[0].text);
+            }
+
+            // Si hay múltiples lotes, combinar los resúmenes
+            if (allTranscriptions.length > 1) {
+                const combinedResponse = await fetch("/api/anthropic", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "x-api-key": state.apiKey,
+                    },
+                    body: JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: 3000,
+                        messages: [{
+                            role: "user",
+                            content: `Combina estos resúmenes parciales en un resumen final coherente y bien estructurado:
+
+${allTranscriptions.map((summary, index) => `PARTE ${index + 1}:\n${summary}`).join('\n\n---\n\n')}
+
+Instrucciones:
+- Crea un resumen unificado eliminando redundancias
+- Mantén toda la información importante
+- Organiza de forma lógica y clara
+- Usa la estructura más apropiada para el contenido`
+                        }]
+                    })
+                });
+
+                if (!combinedResponse.ok) {
+                    throw new Error(`Error ${combinedResponse.status}: ${combinedResponse.statusText}`);
+                }
+
+                const combinedData = await combinedResponse.json();
+                summarySystemState.generatedSummary = combinedData.content[0].text;
+            } else {
+                summarySystemState.generatedSummary = allTranscriptions[0];
+            }
+
+            summarySystemState.isProcessing = false;
+            render();
+            showMessage(`¡Resumen de ${summarySystemState.selectedImages.length} imagen${summarySystemState.selectedImages.length === 1 ? '' : 'es'} generado exitosamente!`, 'success');
+            
+        } catch (error) {
+            summarySystemState.isProcessing = false;
+            render();
+            showMessage(`Error al generar resumen: ${error.message}`, 'error');
+        }
+    }
+    
+    // REEMPLAZAR la función removeSummaryImage para compatibilidad
+    function removeSummaryImage() {
+        summarySystemState.selectedImages = [];
+        summarySystemState.generatedSummary = '';
+        render();
+        showMessage('Todas las imágenes eliminadas', 'success');
+    }
+    
+    console.log('✅ Parche de múltiples imágenes para resúmenes aplicado correctamente');
+</script>
 </body>
 </html>
+
 
 
 
