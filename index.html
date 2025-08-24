@@ -2037,6 +2037,117 @@ Sin tocar nada del código existente
 
     console.log('✅ Parche de preguntas falladas aplicado correctamente');
 </script>
+    <!-- 
+PARCHE DE CORRECCIÓN PARA PREGUNTAS FALLADAS
+Añadir este código después del parche anterior, antes de </body>
+Esto corrige el problema de que las preguntas superadas no se marcan como resueltas
+-->
+
+<script>
+    // ========== CORRECCIÓN: ACTUALIZACIÓN DE PREGUNTAS RESUELTAS ==========
+    
+    // Sobrescribir la función updateFailedQuestionsData con la lógica corregida
+    function updateFailedQuestionsData() {
+        const failedQuestions = [];
+        
+        // Paso 1: Recopilar todas las preguntas falladas
+        state.testResults.forEach(result => {
+            if (result.detailedResults) {
+                result.detailedResults.forEach(detail => {
+                    if (!detail.isCorrect && detail.userAnswer !== null) {
+                        const questionId = detail.question.id;
+                        
+                        let existingFailed = failedQuestions.find(fq => fq.questionId === questionId);
+                        
+                        if (!existingFailed) {
+                            existingFailed = {
+                                questionId: questionId,
+                                question: detail.question,
+                                failedCount: 0,
+                                lastFailedDate: null,
+                                firstFailedDate: null,
+                                isResolved: false
+                            };
+                            failedQuestions.push(existingFailed);
+                            existingFailed.firstFailedDate = result.date;
+                        }
+                        
+                        existingFailed.failedCount++;
+                        existingFailed.lastFailedDate = result.date;
+                    }
+                });
+            }
+        });
+
+        // Paso 2: Verificar si alguna pregunta fallada fue respondida correctamente DESPUÉS de haber fallado
+        failedQuestions.forEach(failedQ => {
+            // Buscar tests posteriores a la PRIMERA falla (no la última)
+            const laterResults = state.testResults
+                .filter(result => new Date(result.date) > new Date(failedQ.firstFailedDate))
+                .sort((a, b) => new Date(a.date) - new Date(b.date)); // Ordenar por fecha
+
+            for (let result of laterResults) {
+                if (result.detailedResults) {
+                    const correctAnswer = result.detailedResults.find(detail => 
+                        detail.question.id === failedQ.questionId && detail.isCorrect
+                    );
+                    
+                    if (correctAnswer) {
+                        failedQ.isResolved = true;
+                        failedQ.resolvedDate = result.date;
+                        console.log(`✅ Pregunta ${failedQ.questionId} marcada como resuelta en test: ${result.name}`);
+                        break;
+                    }
+                }
+            }
+        });
+
+        return failedQuestions;
+    }
+
+    // Función mejorada para obtener preguntas no resueltas
+    function getUnresolvedFailedQuestions() {
+        const failedQuestions = updateFailedQuestionsData();
+        const unresolved = failedQuestions.filter(fq => !fq.isResolved);
+        
+        console.log(`📊 Resumen de preguntas falladas:`);
+        console.log(`   Total falladas: ${failedQuestions.length}`);
+        console.log(`   Resueltas: ${failedQuestions.length - unresolved.length}`);
+        console.log(`   Pendientes: ${unresolved.length}`);
+        
+        return unresolved;
+    }
+
+    // Extender finishTest para logging y mejor seguimiento
+    const originalFinishTestFixed = finishTest;
+    finishTest = function() {
+        if (!state.currentTest) return;
+        
+        const isFailedQuestionsTest = state.currentTest.isFailedQuestionsTest;
+        
+        // Llamar a la función original
+        originalFinishTestFixed();
+        
+        // Si era un test de repaso, hacer logging adicional
+        if (isFailedQuestionsTest) {
+            console.log('🔄 Test de repaso completado, actualizando estado de preguntas...');
+            
+            // Forzar actualización inmediata de preguntas falladas
+            setTimeout(() => {
+                const unresolvedAfter = getUnresolvedFailedQuestions();
+                console.log(`✨ Preguntas pendientes después del test de repaso: ${unresolvedAfter.length}`);
+                
+                // Si estamos en la pestaña de test, re-renderizar para actualizar el conteo
+                if (state.currentTab === 'test') {
+                    render();
+                }
+            }, 100);
+        }
+    };
+
+    console.log('🔧 Corrección de preguntas falladas aplicada');
+</script>
 </body>
 </html>
+
 
