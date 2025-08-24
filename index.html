@@ -4379,8 +4379,226 @@ Este parche corrige la funcionalidad de visualización de resúmenes
     
     console.log('✅ Parche de corrección de visualización aplicado correctamente');
 </script>
+    <!-- 
+PARCHE: LIMPIEZA Y FORMATO ELEGANTE DE RESÚMENES
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche limpia el contenido y lo presenta de forma elegante
+-->
+
+<script>
+    // ========== PARCHE: LIMPIEZA DE FORMATO DE RESÚMENES ==========
+    
+    // REEMPLAZAR la función de formateo para limpiar el contenido
+    function formatSummaryContentAdvanced(content) {
+        // Limpiar el contenido de símbolos de formato
+        const cleanedContent = cleanSummaryText(content);
+        
+        // Dividir en líneas y procesar
+        const lines = cleanedContent.split('\n').filter(line => line.trim());
+        
+        return lines.map(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return '';
+            
+            // Detectar títulos principales (líneas cortas que parecen encabezados)
+            if (isTitleLine(trimmed)) {
+                return `
+                    <div style="margin: 35px 0 20px 0; padding: 0 0 12px 0; border-bottom: 2px solid #e2e8f0;">
+                        <h3 style="color: #1a202c; font-size: 1.3rem; font-weight: 700; margin: 0; letter-spacing: -0.025em;">
+                            ${trimmed}
+                        </h3>
+                    </div>
+                `;
+            }
+            
+            // Detectar subtítulos
+            if (isSubtitleLine(trimmed)) {
+                return `
+                    <div style="margin: 25px 0 15px 0;">
+                        <h4 style="color: #2d3748; font-size: 1.1rem; font-weight: 600; margin: 0; padding: 8px 16px; background: #f7fafc; border-left: 4px solid #4f46e5; border-radius: 0 8px 8px 0;">
+                            ${trimmed}
+                        </h4>
+                    </div>
+                `;
+            }
+            
+            // Detectar elementos de lista (líneas que empiezan con guión o número)
+            if (isListItem(trimmed)) {
+                return `
+                    <div style="margin: 10px 0; padding: 12px 20px; background: #f8fafc; border-left: 3px solid #cbd5e0; border-radius: 0 6px 6px 0; color: #4a5568;">
+                        ${cleanListItem(trimmed)}
+                    </div>
+                `;
+            }
+            
+            // Párrafos normales
+            return `
+                <p style="margin: 16px 0; line-height: 1.7; color: #4a5568; text-align: justify; font-size: 16px;">
+                    ${trimmed}
+                </p>
+            `;
+        }).join('');
+    }
+    
+    // Función para limpiar el texto de símbolos de formato
+    function cleanSummaryText(text) {
+        return text
+            // Limpiar asteriscos de markdown
+            .replace(/\*\*(.*?)\*\*/g, '$1')
+            .replace(/\*(.*?)\*/g, '$1')
+            
+            // Limpiar símbolos de encabezado
+            .replace(/^#{1,6}\s*/gm, '')
+            
+            // Limpiar emojis y símbolos al inicio de líneas
+            .replace(/^[\u{1F300}-\u{1F9FF}][\s]*/gum, '')
+            .replace(/^[🧠💡📋🔍✨🚫👤📊💼🏢]+[\s]*/gm, '')
+            
+            // Limpiar símbolos de viñetas especiales
+            .replace(/^[\-\*\+]\s*\*\*(.*?)\*\*[\s]*(.*)$/gm, '- $1 $2')
+            
+            // Limpiar líneas de separación
+            .replace(/^[\-\=]{3,}$/gm, '')
+            
+            // Limpiar texto entre asteriscos dobles al inicio
+            .replace(/^\*\*(.*?)\*\*\s*/gm, '$1: ')
+            
+            // Normalizar espacios múltiples
+            .replace(/\s{3,}/g, ' ')
+            .replace(/\n{3,}/g, '\n\n')
+            
+            .trim();
+    }
+    
+    // Detectar si una línea es un título principal
+    function isTitleLine(line) {
+        return (
+            line.length < 60 && 
+            line.length > 8 &&
+            (line.endsWith(':') || 
+             line.match(/^[A-ZÁÉÍÓÚ][A-ZÁÉÍÓÚ\s]+$/) ||
+             line.includes('RESUMEN') ||
+             line.includes('CONCEPTO') ||
+             line.includes('APLICACIÓN') ||
+             line.includes('ÁMBITOS'))
+        ) && !line.startsWith('-');
+    }
+    
+    // Detectar si una línea es un subtítulo
+    function isSubtitleLine(line) {
+        return (
+            line.length < 80 && 
+            line.length > 15 &&
+            (line.includes('Personal') ||
+             line.includes('Laboral') ||
+             line.includes('Profesional') ||
+             line.includes('Función') ||
+             line.includes('Entorno')) &&
+            !line.startsWith('-')
+        ) || (line.endsWith('**') && line.startsWith('**'));
+    }
+    
+    // Detectar elementos de lista
+    function isListItem(line) {
+        return line.match(/^[\-\*\+•]\s+/) || line.match(/^\d+\.\s+/);
+    }
+    
+    // Limpiar elementos de lista
+    function cleanListItem(line) {
+        return line.replace(/^[\-\*\+•]\s+/, '').replace(/^\d+\.\s+/, '');
+    }
+    
+    // MEJORAR la visualización completa del resumen
+    function renderViewSummaryEnhanced() {
+        const summary = summarySystemState.viewingSummary;
+        if (!summary) {
+            console.error('No hay resumen para mostrar');
+            summarySystemState.currentView = 'library';
+            return renderSummaryLibraryEnhanced();
+        }
+        
+        const topicName = summary.topicId ? getSummaryTopicName(summary.topicId) : 'Sin tema';
+        
+        return `
+            <div style="max-width: 1100px; margin: 0 auto; animation: slideIn 0.3s ease-out;">
+                
+                <!-- Navegación elegante -->
+                <div style="margin-bottom: 25px;">
+                    <button onclick="closeSummaryViewEnhanced()" class="btn btn-secondary" style="display: flex; align-items: center; gap: 10px; padding: 12px 20px; font-size: 14px; border-radius: 10px; transition: all 0.2s ease; background: #6b7280; border: none;" onmouseover="this.style.background='#4b5563'" onmouseout="this.style.background='#6b7280'">
+                        <span style="font-size: 16px;">←</span> Volver a la Biblioteca
+                    </button>
+                </div>
+                
+                <!-- Tarjeta principal del resumen -->
+                <div style="background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+                    
+                    <!-- Header del resumen -->
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 35px; color: white; position: relative;">
+                        <div style="position: absolute; top: 0; right: 0; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border-radius: 50%; transform: translate(30px, -30px);"></div>
+                        <div style="position: relative; z-index: 2;">
+                            <h1 style="margin: 0 0 15px 0; font-size: 2.2rem; font-weight: 700; line-height: 1.2; color: white;">
+                                ${summary.title}
+                            </h1>
+                            <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px; opacity: 0.95;">
+                                <div style="background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 20px;">
+                                    <strong>${topicName}</strong>
+                                </div>
+                                <div style="background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 20px;">
+                                    ${summary.createdAt}
+                                </div>
+                                <div style="background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 20px;">
+                                    ${Math.round(summary.content.length / 5)} palabras aprox.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contenido del resumen -->
+                    <div style="padding: 40px; background: #fafafa;">
+                        <div style="background: white; padding: 35px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #f1f1f1;">
+                            <div style="max-width: none; font-family: 'Segoe UI', system-ui, sans-serif;">
+                                ${formatSummaryContentAdvanced(summary.content)}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Panel de acciones -->
+                    <div style="background: #f8fafc; padding: 25px 35px; border-top: 1px solid #e2e8f0;">
+                        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;">
+                            <button onclick="copySummaryContentToClipboard('${summary.id}')" class="btn btn-info" style="padding: 10px 20px; font-size: 14px; display: flex; align-items: center; gap: 8px; border-radius: 8px; font-weight: 500; min-width: 160px; justify-content: center;">
+                                📋 Copiar Texto
+                            </button>
+                            <button onclick="editSummaryFromViewEnhanced()" class="btn btn-warning" style="padding: 10px 20px; font-size: 14px; display: flex; align-items: center; gap: 8px; border-radius: 8px; font-weight: 500; min-width: 160px; justify-content: center;">
+                                ✏️ Editar Título
+                            </button>
+                            <button onclick="deleteSummaryFromViewEnhanced('${summary.id}')" class="btn btn-danger" style="padding: 10px 20px; font-size: 14px; display: flex; align-items: center; gap: 8px; border-radius: 8px; font-weight: 500; min-width: 160px; justify-content: center;">
+                                🗑️ Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <style>
+                @keyframes slideIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(15px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+            </style>
+        `;
+    }
+    
+    console.log('✅ Parche de limpieza y formato elegante aplicado correctamente');
+</script>
 </body>
 </html>
+
 
 
 
