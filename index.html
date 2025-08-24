@@ -136,7 +136,7 @@
             border-color: #ef4444; 
         }
 
-        .two-column {
+        .three-column {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
@@ -169,6 +169,7 @@
             font-size: 14px;
         }
 
+        /* Nuevos estilos para checkboxes personalizados */
         .custom-checkbox {
             display: flex;
             align-items: center;
@@ -198,7 +199,7 @@
         }
 
         @media (max-width: 768px) {
-            .two-column {
+            .three-column {
                 grid-template-columns: 1fr;
             }
         }
@@ -208,10 +209,9 @@
     <div id="app"></div>
 
     <script>
-        // Estado global de la aplicación
-        const appState = {
+        // Variables globales
+        let state = {
             currentUser: null,
-            currentMode: null,
             currentTab: 'upload',
             apiKey: localStorage.getItem('anthropic_api_key') || '',
             questions: JSON.parse(localStorage.getItem('questions') || '[]'),
@@ -230,174 +230,124 @@
             'demo': { password: 'demo123', name: 'Usuario Demo' }
         };
 
-        // Funciones de renderizado principales
+        // Función principal de renderizado
         function render() {
             const app = document.getElementById('app');
             
-            if (!appState.currentUser) {
-                renderLogin(app);
-            } else if (!appState.currentMode) {
-                renderModeSelection(app);
+            if (!state.currentUser) {
+                app.innerHTML = `
+                    <div class="container">
+                        <div class="login-form">
+                            <h2 style="text-align: center; margin-bottom: 30px;">Iniciar Sesión</h2>
+                            <div class="form-group">
+                                <label class="form-label">Usuario</label>
+                                <input type="text" id="username" class="form-input" placeholder="demo">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Contraseña</label>
+                                <input type="password" id="password" class="form-input" placeholder="demo123">
+                            </div>
+                            <button onclick="login()" class="btn btn-primary" style="width: 100%;">
+                                Iniciar Sesión
+                            </button>
+                            <div style="text-align: center; margin-top: 15px; color: #6b7280; font-size: 14px;">
+                                Usuario: demo | Contraseña: demo123
+                            </div>
+                        </div>
+                    </div>
+                `;
             } else {
-                renderMainApp(app);
+                app.innerHTML = `
+                    <div class="container">
+                        <div class="header">
+                            <div class="title">${state.currentTab === 'questions' ? 'Banco de Preguntas' : (state.currentTab === 'results' ? 'Resultados del Test' : 'Sistema de Exámenes')}</div>
+                            <div>
+                                <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                                    ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                                </span>
+                                <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                                <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                                <button onclick="logout()" class="btn btn-danger">Salir</button>
+                            </div>
+                        </div>
+
+                        <div class="nav-tabs">
+                            <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
+                                📤 Subir Test
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
+                                📋 Banco de Preguntas (${getFilteredQuestions().length})
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
+                                🎯 Test Aleatorio
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                                📊 Resultados (${state.testResults.length})
+                            </button>
+                        </div>
+
+                        <div id="messages"></div>
+
+                        ${renderTabContent()}
+                    </div>
+                `;
             }
         }
 
-        function renderLogin(app) {
-            app.innerHTML = `
-                <div class="container">
-                    <div class="login-form">
-                        <h2 style="text-align: center; margin-bottom: 30px;">Iniciar Sesión</h2>
-                        <div class="form-group">
-                            <label class="form-label">Usuario</label>
-                            <input type="text" id="username" class="form-input" placeholder="demo">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Contraseña</label>
-                            <input type="password" id="password" class="form-input" placeholder="demo123">
-                        </div>
-                        <button onclick="handleLogin()" class="btn btn-primary" style="width: 100%;">
-                            Iniciar Sesión
-                        </button>
-                        <div style="text-align: center; margin-top: 15px; color: #6b7280; font-size: 14px;">
-                            Usuario: demo | Contraseña: demo123
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderModeSelection(app) {
-            app.innerHTML = `
-                <div class="container">
-                    <div class="header">
-                        <div class="title">Selecciona el Modo de Trabajo</div>
-                        <div>
-                            <span style="color: #f59e0b;">👤 ${appState.currentUser.name}</span>
-                            <button onclick="handleLogout()" class="btn btn-danger">Salir</button>
-                        </div>
-                    </div>
-
-                    <div style="max-width: 800px; margin: 0 auto; padding: 60px 20px;">
-                        <div style="text-align: center; margin-bottom: 50px;">
-                            <h2 style="color: #1f2937; font-size: 2.5rem; margin-bottom: 15px;">¿Qué quieres hacer hoy?</h2>
-                            <p style="color: #6b7280; font-size: 1.2rem; line-height: 1.6;">
-                                Elige entre realizar tests para evaluar tus conocimientos o consultar resúmenes para estudiar
-                            </p>
-                        </div>
-
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px;">
-                            <div onclick="selectMode('test')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; padding: 40px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3); color: white; text-align: center; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-10px)'; this.style.boxShadow='0 20px 40px rgba(102, 126, 234, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 30px rgba(102, 126, 234, 0.3)';">
-                                <div style="position: absolute; top: -20px; right: -20px; font-size: 8rem; opacity: 0.1;">🎯</div>
-                                <div style="position: relative; z-index: 2;">
-                                    <div style="font-size: 4rem; margin-bottom: 20px;">🎯</div>
-                                    <h3 style="font-size: 1.8rem; margin-bottom: 15px; font-weight: bold;">Realizar Test</h3>
-                                    <p style="opacity: 0.9; line-height: 1.5; margin-bottom: 25px;">
-                                        Sube imágenes de exámenes, crea bancos de preguntas y realiza tests personalizados
-                                    </p>
-                                    <div style="background: rgba(255, 255, 255, 0.2); padding: 12px 25px; border-radius: 25px; display: inline-block; font-weight: 500;">
-                                        Comenzar →
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div onclick="selectMode('summaries')" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 20px; padding: 40px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 10px 30px rgba(240, 147, 251, 0.3); color: white; text-align: center; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-10px)'; this.style.boxShadow='0 20px 40px rgba(240, 147, 251, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 30px rgba(240, 147, 251, 0.3)';">
-                                <div style="position: absolute; top: -20px; right: -20px; font-size: 8rem; opacity: 0.1;">📚</div>
-                                <div style="position: relative; z-index: 2;">
-                                    <div style="font-size: 4rem; margin-bottom: 20px;">📚</div>
-                                    <h3 style="font-size: 1.8rem; margin-bottom: 15px; font-weight: bold;">Ver Resúmenes</h3>
-                                    <p style="opacity: 0.9; line-height: 1.5; margin-bottom: 25px;">
-                                        Consulta resúmenes organizados por tema y accede a material de repaso
-                                    </p>
-                                    <div style="background: rgba(255, 255, 255, 0.2); padding: 12px 25px; border-radius: 25px; display: inline-block; font-weight: 500;">
-                                        Explorar →
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style="text-align: center; margin-top: 50px; padding: 25px; background: #f8fafc; border-radius: 12px; border: 2px solid #e2e8f0;">
-                            <div style="color: #4f46e5; font-size: 1.5rem; margin-bottom: 10px;">💡</div>
-                            <p style="color: #6b7280; margin: 0;">
-                                <strong>Consejo:</strong> Puedes cambiar de modo usando el botón "← Modo" en la barra superior
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderMainApp(app) {
-            app.innerHTML = `
-                <div class="container">
-                    <div class="header">
-                        <div class="title">${getPageTitle()}</div>
-                        <div>
-                            <span style="color: ${appState.apiKey ? '#10b981' : '#ef4444'};">
-                                ${appState.apiKey ? '✅ API Configurada' : '❌ Sin API'}
-                            </span>
-                            <button onclick="configureAPI()" class="btn btn-secondary">API</button>
-                            <button onclick="goBackToModeSelection()" class="btn btn-info">← Modo</button>
-                            <span style="color: #f59e0b;">👤 ${appState.currentUser.name}</span>
-                            <button onclick="handleLogout()" class="btn btn-danger">Salir</button>
-                        </div>
-                    </div>
-
-                    <div class="nav-tabs">
-                        <button class="nav-tab ${appState.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
-                            📤 Subir Test
-                        </button>
-                        <button class="nav-tab ${appState.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
-                            📋 Banco (${getFilteredQuestions().length})
-                        </button>
-                        <button class="nav-tab ${appState.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
-                            🎯 Test
-                        </button>
-                        <button class="nav-tab ${appState.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
-                            📊 Resultados (${appState.testResults.length})
-                        </button>
-                    </div>
-
-                    <div id="messages"></div>
-                    ${renderTabContent()}
-                </div>
-            `;
-        }
-
         function renderTabContent() {
-            switch(appState.currentTab) {
-                case 'upload': return renderUploadTab();
-                case 'questions': return renderQuestionsTab();
-                case 'test': return renderTestTab();
-                case 'results': return renderResultsTab();
-                default: return '<div>Pestaña no encontrada</div>';
+            switch(state.currentTab) {
+                case 'upload':
+                    return renderUploadTab();
+                case 'questions':
+                    return renderQuestionsTab();
+                case 'test':
+                    return renderTestTab();
+                case 'results':
+                    return renderResultsTab();
+                default:
+                    return '<div>Error: Pestaña no encontrada</div>';
             }
         }
 
         function renderUploadTab() {
             return `
-                <div class="two-column">
+                <div class="three-column">
                     <div class="column">
                         <h3 style="margin-bottom: 15px;">📤 Subir Imágenes</h3>
                         <div class="upload-area" onclick="document.getElementById('imageInput').click()">
                             <div>📁 Seleccionar imágenes</div>
                             <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">Hasta 10 imágenes</div>
                             <div style="margin-top: 10px; color: #4f46e5; font-weight: 500;">
-                                ${appState.selectedImages.length}/10 archivos
+                                ${state.selectedImages.length}/10 archivos
                             </div>
                         </div>
                         <input type="file" id="imageInput" style="display: none;" accept="image/*" multiple>
                         
-                        ${renderSelectedImages()}
+                        ${state.selectedImages.length > 0 ? `
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px;">
+                                ${state.selectedImages.map((file, i) => `
+                                    <div style="position: relative; text-align: center; padding: 10px; background: #f3f4f6; border-radius: 8px;">
+                                        <button onclick="removeImage(${i})" style="position: absolute; top: 5px; right: 5px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;">×</button>
+                                        <div style="font-size: 10px; word-break: break-all;">${file.name}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
                         
-                        <button onclick="transcribeImages()" class="btn btn-primary" style="width: 100%;" ${appState.selectedImages.length === 0 || !appState.apiKey ? 'disabled' : ''}>
-                            🤖 1. Transcribir
+                        <button onclick="transcribeImages()" class="btn btn-primary" style="width: 100%;" ${state.selectedImages.length === 0 || !state.apiKey ? 'disabled' : ''}>
+                            🤖 1. Transcribir y Procesar
                         </button>
+                        
+                        ${state.transcribedText && !state.cleanedText ? `
+                            <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; text-align: center;">
+                                <span style="color: #92400e;">🔄 Procesando texto automáticamente...</span>
+                            </div>
+                        ` : ''}
                     </div>
 
                     <div class="column">
-                        <h3 style="margin-bottom: 15px;">📝 Texto Procesado</h3>
-                        <textarea class="textarea" placeholder="El texto procesado aparecerá aquí..." readonly>${appState.cleanedText}</textarea>
+                        <h3 style="margin-bottom: 15px;">📝 Texto Transcrito</h3>
+                        <textarea id="cleanedText" class="textarea" placeholder="El texto procesado aparecerá aquí..." readonly>${state.cleanedText}</textarea>
                         
                         <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px;">
                             <h4 style="color: #92400e; margin-bottom: 10px;">🏷️ Gestión de Temas</h4>
@@ -407,18 +357,26 @@
                                     🆕 Crear Tema
                                 </button>
                                 
-                                <select id="topic-selector" onchange="updateSelectedTopic()" style="width: 100%; padding: 8px; border: none; background: #f59e0b; color: white; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;" ${appState.topics.length === 0 ? 'disabled' : ''}>
-                                    <option value="">🏷️ Seleccionar Tema</option>
-                                    ${appState.topics.map(topic => `
-                                        <option value="${topic.id}" ${appState.selectedTopicForNewQuestions === topic.id ? 'selected' : ''}>
-                                            ${topic.name} (${getTopicQuestionCount(topic.id)})
-                                        </option>
-                                    `).join('')}
-                                </select>
+                                <div style="position: relative;">
+                                    <select id="topic-selector" onchange="updateSelectedTopic()" style="width: 100%; padding: 8px; border: none; background: #f59e0b; color: white; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;" ${state.topics.length === 0 ? 'disabled' : ''}>
+                                        <option value="">🏷️ Seleccionar Tema</option>
+                                        ${state.topics.map(topic => `
+                                            <option value="${topic.id}" ${state.selectedTopicForNewQuestions === topic.id ? 'selected' : ''}>
+                                                ${topic.name} (${getTopicQuestionCount(topic.id)})
+                                            </option>
+                                        `).join('')}
+                                    </select>
+                                </div>
                             </div>
+                            
+                            ${state.topics.length === 0 ? `
+                                <div style="font-size: 12px; color: #78350f; font-style: italic; text-align: center;">
+                                    Crea un tema para organizar tus preguntas
+                                </div>
+                            ` : ''}
                         </div>
                         
-                        <button onclick="addToQuestions()" class="btn btn-success" style="width: 100%; margin-top: 10px;" ${!appState.cleanedText ? 'disabled' : ''}>
+                        <button onclick="addToQuestions()" class="btn btn-success" style="width: 100%; margin-top: 10px;" ${!state.cleanedText ? 'disabled' : ''}>
                             ${getAddButtonText()}
                         </button>
                     </div>
@@ -426,37 +384,35 @@
             `;
         }
 
-        function renderSelectedImages() {
-            if (appState.selectedImages.length === 0) return '';
-            
-            return `
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px;">
-                    ${appState.selectedImages.map((file, i) => `
-                        <div style="position: relative; text-align: center; padding: 10px; background: #f3f4f6; border-radius: 8px;">
-                            <button onclick="removeImage(${i})" style="position: absolute; top: 5px; right: 5px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;">×</button>
-                            <div style="font-size: 10px; word-break: break-all;">${file.name}</div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-
         function renderQuestionsTab() {
             const filteredQuestions = getFilteredQuestions();
             
+            function getQuestionsTitle() {
+                if (state.selectedTopicFilter === 'all') {
+                    return 'TODAS LAS PREGUNTAS DEL BANCO';
+                } else {
+                    const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
+                    if (topic) {
+                        return `PREGUNTAS ${topic.name.toUpperCase()}`;
+                    } else {
+                        return 'PREGUNTAS DEL TEMA SELECCIONADO';
+                    }
+                }
+            }
+            
             return `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2>BANCO DE PREGUNTAS (${filteredQuestions.length})</h2>
+                    <h2>${getQuestionsTitle()} (${filteredQuestions.length})</h2>
                     <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
                 </div>
 
-                ${appState.topics.length > 0 ? `
+                ${state.topics.length > 0 ? `
                     <div style="margin-bottom: 20px;">
                         <label style="margin-right: 10px; font-weight: 500;">Filtrar por tema:</label>
                         <select onchange="filterByTopic(this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #d1d5db;">
-                            <option value="all" ${appState.selectedTopicFilter === 'all' ? 'selected' : ''}>Todos los temas (${appState.questions.length})</option>
-                            ${appState.topics.map(topic => `
-                                <option value="${topic.id}" ${appState.selectedTopicFilter == topic.id ? 'selected' : ''}>
+                            <option value="all" ${state.selectedTopicFilter === 'all' ? 'selected' : ''}>Todos los temas (${state.questions.length})</option>
+                            ${state.topics.map(topic => `
+                                <option value="${topic.id}" ${state.selectedTopicFilter == topic.id ? 'selected' : ''}>
                                     ${topic.name} (${getTopicQuestionCount(topic.id)})
                                 </option>
                             `).join('')}
@@ -464,35 +420,104 @@
                     </div>
                 ` : ''}
 
+                ${state.topics.length > 0 && state.selectedTopicFilter === 'all' ? 
+                    renderQuestionsByTopic() : 
+                    renderQuestionsFiltered(filteredQuestions)
+                }
+            `;
+        }
+
+        function renderQuestionsByTopic() {
+            const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+            
+            let html = '';
+            
+            // Mostrar preguntas por cada tema que TENGA preguntas
+            state.topics.forEach(topic => {
+                const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+                if (topicQuestions.length > 0) {
+                    html += `
+                        <div style="margin-bottom: 30px;">
+                            <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                                <span>📁 ${topic.name}</span>
+                                <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
+                            </h3>
+                            <div style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                                ${topicQuestions.map(q => {
+                                    const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                                    return renderSingleQuestion(q, actualIndex);
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            
+            // Mostrar preguntas sin tema asignado SI existen
+            if (questionsWithoutTopic.length > 0) {
+                html += `
+                    <div style="margin-bottom: 30px;">
+                        <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                            <span>📂 Sin tema asignado</span>
+                            <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                        </h3>
+                        <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                            ${questionsWithoutTopic.map(q => {
+                                const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                                return renderSingleQuestion(q, actualIndex);
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Si no hay preguntas en absoluto
+            if (html === '') {
+                return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
+            }
+            
+            return html;
+        }
+
+        function renderQuestionsFiltered(filteredQuestions) {
+            return `
                 <div style="border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
                     ${filteredQuestions.length === 0 ? 
                         '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles</div>' :
-                        filteredQuestions.map(q => renderSingleQuestion(q)).join('')
+                        filteredQuestions.map(q => {
+                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                            return renderSingleQuestion(q, actualIndex);
+                        }).join('')
                     }
                 </div>
             `;
         }
 
-        function renderSingleQuestion(question) {
-            const actualIndex = appState.questions.findIndex(q => q.id === question.id);
-            const topicName = question.topicId ? getTopicName(question.topicId) : null;
+        function renderSingleQuestion(q, actualIndex) {
+            const topicName = q.topicId ? getTopicName(q.topicId) : null;
             
             return `
                 <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
-                    <div style="flex: 1;">
-                        <div style="font-weight: 500; margin-bottom: 8px;">
-                            ${question.question}
-                            ${topicName ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px; margin-left: 8px;">${topicName}</span>` : ''}
+                    <div style="flex: 1; display: flex; gap: 8px;">
+                        ${q.isVerified ? '<span style="color: #3b82f6; font-size: 16px; filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5)); flex-shrink: 0; margin-top: 2px;" title="Pregunta verificada">⭐</span>' : '<span style="width: 16px; flex-shrink: 0;"></span>'}
+                        <div style="flex: 1;">
+                            <div style="font-weight: 500; margin-bottom: 8px;">
+                                ${q.question}
+                                ${topicName && state.selectedTopicFilter === 'all' && state.selectedTopicFilter !== q.topicId ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px; margin-left: 8px;">${topicName}</span>` : ''}
+                            </div>
+                            <ul style="list-style: none; margin: 0; padding: 0;">
+                                ${q.options.map((opt, optIndex) => `
+                                    <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#059669' : '#6b7280'}; ${q.correctAnswer === optIndex ? 'font-weight: 500;' : ''}">
+                                        ${String.fromCharCode(97 + optIndex)}) ${opt}
+                                    </li>
+                                `).join('')}
+                            </ul>
                         </div>
-                        <ul style="list-style: none; margin: 0; padding: 0;">
-                            ${question.options.map((opt, optIndex) => `
-                                <li style="padding: 2px 0; color: ${question.correctAnswer === optIndex ? '#059669' : '#6b7280'}; ${question.correctAnswer === optIndex ? 'font-weight: 500;' : ''}">
-                                    ${String.fromCharCode(97 + optIndex)}) ${opt}
-                                </li>
-                            `).join('')}
-                        </ul>
                     </div>
                     <div style="display: flex; gap: 5px; align-items: flex-start;">
+                        <button onclick="toggleVerified(${actualIndex})" class="btn ${q.isVerified ? 'btn-primary' : 'btn-secondary'}" style="padding: 4px 8px; font-size: 14px; ${q.isVerified ? 'background: linear-gradient(135deg, #3b82f6, #1d4ed8);' : ''}" title="${q.isVerified ? 'Pregunta verificada - Click para desmarcar' : 'Marcar como verificada'}">
+                            ${q.isVerified ? '⭐' : '☆'}
+                        </button>
                         <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
                         <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
                     </div>
@@ -501,11 +526,11 @@
         }
 
         function renderTestTab() {
-            if (appState.questions.length === 0) {
+            if (state.questions.length === 0) {
                 return '<div style="text-align: center; padding: 40px;">Añade preguntas al banco para generar tests</div>';
             }
 
-            if (!appState.currentTest) {
+            if (!state.currentTest) {
                 return `
                     <div style="background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                         <h3 style="color: #0c4a6e; margin-bottom: 15px;">🎯 Configuración del Test</h3>
@@ -535,20 +560,23 @@
                             </div>
                         </div>
 
-                        ${appState.topics.length > 0 ? `
+                        ${state.topics.length > 0 ? `
                             <div style="margin-bottom: 20px;">
                                 <label style="display: block; margin-bottom: 15px; font-weight: 500;">Selección de temas:</label>
                                 <div style="display: grid; gap: 8px;">
                                     <div class="custom-checkbox" onclick="toggleGeneralTest()">
                                         <input type="checkbox" id="test-general" onchange="handleGeneralTestChange(this)" checked>
-                                        <span style="font-weight: 500;">Test General (${appState.questions.length} preguntas)</span>
+                                        <span style="font-weight: 500;">Test General (${state.questions.length} preguntas)</span>
                                     </div>
-                                    ${appState.topics.map(topic => `
+                                    ${state.topics.map(topic => `
                                         <div class="custom-checkbox" onclick="toggleTopicTest('${topic.id}')">
                                             <input type="checkbox" class="topic-checkbox" data-topic-id="${topic.id}" onchange="handleTopicChange()">
                                             <span>${topic.name} (${getTopicQuestionCount(topic.id)} preguntas)</span>
                                         </div>
                                     `).join('')}
+                                </div>
+                                <div style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 6px; font-size: 14px; color: #6b7280;">
+                                    💡 <strong>Consejo:</strong> Puedes seleccionar múltiples temas para crear un test combinado, o elegir "Test General" para incluir todas las preguntas.
                                 </div>
                             </div>
                         ` : ''}
@@ -556,6 +584,9 @@
                         <div style="margin-bottom: 20px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: 500;">Nombre del test:</label>
                             <input type="text" id="test-name" placeholder="Ej: Test de Matemáticas - Sesión 1" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                            <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">
+                                Si no especificas un nombre, se generará automáticamente
+                            </div>
                         </div>
                     </div>
 
@@ -571,26 +602,42 @@
         }
 
         function renderCurrentTest() {
+            const duration = state.currentTest.duration;
+            const hasTimer = duration > 0;
+            
             return `
-                <div style="max-width: 1000px; margin: 0 auto;">
+                <div style="max-width: 1000px; margin: 0 auto; position: relative;">
+                    ${hasTimer ? `
+                        <div id="timer" style="position: fixed; top: 20px; right: 20px; background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-weight: bold; color: #ef4444; font-size: 1.2rem; z-index: 1000; border: 2px solid #fecaca;">
+                            ⏱️ ${formatTime(state.currentTest.timeLeft)}
+                        </div>
+                    ` : ''}
+                    
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 20px; background: #f8fafc; border-radius: 12px;">
                         <div>
-                            <h2 style="margin: 0; color: #1f2937;">${appState.currentTest.name}</h2>
-                            <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">${appState.currentTest.questions.length} preguntas</p>
+                            <h2 style="margin: 0; color: #1f2937;">${state.currentTest.name}</h2>
+                            <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">${state.currentTest.questions.length} preguntas</p>
+                            <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">${state.currentTest.testTypeText}</p>
                         </div>
+                        ${hasTimer ? `<div style="color: #6b7280; font-size: 14px;">El tiempo se muestra arriba a la derecha</div>` : ''}
                     </div>
                     
                     <form id="test-form">
-                        ${appState.currentTest.questions.map((question, questionIndex) => `
-                            <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
-                                <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; color: #1f2937;">
-                                    <span style="color: #4f46e5;">#${questionIndex + 1}</span> ${question.question}
+                        ${state.currentTest.questions.map((question, questionIndex) => `
+                            <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 25px; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; color: #1f2937; flex-wrap: nowrap;">
+                                    <span style="color: #4f46e5; flex-shrink: 0;">#${questionIndex + 1}</span>
+                                    <span style="flex: 1; min-width: 0;">${question.question}</span>
+                                    ${question.isVerified ? '<span style="color: #3b82f6; font-size: 16px; filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5)); flex-shrink: 0;" title="Pregunta verificada">⭐</span>' : ''}
+                                    ${question.topicId && state.currentTest.testType !== question.topicId.toString() ? `<span style="background: #f3f4f6; color: #6b7280; padding: 2px 6px; border-radius: 6px; font-size: 11px; font-weight: 400; flex-shrink: 0; white-space: nowrap;" title="Tema de la pregunta">${getTopicName(question.topicId)}</span>` : ''}
                                 </div>
                                 
                                 <div style="display: grid; gap: 12px;">
                                     ${question.options.map((option, optionIndex) => `
-                                        <label style="display: flex; align-items: center; gap: 12px; padding: 15px; background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
-                                            <input type="radio" name="question-${questionIndex}" value="${optionIndex}">
+                                        <label style="display: flex; align-items: center; gap: 12px; padding: 15px; background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-size: 15px;" 
+                                               onmouseover="this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#d1d5db';" 
+                                               onmouseout="this.style.backgroundColor='#f9fafb'; this.style.borderColor='#e5e7eb';">
+                                            <input type="radio" name="question-${questionIndex}" value="${optionIndex}" style="transform: scale(1.2);">
                                             <span><strong>${String.fromCharCode(97 + optionIndex)})</strong> ${option}</span>
                                         </label>
                                     `).join('')}
@@ -609,7 +656,13 @@
         }
 
         function renderResultsTab() {
-            if (appState.testResults.length === 0) {
+            if (state.currentViewingResult) {
+                // Mostrar resultado específico
+                return renderSpecificResult(state.currentViewingResult);
+            }
+
+            // Mostrar lista de resultados
+            if (state.testResults.length === 0) {
                 return `
                     <div style="text-align: center; padding: 60px; color: #9ca3af;">
                         <div style="font-size: 3rem; margin-bottom: 20px;">📊</div>
@@ -622,46 +675,81 @@
             return `
                 <div style="max-width: 1000px; margin: 0 auto;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-                        <h2 style="color: #1f2937; margin: 0;">📊 Historial de Tests (${appState.testResults.length})</h2>
-                        <button onclick="clearTestHistory()" class="btn btn-danger">🗑️ Limpiar Historial</button>
+                        <h2 style="color: #1f2937; margin: 0;">📊 Historial de Tests (${state.testResults.length})</h2>
+                        <button onclick="clearTestHistory()" class="btn btn-danger">
+                            🗑️ Limpiar Historial
+                        </button>
                     </div>
 
                     <div style="display: grid; gap: 20px;">
-                        ${appState.testResults.map((result, index) => {
+                        ${state.testResults.map((result, index) => {
                             const percentage = Math.round((result.correct / result.total) * 100);
-                            let scoreColor = percentage >= 70 ? '#059669' : percentage >= 50 ? '#f59e0b' : '#ef4444';
+                            let scoreColor = '#ef4444';
+                            let scoreIcon = '📉';
                             
+                            if (percentage >= 90) {
+                                scoreColor = '#059669';
+                                scoreIcon = '🌟';
+                            } else if (percentage >= 70) {
+                                scoreColor = '#0ea5e9';
+                                scoreIcon = '👍';
+                            } else if (percentage >= 50) {
+                                scoreColor = '#f59e0b';
+                                scoreIcon = '⚡';
+                            }
+
                             return `
-                                <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                        <h3 style="margin: 0; color: #1f2937;">${result.name}</h3>
-                                        <div style="background: ${scoreColor}; color: white; padding: 6px 12px; border-radius: 20px; font-weight: bold;">
-                                            ${percentage}%
+                                <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative;" 
+                                     onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';" 
+                                     onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
+                                    
+                                    <!-- Botón eliminar individual -->
+                                    <button onclick="event.stopPropagation(); deleteIndividualTest(${index})" 
+                                            style="position: absolute; top: 10px; right: 10px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0.7; transition: opacity 0.2s;" 
+                                            onmouseover="this.style.opacity='1'" 
+                                            onmouseout="this.style.opacity='0.7'" 
+                                            title="Eliminar este test">×</button>
+                                    
+                                    <div onclick="viewTestResult(${index})" style="width: 100%;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                            <h3 style="margin: 0; color: #1f2937; display: flex; align-items: center; gap: 10px; padding-right: 30px;">
+                                                <span style="font-size: 1.2em;">${scoreIcon}</span>
+                                                ${result.name}
+                                            </h3>
+                                            <div style="background: ${scoreColor}; color: white; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 1.1rem;">
+                                                ${percentage}%
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
-                                        <div style="text-align: center;">
-                                            <div style="font-size: 1.5rem; font-weight: bold; color: #059669;">${result.correct}</div>
-                                            <div style="font-size: 12px; color: #6b7280;">Correctas</div>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                                            <div style="text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: bold; color: #059669;">${result.correct}</div>
+                                                <div style="font-size: 12px; color: #6b7280;">Correctas</div>
+                                            </div>
+                                            <div style="text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: bold; color: #ef4444;">${result.incorrect}</div>
+                                                <div style="font-size: 12px; color: #6b7280;">Incorrectas</div>
+                                            </div>
+                                            <div style="text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: bold; color: #f59e0b;">${result.unanswered}</div>
+                                                <div style="font-size: 12px; color: #6b7280;">Sin responder</div>
+                                            </div>
+                                            <div style="text-align: center;">
+                                                <div style="font-size: 1.5rem; font-weight: bold; color: #6b7280;">${result.total}</div>
+                                                <div style="font-size: 12px; color: #6b7280;">Total</div>
+                                            </div>
                                         </div>
-                                        <div style="text-align: center;">
-                                            <div style="font-size: 1.5rem; font-weight: bold; color: #ef4444;">${result.incorrect}</div>
-                                            <div style="font-size: 12px; color: #6b7280;">Incorrectas</div>
-                                        </div>
-                                        <div style="text-align: center;">
-                                            <div style="font-size: 1.5rem; font-weight: bold; color: #f59e0b;">${result.unanswered}</div>
-                                            <div style="font-size: 12px; color: #6b7280;">Sin responder</div>
-                                        </div>
-                                        <div style="text-align: center;">
-                                            <div style="font-size: 1.5rem; font-weight: bold; color: #6b7280;">${result.total}</div>
-                                            <div style="font-size: 12px; color: #6b7280;">Total</div>
-                                        </div>
-                                    </div>
 
-                                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #6b7280; margin-top: 15px;">
-                                        <span>${result.date}</span>
-                                        <button onclick="deleteIndividualTest(${index})" class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;">Eliminar</button>
+                                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #6b7280;">
+                                            <span>${result.testType}</span>
+                                            <span>${result.date}</span>
+                                        </div>
+                                        
+                                        ${result.timeUsedText ? `
+                                            <div style="font-size: 12px; color: #9ca3af; margin-top: 5px; text-align: right;">
+                                                ${result.timeUsedText}
+                                            </div>
+                                        ` : ''}
                                     </div>
                                 </div>
                             `;
@@ -671,58 +759,195 @@
             `;
         }
 
-        // Funciones de manejo de eventos
-        function handleLogin() {
+        function renderSpecificResult(result) {
+            const percentage = Math.round((result.correct / result.total) * 100);
+            
+            // Determinar color y mensaje según porcentaje
+            let scoreColor = '#ef4444'; // Rojo por defecto
+            let scoreMessage = '¡Sigue practicando! 💪';
+            let scoreIcon = '📉';
+            
+            if (percentage >= 90) {
+                scoreColor = '#059669';
+                scoreMessage = '¡Excelente trabajo! 🏆';
+                scoreIcon = '🌟';
+            } else if (percentage >= 70) {
+                scoreColor = '#0ea5e9';
+                scoreMessage = '¡Buen desempeño! 👏';
+                scoreIcon = '👍';
+            } else if (percentage >= 50) {
+                scoreColor = '#f59e0b';
+                scoreMessage = '¡Puedes mejorar! 📚';
+                scoreIcon = '⚡';
+            }
+
+            return `
+                <div style="max-width: 1000px; margin: 0 auto;">
+                    <!-- Botón Volver -->
+                    <div style="margin-bottom: 20px;">
+                        <button onclick="state.currentViewingResult = null; render();" class="btn btn-secondary">
+                            ← Volver al Historial
+                        </button>
+                    </div>
+
+                    <!-- Header de Resultados -->
+                    <div style="text-align: center; background: linear-gradient(135deg, ${scoreColor}15, ${scoreColor}05); border: 2px solid ${scoreColor}30; border-radius: 20px; padding: 40px; margin-bottom: 30px;">
+                        <div style="font-size: 4rem; margin-bottom: 15px;">${scoreIcon}</div>
+                        <h1 style="color: ${scoreColor}; font-size: 2.5rem; margin: 0 0 10px 0;">${percentage}%</h1>
+                        <p style="color: ${scoreColor}; font-size: 1.3rem; font-weight: 600; margin: 0 0 15px 0;">${scoreMessage}</p>
+                        <h2 style="color: #6b7280; font-size: 1.2rem; margin: 0;">${result.name}</h2>
+                        <p style="color: #6b7280; font-size: 1rem; margin: 5px 0 0 0;">${result.testType}</p>
+                        ${result.timeUsedText ? `<p style="color: #6b7280; font-size: 0.9rem; margin: 5px 0 0 0;">${result.timeUsedText}</p>` : ''}
+                        <p style="color: #9ca3af; font-size: 0.85rem; margin: 10px 0 0 0;">${result.date}</p>
+                    </div>
+
+                    <!-- Métricas Generales -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                        <div style="background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 12px; padding: 20px; text-align: center;">
+                            <div style="font-size: 2rem; color: #0ea5e9; margin-bottom: 10px;">✅</div>
+                            <div style="font-size: 1.8rem; font-weight: bold; color: #0c4a6e; margin-bottom: 5px;">${result.correct}</div>
+                            <div style="color: #0369a1; font-weight: 500;">Correctas</div>
+                        </div>
+
+                        <div style="background: #fef2f2; border: 2px solid #ef4444; border-radius: 12px; padding: 20px; text-align: center;">
+                            <div style="font-size: 2rem; color: #ef4444; margin-bottom: 10px;">❌</div>
+                            <div style="font-size: 1.8rem; font-weight: bold; color: #991b1b; margin-bottom: 5px;">${result.incorrect}</div>
+                            <div style="color: #dc2626; font-weight: 500;">Incorrectas</div>
+                        </div>
+
+                        <div style="background: #fffbeb; border: 2px solid #f59e0b; border-radius: 12px; padding: 20px; text-align: center;">
+                            <div style="font-size: 2rem; color: #f59e0b; margin-bottom: 10px;">⏭️</div>
+                            <div style="font-size: 1.8rem; font-weight: bold; color: #92400e; margin-bottom: 5px;">${result.unanswered}</div>
+                            <div style="color: #d97706; font-weight: 500;">Sin responder</div>
+                        </div>
+
+                        <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; padding: 20px; text-align: center;">
+                            <div style="font-size: 2rem; color: #22c55e; margin-bottom: 10px;">📊</div>
+                            <div style="font-size: 1.8rem; font-weight: bold; color: #166534; margin-bottom: 5px;">${result.total}</div>
+                            <div style="color: #16a34a; font-weight: 500;">Total</div>
+                        </div>
+                    </div>
+
+                    <!-- Barra de Progreso Visual -->
+                    <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
+                        <h3 style="margin: 0 0 20px 0; color: #374151;">📈 Distribución de Respuestas</h3>
+                        <div style="background: #f3f4f6; border-radius: 10px; overflow: hidden; height: 30px; display: flex; margin-bottom: 15px;">
+                            <div style="background: #22c55e; width: ${(result.correct/result.total)*100}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
+                                ${result.correct > 0 ? `${result.correct}✓` : ''}
+                            </div>
+                            <div style="background: #ef4444; width: ${(result.incorrect/result.total)*100}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
+                                ${result.incorrect > 0 ? `${result.incorrect}✗` : ''}
+                            </div>
+                            <div style="background: #f59e0b; width: ${(result.unanswered/result.total)*100}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
+                                ${result.unanswered > 0 ? `${result.unanswered}?` : ''}
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 14px; color: #6b7280;">
+                            <span>0%</span>
+                            <span>50%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+
+                    <!-- Revisión Detallada -->
+                    <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
+                        <h3 style="margin: 0 0 20px 0; color: #374151;">🔍 Revisión Detallada</h3>
+                        ${result.detailedResults.map((resultItem, index) => `
+                            <div style="border: 2px solid ${resultItem.isCorrect ? '#22c55e' : (resultItem.userAnswer !== null ? '#ef4444' : '#f59e0b')}; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
+                                <div style="background: ${resultItem.isCorrect ? '#22c55e' : (resultItem.userAnswer !== null ? '#ef4444' : '#f59e0b')}; color: white; padding: 12px 15px; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+                                    <span style="font-size: 1.1em;">
+                                        ${resultItem.isCorrect ? '✅' : (resultItem.userAnswer !== null ? '❌' : '⏭️')}
+                                    </span>
+                                    <span>Pregunta ${index + 1}</span>
+                                    ${resultItem.question.isVerified ? '<span style="filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));" title="Pregunta verificada">⭐</span>' : ''}
+                                </div>
+                                <div style="padding: 15px;">
+                                    <p style="font-weight: 500; margin: 0 0 15px 0; color: #374151;">${resultItem.question.question}</p>
+                                    <div style="display: grid; gap: 8px;">
+                                        ${resultItem.question.options.map((option, optIndex) => {
+                                            let bgColor = '#f9fafb';
+                                            let textColor = '#374151';
+                                            let border = '#e5e7eb';
+                                            let prefix = '';
+                                            
+                                            if (optIndex === resultItem.question.correctAnswer) {
+                                                bgColor = '#dcfce7';
+                                                textColor = '#166534';
+                                                border = '#22c55e';
+                                                prefix = '✓ ';
+                                            }
+                                            
+                                            if (resultItem.userAnswer === optIndex && optIndex !== resultItem.question.correctAnswer) {
+                                                bgColor = '#fee2e2';
+                                                textColor = '#991b1b';
+                                                border = '#ef4444';
+                                                prefix = '✗ ';
+                                            }
+                                            
+                                            return `
+                                                <div style="background: ${bgColor}; border: 1px solid ${border}; border-radius: 6px; padding: 10px; color: ${textColor};">
+                                                    <strong>${String.fromCharCode(97 + optIndex)})</strong> ${prefix}${option}
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                    ${resultItem.userAnswer === null ? `
+                                        <div style="background: #fffbeb; border: 1px solid #f59e0b; border-radius: 6px; padding: 10px; margin-top: 10px; color: #92400e; text-align: center; font-style: italic;">
+                                            No respondida
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <!-- Acciones -->
+                    <div style="text-align: center; padding: 20px;">
+                        <button onclick="startNewTest()" class="btn btn-primary" style="font-size: 1.1rem; padding: 15px 30px; margin: 0 10px;">
+                            🎯 Nuevo Test
+                        </button>
+                        <button onclick="state.currentViewingResult = null; render();" class="btn btn-secondary" style="font-size: 1.1rem; padding: 15px 30px; margin: 0 10px;">
+                            📊 Ver Historial
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Event handlers
+        function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             
             if (users[username] && users[username].password === password) {
-                appState.currentUser = users[username];
-                appState.currentMode = null;
+                state.currentUser = users[username];
                 render();
-                showMessage('Bienvenido ' + users[username].name, 'success');
+                showMessage(`Bienvenido ${users[username].name}`, 'success');
             } else {
                 showMessage('Usuario o contraseña incorrectos', 'error');
             }
         }
 
-        function handleLogout() {
-            appState.currentUser = null;
-            appState.currentMode = null;
-            appState.currentTab = 'upload';
-            render();
-        }
-
-        function selectMode(mode) {
-            appState.currentMode = mode;
-            if (mode === 'test') {
-                appState.currentTab = 'upload';
-            } else if (mode === 'summaries') {
-                showMessage('Funcionalidad de resúmenes en desarrollo...', 'success');
-                return;
-            }
-            render();
-        }
-
-        function goBackToModeSelection() {
-            appState.currentMode = null;
-            appState.currentTab = 'upload';
-            render();
-        }
-
-        function setTab(tab) {
-            appState.currentTab = tab;
+        function logout() {
+            state.currentUser = null;
+            state.currentTab = 'upload';
             render();
         }
 
         function configureAPI() {
             const key = prompt('Ingresa tu API key de Anthropic:');
             if (key && key.trim()) {
-                appState.apiKey = key.trim();
+                state.apiKey = key.trim();
                 localStorage.setItem('anthropic_api_key', key.trim());
                 render();
                 showMessage('API key configurada correctamente', 'success');
             }
+        }
+
+        function setTab(tab) {
+            state.currentTab = tab;
+            state.currentViewingResult = null;
+            render();
         }
 
         function createTopic() {
@@ -734,39 +959,54 @@
                     createdAt: new Date().toISOString()
                 };
                 
-                appState.topics.push(newTopic);
-                localStorage.setItem('topics', JSON.stringify(appState.topics));
+                state.topics.push(newTopic);
+                localStorage.setItem('topics', JSON.stringify(state.topics));
                 render();
-                showMessage('Tema "' + name + '" creado exitosamente', 'success');
+                showMessage(`Tema "${name}" creado exitosamente`, 'success');
             }
         }
 
         function updateSelectedTopic() {
             const selector = document.getElementById('topic-selector');
             if (selector && selector.value) {
-                const selectedTopic = appState.topics.find(t => t.id == selector.value);
+                // Convertir el valor del selector al tipo correcto
+                const selectedValue = selector.value;
+                // Buscar el tema para obtener el ID en su formato original
+                const selectedTopic = state.topics.find(t => t.id == selectedValue);
                 if (selectedTopic) {
-                    appState.selectedTopicForNewQuestions = selectedTopic.id;
-                    showMessage('Tema "' + selectedTopic.name + '" seleccionado', 'success');
+                    state.selectedTopicForNewQuestions = selectedTopic.id;
+                    showMessage(`Tema "${selectedTopic.name}" seleccionado`, 'success');
+                } else {
+                    state.selectedTopicForNewQuestions = selectedValue;
                 }
             } else {
-                appState.selectedTopicForNewQuestions = null;
+                state.selectedTopicForNewQuestions = null;
             }
             render();
         }
 
+        function getAddButtonText() {
+            if (!state.selectedTopicForNewQuestions) {
+                return '✅ 2. Añadir al Banco';
+            } else {
+                const topicName = getTopicName(state.selectedTopicForNewQuestions);
+                return `✅ 2. Asignar a "${topicName}"`;
+            }
+        }
+
         function removeImage(index) {
-            appState.selectedImages.splice(index, 1);
+            state.selectedImages.splice(index, 1);
             render();
+            showMessage('Imagen eliminada', 'success');
         }
 
         async function transcribeImages() {
-            if (!appState.apiKey) {
+            if (!state.apiKey) {
                 showMessage('Configura tu API key primero', 'error');
                 return;
             }
 
-            if (appState.selectedImages.length === 0) {
+            if (state.selectedImages.length === 0) {
                 showMessage('Selecciona al menos una imagen', 'error');
                 return;
             }
@@ -776,96 +1016,193 @@
             try {
                 let allTranscriptions = [];
                 
-                for (let i = 0; i < appState.selectedImages.length; i++) {
-                    const file = appState.selectedImages[i];
-                    const base64 = await fileToBase64(file);
+                const batchSize = 5;
+                for (let i = 0; i < state.selectedImages.length; i += batchSize) {
+                    const batch = state.selectedImages.slice(i, i + batchSize);
                     
+                    const imageContents = await Promise.all(
+                        batch.map(async (file) => {
+                            const base64 = await fileToBase64(file);
+                            return {
+                                type: "image",
+                                source: {
+                                    type: "base64",
+                                    media_type: file.type,
+                                    data: base64
+                                }
+                            };
+                        })
+                    );
+
+                    const messageContent = [
+                        ...imageContents,
+                        {
+                            type: "text",
+                            text: `Actúa como un transcriptor de texto para una persona ciega. Analiza ${batch.length > 1 ? 'estas imágenes' : 'esta imagen'} y extrae todo el texto visible de manera secuencial.
+
+INSTRUCCIONES CRÍTICAS:
+- Solo dicta las palabras que ves, como si estuvieras hablando en voz alta
+- Encuentra las preguntas numeradas y sus opciones de respuesta
+- CONSERVA y DESCRIBE todos los símbolos visuales de respuesta correcta que veas
+- MANTÉN símbolos como: ✓, ✔, checkmarks, asteriscos, viñetas, flechas
+- DESCRIBE elementos visuales importantes: "opción marcada en verde", "con tick", "con check", "respuesta correcta", "marcada"
+- PRESERVA cualquier indicación visual de que una opción es la correcta
+- Si hay múltiples imágenes, procesa cada una en orden
+- Separa claramente el contenido de cada imagen
+
+IMPORTANTE: NO elimines símbolos de respuesta correcta - los necesitamos para el siguiente paso.
+
+Responde con el texto extraído conservando TODOS los símbolos y marcas visuales.`
+                        }
+                    ];
+
                     const response = await fetch("/api/anthropic", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "x-api-key": appState.apiKey,
-                        },
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+        "x-api-key": state.apiKey,
+    },
                         body: JSON.stringify({
                             model: "claude-sonnet-4-20250514",
                             max_tokens: 4000,
                             messages: [{
                                 role: "user",
-                                content: [
-                                    {
-                                        type: "image",
-                                        source: {
-                                            type: "base64",
-                                            media_type: file.type,
-                                            data: base64
-                                        }
-                                    },
-                                    {
-                                        type: "text",
-                                        text: `Extrae todas las preguntas y respuestas de esta imagen. Para cada pregunta, identifica la respuesta correcta si está marcada visualmente. Formato:
-
-PREGUNTA: [texto de la pregunta]
-OPCION_A: [primera opción]
-OPCION_B: **[segunda opción si es correcta]**
-OPCION_C: [tercera opción]
-OPCION_D: **[cuarta opción si es correcta]**
-
-Usa **texto** para marcar las respuestas correctas.`
-                                    }
-                                ]
+                                content: messageContent
                             }]
                         })
                     });
 
                     if (!response.ok) {
-                        throw new Error('Error ' + response.status + ': ' + response.statusText);
+                        throw new Error(`Error ${response.status}: ${response.statusText}`);
                     }
 
                     const data = await response.json();
                     allTranscriptions.push(data.content[0].text);
                 }
 
-                appState.cleanedText = allTranscriptions.join('\n\n--- SIGUIENTE IMAGEN ---\n\n');
+                state.transcribedText = allTranscriptions.join('\n\n--- SIGUIENTE IMAGEN ---\n\n');
+                
                 render();
-                showMessage('Transcripción completada', 'success');
+                showMessage(`Transcripción completada. Procesando texto...`, 'success');
+                
+                // Automáticamente limpiar el texto después de transcribir
+                await cleanText();
                 
             } catch (error) {
-                showMessage('Error en la transcripción: ' + error.message, 'error');
+                showMessage(`Error en la transcripción: ${error.message}`, 'error');
             }
         }
 
-        function addToQuestions() {
-            if (!appState.cleanedText) {
+        async function cleanText() {
+            if (!state.transcribedText) {
                 showMessage('Primero transcribe las imágenes', 'error');
                 return;
             }
 
+            if (!state.apiKey) {
+                showMessage('Configura tu API key primero', 'error');
+                return;
+            }
+
+            render(); // Mostrar el indicador de procesamiento
+            
             try {
-                const newQuestions = parseCleanedText(appState.cleanedText);
+                const response = await fetch("/api/anthropic", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+        "x-api-key": state.apiKey,
+    },
+                    body: JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: 4000,
+                        messages: [{
+                            role: "user",
+                            content: `Limpia este texto extraído de múltiples imágenes y conviértelo en formato de preguntas para banco de preguntas:
+
+TEXTO A LIMPIAR:
+${state.transcribedText}
+
+INSTRUCCIONES CRÍTICAS PARA DETECTAR RESPUESTAS CORRECTAS:
+- Busca símbolos visuales: ✓, ✔, *, •, →, >, checkmarks, ticks
+- Busca descripciones: "marcada", "marcada en verde", "respuesta correcta", "con tick", "con check"
+- Busca colores mencionados: "verde", "resaltada", "seleccionada"
+- MARCA EN NEGRITA las opciones que tengan cualquiera de estos indicadores usando **texto**
+- Elimina los símbolos y descripciones visuales DESPUÉS de identificar las correctas
+- Extrae solo las preguntas y opciones de respuesta
+- Numera las preguntas secuencialmente
+
+FORMATO DE SALIDA ESTRICTO:
+PREGUNTA: [texto de la pregunta]
+OPCION_A: [opción a normal]
+OPCION_B: **[opción b si tiene símbolo/marca de correcta]**
+OPCION_C: [opción c normal]
+OPCION_D: **[opción d si tiene símbolo/marca de correcta]**
+
+IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descripción de "correcta" debe ir en **negritas**.`
+                        }]
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                state.cleanedText = data.content[0].text;
+                
+                render();
+                showMessage('¡Texto procesado y listo para añadir al banco!', 'success');
+                
+            } catch (error) {
+                showMessage(`Error en la limpieza: ${error.message}`, 'error');
+            }
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        function addToQuestions() {
+            if (!state.cleanedText) {
+                showMessage('Primero procesa el texto', 'error');
+                return;
+            }
+
+            try {
+                const newQuestions = parseCleanedText(state.cleanedText);
                 if (newQuestions.length === 0) {
-                    showMessage('No se pudieron extraer preguntas del texto', 'error');
+                    showMessage('No se pudieron extraer preguntas del texto limpio', 'error');
                     return;
                 }
 
-                if (appState.selectedTopicForNewQuestions) {
+                if (state.selectedTopicForNewQuestions) {
                     newQuestions.forEach(question => {
-                        question.topicId = appState.selectedTopicForNewQuestions;
+                        question.topicId = state.selectedTopicForNewQuestions;
                     });
+                    const topicName = getTopicName(state.selectedTopicForNewQuestions);
+                    showMessage(`¡Se añadieron ${newQuestions.length} preguntas al tema "${topicName}"!`, 'success');
+                } else {
+                    showMessage(`¡Se añadieron ${newQuestions.length} preguntas al banco!`, 'success');
                 }
 
-                appState.questions.push(...newQuestions);
-                localStorage.setItem('questions', JSON.stringify(appState.questions));
+                state.questions.push(...newQuestions);
+                localStorage.setItem('questions', JSON.stringify(state.questions));
                 
-                appState.selectedImages = [];
-                appState.transcribedText = '';
-                appState.cleanedText = '';
-                appState.selectedTopicForNewQuestions = null;
+                state.selectedImages = [];
+                state.transcribedText = '';
+                state.cleanedText = '';
+                state.selectedTopicForNewQuestions = null;
                 
                 render();
-                showMessage('Se añadieron ' + newQuestions.length + ' preguntas al banco', 'success');
                 
             } catch (error) {
-                showMessage('Error al procesar preguntas: ' + error.message, 'error');
+                showMessage(`Error al procesar preguntas: ${error.message}`, 'error');
             }
         }
 
@@ -911,43 +1248,163 @@ Usa **texto** para marcar las respuestas correctas.`
             return questions;
         }
 
+        function toggleVerified(index) {
+            if (state.questions[index]) {
+                state.questions[index].isVerified = !state.questions[index].isVerified;
+                localStorage.setItem('questions', JSON.stringify(state.questions));
+                render();
+                showMessage(`Pregunta ${state.questions[index].isVerified ? 'verificada' : 'sin verificar'}`, 'success');
+            }
+        }
+
         function clearQuestions() {
             if (confirm('¿Eliminar todas las preguntas?')) {
-                appState.questions = [];
-                localStorage.setItem('questions', JSON.stringify(appState.questions));
+                state.questions = [];
+                localStorage.setItem('questions', JSON.stringify(state.questions));
                 render();
             }
         }
 
         function deleteQuestion(index) {
             if (confirm('¿Eliminar esta pregunta?')) {
-                appState.questions.splice(index, 1);
-                localStorage.setItem('questions', JSON.stringify(appState.questions));
+                state.questions.splice(index, 1);
+                localStorage.setItem('questions', JSON.stringify(state.questions));
                 render();
+                showMessage('Pregunta eliminada', 'success');
             }
         }
 
         function editQuestion(index) {
-            const question = appState.questions[index];
-            const newQuestion = prompt('Nueva pregunta:', question.question);
-            if (newQuestion && newQuestion.trim()) {
-                appState.questions[index].question = newQuestion.trim();
-                localStorage.setItem('questions', JSON.stringify(appState.questions));
-                render();
-                showMessage('Pregunta actualizada', 'success');
-            }
+            const question = state.questions[index];
+            
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.5); display: flex; justify-content: center;
+                align-items: center; z-index: 1000;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 16px; padding: 30px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                    <h3 style="margin-bottom: 20px;">Editar Pregunta</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Pregunta:</label>
+                        <textarea id="edit-question" style="width: 100%; height: 60px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">${question.question}</textarea>
+                    </div>
+                    
+                    ${state.topics.length > 0 ? `
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Tema:</label>
+                            <select id="edit-topic" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                <option value="">Sin tema</option>
+                                ${state.topics.map(topic => `
+                                    <option value="${topic.id}" ${question.topicId === topic.id ? 'selected' : ''}>
+                                        ${topic.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    ` : ''}
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 10px; font-weight: 500;">Opciones:</label>
+                        ${question.options.map((option, i) => `
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                <input type="radio" name="correct" value="${i}" ${question.correctAnswer === i ? 'checked' : ''}>
+                                <span style="font-weight: 500; min-width: 20px;">${String.fromCharCode(97 + i)})</span>
+                                <input type="text" id="edit-option-${i}" value="${option}" style="flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button onclick="this.closest('div[style*=\"position: fixed\"]').remove()" style="padding: 10px 20px; border: none; background: #6b7280; color: white; border-radius: 6px; cursor: pointer;">
+                            Cancelar
+                        </button>
+                        <button onclick="saveEdit(${index})" style="padding: 10px 20px; border: none; background: #4f46e5; color: white; border-radius: 6px; cursor: pointer;">
+                            Guardar
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            window.saveEdit = function(qIndex) {
+                try {
+                    const newQuestion = document.getElementById('edit-question').value.trim();
+                    const newOptions = [];
+                    
+                    for (let i = 0; i < question.options.length; i++) {
+                        const optInput = document.getElementById(`edit-option-${i}`);
+                        if (optInput && optInput.value.trim()) {
+                            newOptions.push(optInput.value.trim());
+                        }
+                    }
+                    
+                    const correctRadio = modal.querySelector('input[name="correct"]:checked');
+                    const newCorrect = correctRadio ? parseInt(correctRadio.value) : 0;
+                    
+                    let newTopicId = null;
+                    const topicSelect = modal.querySelector('#edit-topic');
+                    if (topicSelect && topicSelect.value) {
+                        newTopicId = topicSelect.value;
+                    }
+                    
+                    if (!newQuestion || newOptions.length < 2) {
+                        alert('Completa todos los campos requeridos');
+                        return;
+                    }
+                    
+                    state.questions[qIndex] = {
+                        ...state.questions[qIndex],
+                        question: newQuestion,
+                        options: newOptions,
+                        correctAnswer: newCorrect,
+                        topicId: newTopicId
+                    };
+                    
+                    localStorage.setItem('questions', JSON.stringify(state.questions));
+                    modal.remove();
+                    render();
+                    showMessage('Pregunta actualizada', 'success');
+                    
+                } catch (error) {
+                    showMessage('Error al guardar: ' + error.message, 'error');
+                }
+            };
         }
 
         function filterByTopic(topicId) {
-            appState.selectedTopicFilter = topicId;
-            render();
+            state.selectedTopicFilter = topicId;
+            render(); // Importante: re-renderizar para actualizar el título
         }
 
+        function getFilteredQuestions() {
+            if (state.selectedTopicFilter === 'all') {
+                return state.questions;
+            }
+            return state.questions.filter(q => q.topicId && q.topicId.toString() === state.selectedTopicFilter.toString());
+        }
+
+        function getTopicName(topicId) {
+            if (!topicId) return 'Sin tema';
+            const topic = state.topics.find(t => t.id.toString() === topicId.toString());
+            return topic ? topic.name : 'Tema no encontrado';
+        }
+
+        function getTopicQuestionCount(topicId) {
+            return state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
+        }
+
+        // Nuevas funciones para manejar la selección múltiple de temas
         function toggleGeneralTest() {
             const generalCheckbox = document.getElementById('test-general');
             const topicCheckboxes = document.querySelectorAll('.topic-checkbox');
             
             if (generalCheckbox.checked) {
+                // Si se marca "Test General", desmarcar todos los temas
                 topicCheckboxes.forEach(cb => {
                     cb.checked = false;
                     cb.closest('.custom-checkbox').classList.remove('selected');
@@ -959,7 +1416,7 @@ Usa **texto** para marcar las respuestas correctas.`
         }
 
         function toggleTopicTest(topicId) {
-            const topicCheckbox = document.querySelector('.topic-checkbox[data-topic-id="' + topicId + '"]');
+            const topicCheckbox = document.querySelector(`.topic-checkbox[data-topic-id="${topicId}"]`);
             const generalCheckbox = document.getElementById('test-general');
             
             if (topicCheckbox.checked) {
@@ -968,6 +1425,7 @@ Usa **texto** para marcar las respuestas correctas.`
             } else {
                 topicCheckbox.checked = true;
                 topicCheckbox.closest('.custom-checkbox').classList.add('selected');
+                // Si se marca algún tema, desmarcar "Test General"
                 if (generalCheckbox.checked) {
                     generalCheckbox.checked = false;
                     generalCheckbox.closest('.custom-checkbox').classList.remove('selected');
@@ -979,6 +1437,7 @@ Usa **texto** para marcar las respuestas correctas.`
             const topicCheckboxes = document.querySelectorAll('.topic-checkbox');
             
             if (checkbox.checked) {
+                // Si se marca "Test General", desmarcar todos los temas
                 topicCheckboxes.forEach(cb => {
                     cb.checked = false;
                     cb.closest('.custom-checkbox').classList.remove('selected');
@@ -994,6 +1453,7 @@ Usa **texto** para marcar las respuestas correctas.`
             const generalCheckbox = document.getElementById('test-general');
             const anyTopicSelected = Array.from(topicCheckboxes).some(cb => cb.checked);
             
+            // Actualizar estilos visuales para cada checkbox de tema
             topicCheckboxes.forEach(cb => {
                 if (cb.checked) {
                     cb.closest('.custom-checkbox').classList.add('selected');
@@ -1002,6 +1462,7 @@ Usa **texto** para marcar las respuestas correctas.`
                 }
             });
             
+            // Si hay algún tema seleccionado, desmarcar "Test General"
             if (anyTopicSelected && generalCheckbox.checked) {
                 generalCheckbox.checked = false;
                 generalCheckbox.closest('.custom-checkbox').classList.remove('selected');
@@ -1013,12 +1474,15 @@ Usa **texto** para marcar las respuestas correctas.`
             const topicCheckboxes = document.querySelectorAll('.topic-checkbox');
             
             let availableQuestions = [];
-            let testName = document.getElementById('test-name').value.trim();
+            let testTypeText = '';
+            let selectedTopics = [];
             
             if (generalCheckbox && generalCheckbox.checked) {
-                availableQuestions = appState.questions;
-                if (!testName) testName = 'Test General';
+                // Test general
+                availableQuestions = state.questions;
+                testTypeText = 'Test General';
             } else {
+                // Test de temas específicos
                 const selectedTopicIds = Array.from(topicCheckboxes)
                     .filter(cb => cb.checked)
                     .map(cb => cb.getAttribute('data-topic-id'));
@@ -1028,161 +1492,236 @@ Usa **texto** para marcar las respuestas correctas.`
                     return;
                 }
                 
-                availableQuestions = appState.questions.filter(q => 
+                selectedTopics = selectedTopicIds.map(id => getTopicName(id));
+                
+                // Filtrar preguntas por los temas seleccionados
+                availableQuestions = state.questions.filter(q => 
                     q.topicId && selectedTopicIds.includes(q.topicId.toString())
                 );
                 
-                if (!testName) testName = 'Test Personalizado';
+                if (selectedTopics.length === 1) {
+                    testTypeText = `Test de ${selectedTopics[0]}`;
+                } else {
+                    testTypeText = `Test Combinado: ${selectedTopics.join(', ')}`;
+                }
             }
 
             if (availableQuestions.length === 0) {
-                showMessage('No hay preguntas disponibles', 'error');
+                showMessage('No hay preguntas disponibles para la selección actual', 'error');
                 return;
             }
 
+            // Obtener configuraciones
             const questionsCountSelect = document.getElementById('test-questions-count');
+            const durationSelect = document.getElementById('test-duration');
+            const testNameInput = document.getElementById('test-name');
+            
             const questionsCount = questionsCountSelect.value === 'all' ? availableQuestions.length : parseInt(questionsCountSelect.value);
+            const duration = parseInt(durationSelect.value);
+
+            // Generar nombre del test
+            let testName = testNameInput.value.trim();
+            if (!testName) {
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('es-ES');
+                const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                
+                if (selectedTopics.length === 1) {
+                    testName = `Test ${selectedTopics[0]} - ${dateStr} ${timeStr}`;
+                } else if (selectedTopics.length > 1) {
+                    testName = `Test Combinado - ${dateStr} ${timeStr}`;
+                } else {
+                    testName = `Test General - ${dateStr} ${timeStr}`;
+                }
+            }
+
             const finalQuestionsCount = Math.min(questionsCount, availableQuestions.length);
             const shuffled = [...availableQuestions].sort(() => Math.random() - 0.5);
             
-            appState.currentTest = {
+            state.currentTest = {
                 name: testName,
                 questions: shuffled.slice(0, finalQuestionsCount),
+                answers: {},
+                duration: duration,
+                timeLeft: duration,
+                timer: null,
+                testType: generalCheckbox && generalCheckbox.checked ? 'all' : 'multiple',
+                testTypeText: testTypeText,
+                selectedTopics: selectedTopics,
                 startTime: Date.now()
             };
+            
+            // Solo iniciar timer si hay duración
+            if (duration > 0) {
+                state.currentTest.timer = setInterval(() => {
+                    state.currentTest.timeLeft--;
+                    if (state.currentTest.timeLeft <= 0) {
+                        finishTest();
+                    } else {
+                        const timerElement = document.getElementById('timer');
+                        if (timerElement) {
+                            timerElement.textContent = `⏱️ ${formatTime(state.currentTest.timeLeft)}`;
+                        }
+                    }
+                }, 1000);
+            }
             
             render();
         }
 
         function finishTest() {
-            if (!appState.currentTest) return;
+            if (!state.currentTest) return;
             
+            // Detener timer si existe
+            if (state.currentTest.timer) {
+                clearInterval(state.currentTest.timer);
+            }
+            
+            // Recoger respuestas del formulario
             const form = document.getElementById('test-form');
             let correct = 0;
             let incorrect = 0;
             let unanswered = 0;
+            const answers = {};
+            const detailedResults = [];
             
-            appState.currentTest.questions.forEach((question, index) => {
-                const selectedOption = form.querySelector('input[name="question-' + index + '"]:checked');
+            state.currentTest.questions.forEach((question, index) => {
+                const selectedOption = form.querySelector(`input[name="question-${index}"]:checked`);
+                let userAnswer = null;
+                let isCorrect = false;
                 
                 if (selectedOption) {
-                    const userAnswer = parseInt(selectedOption.value);
+                    userAnswer = parseInt(selectedOption.value);
+                    answers[index] = userAnswer;
                     if (userAnswer === question.correctAnswer) {
                         correct++;
+                        isCorrect = true;
                     } else {
                         incorrect++;
                     }
                 } else {
                     unanswered++;
                 }
+                
+                detailedResults.push({
+                    question: question,
+                    userAnswer: userAnswer,
+                    isCorrect: isCorrect
+                });
             });
             
-            const totalQuestions = appState.currentTest.questions.length;
+            const totalQuestions = state.currentTest.questions.length;
             
+            // Calcular tiempo usado
+            let timeUsedText = '';
+            if (state.currentTest.duration > 0) {
+                const timeUsed = state.currentTest.duration - state.currentTest.timeLeft;
+                timeUsedText = `Tiempo empleado: ${formatTime(timeUsed)} de ${formatTime(state.currentTest.duration)}`;
+            }
+            
+            // Crear objeto de resultado
             const testResult = {
-                name: appState.currentTest.name,
+                name: state.currentTest.name,
                 correct: correct,
                 incorrect: incorrect,
                 unanswered: unanswered,
                 total: totalQuestions,
+                testType: state.currentTest.testTypeText,
+                timeUsedText: timeUsedText,
+                detailedResults: detailedResults,
                 date: new Date().toLocaleString('es-ES'),
                 id: Date.now()
             };
             
-            appState.testResults.push(testResult);
-            localStorage.setItem('testResults', JSON.stringify(appState.testResults));
+            // Añadir al historial
+            state.testResults.push(testResult);
+            localStorage.setItem('testResults', JSON.stringify(state.testResults));
             
-            appState.currentTest = null;
-            appState.currentTab = 'results';
+            // Mostrar el resultado específico
+            state.currentViewingResult = testResult;
+            
+            // Limpiar test actual y cambiar a pestaña de resultados
+            state.currentTest = null;
+            state.currentTab = 'results';
+            render();
+            
+            // Hacer scroll al inicio de la página después de renderizar
+            setTimeout(() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 100);
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function startNewTest() {
+            state.currentTab = 'test';
+            state.currentViewingResult = null;
+            render();
+        }
+
+        function viewTestResult(index) {
+            state.currentViewingResult = state.testResults[index];
             render();
         }
 
         function clearTestHistory() {
-            if (confirm('¿Eliminar todo el historial de tests?')) {
-                appState.testResults = [];
-                localStorage.setItem('testResults', JSON.stringify(appState.testResults));
+            if (confirm('¿Eliminar todo el historial de tests? Esta acción no se puede deshacer.')) {
+                state.testResults = [];
+                state.currentViewingResult = null;
+                localStorage.setItem('testResults', JSON.stringify(state.testResults));
                 render();
+                showMessage('Historial de tests eliminado', 'success');
             }
         }
 
         function deleteIndividualTest(index) {
-            if (confirm('¿Eliminar este test?')) {
-                appState.testResults.splice(index, 1);
-                localStorage.setItem('testResults', JSON.stringify(appState.testResults));
+            const testName = state.testResults[index].name;
+            if (confirm(`¿Eliminar el test "${testName}"? Esta acción no se puede deshacer.`)) {
+                state.testResults.splice(index, 1);
+                localStorage.setItem('testResults', JSON.stringify(state.testResults));
+                
+                // Si estábamos viendo el test que se eliminó, volver al historial
+                if (state.currentViewingResult && state.currentViewingResult.id === state.testResults[index]?.id) {
+                    state.currentViewingResult = null;
+                }
+                
                 render();
-            }
-        }
-
-        // Funciones auxiliares
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result.split(',')[1]);
-                reader.onerror = error => reject(error);
-            });
-        }
-
-        function getPageTitle() {
-            switch(appState.currentTab) {
-                case 'questions': return 'Banco de Preguntas';
-                case 'results': return 'Resultados del Test';
-                default: return 'Sistema de Exámenes';
-            }
-        }
-
-        function getFilteredQuestions() {
-            if (appState.selectedTopicFilter === 'all') {
-                return appState.questions;
-            }
-            return appState.questions.filter(q => q.topicId && q.topicId.toString() === appState.selectedTopicFilter.toString());
-        }
-
-        function getTopicName(topicId) {
-            if (!topicId) return 'Sin tema';
-            const topic = appState.topics.find(t => t.id.toString() === topicId.toString());
-            return topic ? topic.name : 'Tema no encontrado';
-        }
-
-        function getTopicQuestionCount(topicId) {
-            return appState.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
-        }
-
-        function getAddButtonText() {
-            if (!appState.selectedTopicForNewQuestions) {
-                return '✅ 2. Añadir al Banco';
-            } else {
-                const topicName = getTopicName(appState.selectedTopicForNewQuestions);
-                return '✅ 2. Asignar a "' + topicName + '"';
+                showMessage('Test eliminado correctamente', 'success');
             }
         }
 
         function showMessage(message, type) {
             const messagesDiv = document.getElementById('messages');
             if (messagesDiv) {
-                messagesDiv.innerHTML = '<div class="message ' + type + '">' + message + '</div>';
+                messagesDiv.innerHTML = `<div class="message ${type}">${message}</div>`;
                 setTimeout(() => {
                     messagesDiv.innerHTML = '';
                 }, 5000);
             }
         }
 
-        // Inicialización
         function initializeApp() {
+            console.log('Sistema iniciando...');
+            
             document.addEventListener('change', function(e) {
                 if (e.target && e.target.id === 'imageInput') {
                     const files = Array.from(e.target.files);
                     const imageFiles = files.filter(file => file.type.startsWith('image/')).slice(0, 10);
                     
                     if (imageFiles.length > 0) {
-                        appState.selectedImages = imageFiles;
+                        state.selectedImages = imageFiles;
                         render();
-                        showMessage(imageFiles.length + ' imagen(es) seleccionada(s)', 'success');
+                        showMessage(`${imageFiles.length} imagen(es) seleccionada(s)`, 'success');
                     }
                 }
             });
             
             render();
+            console.log('Sistema cargado correctamente');
         }
 
         if (document.readyState === 'loading') {
