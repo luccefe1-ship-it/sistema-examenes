@@ -2194,8 +2194,139 @@ Sin tocar nada del código existente
     console.log('🔧 Corrección FINAL aplicada - Sistema robusto activado');
     console.log('💡 Puedes usar diagnosticarPreguntas() en la consola para debugging');
 </script>
+    <!-- 
+PARCHE: SISTEMA DE CARPETAS COLAPSABLES EN BANCO DE PREGUNTAS
+Añadir este código al final del archivo index.html, justo antes de </body>
+Este parche permite ocultar/mostrar las carpetas de temas individualmente
+-->
+
+<script>
+    // ========== PARCHE: SISTEMA DE CARPETAS COLAPSABLES ==========
+    
+    // Estado para controlar qué carpetas están colapsadas
+    let collapsedFolders = JSON.parse(localStorage.getItem('collapsedFolders') || '{}');
+    
+    // Función para alternar el estado de una carpeta
+    function toggleFolder(topicId) {
+        collapsedFolders[topicId] = !collapsedFolders[topicId];
+        localStorage.setItem('collapsedFolders', JSON.stringify(collapsedFolders));
+        render();
+    }
+    
+    // Función para colapsar todas las carpetas
+    function collapseAllFolders() {
+        const allTopicIds = state.topics.map(t => t.id.toString());
+        allTopicIds.forEach(id => {
+            collapsedFolders[id] = true;
+        });
+        localStorage.setItem('collapsedFolders', JSON.stringify(collapsedFolders));
+        render();
+    }
+    
+    // Función para expandir todas las carpetas
+    function expandAllFolders() {
+        collapsedFolders = {};
+        localStorage.setItem('collapsedFolders', JSON.stringify(collapsedFolders));
+        render();
+    }
+    
+    // REEMPLAZAR la función renderQuestionsByTopic con versión colapsable
+    const originalRenderQuestionsByTopic = renderQuestionsByTopic;
+    renderQuestionsByTopic = function() {
+        const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+        
+        let html = '';
+        
+        // Botones de control global
+        const hasTopicsWithQuestions = state.topics.some(topic => {
+            return state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length > 0;
+        });
+        
+        if (hasTopicsWithQuestions) {
+            html += `
+                <div style="margin-bottom: 20px; padding: 15px; background: #f8fafc; border-radius: 8px; border: 2px solid #e2e8f0;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span style="font-weight: 500; color: #374151; margin-right: 10px;">Control de carpetas:</span>
+                        <button onclick="expandAllFolders()" class="btn btn-info" style="padding: 6px 12px; font-size: 12px;">
+                            📂 Expandir Todas
+                        </button>
+                        <button onclick="collapseAllFolders()" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">
+                            📁 Contraer Todas
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Mostrar preguntas por cada tema que TENGA preguntas
+        state.topics.forEach(topic => {
+            const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+            if (topicQuestions.length > 0) {
+                const isCollapsed = collapsedFolders[topic.id.toString()];
+                const chevronIcon = isCollapsed ? '▶️' : '🔽';
+                
+                html += `
+                    <div style="margin-bottom: 30px;">
+                        <h3 onclick="toggleFolder('${topic.id}')" style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; transition: all 0.2s;" 
+                            onmouseover="this.style.background='#4338ca'" 
+                            onmouseout="this.style.background='#4f46e5'">
+                            <span style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 14px;">${chevronIcon}</span>
+                                <span>📁 ${topic.name}</span>
+                            </span>
+                            <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} pregunta${topicQuestions.length === 1 ? '' : 's'}</span>
+                        </h3>
+                        <div style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; ${isCollapsed ? 'display: none;' : ''}">
+                            ${topicQuestions.map(q => {
+                                const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                                return renderSingleQuestion(q, actualIndex);
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        
+        // Mostrar preguntas sin tema asignado SI existen
+        if (questionsWithoutTopic.length > 0) {
+            const noTopicCollapsed = collapsedFolders['no-topic'];
+            const chevronIcon = noTopicCollapsed ? '▶️' : '🔽';
+            
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h3 onclick="toggleFolder('no-topic')" style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; transition: all 0.2s;" 
+                        onmouseover="this.style.background='#4b5563'" 
+                        onmouseout="this.style.background='#6b7280'">
+                        <span style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 14px;">${chevronIcon}</span>
+                            <span>📂 Sin tema asignado</span>
+                        </span>
+                        <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} pregunta${questionsWithoutTopic.length === 1 ? '' : 's'}</span>
+                    </h3>
+                    <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; ${noTopicCollapsed ? 'display: none;' : ''}">
+                        ${questionsWithoutTopic.map(q => {
+                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                            return renderSingleQuestion(q, actualIndex);
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Si no hay preguntas en absoluto
+        if (html === '' || (!hasTopicsWithQuestions && questionsWithoutTopic.length === 0)) {
+            return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
+        }
+        
+        return html;
+    };
+
+    console.log('✅ Parche de carpetas colapsables aplicado correctamente');
+</script>
+    
 </body>
 </html>
+
 
 
 
