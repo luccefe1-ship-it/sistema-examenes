@@ -3233,8 +3233,632 @@ Genera un resumen que sea verdaderamente útil para alguien que quiere entender 
     
     console.log('🔧 PARCHE URGENTE aplicado - Función renderSummaryTab definida correctamente');
 </script>
+    <!-- 
+PARCHE COMPLETO: SISTEMA DE RESÚMENES INDEPENDIENTE CON TEMAS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche reemplaza el sistema de resúmenes con uno completo e independiente
+-->
+
+<script>
+    // ========== PARCHE COMPLETO: SISTEMA DE RESÚMENES CON TEMAS ==========
+    
+    // Estado específico para el sistema de resúmenes
+    let summarySystemState = {
+        selectedImages: [],
+        generatedSummary: '',
+        isProcessing: false,
+        summaryTopics: JSON.parse(localStorage.getItem('summaryTopics') || '[]'),
+        savedSummaries: JSON.parse(localStorage.getItem('savedSummaries') || '[]'),
+        selectedTopicForSummary: null,
+        currentView: 'create', // 'create' | 'library'
+        viewingSummary: null
+    };
+    
+    // REEMPLAZAR completamente la función renderSummaryTab
+    function renderSummaryTab() {
+        if (summarySystemState.currentView === 'library') {
+            return renderSummaryLibrary();
+        } else if (summarySystemState.viewingSummary) {
+            return renderViewSummary();
+        } else {
+            return renderCreateSummary();
+        }
+    }
+    
+    // Función para renderizar la creación de resúmenes
+    function renderCreateSummary() {
+        return `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <div>
+                    <h2 style="color: #1f2937; margin: 0;">📄 Crear Nuevo Resumen</h2>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Sube una imagen y obtén un resumen inteligente del contenido</p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="showSummaryLibrary()" class="btn btn-info">
+                        📚 Ver Biblioteca
+                    </button>
+                    <button onclick="backToIntermediateScreen()" class="btn btn-secondary">
+                        ← Volver al Menú Principal
+                    </button>
+                </div>
+            </div>
+            
+            <div class="three-column">
+                <div class="column">
+                    <h3 style="margin-bottom: 15px;">📤 Subir Imagen para Resumir</h3>
+                    <div class="upload-area" onclick="document.getElementById('summaryImageInput').click()">
+                        <div>📷 Seleccionar imagen</div>
+                        <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">Una imagen por vez</div>
+                        <div style="margin-top: 10px; color: #4f46e5; font-weight: 500;">
+                            ${summarySystemState.selectedImages.length}/1 archivo
+                        </div>
+                    </div>
+                    <input type="file" id="summaryImageInput" style="display: none;" accept="image/*">
+                    
+                    ${summarySystemState.selectedImages.length > 0 ? `
+                        <div style="margin-bottom: 15px; padding: 15px; background: #f3f4f6; border-radius: 8px; text-align: center;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="font-size: 12px; word-break: break-all; flex: 1;">${summarySystemState.selectedImages[0].name}</div>
+                                <button onclick="removeSummaryImage()" style="background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; cursor: pointer; margin-left: 10px;">×</button>
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <button onclick="generateSummary()" class="btn btn-primary" style="width: 100%; margin-bottom: 15px;" ${summarySystemState.selectedImages.length === 0 || !state.apiKey || summarySystemState.isProcessing ? 'disabled' : ''}>
+                        ${summarySystemState.isProcessing ? '🔄 Generando Resumen...' : '🤖 Generar Resumen'}
+                    </button>
+                    
+                    ${summarySystemState.isProcessing ? `
+                        <div style="margin-bottom: 15px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; text-align: center;">
+                            <span style="color: #92400e;">🔄 Procesando imagen y generando resumen...</span>
+                        </div>
+                    ` : ''}
+                    
+                    <!-- Gestión de Temas para Resúmenes -->
+                    <div style="padding: 15px; background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 8px;">
+                        <h4 style="color: #0c4a6e; margin-bottom: 15px;">🏷️ Organizar por Temas</h4>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                            <button onclick="createSummaryTopic()" class="btn btn-info" style="width: 100%; padding: 8px; font-size: 13px;">
+                                🆕 Crear Tema
+                            </button>
+                            
+                            <select id="summary-topic-selector" onchange="updateSelectedSummaryTopic()" style="width: 100%; padding: 8px; border: none; background: #0ea5e9; color: white; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;" ${summarySystemState.summaryTopics.length === 0 ? 'disabled' : ''}>
+                                <option value="">📂 Seleccionar Tema</option>
+                                ${summarySystemState.summaryTopics.map(topic => `
+                                    <option value="${topic.id}" ${summarySystemState.selectedTopicForSummary === topic.id ? 'selected' : ''}>
+                                        ${topic.name} (${getSummaryTopicCount(topic.id)})
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        
+                        ${summarySystemState.summaryTopics.length === 0 ? `
+                            <div style="font-size: 12px; color: #0c4a6e; font-style: italic; text-align: center;">
+                                Crea temas para organizar tus resúmenes
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <div class="column">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0;">📝 Resumen Generado</h3>
+                        ${summarySystemState.generatedSummary ? `
+                            <button onclick="saveSummaryToLibrary()" class="btn btn-success" style="padding: 6px 12px; font-size: 12px;">
+                                💾 Guardar
+                            </button>
+                        ` : ''}
+                    </div>
+                    
+                    <textarea id="generatedSummary" class="textarea" placeholder="El resumen aparecerá aquí una vez que proceses una imagen..." readonly>${summarySystemState.generatedSummary}</textarea>
+                    
+                    ${summarySystemState.generatedSummary ? `
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+                            <button onclick="copySummaryToClipboard()" class="btn btn-info" style="width: 100%; padding: 8px; font-size: 13px;">
+                                📋 Copiar al Portapapeles
+                            </button>
+                            <button onclick="clearCurrentSummary()" class="btn btn-secondary" style="width: 100%; padding: 8px; font-size: 13px;">
+                                🗑️ Limpiar Resumen
+                            </button>
+                        </div>
+                        
+                        <div style="margin-top: 15px; padding: 15px; background: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px;">
+                            <h4 style="color: #166534; margin-bottom: 10px;">✅ ¡Resumen generado exitosamente!</h4>
+                            <p style="margin: 0; font-size: 13px; color: #16a34a;">
+                                Puedes guardar este resumen, copiarlo al portapapeles, o crear uno nuevo.
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Función para renderizar la biblioteca de resúmenes
+    function renderSummaryLibrary() {
+        return `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <div>
+                    <h2 style="color: #1f2937; margin: 0;">📚 Biblioteca de Resúmenes</h2>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Explora tus resúmenes organizados por temas</p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="showCreateSummary()" class="btn btn-primary">
+                        ➕ Crear Nuevo
+                    </button>
+                    <button onclick="backToIntermediateScreen()" class="btn btn-secondary">
+                        ← Volver al Menú Principal
+                    </button>
+                </div>
+            </div>
+            
+            ${summarySystemState.savedSummaries.length === 0 ? `
+                <div style="text-align: center; padding: 80px; color: #9ca3af;">
+                    <div style="font-size: 4rem; margin-bottom: 20px;">📄</div>
+                    <h3 style="color: #6b7280; margin-bottom: 15px;">No hay resúmenes guardados</h3>
+                    <p style="color: #9ca3af; margin-bottom: 30px;">Crea tu primer resumen para comenzar tu biblioteca</p>
+                    <button onclick="showCreateSummary()" class="btn btn-primary" style="font-size: 1.1rem; padding: 15px 30px;">
+                        📄 Crear Primer Resumen
+                    </button>
+                </div>
+            ` : renderSummariesByTopic()}
+        `;
+    }
+    
+    // Función para renderizar resúmenes agrupados por tema
+    function renderSummariesByTopic() {
+        const summariesWithoutTopic = summarySystemState.savedSummaries.filter(s => !s.topicId);
+        let html = '';
+        
+        // Control de temas
+        if (summarySystemState.summaryTopics.length > 0) {
+            html += `
+                <div style="margin-bottom: 30px; padding: 20px; background: #f8fafc; border-radius: 12px; border: 2px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="color: #374151; margin: 0 0 5px 0;">Control de Biblioteca</h3>
+                            <p style="color: #6b7280; margin: 0; font-size: 14px;">Tienes ${summarySystemState.savedSummaries.length} resúmen${summarySystemState.savedSummaries.length === 1 ? '' : 'es'} en ${summarySystemState.summaryTopics.length} tema${summarySystemState.summaryTopics.length === 1 ? '' : 's'}</p>
+                        </div>
+                        <button onclick="clearAllSummaries()" class="btn btn-danger" style="padding: 8px 16px;">
+                            🗑️ Limpiar Todo
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Mostrar resúmenes por cada tema que TENGA resúmenes
+        summarySystemState.summaryTopics.forEach(topic => {
+            const topicSummaries = summarySystemState.savedSummaries.filter(s => s.topicId && s.topicId.toString() === topic.id.toString());
+            if (topicSummaries.length > 0) {
+                html += `
+                    <div style="margin-bottom: 30px;">
+                        <h3 style="background: linear-gradient(135deg, #059669, #0ea5e9); color: white; padding: 15px 20px; border-radius: 12px 12px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <span style="display: flex; align-items: center; gap: 10px;">
+                                <span>📂</span>
+                                <span>${topic.name}</span>
+                            </span>
+                            <span style="font-size: 14px; opacity: 0.9; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px;">
+                                ${topicSummaries.length} resúmen${topicSummaries.length === 1 ? '' : 'es'}
+                            </span>
+                        </h3>
+                        <div style="background: white; border: 2px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                            <div style="display: grid; gap: 0;">
+                                ${topicSummaries.map((summary, index) => renderSingleSummary(summary, index)).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        
+        // Mostrar resúmenes sin tema asignado SI existen
+        if (summariesWithoutTopic.length > 0) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h3 style="background: #6b7280; color: white; padding: 15px 20px; border-radius: 12px 12px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="display: flex; align-items: center; gap: 10px;">
+                            <span>📄</span>
+                            <span>Sin tema asignado</span>
+                        </span>
+                        <span style="font-size: 14px; opacity: 0.9; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px;">
+                            ${summariesWithoutTopic.length} resúmen${summariesWithoutTopic.length === 1 ? '' : 'es'}
+                        </span>
+                    </h3>
+                    <div style="background: white; border: 2px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+                        <div style="display: grid; gap: 0;">
+                            ${summariesWithoutTopic.map((summary, index) => renderSingleSummary(summary, index)).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        if (html === '') {
+            return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay resúmenes disponibles en la biblioteca</div>';
+        }
+        
+        return html;
+    }
+    
+    // Función para renderizar un resumen individual
+    function renderSingleSummary(summary, index) {
+        const actualIndex = summarySystemState.savedSummaries.findIndex(s => s.id === summary.id);
+        const topicName = summary.topicId ? getSummaryTopicName(summary.topicId) : null;
+        
+        return `
+            <div style="padding: 20px; border-bottom: 1px solid #f3f4f6; transition: all 0.2s; cursor: pointer;" 
+                 onmouseover="this.style.backgroundColor='#f9fafb';" 
+                 onmouseout="this.style.backgroundColor='white';"
+                 onclick="viewSummary(${actualIndex})">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div style="flex: 1; margin-right: 15px;">
+                        <h4 style="margin: 0 0 8px 0; color: #1f2937; font-size: 16px; font-weight: 600;">
+                            ${summary.title}
+                        </h4>
+                        <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                            ${summary.content.substring(0, 120)}...
+                        </p>
+                        <div style="display: flex; align-items: center; gap: 15px; font-size: 12px; color: #9ca3af;">
+                            <span>📅 ${summary.createdAt}</span>
+                            ${topicName && !summary.topicId ? `` : ''}
+                            <span>${summary.content.length} caracteres</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: flex-start;">
+                        <button onclick="event.stopPropagation(); editSummary(${actualIndex})" class="btn btn-warning" style="padding: 6px 12px; font-size: 11px;" title="Editar resumen">
+                            ✏️
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteSummary(${actualIndex})" class="btn btn-danger" style="padding: 6px 12px; font-size: 11px;" title="Eliminar resumen">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Función para renderizar la visualización de un resumen específico
+    function renderViewSummary() {
+        const summary = summarySystemState.viewingSummary;
+        const topicName = summary.topicId ? getSummaryTopicName(summary.topicId) : 'Sin tema';
+        
+        return `
+            <div style="max-width: 1000px; margin: 0 auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                    <div>
+                        <button onclick="closeSummaryView()" class="btn btn-secondary" style="margin-bottom: 15px;">
+                            ← Volver a la Biblioteca
+                        </button>
+                        <h1 style="color: #1f2937; margin: 0; font-size: 2rem;">${summary.title}</h1>
+                        <div style="margin-top: 10px; display: flex; align-items: center; gap: 20px; color: #6b7280; font-size: 14px;">
+                            <span>📂 ${topicName}</span>
+                            <span>📅 ${summary.createdAt}</span>
+                            <span>📝 ${summary.content.length} caracteres</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                    <div style="prose max-w-none;">
+                        <div style="white-space: pre-wrap; line-height: 1.7; color: #374151; font-size: 16px;">
+                            ${summary.content}
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px; display: flex; justify-content: center; gap: 15px;">
+                    <button onclick="copySummaryContentToClipboard('${summary.id}')" class="btn btn-info" style="padding: 12px 24px;">
+                        📋 Copiar Contenido
+                    </button>
+                    <button onclick="editSummaryFromView()" class="btn btn-warning" style="padding: 12px 24px;">
+                        ✏️ Editar Resumen
+                    </button>
+                    <button onclick="deleteSummaryFromView('${summary.id}')" class="btn btn-danger" style="padding: 12px 24px;">
+                        🗑️ Eliminar Resumen
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    // ========== FUNCIONES DE GESTIÓN ==========
+    
+    function showCreateSummary() {
+        summarySystemState.currentView = 'create';
+        summarySystemState.viewingSummary = null;
+        render();
+    }
+    
+    function showSummaryLibrary() {
+        summarySystemState.currentView = 'library';
+        summarySystemState.viewingSummary = null;
+        render();
+    }
+    
+    function createSummaryTopic() {
+        const name = prompt('Nombre del nuevo tema de resúmenes:');
+        if (name && name.trim()) {
+            const newTopic = {
+                id: Date.now() + Math.random(),
+                name: name.trim(),
+                createdAt: new Date().toLocaleString('es-ES')
+            };
+            
+            summarySystemState.summaryTopics.push(newTopic);
+            localStorage.setItem('summaryTopics', JSON.stringify(summarySystemState.summaryTopics));
+            render();
+            showMessage(`Tema "${name}" creado exitosamente`, 'success');
+        }
+    }
+    
+    function updateSelectedSummaryTopic() {
+        const selector = document.getElementById('summary-topic-selector');
+        if (selector && selector.value) {
+            const selectedValue = selector.value;
+            const selectedTopic = summarySystemState.summaryTopics.find(t => t.id == selectedValue);
+            if (selectedTopic) {
+                summarySystemState.selectedTopicForSummary = selectedTopic.id;
+                showMessage(`Tema "${selectedTopic.name}" seleccionado`, 'success');
+            } else {
+                summarySystemState.selectedTopicForSummary = selectedValue;
+            }
+        } else {
+            summarySystemState.selectedTopicForSummary = null;
+        }
+    }
+    
+    function getSummaryTopicName(topicId) {
+        if (!topicId) return 'Sin tema';
+        const topic = summarySystemState.summaryTopics.find(t => t.id.toString() === topicId.toString());
+        return topic ? topic.name : 'Tema no encontrado';
+    }
+    
+    function getSummaryTopicCount(topicId) {
+        return summarySystemState.savedSummaries.filter(s => s.topicId && s.topicId.toString() === topicId.toString()).length;
+    }
+    
+    function saveSummaryToLibrary() {
+        if (!summarySystemState.generatedSummary) {
+            showMessage('No hay resumen para guardar', 'error');
+            return;
+        }
+        
+        const title = prompt('Título para el resumen:') || 'Resumen sin título';
+        if (!title.trim()) return;
+        
+        const newSummary = {
+            id: Date.now() + Math.random(),
+            title: title.trim(),
+            content: summarySystemState.generatedSummary,
+            topicId: summarySystemState.selectedTopicForSummary,
+            createdAt: new Date().toLocaleString('es-ES')
+        };
+        
+        summarySystemState.savedSummaries.push(newSummary);
+        localStorage.setItem('savedSummaries', JSON.stringify(summarySystemState.savedSummaries));
+        
+        const topicName = summarySystemState.selectedTopicForSummary ? getSummaryTopicName(summarySystemState.selectedTopicForSummary) : 'sin tema';
+        showMessage(`Resumen "${title}" guardado en ${topicName}`, 'success');
+        
+        // Limpiar formulario después de guardar
+        summarySystemState.selectedImages = [];
+        summarySystemState.generatedSummary = '';
+        summarySystemState.selectedTopicForSummary = null;
+        render();
+    }
+    
+    function viewSummary(index) {
+        summarySystemState.viewingSummary = summarySystemState.savedSummaries[index];
+        render();
+    }
+    
+    function closeSummaryView() {
+        summarySystemState.viewingSummary = null;
+        summarySystemState.currentView = 'library';
+        render();
+    }
+    
+    function editSummary(index) {
+        // Implementación de edición de resumen
+        const summary = summarySystemState.savedSummaries[index];
+        const newTitle = prompt('Nuevo título:', summary.title);
+        if (newTitle && newTitle.trim()) {
+            summarySystemState.savedSummaries[index].title = newTitle.trim();
+            localStorage.setItem('savedSummaries', JSON.stringify(summarySystemState.savedSummaries));
+            render();
+            showMessage('Resumen actualizado', 'success');
+        }
+    }
+    
+    function deleteSummary(index) {
+        const summary = summarySystemState.savedSummaries[index];
+        if (confirm(`¿Eliminar el resumen "${summary.title}"?`)) {
+            summarySystemState.savedSummaries.splice(index, 1);
+            localStorage.setItem('savedSummaries', JSON.stringify(summarySystemState.savedSummaries));
+            render();
+            showMessage('Resumen eliminado', 'success');
+        }
+    }
+    
+    function clearAllSummaries() {
+        if (confirm('¿Eliminar todos los resúmenes y temas? Esta acción no se puede deshacer.')) {
+            summarySystemState.savedSummaries = [];
+            summarySystemState.summaryTopics = [];
+            localStorage.setItem('savedSummaries', JSON.stringify(summarySystemState.savedSummaries));
+            localStorage.setItem('summaryTopics', JSON.stringify(summarySystemState.summaryTopics));
+            render();
+            showMessage('Biblioteca de resúmenes limpiada', 'success');
+        }
+    }
+    
+    function copySummaryContentToClipboard(summaryId) {
+        const summary = summarySystemState.savedSummaries.find(s => s.id == summaryId);
+        if (summary) {
+            navigator.clipboard.writeText(summary.content).then(() => {
+                showMessage('Contenido copiado al portapapeles', 'success');
+            }).catch(() => {
+                showMessage('Error al copiar', 'error');
+            });
+        }
+    }
+    
+    // Funciones auxiliares redefinidas
+    function removeSummaryImage() {
+        summarySystemState.selectedImages = [];
+        summarySystemState.generatedSummary = '';
+        render();
+        showMessage('Imagen eliminada', 'success');
+    }
+    
+    function clearCurrentSummary() {
+        if (confirm('¿Limpiar el resumen actual?')) {
+            summarySystemState.generatedSummary = '';
+            render();
+            showMessage('Resumen limpiado', 'success');
+        }
+    }
+    
+    async function generateSummary() {
+        if (!state.apiKey) {
+            showMessage('Configura tu API key primero', 'error');
+            return;
+        }
+
+        if (summarySystemState.selectedImages.length === 0) {
+            showMessage('Selecciona una imagen primero', 'error');
+            return;
+        }
+
+        summarySystemState.isProcessing = true;
+        render();
+        showMessage('Generando resumen...', 'success');
+        
+        try {
+            const file = summarySystemState.selectedImages[0];
+            const base64 = await fileToBase64(file);
+            
+            const messageContent = [
+                {
+                    type: "image",
+                    source: {
+                        type: "base64",
+                        media_type: file.type,
+                        data: base64
+                    }
+                },
+                {
+                    type: "text",
+                    text: `Actúa como un asistente experto en análisis y síntesis de información. Analiza esta imagen y genera un resumen completo e inteligente del contenido.
+
+INSTRUCCIONES PARA EL RESUMEN:
+
+🎯 OBJETIVO: Crear un resumen estructurado, claro y útil que capture la esencia del contenido
+
+📋 FORMATO DEL RESUMEN:
+• Comienza con una breve descripción del tipo de documento/contenido
+• Organiza la información en secciones lógicas con encabezados
+• Usa viñetas y numeración cuando sea apropiado
+• Incluye los puntos más importantes y relevantes
+• Termina con conclusiones o puntos clave si es relevante
+
+🔍 QUÉ INCLUIR:
+- Ideas principales y conceptos clave
+- Datos importantes, cifras, fechas relevantes
+- Argumentos o puntos de vista presentados
+- Conclusiones o recomendaciones si las hay
+- Cualquier información práctica o accionable
+
+✨ ESTILO:
+- Lenguaje claro y profesional
+- Oraciones concisas pero informativas  
+- Estructura fácil de leer y escanear
+- Adapta el tono al tipo de contenido (académico, empresarial, técnico, etc.)
+
+🚫 EVITA:
+- Repetir información innecesaria
+- Incluir detalles muy técnicos a menos que sean cruciales
+- Hacer el resumen demasiado largo (máximo 500 palabras)
+- Copiar texto textualmente sin reorganizar
+
+Genera un resumen que sea verdaderamente útil para alguien que quiere entender rápidamente el contenido esencial del documento.`
+                }
+            ];
+
+            const response = await fetch("/api/anthropic", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": state.apiKey,
+                },
+                body: JSON.stringify({
+                    model: "claude-sonnet-4-20250514",
+                    max_tokens: 2000,
+                    messages: [{
+                        role: "user",
+                        content: messageContent
+                    }]
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            summarySystemState.generatedSummary = data.content[0].text;
+            summarySystemState.isProcessing = false;
+            
+            render();
+            showMessage('¡Resumen generado exitosamente!', 'success');
+            
+        } catch (error) {
+            summarySystemState.isProcessing = false;
+            render();
+            showMessage(`Error al generar resumen: ${error.message}`, 'error');
+        }
+    }
+    
+    async function copySummaryToClipboard() {
+        try {
+            await navigator.clipboard.writeText(summarySystemState.generatedSummary);
+            showMessage('Resumen copiado al portapapeles', 'success');
+        } catch (error) {
+            const textArea = document.createElement('textarea');
+            textArea.value = summarySystemState.generatedSummary;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showMessage('Resumen copiado al portapapeles', 'success');
+            } catch (err) {
+                showMessage('Error al copiar', 'error');
+            }
+            document.body.removeChild(textArea);
+        }
+    }
+    
+    // Event listener para selección de imágenes (actualizado)
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.id === 'summaryImageInput') {
+            const files = Array.from(e.target.files);
+            const imageFile = files.filter(file => file.type.startsWith('image/'))[0];
+            
+            if (imageFile) {
+                summarySystemState.selectedImages = [imageFile];
+                summarySystemState.generatedSummary = '';
+                render();
+                showMessage('Imagen seleccionada correctamente', 'success');
+            }
+        }
+    });
+    
+    console.log('✅ Sistema de Resúmenes Completo con Temas aplicado correctamente');
+</script>
 </body>
 </html>
+
 
 
 
