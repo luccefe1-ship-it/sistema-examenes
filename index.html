@@ -1730,5 +1730,313 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             initializeApp();
         }
     </script>
+    <!-- 
+PARCHE PARA PREGUNTAS FALLADAS
+Añadir este código al final del archivo index.html, justo antes de </body>
+Sin tocar nada del código existente
+-->
+
+<script>
+    // ========== PARCHE: SISTEMA DE PREGUNTAS FALLADAS ==========
+    
+    // Función para actualizar preguntas falladas (sin tocar código original)
+    function updateFailedQuestionsData() {
+        const failedQuestions = [];
+        
+        state.testResults.forEach(result => {
+            if (result.detailedResults) {
+                result.detailedResults.forEach(detail => {
+                    if (!detail.isCorrect && detail.userAnswer !== null) {
+                        const questionId = detail.question.id;
+                        
+                        let existingFailed = failedQuestions.find(fq => fq.questionId === questionId);
+                        
+                        if (!existingFailed) {
+                            existingFailed = {
+                                questionId: questionId,
+                                question: detail.question,
+                                failedCount: 0,
+                                lastFailedDate: null,
+                                isResolved: false
+                            };
+                            failedQuestions.push(existingFailed);
+                        }
+                        
+                        existingFailed.failedCount++;
+                        existingFailed.lastFailedDate = result.date;
+                    }
+                });
+            }
+        });
+
+        // Verificar preguntas resueltas
+        failedQuestions.forEach(failedQ => {
+            const laterResults = state.testResults
+                .filter(result => new Date(result.date) > new Date(failedQ.lastFailedDate))
+                .reverse();
+
+            for (let result of laterResults) {
+                if (result.detailedResults) {
+                    const correctAnswer = result.detailedResults.find(detail => 
+                        detail.question.id === failedQ.questionId && detail.isCorrect
+                    );
+                    
+                    if (correctAnswer) {
+                        failedQ.isResolved = true;
+                        break;
+                    }
+                }
+            }
+        });
+
+        return failedQuestions;
+    }
+
+    // Función para obtener preguntas falladas no resueltas
+    function getUnresolvedFailedQuestions() {
+        const failedQuestions = updateFailedQuestionsData();
+        return failedQuestions.filter(fq => !fq.isResolved);
+    }
+
+    // Función para iniciar test de preguntas falladas
+    function startFailedQuestionsTest() {
+        const unresolvedFailed = getUnresolvedFailedQuestions();
+        
+        if (unresolvedFailed.length === 0) {
+            showMessage('No tienes preguntas falladas para repasar 🎉', 'success');
+            return;
+        }
+
+        const questions = unresolvedFailed.map(fq => fq.question);
+        const duration = Math.max(300, questions.length * 60);
+        
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('es-ES');
+        const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        const testName = `Test de Repaso - ${dateStr} ${timeStr}`;
+
+        state.currentTest = {
+            name: testName,
+            questions: questions,
+            answers: {},
+            duration: duration,
+            timeLeft: duration,
+            timer: null,
+            testType: 'failed',
+            testTypeText: `Repaso de Preguntas Falladas (${questions.length} preguntas)`,
+            startTime: Date.now(),
+            isFailedQuestionsTest: true
+        };
+        
+        // Iniciar timer
+        state.currentTest.timer = setInterval(() => {
+            state.currentTest.timeLeft--;
+            if (state.currentTest.timeLeft <= 0) {
+                finishTest();
+            } else {
+                const timerElement = document.getElementById('timer');
+                if (timerElement) {
+                    timerElement.textContent = `⏱️ ${formatTime(state.currentTest.timeLeft)}`;
+                }
+            }
+        }, 1000);
+        
+        render();
+        showMessage(`Test de repaso iniciado con ${questions.length} preguntas`, 'success');
+    }
+
+    // Extender la función renderTestTab original
+    const originalRenderTestTab = renderTestTab;
+    renderTestTab = function() {
+        if (state.questions.length === 0) {
+            return '<div style="text-align: center; padding: 40px;">Añade preguntas al banco para generar tests</div>';
+        }
+
+        if (!state.currentTest) {
+            const unresolvedFailed = getUnresolvedFailedQuestions();
+            
+            return `
+                <div style="background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                    <h3 style="color: #0c4a6e; margin-bottom: 15px;">🎯 Configuración del Test</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Número de preguntas:</label>
+                            <select id="test-questions-count" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                <option value="5">5 preguntas</option>
+                                <option value="10" selected>10 preguntas</option>
+                                <option value="15">15 preguntas</option>
+                                <option value="20">20 preguntas</option>
+                                <option value="all">Todas las preguntas disponibles</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Duración:</label>
+                            <select id="test-duration" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                <option value="300">5 minutos</option>
+                                <option value="600" selected>10 minutos</option>
+                                <option value="900">15 minutos</option>
+                                <option value="1200">20 minutos</option>
+                                <option value="1800">30 minutos</option>
+                                <option value="0">Sin límite de tiempo</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    ${state.topics.length > 0 ? `
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 15px; font-weight: 500;">Selección de temas:</label>
+                            <div style="display: grid; gap: 8px;">
+                                <div class="custom-checkbox" onclick="toggleGeneralTest()">
+                                    <input type="checkbox" id="test-general" onchange="handleGeneralTestChange(this)" checked>
+                                    <span style="font-weight: 500;">Test General (${state.questions.length} preguntas)</span>
+                                </div>
+                                ${state.topics.map(topic => `
+                                    <div class="custom-checkbox" onclick="toggleTopicTest('${topic.id}')">
+                                        <input type="checkbox" class="topic-checkbox" data-topic-id="${topic.id}" onchange="handleTopicChange()">
+                                        <span>${topic.name} (${getTopicQuestionCount(topic.id)} preguntas)</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 6px; font-size: 14px; color: #6b7280;">
+                                💡 <strong>Consejo:</strong> Puedes seleccionar múltiples temas para crear un test combinado, o elegir "Test General" para incluir todas las preguntas.
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Nombre del test:</label>
+                        <input type="text" id="test-name" placeholder="Ej: Test de Matemáticas - Sesión 1" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                        <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">
+                            Si no especificas un nombre, se generará automáticamente
+                        </div>
+                    </div>
+                </div>
+
+                ${unresolvedFailed.length > 0 ? `
+                    <div style="background: #fef2f2; border: 2px solid #ef4444; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                        <h3 style="color: #dc2626; margin-bottom: 15px;">🔄 Test de Repaso Disponible</h3>
+                        <p style="color: #991b1b; margin-bottom: 15px;">
+                            Tienes <strong>${unresolvedFailed.length} pregunta${unresolvedFailed.length === 1 ? '' : 's'}</strong> fallada${unresolvedFailed.length === 1 ? '' : 's'} esperando repaso.
+                        </p>
+                        <div style="text-align: center;">
+                            <button onclick="startFailedQuestionsTest()" class="btn btn-danger" style="font-size: 1.1rem; padding: 12px 25px;">
+                                🔄 Test de Repaso (${unresolvedFailed.length} preguntas)
+                            </button>
+                        </div>
+                        <div style="margin-top: 10px; font-size: 12px; color: #6b7280; text-align: center;">
+                            Repasa solo las preguntas que has fallado anteriormente
+                        </div>
+                    </div>
+                ` : ''}
+
+                <div style="text-align: center; padding: 40px;">
+                    <button onclick="startTest()" class="btn btn-primary" style="font-size: 1.2rem; padding: 15px 30px;">
+                        🎯 Comenzar Test
+                    </button>
+                </div>
+            `;
+        }
+
+        return renderCurrentTest();
+    };
+
+    // Extender la función finishTest para manejar tests de repaso
+    const originalFinishTest = finishTest;
+    finishTest = function() {
+        if (!state.currentTest) return;
+        
+        // Detener timer si existe
+        if (state.currentTest.timer) {
+            clearInterval(state.currentTest.timer);
+        }
+        
+        // Recoger respuestas del formulario
+        const form = document.getElementById('test-form');
+        let correct = 0;
+        let incorrect = 0;
+        let unanswered = 0;
+        const answers = {};
+        const detailedResults = [];
+        
+        state.currentTest.questions.forEach((question, index) => {
+            const selectedOption = form.querySelector(`input[name="question-${index}"]:checked`);
+            let userAnswer = null;
+            let isCorrect = false;
+            
+            if (selectedOption) {
+                userAnswer = parseInt(selectedOption.value);
+                answers[index] = userAnswer;
+                if (userAnswer === question.correctAnswer) {
+                    correct++;
+                    isCorrect = true;
+                } else {
+                    incorrect++;
+                }
+            } else {
+                unanswered++;
+            }
+            
+            detailedResults.push({
+                question: question,
+                userAnswer: userAnswer,
+                isCorrect: isCorrect
+            });
+        });
+        
+        const totalQuestions = state.currentTest.questions.length;
+        
+        // Calcular tiempo usado
+        let timeUsedText = '';
+        if (state.currentTest.duration > 0) {
+            const timeUsed = state.currentTest.duration - state.currentTest.timeLeft;
+            timeUsedText = `Tiempo empleado: ${formatTime(timeUsed)} de ${formatTime(state.currentTest.duration)}`;
+        }
+        
+        // Crear objeto de resultado
+        const testResult = {
+            name: state.currentTest.name,
+            correct: correct,
+            incorrect: incorrect,
+            unanswered: unanswered,
+            total: totalQuestions,
+            testType: state.currentTest.testTypeText,
+            timeUsedText: timeUsedText,
+            detailedResults: detailedResults,
+            date: new Date().toLocaleString('es-ES'),
+            id: Date.now(),
+            isFailedQuestionsTest: state.currentTest.isFailedQuestionsTest || false
+        };
+        
+        // Añadir al historial
+        state.testResults.push(testResult);
+        localStorage.setItem('testResults', JSON.stringify(state.testResults));
+        
+        // Mostrar el resultado específico
+        state.currentViewingResult = testResult;
+        
+        // Mensaje especial para tests de repaso
+        if (state.currentTest.isFailedQuestionsTest) {
+            const resolvedCount = detailedResults.filter(r => r.isCorrect).length;
+            if (resolvedCount > 0) {
+                showMessage(`¡Excelente! Has superado ${resolvedCount} pregunta${resolvedCount === 1 ? '' : 's'} que anteriormente habías fallado 🎉`, 'success');
+            }
+        }
+        
+        // Limpiar test actual y cambiar a pestaña de resultados
+        state.currentTest = null;
+        state.currentTab = 'results';
+        render();
+        
+        // Hacer scroll al inicio de la página después de renderizar
+        setTimeout(() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 100);
+    };
+
+    console.log('✅ Parche de preguntas falladas aplicado correctamente');
+</script>
 </body>
 </html>
+
