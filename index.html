@@ -9454,8 +9454,41 @@ Este parche oculta las pestañas y limpia el texto de comentarios
     
     console.log('✅ Parche de limpieza aplicado');
 </script>
+    <!-- PARCHE SIMPLE: ARREGLAR TARJETAS DE MEMORIA -->
+
+<script>
+    // Limpiar texto visible de comentarios
+    setInterval(function() {
+        const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+        let node;
+        while (node = walker.nextNode()) {
+            if (node.textContent.includes('RJETAS DE MEMORIA') || 
+                node.textContent.includes('Añadir este código AL FINAL')) {
+                node.parentNode.removeChild(node);
+            }
+        }
+    }, 1000);
+    
+    // Ocultar pestañas cuando estamos en memory-cards
+    setInterval(function() {
+        if (typeof state !== 'undefined' && state.currentTab === 'memory-cards') {
+            const navTabs = document.querySelector('.nav-tabs');
+            if (navTabs) {
+                navTabs.style.display = 'none';
+            }
+        }
+    }, 500);
+    
+    console.log('Parche simple aplicado');
+</script>
 </body>
 </html>
+
 
 
 
