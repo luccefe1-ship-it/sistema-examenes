@@ -9619,49 +9619,36 @@ document.addEventListener('DOMContentLoaded', function() {
 console.log('✅ Sistema de Firebase corregido');
 </script>
     <script>
-// ========== PARCHE FINAL: FORZAR MODO MOCK ==========
-
-// Resetear completamente Firebase y usar mock
-multiplayerEnabled = true;
-window.mockRooms = {};
-
-database = {
-    ref: function(path) {
-        return {
-            child: function(key) {
-                return {
-                    set: function(data) {
-                        console.log('✅ Mock: Sala creada -', key);
-                        if (!window.mockRooms[key]) window.mockRooms[key] = {};
-                        Object.assign(window.mockRooms[key], data);
-                        return Promise.resolve();
-                    },
-                    on: function(event, callback) {
-                        console.log('👂 Mock: Escuchando sala -', key);
-                        // Simular callback inmediato con datos
-                        setTimeout(() => {
-                            const roomData = window.mockRooms[key];
-                            callback({ 
-                                val: () => roomData,
-                                exists: () => !!roomData
-                            });
-                        }, 100);
-                    },
-                    remove: function() {
-                        console.log('🗑️ Mock: Eliminando sala -', key);
-                        delete window.mockRooms[key];
-                        return Promise.resolve();
-                    }
-                };
-            }
-        };
+function createMultiplayerRoom() {
+    if (!state.currentUser) {
+        showMessage('Debes estar logueado para crear una sala', 'error');
+        return;
     }
-};
 
-console.log('🎮 Modo mock forzado - ¡Listo para crear salas!');
-</script>
+    if (state.questions.length === 0) {
+        showMessage('Necesitas tener preguntas en tu banco para jugar', 'error');
+        return;
+    }
+
+    console.log('Creando sala multijugador...');
+
+    // Generar código de sala único
+    const roomCode = generateRoomCode();
+    
+    // Actualizar estado local directamente
+    multiplayerState.currentRoom = roomCode;
+    multiplayerState.isHost = true;
+    multiplayerState.roomCode = roomCode;
+    multiplayerState.gameState = 'waiting-for-guest';
+    multiplayerState.opponent = null;
+    
+    // Re-renderizar para mostrar sala de espera
+    render();
+    showMessage(`Sala creada: ${roomCode}`, 'success');
+}
 </body>
 </html>
+
 
 
 
