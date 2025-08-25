@@ -7757,8 +7757,354 @@ Versión corregida con botón en header y diseño mejorado
         }
     }, 100);
 </script>
+    <!-- 
+PARCHE: HEADER UNIFICADO CON NAVEGACIÓN
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche unifica el header en todas las pantallas con navegación consistente
+-->
+
+<script>
+    // ========== PARCHE: HEADER UNIFICADO CON NAVEGACIÓN ==========
+    console.log('🧭 Implementando header unificado con navegación...');
+    
+    // FUNCIÓN para volver al menú principal desde cualquier sección
+    window.backToMainMenu = function() {
+        console.log('🏠 Volviendo al menú principal...');
+        
+        // Guardar datos antes de cambiar si estamos en una sección activa
+        if (state.currentUser) {
+            try {
+                RealDataManager.saveFromGlobalData(state.currentUser.username);
+                console.log('💾 Datos guardados antes de volver al menú');
+            } catch (error) {
+                console.warn('⚠️ Error al guardar datos:', error);
+            }
+        }
+        
+        // Resetear estados específicos de cada sección
+        showIntermediateScreen = true;
+        state.currentTab = 'upload';
+        
+        // Limpiar estados de secciones específicas
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = 'create';
+            summarySystemState.viewingSummary = null;
+        }
+        
+        if (typeof memoryCardsState !== 'undefined') {
+            memoryCardsState.showAnswer = false;
+        }
+        
+        render();
+        showMessage('Volviendo al menú principal', 'success');
+    };
+    
+    // FUNCIÓN para renderizar el header unificado
+    function renderUnifiedHeader() {
+        if (!state.currentUser) return '';
+        
+        // Determinar el título según la sección actual
+        let pageTitle = 'Sistema de Exámenes';
+        if (state.currentTab === 'questions') pageTitle = 'Banco de Preguntas';
+        else if (state.currentTab === 'results') pageTitle = 'Resultados del Test';
+        else if (state.currentTab === 'summary') pageTitle = 'Generador de Resúmenes';
+        else if (state.currentTab === 'memory-cards') pageTitle = 'Tarjetas de Memoria';
+        else if (state.currentTab === 'upload') pageTitle = 'Sistema de Exámenes';
+        else if (state.currentTab === 'test') pageTitle = 'Test Aleatorio';
+        
+        // Mostrar el botón "Menú" solo si NO estamos en la pantalla de bienvenida
+        const showMenuButton = !showIntermediateScreen;
+        
+        return `
+            <div class="header">
+                <div class="title">${pageTitle}</div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                        ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                    </span>
+                    ${showMenuButton ? `
+                        <button onclick="backToMainMenu()" class="btn btn-info" style="padding: 8px 16px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                            <span>🏠</span> Menú
+                        </button>
+                    ` : ''}
+                    <button onclick="configureAPI()" class="btn btn-secondary" style="padding: 8px 16px; font-size: 13px;">API</button>
+                    <span style="color: #f59e0b; font-weight: 500;">👤 ${state.currentUser.name}</span>
+                    <button onclick="logout()" class="btn btn-danger" style="padding: 8px 16px; font-size: 13px;">Salir</button>
+                </div>
+            </div>
+        `;
+    }
+    
+    // REEMPLAZAR completamente la función render para usar header unificado
+    const originalRenderUnified = render;
+    render = function() {
+        const app = document.getElementById('app');
+        
+        if (!state.currentUser) {
+            // Usuario no logueado - usar render original para login/registro
+            originalRenderUnified.call(this);
+            return;
+        }
+        
+        // Usuario logueado - usar header unificado
+        if (showIntermediateScreen) {
+            // Pantalla de bienvenida - header sin botón menú
+            app.innerHTML = `
+                <div class="container">
+                    ${renderUnifiedHeader()}
+                    ${renderIntermediateScreen()}
+                </div>
+            `;
+        } else {
+            // Cualquier otra sección - header con botón menú
+            
+            // Determinar si mostrar pestañas de navegación
+            const showNavTabs = state.currentTab !== 'summary' && state.currentTab !== 'memory-cards';
+            
+            app.innerHTML = `
+                <div class="container">
+                    ${renderUnifiedHeader()}
+
+                    ${showNavTabs ? `
+                        <div class="nav-tabs">
+                            <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
+                                📤 Subir Test
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
+                                📋 Banco de Preguntas (${getFilteredQuestions().length})
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
+                                🎯 Test Aleatorio
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                                📊 Resultados (${state.testResults.length})
+                            </button>
+                        </div>
+                    ` : ''}
+
+                    <div id="messages"></div>
+
+                    ${renderTabContent()}
+                </div>
+            `;
+        }
+    };
+    
+    // INTERCEPTAR funciones específicas para usar la navegación unificada
+    
+    // Para sección de resúmenes
+    if (typeof backToIntermediateScreen === 'function') {
+        const originalBackToIntermediate = backToIntermediateScreen;
+        window.backToIntermediateScreen = function() {
+            backToMainMenu();
+        };
+    }
+    
+    // Para tarjetas de memoria
+    if (typeof backToMainMenuFromCards === 'function') {
+        window.backToMainMenuFromCards = function() {
+            backToMainMenu();
+        };
+    }
+    
+    // MEJORAR la navegación cruzada entre secciones
+    window.goToTestsFromSummary = function() {
+        console.log('🎯 Cambiando de Resúmenes a Tests...');
+        showIntermediateScreen = false;
+        state.currentTab = 'upload';
+        
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = 'create';
+            summarySystemState.viewingSummary = null;
+        }
+        
+        render();
+        showMessage('Cambiando a la sección de Tests', 'success');
+    };
+    
+    window.goToSummariesFromTest = function() {
+        console.log('📊 Cambiando de Tests a Resúmenes...');
+        showIntermediateScreen = false;
+        state.currentTab = 'summary';
+        
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = 'create';
+            summarySystemState.viewingSummary = null;
+        }
+        
+        render();
+        showMessage('Cambiando a la sección de Resúmenes', 'success');
+    };
+    
+    // INTERCEPTAR setTab para quitar navegación cruzada redundante
+    const originalSetTab = setTab;
+    setTab = function(tab) {
+        // Limpiar estados previos
+        showIntermediateScreen = false;
+        state.currentTab = tab;
+        state.currentViewingResult = null;
+        
+        // Limpiar estados específicos
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = tab === 'summary' ? 'create' : summarySystemState.currentView;
+            summarySystemState.viewingSummary = null;
+        }
+        
+        render();
+    };
+    
+    // FUNCIÓN auxiliar para navegación desde otras secciones a tarjetas
+    window.goToMemoryCardsFromAnySection = function() {
+        console.log('🃏 Cambiando a Tarjetas de Memoria...');
+        
+        showIntermediateScreen = false;
+        state.currentTab = 'memory-cards';
+        
+        // Cargar preguntas verificadas si la función existe
+        if (typeof loadVerifiedQuestions === 'function') {
+            loadVerifiedQuestions();
+        }
+        
+        render();
+        showMessage('Cambiando a Tarjetas de Memoria', 'success');
+    };
+    
+    // MEJORAR la función logout para mantener consistencia
+    const originalLogoutUnified = logout;
+    logout = function() {
+        // Mantener la funcionalidad original pero asegurar limpieza
+        if (state.currentUser) {
+            try {
+                RealDataManager.saveFromGlobalData(state.currentUser.username);
+            } catch (error) {
+                console.warn('Error al guardar en logout:', error);
+            }
+        }
+        
+        // Limpiar todos los estados
+        RealDataManager.clearGlobalData();
+        state.currentUser = null;
+        showIntermediateScreen = false;
+        state.currentTab = 'upload';
+        newLoginState.currentView = 'login';
+        
+        // Limpiar estados específicos de secciones
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = 'create';
+            summarySystemState.viewingSummary = null;
+        }
+        
+        if (typeof memoryCardsState !== 'undefined') {
+            memoryCardsState.showAnswer = false;
+            memoryCardsState.currentCard = null;
+        }
+        
+        render();
+        showMessage('Sesión cerrada correctamente', 'success');
+    };
+    
+    // AÑADIR estilos CSS para el header unificado
+    const unifiedHeaderStyles = document.createElement('style');
+    unifiedHeaderStyles.textContent = `
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .header .title {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2d3748;
+        }
+        
+        .header .btn {
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .header .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        
+        .header .btn-info {
+            background: #0ea5e9;
+            color: white;
+        }
+        
+        .header .btn-info:hover {
+            background: #0284c7;
+        }
+        
+        .header .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .header .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .header .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .header .btn-danger:hover {
+            background: #dc2626;
+        }
+        
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .header > div {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+    `;
+    
+    // Añadir estilos solo si no existen
+    if (!document.getElementById('unified-header-styles')) {
+        unifiedHeaderStyles.id = 'unified-header-styles';
+        document.head.appendChild(unifiedHeaderStyles);
+    }
+    
+    console.log('✅ Header unificado con navegación implementado correctamente');
+    console.log('🧭 Funcionalidades:');
+    console.log('   - Header consistente en todas las pantallas');
+    console.log('   - Botón "🏠 Menú" siempre visible (excepto en bienvenida)');
+    console.log('   - Navegación: Plataforma → Menú → API → Usuario → Salir');
+    console.log('   - Función backToMainMenu() unificada');
+    console.log('   - Estados limpiados automáticamente al navegar');
+    console.log('   - Guardado automático antes de cambiar sección');
+    
+    // Forzar re-renderizado
+    setTimeout(() => {
+        if (typeof window.render === 'function') {
+            render();
+        }
+    }, 100);
+</script>
 </body>
 </html>
+
 
 
 
