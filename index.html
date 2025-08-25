@@ -8679,9 +8679,215 @@ Este parche crea un header consistente con "Priii", botón Menú central, y boto
         }
     }, 100);
 </script>
+<!-- 
+PARCHE: DESHABILITAR COMPLETAMENTE NOTIFICACIONES EMERGENTES
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche elimina todos los mensajes emergentes del sistema
+-->
 
+<script>
+    // ========== PARCHE: DESHABILITAR NOTIFICACIONES EMERGENTES ==========
+    console.log('🔇 Deshabilitando todas las notificaciones emergentes...');
+    
+    // REEMPLAZAR la función showMessage para que no haga nada
+    window.showMessage = function(message, type) {
+        // Función vacía - no mostrar ninguna notificación
+        console.log(`NOTIFICACIÓN SILENCIADA [${type.toUpperCase()}]: ${message}`);
+        return;
+    };
+    
+    // INTERCEPTAR todas las funciones que podrían mostrar mensajes
+    
+    // Lista de funciones que suelen mostrar mensajes
+    const functionsWithMessages = [
+        'login', 'logout', 'registerNewAccount', 'generateSummary', 
+        'generateMultipleSummary', 'saveSummaryToLibrary', 'transcribeImages',
+        'addToQuestions', 'toggleVerified', 'deleteQuestion', 'clearQuestions',
+        'startTest', 'finishTest', 'createTopic', 'createSummaryTopic',
+        'goToTests', 'goToSummaries', 'goToMemoryCards', 'goToMainMenu',
+        'backToMainMenu', 'backToIntermediateScreen', 'shuffleCards',
+        'copySummaryToClipboard', 'clearSummary', 'editQuestion',
+        'deleteSummary', 'clearAllSummaries'
+    ];
+    
+    // Función para interceptar y limpiar mensajes de una función
+    function interceptFunction(functionName) {
+        const originalFunction = window[functionName];
+        if (typeof originalFunction === 'function') {
+            window[functionName] = function(...args) {
+                const result = originalFunction.apply(this, args);
+                // Limpiar cualquier mensaje que haya quedado
+                setTimeout(clearAllMessages, 100);
+                return result;
+            };
+        }
+    }
+    
+    // Aplicar intercepción a todas las funciones
+    functionsWithMessages.forEach(interceptFunction);
+    
+    // FUNCIÓN para limpiar mensajes existentes del DOM
+    function clearAllMessages() {
+        // Buscar y eliminar div de mensajes
+        const messagesDiv = document.getElementById('messages');
+        if (messagesDiv) {
+            messagesDiv.innerHTML = '';
+            messagesDiv.style.display = 'none';
+        }
+        
+        // Buscar y eliminar cualquier elemento con clase message
+        const messageElements = document.querySelectorAll('.message, .success, .error, .warning, .info');
+        messageElements.forEach(element => {
+            element.remove();
+        });
+        
+        // Buscar y eliminar notificaciones flotantes
+        const floatingMessages = document.querySelectorAll('[style*="position: fixed"], [style*="z-index"]');
+        floatingMessages.forEach(element => {
+            if (element.textContent && (
+                element.textContent.includes('Bienvenido') ||
+                element.textContent.includes('Cambiando a') ||
+                element.textContent.includes('Volviendo al') ||
+                element.textContent.includes('éxito') ||
+                element.textContent.includes('Error') ||
+                element.textContent.includes('completado') ||
+                element.textContent.includes('guardado') ||
+                element.textContent.includes('eliminado') ||
+                element.textContent.includes('actualizado') ||
+                element.textContent.includes('creado') ||
+                element.textContent.includes('generado')
+            )) {
+                element.style.display = 'none';
+                element.remove();
+            }
+        });
+    }
+    
+    // EJECUTAR limpieza cada 500ms para eliminar mensajes persistentes
+    setInterval(clearAllMessages, 500);
+    
+    // INTERCEPTAR la función render para limpiar mensajes después de cada renderizado
+    const originalRender = window.render;
+    if (typeof originalRender === 'function') {
+        window.render = function() {
+            const result = originalRender.apply(this, arguments);
+            // Limpiar mensajes después del render
+            setTimeout(clearAllMessages, 200);
+            return result;
+        };
+    }
+    
+    // LIMPIAR mensajes al cargar la página
+    document.addEventListener('DOMContentLoaded', clearAllMessages);
+    
+    // INTERCEPTAR console.log para evitar logs innecesarios de notificaciones
+    const originalConsoleLog = console.log;
+    console.log = function(...args) {
+        const message = args.join(' ');
+        // Filtrar mensajes de notificación en consola
+        if (message.includes('Bienvenido') || 
+            message.includes('Cambiando a') ||
+            message.includes('Volviendo al') ||
+            message.includes('Login exitoso') ||
+            message.includes('Cuenta creada') ||
+            message.includes('añadieron') ||
+            message.includes('eliminada') ||
+            message.includes('guardado') ||
+            message.includes('actualizado') ||
+            message.includes('creado exitosamente')) {
+            return; // No mostrar en consola
+        }
+        originalConsoleLog.apply(console, args);
+    };
+    
+    // OCULTAR DIV DE MENSAJES CON CSS
+    const hideMessagesStyle = document.createElement('style');
+    hideMessagesStyle.textContent = `
+        /* Ocultar completamente contenedores de mensajes */
+        #messages,
+        .message,
+        .success,
+        .error,
+        .warning,
+        .info {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        
+        /* Ocultar notificaciones flotantes */
+        [style*="position: fixed"][style*="z-index"] {
+            display: none !important;
+        }
+        
+        /* Ocultar cualquier elemento que contenga texto de notificación */
+        *:contains("Bienvenido"),
+        *:contains("Cambiando a"),
+        *:contains("Volviendo al"),
+        *:contains("exitosamente"),
+        *:contains("completado"),
+        *:contains("guardado"),
+        *:contains("eliminado") {
+            display: none !important;
+        }
+    `;
+    
+    hideMessagesStyle.id = 'hide-messages-style';
+    document.head.appendChild(hideMessagesStyle);
+    
+    // FUNCIÓN para detectar y eliminar nuevos mensajes mediante observer
+    const messageObserver = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType === 1) { // Element node
+                    // Verificar si el nuevo elemento es un mensaje
+                    if (node.classList && (
+                        node.classList.contains('message') ||
+                        node.classList.contains('success') ||
+                        node.classList.contains('error') ||
+                        node.classList.contains('warning') ||
+                        node.classList.contains('info')
+                    )) {
+                        node.remove();
+                    }
+                    
+                    // Verificar si contiene texto de notificación
+                    if (node.textContent && (
+                        node.textContent.includes('Bienvenido') ||
+                        node.textContent.includes('Cambiando a') ||
+                        node.textContent.includes('Volviendo al') ||
+                        node.textContent.includes('exitosamente') ||
+                        node.textContent.includes('completado') ||
+                        node.textContent.includes('guardado') ||
+                        node.textContent.includes('eliminado')
+                    )) {
+                        node.style.display = 'none';
+                        setTimeout(() => node.remove(), 100);
+                    }
+                }
+            });
+        });
+    });
+    
+    // Iniciar observer
+    messageObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+    
+    console.log('✅ Parche de silenciamiento aplicado - Todas las notificaciones emergentes están deshabilitadas');
+    console.log('📝 Los mensajes ahora solo aparecen en la consola del navegador');
+    
+    // Limpiar cualquier mensaje existente
+    setTimeout(clearAllMessages, 1000);
+    
+</script>
 </body>
 </html>
+
 
 
 
