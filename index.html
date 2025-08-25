@@ -9321,8 +9321,226 @@ function joinMultiplayerRoom() {
 
 console.log('✅ Paso 2 completado - Interfaz multijugador creada');
 </script>
+    <script>
+// ========== PASO 3: CREAR SALA MULTIJUGADOR ==========
+console.log('🏠 Implementando creación de salas...');
+
+// Función para generar código de sala aleatorio
+function generateRoomCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
+// REEMPLAZAR la función createMultiplayerRoom
+function createMultiplayerRoom() {
+    if (!multiplayerEnabled || !database) {
+        showMessage('Error: Firebase no está conectado', 'error');
+        return;
+    }
+
+    if (!state.currentUser) {
+        showMessage('Debes estar logueado para crear una sala', 'error');
+        return;
+    }
+
+    if (state.questions.length === 0) {
+        showMessage('Necesitas tener preguntas en tu banco para jugar', 'error');
+        return;
+    }
+
+    console.log('🏠 Creando sala multijugador...');
+
+    // Generar código de sala único
+    const roomCode = generateRoomCode();
+    
+    // Crear sala en Firebase
+    const roomRef = database.ref('rooms').child(roomCode);
+    
+    const roomData = {
+        host: {
+            username: state.currentUser.username,
+            name: state.currentUser.name,
+            questions: state.questions,
+            topics: state.topics
+        },
+        guest: null,
+        gameState: 'waiting-for-guest',
+        currentTurn: 'host',
+        hostFailures: 0,
+        guestFailures: 0,
+        currentQuestion: null,
+        selectedTopics: [],
+        createdAt: Date.now()
+    };
+
+    roomRef.set(roomData).then(() => {
+        console.log('✅ Sala creada:', roomCode);
+        
+        // Actualizar estado local
+        multiplayerState.currentRoom = roomCode;
+        multiplayerState.isHost = true;
+        multiplayerState.roomCode = roomCode;
+        multiplayerState.gameState = 'waiting-for-guest';
+        
+        // Escuchar cambios en la sala
+        listenToRoom(roomCode);
+        
+        // Cambiar a pantalla de espera
+        render();
+        showMessage(`Sala creada: ${roomCode}`, 'success');
+        
+    }).catch((error) => {
+        console.error('❌ Error creando sala:', error);
+        showMessage('Error creando la sala', 'error');
+    });
+}
+
+// Función para escuchar cambios en la sala
+function listenToRoom(roomCode) {
+    if (!database) return;
+    
+    const roomRef = database.ref('rooms').child(roomCode);
+    
+    roomRef.on('value', (snapshot) => {
+        const roomData = snapshot.val();
+        
+        if (!roomData) {
+            console.log('❌ Sala eliminada');
+            multiplayerState.currentRoom = null;
+            render();
+            return;
+        }
+        
+        console.log('📡 Actualización de sala:', roomData);
+        
+        // Actualizar estado local
+        multiplayerState.gameState = roomData.gameState;
+        multiplayerState.myFailures = multiplayerState.isHost ? roomData.hostFailures : roomData.guestFailures;
+        multiplayerState.opponentFailures = multiplayerState.isHost ? roomData.guestFailures : roomData.hostFailures;
+        
+        if (roomData.guest && !multiplayerState.opponent) {
+            multiplayerState.opponent = roomData.guest;
+            showMessage(`${roomData.guest.name} se ha unido a la sala`, 'success');
+        }
+        
+        // Re-renderizar
+        render();
+    });
+}
+
+// Actualizar la función renderMultiplayerTab para mostrar diferentes pantallas
+function renderMultiplayerTab() {
+    // Si estamos en una sala
+    if (multiplayerState.currentRoom) {
+        return renderWaitingRoom();
+    }
+    
+    // Pantalla principal de multijugador
+    return `
+        <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                    <span>⚔️</span> Duelo de Preguntas
+                </h1>
+                <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                    Compite con otro usuario - El primero en fallar 3 preguntas pierde
+                </p>
+            </div>
+            
+            <div style="display: grid; gap: 20px; max-width: 600px; margin: 0 auto;">
+                <button onclick="createMultiplayerRoom()" class="btn btn-primary" style="padding: 20px; font-size: 18px; border-radius: 12px;">
+                    🏠 Crear Sala
+                </button>
+                
+                <button onclick="joinMultiplayerRoom()" class="btn btn-success" style="padding: 20px; font-size: 18px; border-radius: 12px;">
+                    🚪 Unirse a Sala
+                </button>
+                
+                <div style="text-align: center; margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
+                    <p style="color: #1e40af; margin: 0; font-size: 14px;">
+                        <strong>Estado:</strong> ${multiplayerEnabled ? 'Conectado a Firebase' : 'Desconectado'}
+                    </p>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 12px;">
+                        Tienes ${state.questions.length} preguntas disponibles
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Función para renderizar la sala de espera
+function renderWaitingRoom() {
+    return `
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; text-align: center;">
+            <h1 style="color: #1f2937; margin-bottom: 10px;">🏠 Sala Creada</h1>
+            
+            <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 30px; border-radius: 16px; margin-bottom: 30px;">
+                <h2 style="margin: 0 0 10px 0; font-size: 3rem; font-weight: bold;">${multiplayerState.roomCode}</h2>
+                <p style="margin: 0; opacity: 0.9;">Comparte este código con tu oponente</p>
+            </div>
+            
+            <div style="background: #f8fafc; border-radius: 12px; padding: 25px; margin-bottom: 20px;">
+                <h3 style="color: #374151; margin: 0 0 15px 0;">👤 Jugadores</h3>
+                <div style="display: grid; gap: 10px;">
+                    <div style="background: #22c55e; color: white; padding: 10px; border-radius: 8px;">
+                        🏠 ${state.currentUser.name} (Anfitrión) - ${state.questions.length} preguntas
+                    </div>
+                    <div style="background: ${multiplayerState.opponent ? '#22c55e' : '#d1d5db'}; color: ${multiplayerState.opponent ? 'white' : '#6b7280'}; padding: 10px; border-radius: 8px;">
+                        ${multiplayerState.opponent ? `🎯 ${multiplayerState.opponent.name} - ${multiplayerState.opponent.questions.length} preguntas` : '⏳ Esperando oponente...'}
+                    </div>
+                </div>
+            </div>
+            
+            ${multiplayerState.opponent ? `
+                <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                    <h3 style="color: #166534; margin: 0 0 10px 0;">✅ ¡Listo para jugar!</h3>
+                    <p style="color: #16a34a; margin: 0 0 15px 0;">Ambos jugadores conectados</p>
+                    <button onclick="startMultiplayerGame()" class="btn btn-success" style="padding: 15px 30px; font-size: 16px;">
+                        🚀 Comenzar Duelo
+                    </button>
+                </div>
+            ` : ''}
+            
+            <button onclick="cancelMultiplayerRoom()" class="btn btn-danger">
+                ❌ Cancelar Sala
+            </button>
+        </div>
+    `;
+}
+
+// Función para cancelar sala
+function cancelMultiplayerRoom() {
+    if (multiplayerState.currentRoom && database) {
+        database.ref('rooms').child(multiplayerState.currentRoom).remove();
+    }
+    
+    // Resetear estado
+    multiplayerState.currentRoom = null;
+    multiplayerState.isHost = false;
+    multiplayerState.opponent = null;
+    multiplayerState.roomCode = null;
+    multiplayerState.gameState = 'waiting';
+    
+    render();
+    showMessage('Sala cancelada', 'success');
+}
+
+// Función placeholder para iniciar juego
+function startMultiplayerGame() {
+    showMessage('Iniciando duelo... (Próximo paso)', 'success');
+    console.log('🚀 Iniciando juego multijugador');
+}
+
+console.log('✅ Paso 3 completado - Crear sala implementado');
+</script>
 </body>
 </html>
+
 
 
 
