@@ -9169,8 +9169,174 @@ Este parche oculta las pestañas de navegación en la sección de tarjetas de me
         }
     }, 100);
 </script>
+    <!-- 
+PARCHE DEFINITIVO: FORZAR OCULTACIÓN DE PESTAÑAS EN TARJETAS
+Añadir este código AL FINAL del archivo index.html, DESPUÉS de todos los parches
+Este parche FUERZA la eliminación de las pestañas usando múltiples métodos
+-->
+
+<script>
+    // ========== PARCHE DEFINITIVO: OCULTAR PESTAÑAS FORZADAMENTE ==========
+    console.log('⚡ FORZANDO ocultación de pestañas en Tarjetas de Memoria...');
+    
+    // MÉTODO 1: Interceptar directamente el DOM después del render
+    function forceHideTabsInMemoryCards() {
+        if (state.currentTab === 'memory-cards') {
+            // Buscar y ocultar las pestañas directamente
+            const navTabs = document.querySelector('.nav-tabs');
+            if (navTabs) {
+                navTabs.style.display = 'none';
+                console.log('✅ Pestañas ocultadas via CSS');
+            }
+        }
+    }
+    
+    // MÉTODO 2: Crear un observer que vigile cambios en el DOM
+    function createTabsObserver() {
+        const observer = new MutationObserver(function(mutations) {
+            if (state.currentTab === 'memory-cards') {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'childList') {
+                        const navTabs = document.querySelector('.nav-tabs');
+                        if (navTabs) {
+                            navTabs.style.display = 'none';
+                        }
+                    }
+                });
+            }
+        });
+        
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        return observer;
+    }
+    
+    // MÉTODO 3: Interceptar la función setTab para aplicar ocultación
+    const originalSetTab = window.setTab;
+    window.setTab = function(tab) {
+        // Llamar función original
+        if (originalSetTab) {
+            originalSetTab.call(this, tab);
+        } else {
+            // Implementación de respaldo
+            state.currentTab = tab;
+            state.currentViewingResult = null;
+            render();
+        }
+        
+        // Forzar ocultación si es memory-cards
+        setTimeout(() => {
+            forceHideTabsInMemoryCards();
+        }, 50);
+    };
+    
+    // MÉTODO 4: Interceptar render y añadir post-procesamiento
+    const originalRenderForce = window.render;
+    window.render = function() {
+        // Ejecutar render original
+        if (originalRenderForce) {
+            originalRenderForce.call(this);
+        }
+        
+        // Post-procesamiento: forzar ocultación
+        setTimeout(() => {
+            forceHideTabsInMemoryCards();
+        }, 10);
+        
+        // Segundo intento por si el primero falló
+        setTimeout(() => {
+            forceHideTabsInMemoryCards();
+        }, 100);
+    };
+    
+    // MÉTODO 5: CSS directo para ocultar pestañas cuando estamos en memory-cards
+    function addForcedCSS() {
+        const style = document.createElement('style');
+        style.id = 'force-hide-tabs-memory';
+        style.textContent = `
+            .memory-cards-active .nav-tabs {
+                display: none !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // MÉTODO 6: Función para marcar el body cuando estamos en memory-cards
+    function updateBodyClass() {
+        if (state.currentTab === 'memory-cards') {
+            document.body.classList.add('memory-cards-active');
+        } else {
+            document.body.classList.remove('memory-cards-active');
+        }
+    }
+    
+    // MÉTODO 7: Interceptar showMemoryCards para aplicar todas las medidas
+    const originalShowMemoryCards = window.showMemoryCards;
+    window.showMemoryCards = function() {
+        console.log('🧠 Iniciando tarjetas de memoria CON ocultación forzada...');
+        
+        // Llamar función original
+        if (originalShowMemoryCards) {
+            originalShowMemoryCards.call(this);
+        } else {
+            // Implementación de respaldo
+            showIntermediateScreen = false;
+            state.currentTab = 'memory-cards';
+            render();
+        }
+        
+        // Aplicar todas las medidas de ocultación
+        updateBodyClass();
+        setTimeout(() => {
+            forceHideTabsInMemoryCards();
+        }, 50);
+        setTimeout(() => {
+            forceHideTabsInMemoryCards();
+        }, 200);
+    };
+    
+    // APLICAR TODO
+    addForcedCSS();
+    const tabsObserver = createTabsObserver();
+    
+    // Aplicar ocultación inmediatamente si ya estamos en memory-cards
+    if (state && state.currentTab === 'memory-cards') {
+        updateBodyClass();
+        forceHideTabsInMemoryCards();
+    }
+    
+    // Verificar cada 500ms por si acaso
+    const forceInterval = setInterval(() => {
+        if (state && state.currentTab === 'memory-cards') {
+            updateBodyClass();
+            forceHideTabsInMemoryCards();
+        }
+    }, 500);
+    
+    console.log('⚡ TODOS los métodos de ocultación aplicados');
+    console.log('📋 Métodos activos:');
+    console.log('   1. Ocultación directa via CSS');
+    console.log('   2. Observer del DOM');
+    console.log('   3. Interceptación de setTab');
+    console.log('   4. Post-procesamiento de render');
+    console.log('   5. CSS forzado con clase');
+    console.log('   6. Control de clase del body');
+    console.log('   7. Interceptación de showMemoryCards');
+    console.log('   8. Verificación periódica');
+    
+    // Forzar aplicación inmediata
+    setTimeout(() => {
+        if (typeof window.render === 'function') {
+            render();
+        }
+    }, 100);
+</script>
 </body>
 </html>
+
 
 
 
