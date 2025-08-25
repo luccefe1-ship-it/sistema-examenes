@@ -7757,9 +7757,228 @@ Versión corregida con botón en header y diseño mejorado
         }
     }, 100);
 </script>
-   
+   <!-- 
+PARCHE: BOTÓN MENÚ UNIVERSAL EN TODAS LAS PANTALLAS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche añade un botón "Menú" consistente en el header de todas las pantallas
+-->
+
+<script>
+    // ========== PARCHE: BOTÓN MENÚ UNIVERSAL ==========
+    console.log('🎯 Implementando botón Menú universal...');
+    
+    // INTERCEPTAR la función render para añadir el botón Menú a todas las pantallas
+    const originalRenderForMenu = window.render;
+    window.render = function() {
+        // Llamar a la función de render original
+        originalRenderForMenu.call(this);
+        
+        // Solo añadir el botón si el usuario está logueado
+        if (state.currentUser) {
+            addUniversalMenuButton();
+        }
+    };
+    
+    // FUNCIÓN para añadir el botón Menú universal
+    function addUniversalMenuButton() {
+        // Esperar un poco para que el DOM se haya renderizado
+        setTimeout(() => {
+            const header = document.querySelector('.header');
+            
+            if (header && !document.getElementById('universal-menu-button')) {
+                // Crear el botón Menú
+                const menuButton = document.createElement('button');
+                menuButton.id = 'universal-menu-button';
+                menuButton.onclick = goToMainMenu;
+                menuButton.className = 'btn btn-info';
+                menuButton.style.cssText = `
+                    padding: 8px 16px; 
+                    font-size: 14px; 
+                    font-weight: 600;
+                    display: flex; 
+                    align-items: center; 
+                    gap: 8px;
+                    margin-right: 15px;
+                    border-radius: 8px;
+                    transition: all 0.2s ease;
+                `;
+                menuButton.innerHTML = '<span>🏠</span> Menú';
+                
+                // Añadir efecto hover
+                menuButton.addEventListener('mouseover', function() {
+                    this.style.transform = 'translateY(-1px)';
+                    this.style.boxShadow = '0 4px 12px rgba(14, 165, 233, 0.3)';
+                });
+                
+                menuButton.addEventListener('mouseout', function() {
+                    this.style.transform = 'translateY(0)';
+                    this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                });
+                
+                // Insertar el botón en el header
+                // Buscar el contenedor de botones de usuario (lado derecho del header)
+                const userButtons = header.querySelector('div:last-child');
+                if (userButtons) {
+                    // Insertar el botón Menú al principio del contenedor de botones de usuario
+                    userButtons.insertBefore(menuButton, userButtons.firstChild);
+                } else {
+                    // Si no hay contenedor de botones, añadir al final del header
+                    header.appendChild(menuButton);
+                }
+                
+                console.log('🎯 Botón Menú añadido al header');
+            }
+        }, 50);
+    }
+    
+    // FUNCIÓN para ir al menú principal
+    function goToMainMenu() {
+        console.log('🏠 Navegando al menú principal...');
+        
+        // Resetear todos los estados a su valor inicial
+        showIntermediateScreen = true;
+        state.currentTab = 'upload';
+        
+        // Resetear estado de resúmenes si existe
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = 'create';
+            summarySystemState.viewingSummary = null;
+            summarySystemState.selectedImages = [];
+            summarySystemState.generatedSummary = '';
+            summarySystemState.isProcessing = false;
+        }
+        
+        // Resetear estado de tarjetas de memoria si existe
+        if (typeof memoryCardsState !== 'undefined') {
+            memoryCardsState.currentCard = null;
+            memoryCardsState.cardIndex = 0;
+            memoryCardsState.showAnswer = false;
+        }
+        
+        // Resetear estado de tests
+        if (state.currentTest) {
+            if (state.currentTest.timer) {
+                clearInterval(state.currentTest.timer);
+            }
+            state.currentTest = null;
+        }
+        
+        // Resetear filtros de preguntas
+        state.selectedTopicFilter = 'all';
+        state.selectedTopicForNewQuestions = null;
+        state.currentViewingResult = null;
+        
+        // Limpiar estados de upload
+        state.selectedImages = [];
+        state.transcribedText = '';
+        state.cleanedText = '';
+        
+        // Re-renderizar
+        render();
+        
+        // Mostrar mensaje de confirmación
+        showMessage('Volviendo al menú principal', 'success');
+    }
+    
+    // ASEGURAR que el botón aparezca en pantallas especiales
+    
+    // Para la pantalla de visualización de resultados específicos
+    const originalRenderSpecificResult = renderSpecificResult;
+    if (typeof renderSpecificResult === 'function') {
+        window.renderSpecificResult = function(result) {
+            const originalHTML = originalRenderSpecificResult(result);
+            // La función render ya se encargará de añadir el botón
+            return originalHTML;
+        };
+    }
+    
+    // Para la pantalla de test en curso
+    const originalRenderCurrentTest = renderCurrentTest;
+    if (typeof renderCurrentTest === 'function') {
+        window.renderCurrentTest = function() {
+            const originalHTML = originalRenderCurrentTest();
+            // La función render ya se encargará de añadir el botón
+            return originalHTML;
+        };
+    }
+    
+    // MANEJAR casos especiales donde el botón podría no aparecer
+    
+    // Interceptar setTab para asegurar que el botón se re-añada
+    const originalSetTabForMenu = window.setTab;
+    if (typeof window.setTab === 'function') {
+        window.setTab = function(tab) {
+            // Remover botón anterior para evitar duplicados
+            const existingButton = document.getElementById('universal-menu-button');
+            if (existingButton) {
+                existingButton.remove();
+            }
+            
+            // Llamar función original
+            originalSetTabForMenu.call(this, tab);
+        };
+    }
+    
+    // ESTILOS CSS adicionales para el botón
+    const menuButtonStyles = document.createElement('style');
+    menuButtonStyles.textContent = `
+        #universal-menu-button {
+            background: linear-gradient(135deg, #0ea5e9, #0284c7) !important;
+            border: none !important;
+            color: white !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        #universal-menu-button:hover {
+            background: linear-gradient(135deg, #0284c7, #0369a1) !important;
+        }
+        
+        #universal-menu-button:active {
+            transform: translateY(0) !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+        }
+        
+        /* Responsive: ocultar texto en pantallas pequeñas */
+        @media (max-width: 768px) {
+            #universal-menu-button span:last-child {
+                display: none;
+            }
+            #universal-menu-button {
+                padding: 8px 12px !important;
+            }
+        }
+    `;
+    
+    // Añadir estilos al head si no existen
+    if (!document.getElementById('universal-menu-styles')) {
+        menuButtonStyles.id = 'universal-menu-styles';
+        document.head.appendChild(menuButtonStyles);
+    }
+    
+    // FUNCIÓN de diagnóstico (opcional)
+    window.checkMenuButton = function() {
+        console.log('🔍 DIAGNÓSTICO DEL BOTÓN MENÚ:');
+        console.log('- Botón existe:', !!document.getElementById('universal-menu-button'));
+        console.log('- Header existe:', !!document.querySelector('.header'));
+        console.log('- Usuario logueado:', !!state.currentUser);
+        console.log('- Pestaña actual:', state.currentTab);
+        console.log('- Pantalla intermedia:', showIntermediateScreen);
+    };
+    
+    console.log('✅ Parche de botón Menú universal aplicado correctamente');
+    console.log('🎯 El botón "🏠 Menú" aparecerá en todas las pantallas del sistema');
+    console.log('🔧 Usa checkMenuButton() en consola para diagnóstico si hay problemas');
+    
+    // Forzar re-renderizado para aplicar el botón inmediatamente
+    setTimeout(() => {
+        if (state.currentUser && typeof window.render === 'function') {
+            render();
+        }
+    }, 100);
+</script>
 </body>
 </html>
+
 
 
 
