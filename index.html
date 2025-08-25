@@ -997,7 +997,7 @@
         function removeImage(index) {
             state.selectedImages.splice(index, 1);
             render();
-            showMessage('Imagen eliminada', 'success');
+            
         }
 
         async function transcribeImages() {
@@ -2770,7 +2770,7 @@ Genera un resumen que sea verdaderamente útil para alguien que quiere entender 
             summaryState.isProcessing = false;
             
             render();
-            showMessage('¡Resumen generado exitosamente!', 'success');
+            
             
         } catch (error) {
             summaryState.isProcessing = false;
@@ -5205,7 +5205,7 @@ Este parche implementa un sistema completo de cuentas con persistencia de datos 
         loginState.currentView = 'login';
         
         render();
-        showMessage('Sesión cerrada correctamente', 'success');
+        
     };
     
     // Función para cambiar contraseña
@@ -6373,35 +6373,14 @@ Este parche corrige específicamente el problema del botón "Crear Mi Cuenta"
         }
     };
     
-    // ASEGURAR que la función showMessage existe
-    if (typeof window.showMessage !== 'function') {
-        window.showMessage = function(message, type) {
-            console.log(`${type.toUpperCase()}: ${message}`);
-            
-            // Crear mensaje visual si no existe
-            let messagesDiv = document.getElementById('messages');
-            if (!messagesDiv) {
-                messagesDiv = document.createElement('div');
-                messagesDiv.id = 'messages';
-                messagesDiv.style.cssText = `
-                    position: fixed;
-                    top: 20px;
-                    right: 20px;
-                    z-index: 9999;
-                    max-width: 400px;
-                `;
-                document.body.appendChild(messagesDiv);
-            }
-            
-            const messageClass = type === 'success' ? 'success' : 'error';
-            messagesDiv.innerHTML = `<div class="message ${messageClass}">${message}</div>`;
-            
-            // Remover mensaje después de 5 segundos
-            setTimeout(() => {
-                messagesDiv.innerHTML = '';
-            }, 5000);
-        };
+// Función showMessage desactivada - no mostrar notificaciones
+window.showMessage = function(message, type) {
+    // Solo mostrar errores en consola, ignorar mensajes de éxito
+    if (type === 'error') {
+        console.error(message);
     }
+    // No crear elementos DOM ni mostrar notificaciones visuales
+};
     
     // VERIFICAR que newLoginState existe
     if (typeof window.newLoginState === 'undefined') {
@@ -6835,7 +6814,7 @@ Este parche añade navegación entre Tests y Resúmenes, y botón de vuelta al m
         }
         
         render();
-        showMessage('Cambiando a la sección de Tests', 'success');
+        
     };
     
     // FUNCIÓN para ir directamente a Resúmenes
@@ -6852,7 +6831,7 @@ Este parche añade navegación entre Tests y Resúmenes, y botón de vuelta al m
         }
         
         render();
-        showMessage('Cambiando a la sección de Resúmenes', 'success');
+        
     };
     
     // INTERCEPTAR la función render para añadir botones de navegación
@@ -7077,7 +7056,7 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
             
             showIntermediateScreen = true;
             render();
-            showMessage(`Bienvenido ${loginResult.user.name}`, 'success');
+            
         } else {
             showMessage(loginResult.message, 'error');
         }
@@ -7249,7 +7228,7 @@ Versión corregida con botón en header y diseño mejorado
         loadVerifiedQuestions();
         
         render();
-        showMessage('Cambiando a Tarjetas de Memoria', 'success');
+      
     };
     
     // FUNCIÓN para volver al menú desde tarjetas
@@ -7258,7 +7237,7 @@ Versión corregida con botón en header y diseño mejorado
         showIntermediateScreen = true;
         state.currentTab = 'upload';
         render();
-        showMessage('Volviendo al menú principal', 'success');
+        
     };
     
     // FUNCIÓN para cargar preguntas verificadas
@@ -8682,6 +8661,7 @@ Este parche crea un header consistente con "Priii", botón Menú central, y boto
 
 </body>
 </html>
+
 
 
 
