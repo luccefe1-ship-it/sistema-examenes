@@ -9333,8 +9333,130 @@ Este parche FUERZA la eliminación de las pestañas usando múltiples métodos
         }
     }, 100);
 </script>
+    <!-- 
+PARCHE: LIMPIAR INTERFAZ TARJETAS DE MEMORIA
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche oculta las pestañas y limpia el texto de comentarios
+-->
+
+<script>
+    // ========== PARCHE: LIMPIAR INTERFAZ TARJETAS DE MEMORIA ==========
+    console.log('🧹 Limpiando interfaz de Tarjetas de Memoria...');
+    
+    // FUNCIÓN para ocultar pestañas específicamente en tarjetas de memoria
+    function hideTabsInMemoryCards() {
+        if (state.currentTab === 'memory-cards') {
+            const navTabs = document.querySelector('.nav-tabs');
+            if (navTabs) {
+                navTabs.style.display = 'none !important';
+            }
+            
+            // También ocultar cualquier texto de comentario HTML que pueda estar visible
+            const allElements = document.querySelectorAll('*');
+            allElements.forEach(element => {
+                if (element.textContent && element.textContent.includes('RJETAS DE MEMORIA Añadir este código')) {
+                    element.style.display = 'none';
+                    element.remove();
+                }
+            });
+        }
+    }
+    
+    // INTERCEPTAR la función render para aplicar la limpieza
+    const originalRenderClean = window.render;
+    window.render = function() {
+        // Ejecutar render original
+        if (originalRenderClean) {
+            originalRenderClean.call(this);
+        }
+        
+        // Aplicar limpieza después del render
+        setTimeout(() => {
+            hideTabsInMemoryCards();
+        }, 10);
+    };
+    
+    // INTERCEPTAR showMemoryCards para asegurar limpieza
+    const originalShowMemoryCardsClean = window.showMemoryCards;
+    window.showMemoryCards = function() {
+        // Ejecutar función original
+        if (originalShowMemoryCardsClean) {
+            originalShowMemoryCardsClean.call(this);
+        }
+        
+        // Aplicar limpieza
+        setTimeout(() => {
+            hideTabsInMemoryCards();
+        }, 50);
+    };
+    
+    // CSS para forzar ocultación
+    const cleanStyle = document.createElement('style');
+    cleanStyle.textContent = `
+        [data-tab="memory-cards"] .nav-tabs,
+        .memory-cards-page .nav-tabs {
+            display: none !important;
+        }
+        
+        /* Ocultar cualquier texto de comentario que se esté mostrando */
+        *:contains("RJETAS DE MEMORIA Añadir este código") {
+            display: none !important;
+        }
+    `;
+    document.head.appendChild(cleanStyle);
+    
+    // Observer para vigilar y limpiar elementos problemáticos
+    const cleanObserver = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList' && state.currentTab === 'memory-cards') {
+                // Ocultar pestañas
+                const navTabs = document.querySelector('.nav-tabs');
+                if (navTabs) {
+                    navTabs.style.display = 'none';
+                }
+                
+                // Limpiar texto de comentarios
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType === Node.TEXT_NODE && 
+                        node.textContent && 
+                        node.textContent.includes('RJETAS DE MEMORIA')) {
+                        node.remove();
+                    }
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        const walker = document.createTreeWalker(
+                            node,
+                            NodeFilter.SHOW_TEXT,
+                            null,
+                            false
+                        );
+                        let textNode;
+                        while (textNode = walker.nextNode()) {
+                            if (textNode.textContent.includes('RJETAS DE MEMORIA Añadir este código')) {
+                                textNode.parentNode.removeChild(textNode);
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    });
+    
+    cleanObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+    
+    // Limpieza inmediata
+    setTimeout(() => {
+        hideTabsInMemoryCards();
+    }, 100);
+    
+    console.log('✅ Parche de limpieza aplicado');
+</script>
 </body>
 </html>
+
 
 
 
