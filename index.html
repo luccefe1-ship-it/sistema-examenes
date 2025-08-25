@@ -7220,15 +7220,15 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
         }
     }, 100);
 </script>
-    <!-- 
-PARCHE: SISTEMA DE TARJETAS DE MEMORIA
+   <!-- 
+PARCHE CORREGIDO: SISTEMA DE TARJETAS DE MEMORIA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche añade una nueva sección de tarjetas de memoria con preguntas verificadas
+Versión corregida con botón en header y diseño mejorado
 -->
 
 <script>
-    // ========== PARCHE: SISTEMA DE TARJETAS DE MEMORIA ==========
-    console.log('🃏 Implementando sistema de tarjetas de memoria...');
+    // ========== PARCHE CORREGIDO: SISTEMA DE TARJETAS DE MEMORIA ==========
+    console.log('🃏 Implementando sistema de tarjetas de memoria corregido...');
     
     // Estado para las tarjetas de memoria
     let memoryCardsState = {
@@ -7250,6 +7250,15 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
         
         render();
         showMessage('Cambiando a Tarjetas de Memoria', 'success');
+    };
+    
+    // FUNCIÓN para volver al menú desde tarjetas
+    window.backToMainMenuFromCards = function() {
+        console.log('🏠 Volviendo al menú principal desde tarjetas...');
+        showIntermediateScreen = true;
+        state.currentTab = 'upload';
+        render();
+        showMessage('Volviendo al menú principal', 'success');
     };
     
     // FUNCIÓN para cargar preguntas verificadas
@@ -7329,9 +7338,6 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
                         </ol>
                     </div>
                     <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-                        <button onclick="backToMainMenu()" class="btn btn-info" style="padding: 15px 25px; font-size: 16px;">
-                            🏠 Volver al Menú
-                        </button>
                         <button onclick="goToTestsFromSummary()" class="btn btn-primary" style="padding: 15px 25px; font-size: 16px;">
                             📋 Ir al Banco de Preguntas
                         </button>
@@ -7348,27 +7354,22 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
         return `
             <div style="max-width: 900px; margin: 0 auto; padding: 20px;">
                 
-                <!-- Header con navegación -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-                    <div>
-                        <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem; display: flex; align-items: center; gap: 15px;">
-                            <span>🃏</span> Tarjetas de Memoria
-                        </h1>
-                        <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
-                            Tarjeta ${cardNumber} de ${totalCards} • Tema: ${topicName}
-                        </p>
-                    </div>
-                    <button onclick="backToMainMenu()" class="btn btn-secondary" style="padding: 10px 20px;">
-                        🏠 Menú Principal
-                    </button>
+                <!-- Header simple -->
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                        <span>🃏</span> Tarjetas de Memoria
+                    </h1>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                        Tarjeta ${cardNumber} de ${totalCards} preguntas verificadas
+                    </p>
                 </div>
                 
                 <!-- Controles superiores -->
-                <div style="display: flex; justify-content: center; gap: 15px; margin-bottom: 25px;">
+                <div style="display: flex; justify-content: center; gap: 15px; margin-bottom: 40px;">
                     <button onclick="shuffleCards()" class="btn btn-warning" style="padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
                         <span>🔀</span> Mezclar
                     </button>
-                    <div style="background: #f3f4f6; padding: 8px 16px; border-radius: 20px; font-weight: 600; color: #374151;">
+                    <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 600; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
                         ${cardNumber} / ${totalCards}
                     </div>
                     <button onclick="loadVerifiedQuestions()" class="btn btn-info" style="padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
@@ -7376,104 +7377,121 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
                     </button>
                 </div>
                 
-                <!-- Tarjeta principal -->
-                <div style="background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); margin: 0 auto 30px; max-width: 700px; min-height: 400px; position: relative; border: 3px solid #e2e8f0;">
+                <!-- Tarjeta principal mejorada -->
+                <div style="perspective: 1000px; margin-bottom: 40px;">
+                    <div class="memory-card" style="
+                        background: linear-gradient(145deg, #ffffff, #f8fafc); 
+                        border-radius: 20px; 
+                        box-shadow: 
+                            0 20px 40px rgba(0,0,0,0.12),
+                            0 1px 0 rgba(255,255,255,0.8),
+                            inset 0 1px 3px rgba(255,255,255,0.9);
+                        margin: 0 auto; 
+                        max-width: 650px; 
+                        min-height: 400px; 
+                        position: relative; 
+                        border: 2px solid #e2e8f0;
+                        transform: rotateX(1deg) rotateY(-1deg);
+                        transition: all 0.4s ease;
+                        animation: cardFloat 4s ease-in-out infinite;
+                    ">
                     
-                    <!-- Indicador de verificada -->
-                    <div style="position: absolute; top: -15px; right: 20px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
-                        ⭐ Verificada
-                    </div>
-                    
-                    <!-- Contenido de la tarjeta -->
-                    <div style="padding: 40px;">
-                        
-                        <!-- Pregunta -->
-                        <div style="margin-bottom: 30px;">
-                            <h3 style="color: #6b7280; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;">
-                                📝 PREGUNTA
-                            </h3>
-                            <div style="font-size: 1.3rem; line-height: 1.6; color: #1f2937; font-weight: 500; background: #f8fafc; padding: 25px; border-radius: 12px; border-left: 4px solid #4f46e5;">
-                                ${currentCard.question}
-                            </div>
+                        <!-- Badge de verificada -->
+                        <div style="position: absolute; top: -8px; right: 15px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); z-index: 10;">
+                            ⭐ Verificada
                         </div>
                         
-                        <!-- Área de respuesta -->
-                        <div style="margin-bottom: 25px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                <h3 style="color: #6b7280; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin: 0;">
-                                    ✅ RESPUESTA CORRECTA
-                                </h3>
-                                <button onclick="toggleAnswer()" class="btn ${memoryCardsState.showAnswer ? 'btn-secondary' : 'btn-success'}" style="padding: 8px 16px; font-size: 14px;">
-                                    ${memoryCardsState.showAnswer ? '🙈 Ocultar' : '👁️ Ver Respuesta'}
-                                </button>
-                            </div>
+                        <!-- Contenido de la tarjeta -->
+                        <div style="padding: 35px;">
                             
-                            <div style="min-height: 80px; background: ${memoryCardsState.showAnswer ? '#f0fdf4' : '#f9fafb'}; border: 2px ${memoryCardsState.showAnswer ? 'solid #22c55e' : 'dashed #d1d5db'}; border-radius: 12px; padding: 25px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
-                                ${memoryCardsState.showAnswer ? `
-                                    <div style="text-align: center;">
-                                        <div style="font-size: 1.2rem; font-weight: 600; color: #166534; margin-bottom: 10px;">
-                                            ${String.fromCharCode(97 + currentCard.correctAnswer)}) ${currentCard.options[currentCard.correctAnswer]}
-                                        </div>
-                                        <div style="font-size: 14px; color: #16a34a;">
-                                            Esta es la respuesta correcta
-                                        </div>
-                                    </div>
-                                ` : `
-                                    <div style="color: #9ca3af; font-style: italic; text-align: center;">
-                                        <div style="font-size: 2rem; margin-bottom: 10px;">🤔</div>
-                                        <div>Haz clic en "Ver Respuesta" para revelar la solución</div>
-                                    </div>
-                                `}
-                            </div>
-                        </div>
-                        
-                        ${memoryCardsState.showAnswer ? `
-                            <!-- Todas las opciones cuando se muestra la respuesta -->
-                            <div style="margin-top: 25px;">
-                                <h4 style="color: #6b7280; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;">
-                                    📋 TODAS LAS OPCIONES
-                                </h4>
-                                <div style="display: grid; gap: 8px;">
-                                    ${currentCard.options.map((option, index) => `
-                                        <div style="padding: 12px 16px; border-radius: 8px; border: 2px solid ${index === currentCard.correctAnswer ? '#22c55e' : '#e5e7eb'}; background: ${index === currentCard.correctAnswer ? '#f0fdf4' : '#f9fafb'}; color: ${index === currentCard.correctAnswer ? '#166534' : '#6b7280'}; font-weight: ${index === currentCard.correctAnswer ? '600' : '400'};">
-                                            <strong>${String.fromCharCode(97 + index)})</strong> ${option}
-                                            ${index === currentCard.correctAnswer ? ' ✅' : ''}
-                                        </div>
-                                    `).join('')}
+                            <!-- Tema y Pregunta -->
+                            <div style="margin-bottom: 30px;">
+                                <!-- Badge del tema -->
+                                <div style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 6px 14px; border-radius: 15px; font-size: 13px; font-weight: 600; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);">
+                                    📁 ${topicName}
+                                </div>
+                                
+                                <!-- Pregunta -->
+                                <h3 style="color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">
+                                    📝 PREGUNTA
+                                </h3>
+                                <div style="font-size: 1.3rem; line-height: 1.6; color: #1f2937; font-weight: 500; background: linear-gradient(135deg, #f8fafc, #f1f5f9); padding: 25px; border-radius: 12px; border-left: 4px solid #4f46e5; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
+                                    ${currentCard.question}
                                 </div>
                             </div>
-                        ` : ''}
+                            
+                            <!-- Área de respuesta -->
+                            <div style="margin-bottom: 20px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                    <h3 style="color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin: 0;">
+                                        ✅ RESPUESTA CORRECTA
+                                    </h3>
+                                    <button onclick="toggleAnswer()" class="btn ${memoryCardsState.showAnswer ? 'btn-secondary' : 'btn-success'}" style="padding: 8px 16px; font-size: 14px; font-weight: 600; border-radius: 20px;">
+                                        ${memoryCardsState.showAnswer ? '🙈 Ocultar' : '👁️ Ver Respuesta'}
+                                    </button>
+                                </div>
+                                
+                                <div style="min-height: 80px; background: ${memoryCardsState.showAnswer ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : 'linear-gradient(135deg, #f9fafb, #f3f4f6)'}; border: 2px ${memoryCardsState.showAnswer ? 'solid #22c55e' : 'dashed #d1d5db'}; border-radius: 12px; padding: 25px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
+                                    
+                                    ${memoryCardsState.showAnswer ? `
+                                        <div style="text-align: center;">
+                                            <div style="font-size: 1.3rem; font-weight: 700; color: #166534; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                                <span style="font-size: 1.5rem;">✅</span>
+                                                <span>${String.fromCharCode(97 + currentCard.correctAnswer).toUpperCase()}) ${currentCard.options[currentCard.correctAnswer]}</span>
+                                            </div>
+                                            <div style="font-size: 14px; color: #16a34a; font-weight: 500;">
+                                                Esta es la respuesta correcta
+                                            </div>
+                                        </div>
+                                    ` : `
+                                        <div style="color: #9ca3af; font-style: italic; text-align: center;">
+                                            <div style="font-size: 2.5rem; margin-bottom: 10px;">🤔</div>
+                                            <div style="font-size: 16px;">Haz clic en "Ver Respuesta" para revelar la solución</div>
+                                        </div>
+                                    `}
+                                </div>
+                            </div>
+                            
+                            <!-- Consejo -->
+                            <div style="text-align: center; margin-top: 25px; padding: 12px; background: rgba(79, 70, 229, 0.05); border-radius: 10px; border: 1px solid rgba(79, 70, 229, 0.1);">
+                                <div style="color: #6b7280; font-size: 13px; font-weight: 500;">
+                                    💡 Intenta responder mentalmente antes de ver la respuesta
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
                 <!-- Controles de navegación -->
-                <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
-                    <button onclick="previousCard()" class="btn btn-secondary" style="padding: 15px 25px; font-size: 18px; border-radius: 50px; display: flex; align-items: center; gap: 10px; min-width: 150px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
-                        <span style="font-size: 20px;">←</span>
+                <div style="display: flex; justify-content: center; align-items: center; gap: 25px;">
+                    <button onclick="previousCard()" class="btn btn-secondary" style="padding: 12px 25px; font-size: 16px; border-radius: 25px; display: flex; align-items: center; gap: 10px; min-width: 140px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
+                        <span style="font-size: 18px;">←</span>
                         <span>Anterior</span>
                     </button>
                     
-                    <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 12px 20px; border-radius: 25px; font-weight: 600; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); min-width: 120px; text-align: center;">
-                        ${cardNumber} / ${totalCards}
-                    </div>
-                    
-                    <button onclick="nextCard()" class="btn btn-primary" style="padding: 15px 25px; font-size: 18px; border-radius: 50px; display: flex; align-items: center; gap: 10px; min-width: 150px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
+                    <button onclick="nextCard()" class="btn btn-primary" style="padding: 12px 25px; font-size: 16px; border-radius: 25px; display: flex; align-items: center; gap: 10px; min-width: 140px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
                         <span>Siguiente</span>
-                        <span style="font-size: 20px;">→</span>
+                        <span style="font-size: 18px;">→</span>
                     </button>
                 </div>
-                
-                <!-- Información adicional -->
-                <div style="text-align: center; margin-top: 30px; padding: 20px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
-                    <div style="color: #6b7280; font-size: 14px;">
-                        💡 <strong>Consejo:</strong> Intenta responder mentalmente antes de ver la respuesta correcta
-                    </div>
-                </div>
             </div>
+            
+            <!-- Estilos CSS -->
+            <style>
+                @keyframes cardFloat {
+                    0%, 100% { transform: rotateX(1deg) rotateY(-1deg) translateY(0px); }
+                    50% { transform: rotateX(1deg) rotateY(-1deg) translateY(-2px); }
+                }
+                
+                .memory-card:hover {
+                    transform: rotateX(0deg) rotateY(0deg) translateY(-3px) !important;
+                    box-shadow: 0 25px 50px rgba(0,0,0,0.15) !important;
+                }
+            </style>
         `;
     }
     
-    // INTERCEPTAR la función renderIntermediateScreen para añadir la nueva opción
+    // INTERCEPTAR la función renderIntermediateScreen para añadir la tercera opción
     const originalRenderIntermediateScreen = renderIntermediateScreen;
     window.renderIntermediateScreen = function() {
         return `
@@ -7516,24 +7534,12 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
                                 cursor: pointer; 
                                 transition: all 0.3s ease; 
                                 box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);
-                                position: relative;
-                                overflow: hidden;
-                                border: 2px solid transparent;
                                 "
-                                onmouseover="
-                                    this.style.transform='translateY(-5px)'; 
-                                    this.style.boxShadow='0 20px 40px rgba(79, 70, 229, 0.4)';
-                                    this.style.background='linear-gradient(135deg, #6366f1, #8b5cf6)';
-                                " 
-                                onmouseout="
-                                    this.style.transform='translateY(0)'; 
-                                    this.style.boxShadow='0 10px 25px rgba(79, 70, 229, 0.3)';
-                                    this.style.background='linear-gradient(135deg, #4f46e5, #7c3aed)';
-                                ">
+                                onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(79, 70, 229, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 25px rgba(79, 70, 229, 0.3)';">
                                 
-                                <!-- Icono y texto -->
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
-                                    <span style="font-size: 1.8rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">📚</span>
+                                    <span style="font-size: 1.8rem;">📚</span>
                                     <div style="text-align: left;">
                                         <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 3px;">Realizar Tests</div>
                                         <div style="font-size: 0.9rem; opacity: 0.9; font-weight: 400;">Crear y gestionar exámenes</div>
@@ -7553,24 +7559,12 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
                                 cursor: pointer; 
                                 transition: all 0.3s ease; 
                                 box-shadow: 0 10px 25px rgba(5, 150, 105, 0.3);
-                                position: relative;
-                                overflow: hidden;
-                                border: 2px solid transparent;
                                 "
-                                onmouseover="
-                                    this.style.transform='translateY(-5px)'; 
-                                    this.style.boxShadow='0 20px 40px rgba(5, 150, 105, 0.4)';
-                                    this.style.background='linear-gradient(135deg, #10b981, #06b6d4)';
-                                " 
-                                onmouseout="
-                                    this.style.transform='translateY(0)'; 
-                                    this.style.boxShadow='0 10px 25px rgba(5, 150, 105, 0.3)';
-                                    this.style.background='linear-gradient(135deg, #059669, #0ea5e9)';
-                                ">
+                                onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(5, 150, 105, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 25px rgba(5, 150, 105, 0.3)';">
                                 
-                                <!-- Icono y texto -->
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
-                                    <span style="font-size: 1.8rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">📊</span>
+                                    <span style="font-size: 1.8rem;">📊</span>
                                     <div style="text-align: left;">
                                         <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 3px;">Ver Resúmenes</div>
                                         <div style="font-size: 0.9rem; opacity: 0.9; font-weight: 400;">Analizar resultados y estadísticas</div>
@@ -7578,7 +7572,7 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
                                 </div>
                             </button>
                             
-                            <!-- NUEVA OPCIÓN: Tarjetas de Memoria -->
+                            <!-- Botón Tarjetas de Memoria -->
                             <button onclick="goToMemoryCards()" style="
                                 background: linear-gradient(135deg, #f59e0b, #d97706); 
                                 border: none; 
@@ -7590,24 +7584,12 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
                                 cursor: pointer; 
                                 transition: all 0.3s ease; 
                                 box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);
-                                position: relative;
-                                overflow: hidden;
-                                border: 2px solid transparent;
                                 "
-                                onmouseover="
-                                    this.style.transform='translateY(-5px)'; 
-                                    this.style.boxShadow='0 20px 40px rgba(245, 158, 11, 0.4)';
-                                    this.style.background='linear-gradient(135deg, #f59e0b, #ea580c)';
-                                " 
-                                onmouseout="
-                                    this.style.transform='translateY(0)'; 
-                                    this.style.boxShadow='0 10px 25px rgba(245, 158, 11, 0.3)';
-                                    this.style.background='linear-gradient(135deg, #f59e0b, #d97706)';
-                                ">
+                                onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(245, 158, 11, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 25px rgba(245, 158, 11, 0.3)';">
                                 
-                                <!-- Icono y texto -->
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
-                                    <span style="font-size: 1.8rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🃏</span>
+                                    <span style="font-size: 1.8rem;">🃏</span>
                                     <div style="text-align: left;">
                                         <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 3px;">Tarjetas de Memoria</div>
                                         <div style="font-size: 0.9rem; opacity: 0.9; font-weight: 400;">Repasar con tarjetas interactivas</div>
@@ -7626,7 +7608,7 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
         `;
     };
     
-    // EXTENDER la función renderTabContent para incluir la nueva sección
+    // EXTENDER renderTabContent para incluir memory-cards
     const originalRenderTabContentMemory = renderTabContent;
     renderTabContent = function() {
         switch(state.currentTab) {
@@ -7647,7 +7629,7 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
         }
     };
     
-    // EXTENDER la función render para no mostrar navegación en tarjetas de memoria
+    // EXTENDER render para mostrar botón en header cuando estamos en tarjetas
     const originalRenderMemoryCards = render;
     render = function() {
         if (showIntermediateScreen && state.currentUser) {
@@ -7671,14 +7653,12 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
         } else if (state.currentUser) {
             const app = document.getElementById('app');
             
-            // Determinar el título según la pestaña actual
             let pageTitle = 'Sistema de Exámenes';
             if (state.currentTab === 'questions') pageTitle = 'Banco de Preguntas';
             else if (state.currentTab === 'results') pageTitle = 'Resultados del Test';
             else if (state.currentTab === 'summary') pageTitle = 'Generador de Resúmenes';
             else if (state.currentTab === 'memory-cards') pageTitle = 'Tarjetas de Memoria';
             
-            // NO mostrar pestañas si estamos en summary o memory-cards
             const showNavTabs = state.currentTab !== 'summary' && state.currentTab !== 'memory-cards';
             
             app.innerHTML = `
@@ -7690,6 +7670,9 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
                                 ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
                             </span>
                             <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                            ${state.currentTab === 'memory-cards' ? `
+                                <button onclick="backToMainMenuFromCards()" class="btn btn-info">🏠 Menú</button>
+                            ` : ''}
                             <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
                             <button onclick="logout()" class="btn btn-danger">Salir</button>
                         </div>
@@ -7718,15 +7701,13 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
                 </div>
             `;
         } else {
-            // Usuario no logueado - usar función anterior
             originalRenderMemoryCards.call(this);
         }
     };
     
-    // FUNCIÓN para atajos de teclado en tarjetas
+    // ATAJOS DE TECLADO
     function setupMemoryCardsKeyboard() {
         document.addEventListener('keydown', function(e) {
-            // Solo funcionar si estamos en la sección de tarjetas
             if (state.currentTab !== 'memory-cards') return;
             
             switch(e.key) {
@@ -7754,47 +7735,22 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
                     break;
                 case 'Escape':
                     e.preventDefault();
-                    backToMainMenu();
+                    backToMainMenuFromCards();
                     break;
             }
         });
     }
     
-    // FUNCIÓN para navegación desde tarjetas a otras secciones
-    window.goToTestsFromCards = function() {
-        console.log('🎯 Cambiando de Tarjetas a Tests...');
-        showIntermediateScreen = false;
-        state.currentTab = 'upload';
-        render();
-        showMessage('Cambiando a la sección de Tests', 'success');
-    };
-    
-    window.goToSummariesFromCards = function() {
-        console.log('📊 Cambiando de Tarjetas a Resúmenes...');
-        showIntermediateScreen = false;
-        state.currentTab = 'summary';
-        if (typeof summarySystemState !== 'undefined') {
-            summarySystemState.currentView = 'create';
-            summarySystemState.viewingSummary = null;
-        }
-        render();
-        showMessage('Cambiando a la sección de Resúmenes', 'success');
-    };
-    
-    // Inicializar atajos de teclado
     setupMemoryCardsKeyboard();
     
-    console.log('✅ Sistema de Tarjetas de Memoria implementado correctamente');
-    console.log('🃏 Funcionalidades añadidas:');
-    console.log('   - Nueva opción "Tarjetas de Memoria" en menú principal');
-    console.log('   - Solo preguntas verificadas (⭐)');
-    console.log('   - Navegación anterior/siguiente');
-    console.log('   - Mostrar/ocultar respuesta');
-    console.log('   - Mezclar tarjetas aleatoriamente');
-    console.log('   - Atajos de teclado (←/→ navegar, Space/Enter ver respuesta)');
-    console.log('   - Sección independiente sin navegación de otras secciones');
+    console.log('✅ Sistema de Tarjetas de Memoria CORREGIDO implementado');
+    console.log('🃏 Funcionalidades:');
+    console.log('   - Botón "🏠 Menú" en header (más corto)');
+    console.log('   - Tarjeta con animación flotante sutil');
+    console.log('   - Tema dentro de la tarjeta');
+    console.log('   - Solo respuesta correcta');
+    console.log('   - Diseño limpio y funcional');
     
-    // Forzar re-renderizado
     setTimeout(() => {
         if (state.currentUser && typeof window.render === 'function') {
             render();
@@ -7803,6 +7759,7 @@ Este parche añade una nueva sección de tarjetas de memoria con preguntas verif
 </script>
 </body>
 </html>
+
 
 
 
