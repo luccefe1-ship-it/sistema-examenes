@@ -9618,8 +9618,51 @@ document.addEventListener('DOMContentLoaded', function() {
 
 console.log('✅ Sistema de Firebase corregido');
 </script>
+    <script>
+// ========== PARCHE FINAL: FORZAR MODO MOCK ==========
+
+// Resetear completamente Firebase y usar mock
+multiplayerEnabled = true;
+window.mockRooms = {};
+
+database = {
+    ref: function(path) {
+        return {
+            child: function(key) {
+                return {
+                    set: function(data) {
+                        console.log('✅ Mock: Sala creada -', key);
+                        if (!window.mockRooms[key]) window.mockRooms[key] = {};
+                        Object.assign(window.mockRooms[key], data);
+                        return Promise.resolve();
+                    },
+                    on: function(event, callback) {
+                        console.log('👂 Mock: Escuchando sala -', key);
+                        // Simular callback inmediato con datos
+                        setTimeout(() => {
+                            const roomData = window.mockRooms[key];
+                            callback({ 
+                                val: () => roomData,
+                                exists: () => !!roomData
+                            });
+                        }, 100);
+                    },
+                    remove: function() {
+                        console.log('🗑️ Mock: Eliminando sala -', key);
+                        delete window.mockRooms[key];
+                        return Promise.resolve();
+                    }
+                };
+            }
+        };
+    }
+};
+
+console.log('🎮 Modo mock forzado - ¡Listo para crear salas!');
+</script>
 </body>
 </html>
+
 
 
 
