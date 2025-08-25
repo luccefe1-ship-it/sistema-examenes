@@ -9063,8 +9063,115 @@ Este parche corrige: tema en la tarjeta, navegación limpia, botón menú unific
     console.log('   - Botón "Menú" unificado en todas las pantallas');
     console.log('   - Eliminadas opciones redundantes de test');
 </script>
+    <!-- 
+PARCHE: OCULTAR PESTAÑAS EN TARJETAS DE MEMORIA
+Añadir este código AL FINAL del archivo index.html, DESPUÉS de los parches anteriores
+Este parche oculta las pestañas de navegación en la sección de tarjetas de memoria
+-->
+
+<script>
+    // ========== PARCHE: OCULTAR PESTAÑAS EN TARJETAS DE MEMORIA ==========
+    console.log('🔧 Ocultando pestañas en sección de Tarjetas de Memoria...');
+    
+    // REEMPLAZAR completamente la función render para asegurar que no se muestren pestañas
+    const previousRenderFunction = render;
+    render = function() {
+        if (showIntermediateScreen && state.currentUser) {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <div class="title">Sistema de Exámenes</div>
+                        <div>
+                            <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                                ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                            </span>
+                            <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                            <button onclick="showChangePassword()" class="btn btn-warning" title="Cambiar contraseña">🔑</button>
+                            <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                            <button onclick="logout()" class="btn btn-danger">Salir</button>
+                        </div>
+                    </div>
+                    ${renderIntermediateScreen()}
+                </div>
+            `;
+        } else if (state.currentUser) {
+            const app = document.getElementById('app');
+            
+            // Determinar el título según la pestaña actual
+            let pageTitle = 'Sistema de Exámenes';
+            if (state.currentTab === 'questions') pageTitle = 'Banco de Preguntas';
+            else if (state.currentTab === 'results') pageTitle = 'Resultados del Test';
+            else if (state.currentTab === 'summary') pageTitle = 'Generador de Resúmenes';
+            else if (state.currentTab === 'memory-cards') pageTitle = 'Tarjetas de Memoria';
+            
+            // CRÍTICO: NO mostrar pestañas si estamos en summary O memory-cards
+            const showNavTabs = state.currentTab !== 'summary' && state.currentTab !== 'memory-cards';
+            
+            app.innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <div class="title">${pageTitle}</div>
+                        <div>
+                            <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                                ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                            </span>
+                            <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                            <button onclick="showChangePassword()" class="btn btn-warning" title="Cambiar contraseña">🔑</button>
+                            <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                            <button onclick="logout()" class="btn btn-danger">Salir</button>
+                        </div>
+                    </div>
+
+                    ${showNavTabs ? `
+                        <div class="nav-tabs">
+                            <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
+                                📤 Subir Test
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
+                                📋 Banco de Preguntas (${getFilteredQuestions().length})
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
+                                🎯 Test Aleatorio
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                                📊 Resultados (${state.testResults.length})
+                            </button>
+                        </div>
+                    ` : ''}
+
+                    <div id="messages"></div>
+
+                    ${renderTabContent()}
+                </div>
+            `;
+        } else {
+            // Usuario no logueado - mostrar login
+            previousRenderFunction.call(this);
+        }
+        
+        // Añadir navegación solo si es necesario
+        if (state.currentUser && !showIntermediateScreen) {
+            const existingNav = document.getElementById('cross-navigation');
+            if (existingNav) {
+                existingNav.remove();
+            }
+            addNavigationButtons();
+        }
+    };
+    
+    console.log('✅ Pestañas ocultadas en Tarjetas de Memoria');
+    
+    // Forzar re-renderizado
+    setTimeout(() => {
+        if (typeof window.render === 'function') {
+            render();
+        }
+    }, 100);
+</script>
 </body>
 </html>
+
 
 
 
