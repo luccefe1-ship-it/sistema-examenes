@@ -8658,9 +8658,143 @@ Este parche crea un header consistente con "Priii", botón Menú central, y boto
         }
     }, 100);
 </script>
+// PARCHE: TARJETAS DE MEMORIA COMPACTAS Y SIN BOTÓN RECARGAR
+function renderMemoryCardsTab() {
+    if (memoryCardsState.verifiedQuestions.length === 0) {
+        return `
+            <div style="max-width: 800px; margin: 0 auto; text-align: center; padding: 40px 20px;">
+                <div style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(245, 158, 11, 0.3);">
+                    <span style="font-size: 3rem; color: white;">🃏</span>
+                </div>
+                <h2 style="color: #1f2937; margin: 0 0 15px 0; font-size: 2rem;">No hay tarjetas disponibles</h2>
+                <p style="color: #6b7280; margin: 0 0 20px 0; font-size: 1rem;">
+                    Necesitas preguntas <strong>verificadas</strong> (⭐) en tu banco de preguntas.
+                </p>
+                <button onclick="goToTestsFromSummary()" class="btn btn-primary" style="padding: 12px 20px; font-size: 14px;">
+                    📋 Ir al Banco de Preguntas
+                </button>
+            </div>
+        `;
+    }
+    
+    const currentCard = memoryCardsState.currentCard;
+    const cardNumber = memoryCardsState.cardIndex + 1;
+    const totalCards = memoryCardsState.verifiedQuestions.length;
+    const topicName = currentCard.topicId ? getTopicName(currentCard.topicId) : 'General';
+    
+    return `
+        <div style="max-width: 900px; margin: 0 auto; padding: 10px;">
+            
+            <!-- Header compacto -->
+            <div style="text-align: center; margin-bottom: 15px;">
+                <h1 style="color: #1f2937; margin: 0; font-size: 1.8rem;">🃏 Tarjetas de Memoria</h1>
+                <p style="color: #6b7280; margin: 2px 0 0 0; font-size: 13px;">
+                    Tarjeta ${cardNumber} de ${totalCards}
+                </p>
+            </div>
+            
+            <!-- Controles superiores - SOLO MEZCLAR -->
+            <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 20px;">
+                <button onclick="shuffleCards()" class="btn btn-warning" style="padding: 8px 16px; display: flex; align-items: center; gap: 6px; font-size: 14px;">
+                    <span>🔀</span> Mezclar
+                </button>
+                <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 8px 16px; border-radius: 16px; font-weight: 600; font-size: 14px;">
+                    ${cardNumber} / ${totalCards}
+                </div>
+            </div>
+            
+            <!-- Tarjeta compacta -->
+            <div style="margin-bottom: 20px;">
+                <div style="
+                    background: linear-gradient(145deg, #ffffff, #f8fafc); 
+                    border-radius: 16px; 
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+                    margin: 0 auto; 
+                    max-width: 700px; 
+                    min-height: 320px; 
+                    position: relative; 
+                    border: 2px solid #e2e8f0;
+                ">
+                
+                    <!-- Badge de verificada -->
+                    <div style="position: absolute; top: -6px; right: 12px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 6px 12px; border-radius: 16px; font-weight: 600; font-size: 12px; z-index: 10;">
+                        ⭐ Verificada
+                    </div>
+                    
+                    <!-- Contenido -->
+                    <div style="padding: 25px;">
+                        
+                        <!-- Tema y Pregunta -->
+                        <div style="margin-bottom: 20px;">
+                            <!-- Badge del tema -->
+                            <div style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-bottom: 15px;">
+                                📁 ${topicName}
+                            </div>
+                            
+                            <!-- Pregunta -->
+                            <h3 style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">
+                                📝 PREGUNTA
+                            </h3>
+                            <div style="font-size: 1.1rem; line-height: 1.5; color: #1f2937; font-weight: 500; background: linear-gradient(135deg, #f8fafc, #f1f5f9); padding: 18px; border-radius: 10px; border-left: 4px solid #4f46e5;">
+                                ${currentCard.question}
+                            </div>
+                        </div>
+                        
+                        <!-- Área de respuesta -->
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <h3 style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin: 0;">
+                                    ✅ RESPUESTA CORRECTA
+                                </h3>
+                                <button onclick="toggleAnswer()" class="btn ${memoryCardsState.showAnswer ? 'btn-secondary' : 'btn-success'}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; border-radius: 16px;">
+                                    ${memoryCardsState.showAnswer ? '🙈 Ocultar' : '👁️ Ver Respuesta'}
+                                </button>
+                            </div>
+                            
+                            <div style="min-height: 60px; background: ${memoryCardsState.showAnswer ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : 'linear-gradient(135deg, #f9fafb, #f3f4f6)'}; border: 2px ${memoryCardsState.showAnswer ? 'solid #22c55e' : 'dashed #d1d5db'}; border-radius: 10px; padding: 18px; display: flex; align-items: center; justify-content: center;">
+                                
+                                ${memoryCardsState.showAnswer ? `
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; color: #166534; margin-bottom: 5px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                            <span style="font-size: 1.3rem;">✅</span>
+                                            <span>${String.fromCharCode(97 + currentCard.correctAnswer).toUpperCase()}) ${currentCard.options[currentCard.correctAnswer]}</span>
+                                        </div>
+                                        <div style="font-size: 12px; color: #16a34a; font-weight: 500;">
+                                            Respuesta correcta
+                                        </div>
+                                    </div>
+                                ` : `
+                                    <div style="color: #9ca3af; font-style: italic; text-align: center;">
+                                        <div style="font-size: 2rem; margin-bottom: 8px;">🤔</div>
+                                        <div style="font-size: 14px;">Haz clic en "Ver Respuesta"</div>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Controles de navegación compactos -->
+            <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+                <button onclick="previousCard()" class="btn btn-secondary" style="padding: 10px 20px; font-size: 14px; border-radius: 20px; display: flex; align-items: center; gap: 8px; min-width: 120px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
+                    <span style="font-size: 16px;">←</span>
+                    <span>Anterior</span>
+                </button>
+                
+                <button onclick="nextCard()" class="btn btn-primary" style="padding: 10px 20px; font-size: 14px; border-radius: 20px; display: flex; align-items: center; gap: 8px; min-width: 120px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
+                    <span>Siguiente</span>
+                    <span style="font-size: 16px;">→</span>
+                </button>
+            </div>
+        </div>
+    `;
+}
 
+console.log('✅ Tarjetas de memoria compactas - Sin scroll y sin botón Recargar');
 </body>
 </html>
+
 
 
 
