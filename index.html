@@ -8886,8 +8886,370 @@ Este parche optimiza el espacio vertical para evitar scroll
         }
     }, 100);
 </script>
+    <!-- 
+PARCHE: BOTÓN CERRAR SESIÓN EN HEADER UNIFICADO
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche añade el botón de logout al header en todas las páginas
+-->
+
+<script>
+    // ========== PARCHE: BOTÓN CERRAR SESIÓN EN HEADER ==========
+    console.log('🚪 Añadiendo botón de cerrar sesión al header...');
+    
+    // FUNCIÓN para cerrar sesión con confirmación
+    window.logoutFromHeader = function() {
+        const confirmLogout = confirm('¿Estás seguro de que deseas cerrar sesión?');
+        
+        if (confirmLogout) {
+            console.log('🚪 Cerrando sesión desde header...');
+            
+            // Cerrar modal de perfil si está abierto
+            if (userProfileState && userProfileState.showModal) {
+                userProfileState.showModal = false;
+                const modal = document.getElementById('user-profile-modal');
+                if (modal) {
+                    modal.remove();
+                }
+            }
+            
+            // Guardar datos antes del logout
+            if (state.currentUser) {
+                RealDataManager.saveFromGlobalData(state.currentUser.username);
+            }
+            
+            // Limpiar estado
+            RealDataManager.clearGlobalData();
+            state.currentUser = null;
+            showIntermediateScreen = false;
+            state.currentTab = 'upload';
+            newLoginState.currentView = 'login';
+            
+            // Limpiar credenciales recordadas si el usuario lo confirma
+            const clearRemembered = confirm('¿También deseas eliminar las credenciales guardadas?');
+            if (clearRemembered) {
+                localStorage.removeItem('rememberedUsername');
+                localStorage.removeItem('rememberedPassword');
+                localStorage.removeItem('rememberExpiry');
+                console.log('🗑️ Credenciales recordadas eliminadas');
+            }
+            
+            render();
+            showMessage('Sesión cerrada correctamente', 'success');
+        }
+    };
+    
+    // FUNCIÓN para renderizar el header unificado CON botón de logout
+    function renderUnifiedHeaderWithLogout() {
+        return `
+            <div class="unified-header">
+                <!-- Logo/Marca "Priii" -->
+                <div class="priii-logo" onclick="goToMainMenuUnified()" title="Ir al menú principal">
+                    Priii
+                </div>
+                
+                <!-- Botón Menú Central -->
+                <div class="center-menu">
+                    <button onclick="goToMainMenuUnified()" class="menu-button">
+                        <span class="menu-icon">🏠</span>
+                        <span class="menu-text">Menú</span>
+                    </button>
+                </div>
+                
+                <!-- Botones de la derecha CON logout -->
+                <div class="right-buttons">
+                    <button onclick="configureAPI()" class="header-btn api-btn" title="Configurar API de Anthropic">
+                        <span class="btn-icon">🔑</span>
+                        <span class="btn-text">API</span>
+                        <span class="api-status ${state.apiKey ? 'active' : 'inactive'}"></span>
+                    </button>
+                    
+                    <button onclick="toggleUserProfile()" class="header-btn profile-btn" title="Perfil de usuario">
+                        <span class="btn-icon">👤</span>
+                        <span class="btn-text">${state.currentUser.name.split(' ')[0]}</span>
+                    </button>
+                    
+                    <button onclick="logoutFromHeader()" class="header-btn logout-btn" title="Cerrar sesión">
+                        <span class="btn-icon">🚪</span>
+                        <span class="btn-text">Salir</span>
+                    </button>
+                </div>
+            </div>
+            
+            <style>
+                .unified-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 15px 25px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                    position: relative;
+                    z-index: 1000;
+                }
+                
+                /* Logo Priii */
+                .priii-logo {
+                    font-size: 2.5rem;
+                    font-weight: 900;
+                    background: linear-gradient(45deg, #fff, #f0f9ff);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                    text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    font-family: 'Comic Sans MS', cursive, sans-serif;
+                    letter-spacing: -2px;
+                    transform: rotate(-2deg);
+                    user-select: none;
+                }
+                
+                .priii-logo:hover {
+                    transform: rotate(0deg) scale(1.05);
+                    filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+                }
+                
+                /* Menú Central */
+                .center-menu {
+                    position: absolute;
+                    left: 50%;
+                    transform: translateX(-50%);
+                }
+                
+                .menu-button {
+                    background: rgba(255,255,255,0.15);
+                    border: 2px solid rgba(255,255,255,0.3);
+                    border-radius: 25px;
+                    color: white;
+                    padding: 12px 24px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    transition: all 0.3s ease;
+                    backdrop-filter: blur(10px);
+                }
+                
+                .menu-button:hover {
+                    background: rgba(255,255,255,0.25);
+                    border-color: rgba(255,255,255,0.5);
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+                }
+                
+                .menu-icon {
+                    font-size: 18px;
+                }
+                
+                /* Botones de la derecha */
+                .right-buttons {
+                    display: flex;
+                    gap: 8px;
+                    align-items: center;
+                }
+                
+                .header-btn {
+                    background: rgba(255,255,255,0.1);
+                    border: 1px solid rgba(255,255,255,0.2);
+                    border-radius: 18px;
+                    color: white;
+                    padding: 9px 14px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    transition: all 0.2s ease;
+                    position: relative;
+                }
+                
+                .header-btn:hover {
+                    background: rgba(255,255,255,0.2);
+                    border-color: rgba(255,255,255,0.4);
+                    transform: translateY(-1px);
+                }
+                
+                .btn-icon {
+                    font-size: 15px;
+                }
+                
+                /* Estilos específicos para el botón de logout */
+                .logout-btn {
+                    background: rgba(239, 68, 68, 0.2);
+                    border-color: rgba(239, 68, 68, 0.3);
+                }
+                
+                .logout-btn:hover {
+                    background: rgba(239, 68, 68, 0.3);
+                    border-color: rgba(239, 68, 68, 0.5);
+                    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+                }
+                
+                /* Indicador de estado API */
+                .api-status {
+                    position: absolute;
+                    top: -2px;
+                    right: -2px;
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    border: 2px solid white;
+                }
+                
+                .api-status.active {
+                    background: #22c55e;
+                    box-shadow: 0 0 6px rgba(34, 197, 94, 0.8);
+                }
+                
+                .api-status.inactive {
+                    background: #ef4444;
+                }
+                
+                /* Responsive */
+                @media (max-width: 768px) {
+                    .unified-header {
+                        padding: 12px 15px;
+                    }
+                    
+                    .priii-logo {
+                        font-size: 2rem;
+                    }
+                    
+                    .menu-button {
+                        padding: 10px 16px;
+                        font-size: 14px;
+                    }
+                    
+                    .menu-text,
+                    .btn-text {
+                        display: none;
+                    }
+                    
+                    .header-btn {
+                        padding: 9px 11px;
+                    }
+                    
+                    .right-buttons {
+                        gap: 6px;
+                    }
+                }
+                
+                @media (max-width: 480px) {
+                    .center-menu {
+                        position: static;
+                        transform: none;
+                        order: -1;
+                        margin-right: auto;
+                        margin-left: 10px;
+                    }
+                    
+                    .unified-header {
+                        flex-wrap: wrap;
+                        gap: 8px;
+                    }
+                    
+                    .priii-logo {
+                        font-size: 1.8rem;
+                    }
+                    
+                    .menu-button {
+                        padding: 8px 12px;
+                        font-size: 13px;
+                    }
+                }
+            </style>
+        `;
+    }
+    
+    // REEMPLAZAR la función renderUnifiedHeader existente
+    window.renderUnifiedHeader = renderUnifiedHeaderWithLogout;
+    
+    // INTERCEPTAR la función render para usar el header con logout
+    const originalRenderWithLogout = window.render;
+    window.render = function() {
+        const app = document.getElementById('app');
+        
+        if (!state.currentUser) {
+            // Pantallas de login - usar función original
+            originalRenderWithLogout.call(this);
+        } else {
+            // Usuario logueado - usar header con logout
+            
+            let contentHTML = '';
+            
+            if (showIntermediateScreen) {
+                // Pantalla intermedia (menú principal)
+                contentHTML = renderIntermediateScreen();
+            } else {
+                // Otras pantallas - renderizar contenido con navegación interna cuando corresponda
+                if (state.currentTab !== 'summary' && state.currentTab !== 'memory-cards') {
+                    // Para secciones de tests (upload, questions, test, results) mantener navegación
+                    contentHTML = `
+                        <div class="nav-tabs">
+                            <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
+                                📤 Subir Test
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
+                                📋 Banco de Preguntas (${getFilteredQuestions().length})
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
+                                🎯 Test Aleatorio
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                                📊 Resultados (${state.testResults.length})
+                            </button>
+                        </div>
+                        ${renderTabContent()}
+                    `;
+                } else {
+                    // Para resúmenes y tarjetas de memoria, solo el contenido
+                    contentHTML = renderTabContent();
+                }
+            }
+            
+            app.innerHTML = `
+                <div class="container" style="padding: 0; max-width: none; margin: 0; border-radius: 0; box-shadow: none; background: transparent;">
+                    ${renderUnifiedHeaderWithLogout()}
+                    
+                    <div style="padding: 20px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); min-height: calc(100vh - 80px);">
+                        <div id="messages" style="max-width: 1400px; margin: 0 auto 20px auto;"></div>
+                        <div style="max-width: 1400px; margin: 0 auto;">
+                            ${contentHTML}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Renderizar modal de perfil si está activo
+        if (typeof renderUserProfileModal === 'function') {
+            renderUserProfileModal();
+        }
+    };
+    
+    console.log('✅ Botón de cerrar sesión añadido al header');
+    console.log('🚪 Características del botón logout:');
+    console.log('   - Ubicado junto al botón de perfil');
+    console.log('   - Confirmación antes de cerrar sesión');
+    console.log('   - Opción de eliminar credenciales recordadas');
+    console.log('   - Estilo distintivo (rojo sutil)');
+    console.log('   - Responsive para móviles');
+    console.log('   - Disponible en todas las páginas');
+    
+    // Forzar re-renderizado inmediato
+    setTimeout(() => {
+        if (state.currentUser && typeof window.render === 'function') {
+            render();
+        }
+    }, 100);
+</script>
 </body>
 </html>
+
 
 
 
