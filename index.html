@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+</head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Exámenes</title>
@@ -9233,8 +9235,57 @@ Este parche añade el botón de logout al header en todas las páginas
         }
     }, 100);
 </script>
+    <script>
+// ========== PASO 1: CONFIGURACIÓN FIREBASE MULTIJUGADOR ==========
+console.log('🎮 Configurando sistema multijugador...');
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBzeTnm6iYR0b_gccYmenaR_NsOY9VmUz8",
+  authDomain: "priii-572dd.firebaseapp.com",
+  databaseURL: "https://priii-572dd-default-rtdb.firebaseeio.com",
+  projectId: "priii-572dd",
+  storageBucket: "priii-572dd.firebasestorage.app",
+  messagingSenderId: "858611366137",
+  appId: "1:858611366137:web:9d84afde86f5b209e04a28"
+};
+
+let firebaseApp = null;
+let database = null;
+let multiplayerEnabled = false;
+
+function initializeFirebase() {
+    try {
+        firebaseApp = firebase.initializeApp(firebaseConfig);
+        database = firebase.database();
+        multiplayerEnabled = true;
+        console.log('✅ Firebase inicializado correctamente');
+        return true;
+    } catch (error) {
+        console.error('❌ Error inicializando Firebase:', error);
+        return false;
+    }
+}
+
+let multiplayerState = {
+    currentRoom: null,
+    isHost: false,
+    opponent: null,
+    roomCode: null,
+    gameState: 'waiting',
+    myTurn: false,
+    myFailures: 0,
+    opponentFailures: 0
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeFirebase();
+});
+
+console.log('✅ Paso 1 completado - Firebase configurado');
+</script>
 </body>
 </html>
+
 
 
 
