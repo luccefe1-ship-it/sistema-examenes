@@ -8746,8 +8746,326 @@ Este parche añade una nueva sección para repasar preguntas verificadas con sus
         }
     }, 200);
 </script>
+    <!-- 
+PARCHE: CORRECCIONES PARA TARJETAS DE MEMORIA
+Añadir este código AL FINAL del archivo index.html, DESPUÉS del parche anterior
+Este parche corrige: tema en la tarjeta, navegación limpia, botón menú unificado
+-->
+
+<script>
+    // ========== PARCHE: CORRECCIONES TARJETAS DE MEMORIA ==========
+    console.log('🔧 Aplicando correcciones a Tarjetas de Memoria...');
+    
+    // REEMPLAZAR la función renderStudyingView con correcciones
+    function renderStudyingView() {
+        const currentQuestion = memoryCardsState.shuffledQuestions[memoryCardsState.currentCardIndex];
+        const progress = ((memoryCardsState.currentCardIndex + 1) / memoryCardsState.shuffledQuestions.length) * 100;
+        const topicName = currentQuestion.topicId ? getTopicName(currentQuestion.topicId) : 'General';
+        const correctAnswer = currentQuestion.options[currentQuestion.correctAnswer];
+        
+        return `
+            <div style="max-width: 900px; margin: 0 auto; padding: 20px;">
+                
+                <!-- Header con progreso (SIN tema) -->
+                <div style="background: white; border-radius: 16px; padding: 20px; margin-bottom: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border: 1px solid #e5e7eb;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <div>
+                            <h2 style="color: #1f2937; margin: 0; font-size: 1.3rem; font-weight: 700;">
+                                🧠 Sesión de Estudio
+                            </h2>
+                            <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                                Tarjeta ${memoryCardsState.currentCardIndex + 1} de ${memoryCardsState.shuffledQuestions.length}
+                            </p>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="color: #8b5cf6; font-weight: 600; font-size: 1.1rem;">
+                                ${Math.round(progress)}% Completado
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Barra de progreso -->
+                    <div style="background: #f3f4f6; border-radius: 10px; height: 8px; overflow: hidden;">
+                        <div style="background: linear-gradient(135deg, #8b5cf6, #a78bfa); height: 100%; border-radius: 10px; width: ${progress}%; transition: width 0.5s ease;"></div>
+                    </div>
+                </div>
+                
+                <!-- Tarjeta Principal CON tema en el interior -->
+                <div style="perspective: 1000px; margin-bottom: 30px;">
+                    <div style="background: white; border-radius: 24px; padding: 40px; box-shadow: 0 8px 30px rgba(139, 92, 246, 0.15); border: 2px solid #e4d4fd; min-height: 400px; display: flex; flex-direction: column; justify-content: center; position: relative; transform-style: preserve-3d; transition: transform 0.3s ease;" 
+                         onmouseover="this.style.transform='rotateX(2deg) rotateY(2deg)'" 
+                         onmouseout="this.style.transform='rotateX(0deg) rotateY(0deg)'">
+                        
+                        <!-- Decoración de fondo -->
+                        <div style="position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; background: linear-gradient(135deg, #ddd6fe, #c4b5fd); border-radius: 50%; opacity: 0.7; z-index: 0;"></div>
+                        <div style="position: absolute; bottom: -15px; left: -15px; width: 60px; height: 60px; background: linear-gradient(135deg, #fed7d7, #fbb6ce); border-radius: 50%; opacity: 0.6; z-index: 0;"></div>
+                        
+                        <div style="position: relative; z-index: 1;">
+                            
+                            <!-- Headers con tema Y verificación -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; gap: 15px;">
+                                <!-- Tema de la pregunta -->
+                                <span style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+                                    📂 ${topicName}
+                                </span>
+                                
+                                <!-- Indicador de verificación -->
+                                <span style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+                                    ⭐ Verificada
+                                </span>
+                            </div>
+                            
+                            <!-- Pregunta -->
+                            <div style="text-align: center; margin-bottom: 30px;">
+                                <h3 style="color: #1f2937; font-size: 1.4rem; font-weight: 600; line-height: 1.5; margin: 0; max-width: 600px; margin: 0 auto;">
+                                    ${currentQuestion.question}
+                                </h3>
+                            </div>
+                            
+                            <!-- Área de respuesta -->
+                            <div style="text-align: center; min-height: 100px; display: flex; align-items: center; justify-content: center;">
+                                ${memoryCardsState.showAnswer ? `
+                                    <!-- Respuesta mostrada -->
+                                    <div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border: 2px solid #10b981; border-radius: 16px; padding: 25px; max-width: 500px; margin: 0 auto;">
+                                        <div style="color: #065f46; font-size: 1.1rem; font-weight: 600; margin-bottom: 8px;">
+                                            ✅ Respuesta Correcta:
+                                        </div>
+                                        <div style="color: #047857; font-size: 1.2rem; font-weight: 700;">
+                                            ${String.fromCharCode(97 + currentQuestion.correctAnswer)}) ${correctAnswer}
+                                        </div>
+                                    </div>
+                                ` : `
+                                    <!-- Botón para revelar respuesta -->
+                                    <button onclick="toggleAnswer()" class="btn btn-success" style="background: linear-gradient(135deg, #10b981, #059669); border: none; padding: 18px 35px; font-size: 1.1rem; font-weight: 600; border-radius: 16px; box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(16, 185, 129, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 6px 20px rgba(16, 185, 129, 0.3)'">
+                                        🔍 Revelar Respuesta
+                                    </button>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Controles de Navegación -->
+                <div style="display: flex; justify-content: space-between; align-items: center; background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border: 1px solid #e5e7eb;">
+                    
+                    <!-- Botón Anterior -->
+                    <button onclick="previousCard()" class="btn btn-secondary" style="padding: 15px 20px; font-size: 1rem; display: flex; align-items: center; gap: 10px; border-radius: 12px; ${memoryCardsState.currentCardIndex === 0 ? 'opacity: 0.5; cursor: not-allowed;' : ''}" ${memoryCardsState.currentCardIndex === 0 ? 'disabled' : ''}>
+                        <span style="font-size: 1.2rem;">←</span>
+                        <span>Anterior</span>
+                    </button>
+                    
+                    <!-- Info central -->
+                    <div style="text-align: center; color: #6b7280; font-size: 14px;">
+                        <div style="font-weight: 600; color: #374151; margin-bottom: 2px;">
+                            ${memoryCardsState.studiedCards} de ${memoryCardsState.shuffledQuestions.length} estudiadas
+                        </div>
+                        <div>
+                            ${memoryCardsState.startTime ? formatStudyTime(Math.floor((Date.now() - memoryCardsState.startTime) / 1000)) : '0:00'} transcurridos
+                        </div>
+                    </div>
+                    
+                    <!-- Botón Siguiente -->
+                    <button onclick="nextCard()" class="btn btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; padding: 15px 20px; font-size: 1rem; display: flex; align-items: center; gap: 10px; border-radius: 12px; ${!memoryCardsState.showAnswer ? 'opacity: 0.5; cursor: not-allowed;' : ''}" ${!memoryCardsState.showAnswer ? 'disabled' : ''}>
+                        <span>${memoryCardsState.currentCardIndex === memoryCardsState.shuffledQuestions.length - 1 ? 'Finalizar' : 'Siguiente'}</span>
+                        <span style="font-size: 1.2rem;">${memoryCardsState.currentCardIndex === memoryCardsState.shuffledQuestions.length - 1 ? '✅' : '→'}</span>
+                    </button>
+                </div>
+                
+                <!-- Botones de Control SIMPLIFICADOS -->
+                <div style="text-align: center; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                    <div style="display: flex; justify-content: center; gap: 15px;">
+                        <button onclick="restartMemorySession()" class="btn btn-info" style="padding: 10px 20px; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+                            <span>🔄</span> Reiniciar
+                        </button>
+                        <button onclick="backToMainMenu()" class="btn btn-secondary" style="padding: 10px 20px; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+                            <span>🏠</span> Menú Principal
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // REEMPLAZAR la función renderCompletedView para simplificar navegación
+    function renderCompletedView() {
+        return `
+            <div style="max-width: 700px; margin: 0 auto; padding: 20px; text-align: center;">
+                
+                <!-- Celebración -->
+                <div style="margin-bottom: 40px;">
+                    <div style="font-size: 6rem; margin-bottom: 20px; animation: bounce 2s infinite;">🎉</div>
+                    <h1 style="color: #1f2937; margin: 0 0 15px 0; font-size: 2.5rem; font-weight: 800;">
+                        ¡Sesión Completada!
+                    </h1>
+                    <p style="color: #6b7280; font-size: 1.2rem; margin: 0;">
+                        Has repasado todas las tarjetas de memoria
+                    </p>
+                </div>
+                
+                <!-- Estadísticas finales -->
+                <div style="background: white; border-radius: 20px; padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 2px solid #f3f4f6;">
+                    <h2 style="color: #374151; margin: 0 0 25px 0; font-size: 1.5rem;">📊 Estadísticas de la Sesión</h2>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px;">
+                        
+                        <!-- Tarjetas Estudiadas -->
+                        <div style="background: linear-gradient(135deg, #ddd6fe, #e4d4fd); border-radius: 16px; padding: 20px; border: 2px solid #c4b5fd;">
+                            <div style="font-size: 2.5rem; margin-bottom: 8px;">📚</div>
+                            <div style="font-size: 1.8rem; font-weight: 700; color: #7c3aed; margin-bottom: 5px;">
+                                ${memoryCardsState.sessionStats.studiedCards}
+                            </div>
+                            <div style="color: #6b46c1; font-weight: 500; font-size: 14px;">
+                                Tarjetas Estudiadas
+                            </div>
+                        </div>
+                        
+                        <!-- Tiempo Total -->
+                        <div style="background: linear-gradient(135deg, #bee3f8, #90cdf4); border-radius: 16px; padding: 20px; border: 2px solid #63b3ed;">
+                            <div style="font-size: 2.5rem; margin-bottom: 8px;">⏱️</div>
+                            <div style="font-size: 1.8rem; font-weight: 700; color: #3182ce; margin-bottom: 5px;">
+                                ${formatStudyTime(memoryCardsState.sessionStats.timeSpent)}
+                            </div>
+                            <div style="color: #2b6cb0; font-weight: 500; font-size: 14px;">
+                                Tiempo Total
+                            </div>
+                        </div>
+                        
+                        <!-- Ritmo de Estudio -->
+                        <div style="background: linear-gradient(135deg, #fed7d7, #fbb6ce); border-radius: 16px; padding: 20px; border: 2px solid #f687b3;">
+                            <div style="font-size: 2.5rem; margin-bottom: 8px;">⚡</div>
+                            <div style="font-size: 1.8rem; font-weight: 700; color: #e53e3e; margin-bottom: 5px;">
+                                ${memoryCardsState.sessionStats.timeSpent > 0 ? Math.round(memoryCardsState.sessionStats.studiedCards / (memoryCardsState.sessionStats.timeSpent / 60)) : 0}
+                            </div>
+                            <div style="color: #c53030; font-weight: 500; font-size: 14px;">
+                                Tarjetas/Min
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Acciones SIMPLIFICADAS -->
+                <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                    <button onclick="restartMemorySession()" class="btn btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; padding: 15px 25px; font-size: 1rem; font-weight: 600; border-radius: 12px; display: flex; align-items: center; gap: 10px;">
+                        <span>🔄</span> Estudiar de Nuevo
+                    </button>
+                    <button onclick="showMemoryCards()" class="btn btn-info" style="padding: 15px 25px; font-size: 1rem; font-weight: 600; border-radius: 12px; display: flex; align-items: center; gap: 10px;">
+                        <span>📊</span> Nueva Sesión
+                    </button>
+                    <button onclick="backToMainMenu()" class="btn btn-secondary" style="padding: 15px 25px; font-size: 1rem; font-weight: 600; border-radius: 12px; display: flex; align-items: center; gap: 10px;">
+                        <span>🏠</span> Menú Principal
+                    </button>
+                </div>
+                
+                <!-- Mensaje motivacional -->
+                <div style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 2px solid #22c55e; border-radius: 16px; padding: 25px; margin-top: 30px;">
+                    <div style="font-size: 2rem; margin-bottom: 10px;">🌟</div>
+                    <p style="color: #166534; font-size: 1.1rem; font-weight: 600; margin: 0;">
+                        ¡Excelente trabajo! El repaso constante es clave para el aprendizaje efectivo.
+                    </p>
+                </div>
+            </div>
+            
+            <style>
+                @keyframes bounce {
+                    0%, 20%, 50%, 80%, 100% {
+                        transform: translateY(0);
+                    }
+                    40% {
+                        transform: translateY(-20px);
+                    }
+                    60% {
+                        transform: translateY(-10px);
+                    }
+                }
+            </style>
+        `;
+    }
+    
+    // FUNCIÓN global para volver al menú principal
+    window.backToMainMenu = function() {
+        console.log('🏠 Volviendo al menú principal...');
+        showIntermediateScreen = true;
+        state.currentTab = 'upload';
+        
+        // Resetear estados de sistemas específicos
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = 'create';
+            summarySystemState.viewingSummary = null;
+        }
+        
+        if (typeof memoryCardsState !== 'undefined') {
+            memoryCardsState.currentView = 'start';
+        }
+        
+        render();
+    };
+    
+    // REEMPLAZAR addNavigationButtons para UNIFICAR botón de menú
+    function addNavigationButtons() {
+        setTimeout(() => {
+            const header = document.querySelector('.header');
+            
+            if (header && !document.getElementById('cross-navigation')) {
+                const navigationDiv = document.createElement('div');
+                navigationDiv.id = 'cross-navigation';
+                navigationDiv.style.cssText = `
+                    display: flex;
+                    gap: 8px;
+                    align-items: center;
+                    margin-left: 20px;
+                `;
+                
+                // SOLO botón de menú unificado para todas las pantallas
+                navigationDiv.innerHTML = `
+                    <button onclick="backToMainMenu()" class="btn btn-info" style="padding: 8px 16px; font-size: 13px; display: flex; align-items: center; gap: 6px; font-weight: 600;" title="Volver al menú principal">
+                        <span>🏠</span> Menú
+                    </button>
+                `;
+                
+                // Insertar en el header
+                const userButtons = header.querySelector('div:last-child');
+                if (userButtons) {
+                    header.insertBefore(navigationDiv, userButtons);
+                } else {
+                    header.appendChild(navigationDiv);
+                }
+            }
+        }, 100);
+    }
+    
+    // REEMPLAZAR la función backToIntermediateScreen existente
+    window.backToIntermediateScreen = function() {
+        backToMainMenu();
+    };
+    
+    // ASEGURAR que la función render tenga navegación unificada
+    const originalRenderWithUnifiedNav = render;
+    render = function() {
+        // Llamar render original
+        originalRenderWithUnifiedNav.call(this);
+        
+        // Solo añadir navegación si el usuario está logueado y no en pantalla intermedia
+        if (state.currentUser && !showIntermediateScreen) {
+            // Remover navegación anterior
+            const existingNav = document.getElementById('cross-navigation');
+            if (existingNav) {
+                existingNav.remove();
+            }
+            
+            // Añadir navegación unificada
+            addNavigationButtons();
+        }
+    };
+    
+    console.log('✅ Correcciones aplicadas:');
+    console.log('   - Tema movido al interior de la tarjeta');
+    console.log('   - Navegación simplificada y limpia');
+    console.log('   - Botón "Menú" unificado en todas las pantallas');
+    console.log('   - Eliminadas opciones redundantes de test');
+</script>
 </body>
 </html>
+
 
 
 
