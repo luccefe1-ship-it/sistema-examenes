@@ -7976,8 +7976,653 @@ Este parche añade un botón "Menú" consistente en el header de todas las panta
         }
     }, 100);
 </script>
+    <!-- 
+PARCHE: HEADER UNIFICADO "PRIII" EN TODAS LAS PANTALLAS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche crea un header consistente con "Priii", botón Menú central, y botones API/Perfil
+-->
+
+<script>
+    // ========== PARCHE: HEADER UNIFICADO "PRIII" ==========
+    console.log('🎨 Implementando header unificado "Priii"...');
+    
+    // Estado para el modal de perfil
+    let userProfileState = {
+        showModal: false,
+        editingField: null
+    };
+    
+    // FUNCIÓN para mostrar/ocultar modal de perfil
+    window.toggleUserProfile = function() {
+        userProfileState.showModal = !userProfileState.showModal;
+        userProfileState.editingField = null;
+        renderUserProfileModal();
+    };
+    
+    // FUNCIÓN para editar campo del perfil
+    window.editProfileField = function(field) {
+        if (!state.currentUser) return;
+        
+        const users = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+        const currentUser = users[state.currentUser.username];
+        
+        if (!currentUser) return;
+        
+        let newValue = '';
+        let message = '';
+        
+        switch(field) {
+            case 'name':
+                newValue = prompt('Nuevo nombre completo:', currentUser.name);
+                message = 'Nombre actualizado correctamente';
+                break;
+            case 'password':
+                const oldPassword = prompt('Contraseña actual:');
+                if (!oldPassword || oldPassword !== currentUser.password) {
+                    showMessage('Contraseña actual incorrecta', 'error');
+                    return;
+                }
+                newValue = prompt('Nueva contraseña (mínimo 4 caracteres):');
+                if (!newValue || newValue.length < 4) {
+                    showMessage('La nueva contraseña debe tener al menos 4 caracteres', 'error');
+                    return;
+                }
+                const confirmPassword = prompt('Confirmar nueva contraseña:');
+                if (newValue !== confirmPassword) {
+                    showMessage('Las contraseñas no coinciden', 'error');
+                    return;
+                }
+                message = 'Contraseña actualizada correctamente';
+                break;
+            case 'security':
+                const currentAnswer = prompt('Respuesta actual a la pregunta de seguridad:');
+                if (!currentAnswer || currentAnswer.toLowerCase().trim() !== currentUser.securityAnswer) {
+                    showMessage('Respuesta de seguridad incorrecta', 'error');
+                    return;
+                }
+                const newQuestion = prompt('Nueva pregunta de seguridad:', currentUser.securityQuestion);
+                if (!newQuestion) return;
+                const newAnswer = prompt('Nueva respuesta:');
+                if (!newAnswer) return;
+                
+                currentUser.securityQuestion = newQuestion;
+                currentUser.securityAnswer = newAnswer.toLowerCase().trim();
+                localStorage.setItem('realSystemUsers', JSON.stringify(users));
+                showMessage('Pregunta de seguridad actualizada', 'success');
+                renderUserProfileModal();
+                return;
+        }
+        
+        if (newValue && newValue.trim()) {
+            currentUser[field] = field === 'name' ? newValue.trim() : newValue;
+            
+            // Actualizar en localStorage
+            localStorage.setItem('realSystemUsers', JSON.stringify(users));
+            
+            // Actualizar estado actual si es el nombre
+            if (field === 'name') {
+                state.currentUser.name = newValue.trim();
+            }
+            
+            showMessage(message, 'success');
+            renderUserProfileModal();
+            render(); // Re-renderizar para actualizar el nombre en el header
+        }
+    };
+    
+    // FUNCIÓN para renderizar el modal de perfil
+    function renderUserProfileModal() {
+        // Remover modal existente
+        const existingModal = document.getElementById('user-profile-modal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        if (!userProfileState.showModal || !state.currentUser) return;
+        
+        const users = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+        const currentUser = users[state.currentUser.username];
+        
+        if (!currentUser) return;
+        
+        const modal = document.createElement('div');
+        modal.id = 'user-profile-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease;
+        `;
+        
+        modal.innerHTML = `
+            <div style="
+                background: white;
+                border-radius: 16px;
+                padding: 30px;
+                max-width: 500px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+                animation: slideInModal 0.3s ease;
+            ">
+                <!-- Header del modal -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                    <h2 style="margin: 0; color: #1f2937; display: flex; align-items: center; gap: 10px;">
+                        <span>👤</span> Perfil de Usuario
+                    </h2>
+                    <button onclick="toggleUserProfile()" style="
+                        background: #ef4444;
+                        color: white;
+                        border: none;
+                        border-radius: 50%;
+                        width: 32px;
+                        height: 32px;
+                        font-size: 16px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    ">×</button>
+                </div>
+                
+                <!-- Información del usuario -->
+                <div style="space-y: 20px;">
+                    
+                    <!-- Nombre completo -->
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <label style="font-size: 13px; font-weight: 600; color: #6b7280; display: block; margin-bottom: 5px;">NOMBRE COMPLETO</label>
+                                <div style="font-size: 16px; color: #1f2937; font-weight: 500;">${currentUser.name}</div>
+                            </div>
+                            <button onclick="editProfileField('name')" class="btn btn-warning" style="padding: 6px 12px; font-size: 12px;">
+                                ✏️ Editar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Usuario (no editable) -->
+                    <div style="background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <label style="font-size: 13px; font-weight: 600; color: #6b7280; display: block; margin-bottom: 5px;">NOMBRE DE USUARIO</label>
+                        <div style="font-size: 16px; color: #6b7280; font-weight: 500;">${state.currentUser.username}</div>
+                        <div style="font-size: 11px; color: #9ca3af; margin-top: 5px; font-style: italic;">No se puede modificar</div>
+                    </div>
+                    
+                    <!-- Contraseña -->
+                    <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <label style="font-size: 13px; font-weight: 600; color: #92400e; display: block; margin-bottom: 5px;">CONTRASEÑA</label>
+                                <div style="font-size: 16px; color: #78350f; font-weight: 500;">••••••••</div>
+                            </div>
+                            <button onclick="editProfileField('password')" class="btn btn-warning" style="padding: 6px 12px; font-size: 12px;">
+                                🔑 Cambiar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Pregunta de seguridad -->
+                    <div style="background: #f0f9ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div style="flex: 1; margin-right: 15px;">
+                                <label style="font-size: 13px; font-weight: 600; color: #1e40af; display: block; margin-bottom: 5px;">PREGUNTA DE SEGURIDAD</label>
+                                <div style="font-size: 14px; color: #1e3a8a; line-height: 1.4;">${currentUser.securityQuestion}</div>
+                            </div>
+                            <button onclick="editProfileField('security')" class="btn btn-info" style="padding: 6px 12px; font-size: 12px; flex-shrink: 0;">
+                                🔐 Cambiar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Información de cuenta -->
+                    <div style="background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                        <label style="font-size: 13px; font-weight: 600; color: #166534; display: block; margin-bottom: 10px;">INFORMACIÓN DE LA CUENTA</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 13px; color: #166534;">
+                            <div>
+                                <div style="font-weight: 500; margin-bottom: 2px;">Cuenta creada:</div>
+                                <div style="opacity: 0.8;">${currentUser.createdAt}</div>
+                            </div>
+                            <div>
+                                <div style="font-weight: 500; margin-bottom: 2px;">Último acceso:</div>
+                                <div style="opacity: 0.8;">${currentUser.lastLogin || 'Nunca'}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Estadísticas del usuario -->
+                    <div style="background: linear-gradient(135deg, #667eea15, #764ba215); border: 1px solid #4f46e5; border-radius: 8px; padding: 15px;">
+                        <label style="font-size: 13px; font-weight: 600; color: #4f46e5; display: block; margin-bottom: 10px;">📊 ESTADÍSTICAS PERSONALES</label>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 15px; font-size: 13px;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #4f46e5;">${state.questions.length}</div>
+                                <div style="color: #6366f1; font-size: 11px;">Preguntas</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #7c3aed;">${state.topics.length}</div>
+                                <div style="color: #8b5cf6; font-size: 11px;">Temas</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #059669;">${state.testResults.length}</div>
+                                <div style="color: #10b981; font-size: 11px;">Tests</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #f59e0b;">${(typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries.length : 0}</div>
+                                <div style="color: #d97706; font-size: 11px;">Resúmenes</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <style>
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                
+                @keyframes slideInModal {
+                    from { 
+                        opacity: 0;
+                        transform: translateY(-20px) scale(0.95);
+                    }
+                    to { 
+                        opacity: 1;
+                        transform: translateY(0) scale(1);
+                    }
+                }
+            </style>
+        `;
+        
+        // Añadir al DOM
+        document.body.appendChild(modal);
+        
+        // Cerrar modal al hacer clic fuera
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                toggleUserProfile();
+            }
+        });
+    }
+    
+    // FUNCIÓN para ir al menú principal desde cualquier lugar
+    window.goToMainMenuUnified = function() {
+        console.log('🏠 Navegando al menú principal desde header unificado...');
+        
+        // Cerrar modal de perfil si está abierto
+        userProfileState.showModal = false;
+        renderUserProfileModal();
+        
+        // Resetear todos los estados
+        showIntermediateScreen = true;
+        state.currentTab = 'upload';
+        
+        // Resetear estado de resúmenes
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = 'create';
+            summarySystemState.viewingSummary = null;
+            summarySystemState.selectedImages = [];
+            summarySystemState.generatedSummary = '';
+            summarySystemState.isProcessing = false;
+        }
+        
+        // Resetear estado de tarjetas de memoria
+        if (typeof memoryCardsState !== 'undefined') {
+            memoryCardsState.currentCard = null;
+            memoryCardsState.cardIndex = 0;
+            memoryCardsState.showAnswer = false;
+        }
+        
+        // Resetear estado de tests
+        if (state.currentTest) {
+            if (state.currentTest.timer) {
+                clearInterval(state.currentTest.timer);
+            }
+            state.currentTest = null;
+        }
+        
+        // Resetear filtros y estados
+        state.selectedTopicFilter = 'all';
+        state.selectedTopicForNewQuestions = null;
+        state.currentViewingResult = null;
+        state.selectedImages = [];
+        state.transcribedText = '';
+        state.cleanedText = '';
+        
+        render();
+        showMessage('Volviendo al menú principal', 'success');
+    };
+    
+    // FUNCIÓN para renderizar el header unificado
+    function renderUnifiedHeader() {
+        return `
+            <div class="unified-header">
+                <!-- Logo/Marca "Priii" -->
+                <div class="priii-logo" onclick="goToMainMenuUnified()" title="Ir al menú principal">
+                    Priii
+                </div>
+                
+                <!-- Botón Menú Central -->
+                <div class="center-menu">
+                    <button onclick="goToMainMenuUnified()" class="menu-button">
+                        <span class="menu-icon">🏠</span>
+                        <span class="menu-text">Menú</span>
+                    </button>
+                </div>
+                
+                <!-- Botones de la derecha -->
+                <div class="right-buttons">
+                    <button onclick="configureAPI()" class="header-btn api-btn" title="Configurar API de Anthropic">
+                        <span class="btn-icon">🔑</span>
+                        <span class="btn-text">API</span>
+                        <span class="api-status ${state.apiKey ? 'active' : 'inactive'}"></span>
+                    </button>
+                    
+                    <button onclick="toggleUserProfile()" class="header-btn profile-btn" title="Perfil de usuario">
+                        <span class="btn-icon">👤</span>
+                        <span class="btn-text">${state.currentUser.name.split(' ')[0]}</span>
+                    </button>
+                </div>
+            </div>
+            
+            <style>
+                .unified-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 15px 25px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                    position: relative;
+                    z-index: 1000;
+                }
+                
+                /* Logo Priii */
+                .priii-logo {
+                    font-size: 2.5rem;
+                    font-weight: 900;
+                    background: linear-gradient(45deg, #fff, #f0f9ff);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                    text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    font-family: 'Comic Sans MS', cursive, sans-serif;
+                    letter-spacing: -2px;
+                    transform: rotate(-2deg);
+                    user-select: none;
+                }
+                
+                .priii-logo:hover {
+                    transform: rotate(0deg) scale(1.05);
+                    filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+                }
+                
+                /* Menú Central */
+                .center-menu {
+                    position: absolute;
+                    left: 50%;
+                    transform: translateX(-50%);
+                }
+                
+                .menu-button {
+                    background: rgba(255,255,255,0.15);
+                    border: 2px solid rgba(255,255,255,0.3);
+                    border-radius: 25px;
+                    color: white;
+                    padding: 12px 24px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    transition: all 0.3s ease;
+                    backdrop-filter: blur(10px);
+                }
+                
+                .menu-button:hover {
+                    background: rgba(255,255,255,0.25);
+                    border-color: rgba(255,255,255,0.5);
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+                }
+                
+                .menu-icon {
+                    font-size: 18px;
+                }
+                
+                /* Botones de la derecha */
+                .right-buttons {
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                }
+                
+                .header-btn {
+                    background: rgba(255,255,255,0.1);
+                    border: 1px solid rgba(255,255,255,0.2);
+                    border-radius: 20px;
+                    color: white;
+                    padding: 10px 16px;
+                    font-size: 14px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    transition: all 0.2s ease;
+                    position: relative;
+                }
+                
+                .header-btn:hover {
+                    background: rgba(255,255,255,0.2);
+                    border-color: rgba(255,255,255,0.4);
+                    transform: translateY(-1px);
+                }
+                
+                .btn-icon {
+                    font-size: 16px;
+                }
+                
+                /* Indicador de estado API */
+                .api-status {
+                    position: absolute;
+                    top: -2px;
+                    right: -2px;
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 50%;
+                    border: 2px solid white;
+                }
+                
+                .api-status.active {
+                    background: #22c55e;
+                    box-shadow: 0 0 6px rgba(34, 197, 94, 0.8);
+                }
+                
+                .api-status.inactive {
+                    background: #ef4444;
+                }
+                
+                /* Responsive */
+                @media (max-width: 768px) {
+                    .unified-header {
+                        padding: 12px 15px;
+                    }
+                    
+                    .priii-logo {
+                        font-size: 2rem;
+                    }
+                    
+                    .menu-button {
+                        padding: 10px 16px;
+                        font-size: 14px;
+                    }
+                    
+                    .menu-text,
+                    .btn-text {
+                        display: none;
+                    }
+                    
+                    .header-btn {
+                        padding: 10px 12px;
+                    }
+                }
+                
+                @media (max-width: 480px) {
+                    .center-menu {
+                        position: static;
+                        transform: none;
+                        order: -1;
+                        margin-right: auto;
+                        margin-left: 10px;
+                    }
+                    
+                    .unified-header {
+                        flex-wrap: wrap;
+                        gap: 10px;
+                    }
+                }
+            </style>
+        `;
+    }
+    
+    // INTERCEPTAR la función render principal para usar el header unificado
+    const originalRenderForUnifiedHeader = window.render;
+    window.render = function() {
+        const app = document.getElementById('app');
+        
+        if (!state.currentUser) {
+            // Pantallas de login - usar función original
+            originalRenderForUnifiedHeader.call(this);
+        } else {
+            // Usuario logueado - usar header unificado
+            
+            let contentHTML = '';
+            
+            if (showIntermediateScreen) {
+                // Pantalla intermedia (menú principal)
+                contentHTML = renderIntermediateScreen();
+            } else {
+                // Otras pantallas - renderizar solo el contenido sin header
+                contentHTML = renderTabContent();
+            }
+            
+            app.innerHTML = `
+                <div class="container" style="padding: 0; max-width: none; margin: 0; border-radius: 0; box-shadow: none; background: transparent;">
+                    ${renderUnifiedHeader()}
+                    
+                    <div style="padding: 20px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); min-height: calc(100vh - 80px);">
+                        <div id="messages" style="max-width: 1400px; margin: 0 auto 20px auto;"></div>
+                        <div style="max-width: 1400px; margin: 0 auto;">
+                            ${contentHTML}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Renderizar modal de perfil si está activo
+        renderUserProfileModal();
+    };
+    
+    // LIMPIAR funciones de navegación redundantes ya que ahora todo se maneja desde el header
+    // Mantener las funciones existentes por compatibilidad pero simplificarlas
+    
+    window.backToIntermediateScreen = goToMainMenuUnified;
+    window.backToMainMenu = goToMainMenuUnified;
+    window.backToMainMenuFromCards = goToMainMenuUnified;
+    
+    // INTERCEPTAR funciones que podrían añadir botones redundantes
+    const originalAddNavigationButtons = window.addNavigationButtons || function() {};
+    window.addNavigationButtons = function() {
+        // No hacer nada - el header unificado maneja toda la navegación
+        console.log('🚫 Navegación redundante bloqueada - usando header unificado');
+    };
+    
+    // INTERCEPTAR función addUniversalMenuButton
+    const originalAddUniversalMenuButton = window.addUniversalMenuButton || function() {};
+    window.addUniversalMenuButton = function() {
+        // No hacer nada - el header unificado ya incluye el botón
+        console.log('🚫 Botón menú redundante bloqueado - usando header unificado');
+    };
+    
+    // ACTUALIZAR estilos globales para el nuevo diseño
+    const unifiedHeaderStyles = document.createElement('style');
+    unifiedHeaderStyles.textContent = `
+        /* Reset de estilos del container original */
+        body {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Ocultar headers redundantes */
+        .header:not(.unified-header) {
+            display: none !important;
+        }
+        
+        /* Ocultar botones de navegación redundantes */
+        #cross-navigation,
+        #universal-menu-button {
+            display: none !important;
+        }
+        
+        /* Ajustar mensaje de notificaciones para el nuevo header */
+        #messages .message {
+            position: relative;
+            z-index: 999;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        
+        /* Mejorar contraste en pantalla intermedia */
+        .container > div:not(.unified-header) {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+    `;
+    
+    // Reemplazar estilos anteriores
+    const existingStyles = document.getElementById('unified-header-styles');
+    if (existingStyles) {
+        existingStyles.remove();
+    }
+    
+    unifiedHeaderStyles.id = 'unified-header-styles';
+    document.head.appendChild(unifiedHeaderStyles);
+    
+    console.log('✅ Header unificado "Priii" implementado correctamente');
+    console.log('🎨 Características:');
+    console.log('   - Logo "Priii" divertido a la izquierda');
+    console.log('   - Botón Menú centrado');
+    console.log('   - Botones API y Perfil a la derecha');
+    console.log('   - Modal de perfil completo');
+    console.log('   - Headers redundantes eliminados');
+    console.log('   - Responsive design');
+    
+    // Forzar re-renderizado inmediato
+    setTimeout(() => {
+        if (state.currentUser && typeof window.render === 'function') {
+            render();
+        }
+    }, 100);
+</script>
 </body>
 </html>
+
 
 
 
