@@ -9711,8 +9711,127 @@ function markAsReady() {
     showMessage('Función "Listo" será implementada en el siguiente paso', 'success');
 }
 </script>
+    <script>
+// ========== MODO DESARROLLADOR PARA TESTING ==========
+console.log('🧪 Implementando modo desarrollador...');
+
+let devMode = false;
+
+// Función para activar modo desarrollador
+window.toggleDevMode = function() {
+    devMode = !devMode;
+    console.log('🧪 Modo desarrollador:', devMode ? 'ACTIVADO' : 'DESACTIVADO');
+    showMessage(`Modo desarrollador ${devMode ? 'activado' : 'desactivado'}`, 'success');
+    
+    if (multiplayerState.currentRoom) {
+        render(); // Re-renderizar para mostrar controles de desarrollo
+    }
+};
+
+// Función para simular un oponente (solo en modo dev)
+window.simulateOpponent = function() {
+    if (!devMode || !multiplayerState.currentRoom || !multiplayerState.isHost) return;
+    
+    const fakeOpponent = {
+        username: 'TestBot',
+        name: 'Bot de Prueba',
+        questions: 15,
+        ready: false
+    };
+    
+    database.ref('rooms/' + multiplayerState.currentRoom + '/guest').set(fakeOpponent)
+        .then(() => {
+            console.log('🤖 Bot de prueba añadido');
+            showMessage('Bot de prueba conectado', 'success');
+        });
+};
+
+// Función para que el bot se marque como listo
+window.markBotReady = function() {
+    if (!devMode || !multiplayerState.currentRoom) return;
+    
+    database.ref('rooms/' + multiplayerState.currentRoom + '/guest/ready').set(true);
+};
+
+// Función para remover el bot
+window.removeBot = function() {
+    if (!devMode || !multiplayerState.currentRoom) return;
+    
+    database.ref('rooms/' + multiplayerState.currentRoom + '/guest').remove();
+};
+
+// Activar modo dev con combinación de teclas: Ctrl + Shift + D
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        toggleDevMode();
+    }
+});
+
+console.log('🧪 Modo desarrollador listo. Usa Ctrl+Shift+D para activar');
+</script>
+    <script>
+// ========== MODO DESARROLLADOR PARA TESTING ==========
+console.log('🧪 Implementando modo desarrollador...');
+
+let devMode = false;
+
+// Función para activar modo desarrollador
+window.toggleDevMode = function() {
+    devMode = !devMode;
+    console.log('🧪 Modo desarrollador:', devMode ? 'ACTIVADO' : 'DESACTIVADO');
+    showMessage(`Modo desarrollador ${devMode ? 'activado' : 'desactivado'}`, 'success');
+    
+    if (multiplayerState.currentRoom) {
+        render(); // Re-renderizar para mostrar controles de desarrollo
+    }
+};
+
+// Función para simular un oponente (solo en modo dev)
+window.simulateOpponent = function() {
+    if (!devMode || !multiplayerState.currentRoom || !multiplayerState.isHost) return;
+    
+    const fakeOpponent = {
+        username: 'TestBot',
+        name: 'Bot de Prueba',
+        questions: 15,
+        ready: false
+    };
+    
+    database.ref('rooms/' + multiplayerState.currentRoom + '/guest').set(fakeOpponent)
+        .then(() => {
+            console.log('🤖 Bot de prueba añadido');
+            showMessage('Bot de prueba conectado', 'success');
+        });
+};
+
+// Función para que el bot se marque como listo
+window.markBotReady = function() {
+    if (!devMode || !multiplayerState.currentRoom) return;
+    
+    database.ref('rooms/' + multiplayerState.currentRoom + '/guest/ready').set(true);
+};
+
+// Función para remover el bot
+window.removeBot = function() {
+    if (!devMode || !multiplayerState.currentRoom) return;
+    
+    database.ref('rooms/' + multiplayerState.currentRoom + '/guest').remove();
+};
+
+// Activar modo dev con combinación de teclas: Ctrl + Shift + D
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        toggleDevMode();
+    }
+});
+
+console.log('🧪 Modo desarrollador listo. Usa Ctrl+Shift+D para activar');
+</script>
 </body>
 </html>
+
 
 
 
