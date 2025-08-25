@@ -7757,9 +7757,627 @@ Versión corregida con botón en header y diseño mejorado
         }
     }, 100);
 </script>
-   
+   <!-- 
+PARCHE: HEADER UNIFICADO CORREGIDO + TARJETAS INFINITAS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche corrige completamente el header y hace las tarjetas infinitas
+-->
+
+<script>
+    // ========== PARCHE: HEADER UNIFICADO CORREGIDO + TARJETAS INFINITAS ==========
+    console.log('🔧 Implementando header unificado corregido...');
+    
+    // FUNCIÓN UNIVERSAL para volver al menú principal
+    window.backToMainMenu = function() {
+        console.log('🏠 Volviendo al menú principal...');
+        
+        // Guardar datos si hay usuario activo
+        if (state.currentUser) {
+            try {
+                RealDataManager.saveFromGlobalData(state.currentUser.username);
+            } catch (error) {
+                console.warn('⚠️ Error al guardar:', error);
+            }
+        }
+        
+        // Resetear todos los estados
+        showIntermediateScreen = true;
+        state.currentTab = 'upload';
+        state.currentViewingResult = null;
+        
+        // Limpiar estados específicos
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = 'create';
+            summarySystemState.viewingSummary = null;
+        }
+        
+        if (typeof memoryCardsState !== 'undefined') {
+            memoryCardsState.showAnswer = false;
+            memoryCardsState.currentIndex = 0;
+        }
+        
+        render();
+        showMessage('Volviendo al menú principal', 'success');
+    };
+    
+    // INTERCEPTAR Y REEMPLAZAR completamente la función render
+    const originalRender = window.render;
+    window.render = function() {
+        const app = document.getElementById('app');
+        
+        // Si no hay usuario, usar render original para login
+        if (!state.currentUser) {
+            originalRender.call(this);
+            return;
+        }
+        
+        // HEADER UNIFICADO para todas las pantallas con usuario
+        let pageTitle = 'Sistema de Exámenes';
+        if (state.currentTab === 'questions') pageTitle = 'Banco de Preguntas';
+        else if (state.currentTab === 'results') pageTitle = 'Resultados del Test';
+        else if (state.currentTab === 'summary') pageTitle = 'Generador de Resúmenes';
+        else if (state.currentTab === 'memory-cards') pageTitle = 'Tarjetas de Memoria';
+        else if (state.currentTab === 'test') pageTitle = 'Test Aleatorio';
+        
+        const unifiedHeader = `
+            <div class="unified-header">
+                <div class="unified-title">${pageTitle}</div>
+                <div class="unified-nav">
+                    <span class="api-status" style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                        ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                    </span>
+                    <button onclick="backToMainMenu()" class="unified-btn unified-btn-menu">🏠 Menú</button>
+                    <button onclick="configureAPI()" class="unified-btn unified-btn-secondary">API</button>
+                    <span class="user-name">👤 ${state.currentUser.name}</span>
+                    <button onclick="logout()" class="unified-btn unified-btn-danger">Salir</button>
+                </div>
+            </div>
+        `;
+        
+        // Pantalla de bienvenida (menú principal)
+        if (showIntermediateScreen) {
+            app.innerHTML = `
+                <div class="container">
+                    ${unifiedHeader}
+                    ${renderIntermediateScreen()}
+                </div>
+            `;
+            return;
+        }
+        
+        // Secciones especiales sin nav-tabs
+        if (state.currentTab === 'summary') {
+            app.innerHTML = `
+                <div class="container">
+                    ${unifiedHeader}
+                    <div id="messages"></div>
+                    ${renderSummarySystem()}
+                </div>
+            `;
+            return;
+        }
+        
+        if (state.currentTab === 'memory-cards') {
+            app.innerHTML = `
+                <div class="container">
+                    ${unifiedHeader}
+                    <div id="messages"></div>
+                    ${renderMemoryCards()}
+                </div>
+            `;
+            return;
+        }
+        
+        // Secciones normales con nav-tabs
+        app.innerHTML = `
+            <div class="container">
+                ${unifiedHeader}
+                
+                <div class="nav-tabs">
+                    <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
+                        📤 Subir Test
+                    </button>
+                    <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
+                        📋 Banco de Preguntas (${getFilteredQuestions().length})
+                    </button>
+                    <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
+                        🎯 Test Aleatorio
+                    </button>
+                    <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                        📊 Resultados (${state.testResults.length})
+                    </button>
+                </div>
+
+                <div id="messages"></div>
+                ${renderTabContent()}
+            </div>
+        `;
+    };
+    
+    // SISTEMA DE TARJETAS DE MEMORIA INFINITAS
+    window.memoryCardsState = {
+        verifiedQuestions: [],
+        currentIndex: 0,
+        showAnswer: false,
+        usedIndices: new Set(),
+        lastShuffleTime: 0
+    };
+    
+    // Cargar preguntas verificadas
+    window.loadVerifiedQuestions = function() {
+        memoryCardsState.verifiedQuestions = state.questions.filter(q => q.verified === true);
+        memoryCardsState.currentIndex = 0;
+        memoryCardsState.showAnswer = false;
+        memoryCardsState.usedIndices = new Set();
+        
+        if (memoryCardsState.verifiedQuestions.length === 0) {
+            showMessage('No hay preguntas verificadas. Ve al Banco de Preguntas y marca algunas con ⭐', 'warning');
+        }
+    };
+    
+    // Obtener siguiente tarjeta de forma infinita
+    window.getNextCardIndex = function() {
+        if (memoryCardsState.verifiedQuestions.length === 0) return 0;
+        
+        // Si hemos usado todas, resetear y mezclar
+        if (memoryCardsState.usedIndices.size >= memoryCardsState.verifiedQuestions.length) {
+            memoryCardsState.usedIndices.clear();
+            
+            // Mezclar array para nueva ronda
+            for (let i = memoryCardsState.verifiedQuestions.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [memoryCardsState.verifiedQuestions[i], memoryCardsState.verifiedQuestions[j]] = 
+                [memoryCardsState.verifiedQuestions[j], memoryCardsState.verifiedQuestions[i]];
+            }
+            
+            memoryCardsState.currentIndex = 0;
+        } else {
+            // Buscar siguiente índice no usado
+            do {
+                memoryCardsState.currentIndex = (memoryCardsState.currentIndex + 1) % memoryCardsState.verifiedQuestions.length;
+            } while (memoryCardsState.usedIndices.has(memoryCardsState.currentIndex));
+        }
+        
+        memoryCardsState.usedIndices.add(memoryCardsState.currentIndex);
+        return memoryCardsState.currentIndex;
+    };
+    
+    // Obtener anterior tarjeta
+    window.getPreviousCardIndex = function() {
+        if (memoryCardsState.verifiedQuestions.length === 0) return 0;
+        
+        // Simplemente ir al anterior sin complejidad
+        memoryCardsState.currentIndex = (memoryCardsState.currentIndex - 1 + memoryCardsState.verifiedQuestions.length) % memoryCardsState.verifiedQuestions.length;
+        return memoryCardsState.currentIndex;
+    };
+    
+    // Navegación de tarjetas
+    window.nextCard = function() {
+        getNextCardIndex();
+        memoryCardsState.showAnswer = false;
+        render();
+    };
+    
+    window.prevCard = function() {
+        getPreviousCardIndex();
+        memoryCardsState.showAnswer = false;
+        render();
+    };
+    
+    window.toggleAnswer = function() {
+        memoryCardsState.showAnswer = !memoryCardsState.showAnswer;
+        render();
+    };
+    
+    // Renderizar tarjetas de memoria
+    window.renderMemoryCards = function() {
+        if (memoryCardsState.verifiedQuestions.length === 0) {
+            return `
+                <div style="text-align: center; padding: 50px;">
+                    <h2>📚 Tarjetas de Memoria</h2>
+                    <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3>🔍 No hay preguntas verificadas</h3>
+                        <p>Para usar las tarjetas de memoria necesitas preguntas verificadas.</p>
+                        <p><strong>Pasos:</strong></p>
+                        <ol style="text-align: left; display: inline-block;">
+                            <li>Ve a "Banco de Preguntas"</li>
+                            <li>Haz clic en ⭐ junto a las preguntas que quieras incluir</li>
+                            <li>Vuelve aquí para practicar</li>
+                        </ol>
+                        <button onclick="setTab('questions')" class="btn btn-primary" style="margin-top: 15px;">
+                            📋 Ir al Banco de Preguntas
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        const currentQuestion = memoryCardsState.verifiedQuestions[memoryCardsState.currentIndex];
+        const totalCards = memoryCardsState.verifiedQuestions.length;
+        const cardNumber = memoryCardsState.currentIndex + 1;
+        
+        return `
+            <div class="memory-cards-container">
+                <div class="memory-card-header">
+                    <h2>🃏 Tarjetas de Memoria</h2>
+                    <div class="card-counter">Tarjeta ${cardNumber} / ${totalCards}</div>
+                </div>
+                
+                <div class="memory-card ${memoryCardsState.showAnswer ? 'showing-answer' : ''}">
+                    <div class="card-corner"></div>
+                    
+                    <div class="card-topic">
+                        📁 ${currentQuestion.topic || 'Sin tema'}
+                    </div>
+                    
+                    <div class="card-question">
+                        ${currentQuestion.question}
+                    </div>
+                    
+                    ${memoryCardsState.showAnswer ? `
+                        <div class="card-answer">
+                            <div class="answer-label">✅ Respuesta Correcta:</div>
+                            <div class="answer-text">${currentQuestion.correctAnswer}</div>
+                        </div>
+                    ` : `
+                        <div class="card-thinking">
+                            🤔 Piensa en la respuesta...
+                        </div>
+                    `}
+                    
+                    <div class="card-controls">
+                        <button onclick="prevCard()" class="card-btn card-btn-nav">
+                            ← Anterior
+                        </button>
+                        
+                        <button onclick="toggleAnswer()" class="card-btn card-btn-reveal">
+                            ${memoryCardsState.showAnswer ? '🙈 Ocultar' : '👁️ Ver Respuesta'}
+                        </button>
+                        
+                        <button onclick="nextCard()" class="card-btn card-btn-nav">
+                            Siguiente →
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card-instructions">
+                    <strong>⌨️ Atajos:</strong> ← → (navegar) • Espacio (ver/ocultar) • Esc (menú)
+                </div>
+            </div>
+        `;
+    };
+    
+    // Event listeners para tarjetas
+    document.addEventListener('keydown', function(e) {
+        if (state.currentTab !== 'memory-cards' || memoryCardsState.verifiedQuestions.length === 0) return;
+        
+        switch(e.code) {
+            case 'ArrowLeft':
+            case 'KeyA':
+                e.preventDefault();
+                prevCard();
+                break;
+            case 'ArrowRight':
+            case 'KeyD':
+                e.preventDefault();
+                nextCard();
+                break;
+            case 'Space':
+            case 'Enter':
+                e.preventDefault();
+                toggleAnswer();
+                break;
+            case 'Escape':
+                e.preventDefault();
+                backToMainMenu();
+                break;
+        }
+    });
+    
+    // ESTILOS CSS para header unificado y tarjetas infinitas
+    const unifiedStyles = document.createElement('style');
+    unifiedStyles.textContent = `
+        /* HEADER UNIFICADO */
+        .unified-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px 0;
+            border-bottom: 2px solid #e5e5e5;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-radius: 8px 8px 0 0;
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+        
+        .unified-title {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #1f2937;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        .unified-nav {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .api-status {
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.8);
+        }
+        
+        .unified-btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .unified-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .unified-btn-menu {
+            background: #0ea5e9;
+            color: white;
+        }
+        
+        .unified-btn-menu:hover {
+            background: #0284c7;
+        }
+        
+        .unified-btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .unified-btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .unified-btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .unified-btn-danger:hover {
+            background: #dc2626;
+        }
+        
+        .user-name {
+            color: #f59e0b;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        /* TARJETAS DE MEMORIA INFINITAS */
+        .memory-cards-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .memory-card-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .memory-card-header h2 {
+            color: #1f2937;
+            margin-bottom: 10px;
+        }
+        
+        .card-counter {
+            background: #f3f4f6;
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: inline-block;
+            font-weight: 600;
+            color: #6b7280;
+        }
+        
+        .memory-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            margin: 30px auto;
+            max-width: 600px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            position: relative;
+            transform: perspective(1000px) rotateX(2deg) rotateY(-2deg);
+            transition: all 0.3s ease;
+            animation: cardFloat 6s ease-in-out infinite;
+        }
+        
+        .memory-card:hover {
+            transform: perspective(1000px) rotateX(0deg) rotateY(0deg);
+        }
+        
+        .card-corner {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-top: 20px solid #f3f4f6;
+            border-top-right-radius: 16px;
+        }
+        
+        .card-topic {
+            background: linear-gradient(135deg, #8b5cf6, #a855f7);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: inline-block;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+        }
+        
+        .card-question {
+            font-size: 1.3rem;
+            line-height: 1.6;
+            color: #1f2937;
+            margin-bottom: 30px;
+            min-height: 60px;
+        }
+        
+        .card-answer {
+            background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            border-left: 4px solid #10b981;
+            animation: shimmer 2s ease-in-out;
+        }
+        
+        .answer-label {
+            color: #059669;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .answer-text {
+            color: #065f46;
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+        
+        .card-thinking {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6b7280;
+            font-size: 1.1rem;
+            font-style: italic;
+        }
+        
+        .card-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .card-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex: 1;
+        }
+        
+        .card-btn-nav {
+            background: #f3f4f6;
+            color: #4b5563;
+        }
+        
+        .card-btn-nav:hover {
+            background: #e5e7eb;
+            transform: translateY(-1px);
+        }
+        
+        .card-btn-reveal {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            flex: 2;
+        }
+        
+        .card-btn-reveal:hover {
+            background: linear-gradient(135deg, #1d4ed8, #1e3a8a);
+            transform: translateY(-1px);
+        }
+        
+        .card-instructions {
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+        
+        @keyframes cardFloat {
+            0%, 100% { transform: perspective(1000px) rotateX(2deg) rotateY(-2deg) translateY(0px); }
+            50% { transform: perspective(1000px) rotateX(2deg) rotateY(-2deg) translateY(-5px); }
+        }
+        
+        @keyframes shimmer {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        
+        @media (max-width: 768px) {
+            .unified-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .unified-nav {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .memory-card {
+                margin: 20px;
+                padding: 30px 20px;
+                transform: none;
+            }
+            
+            .card-controls {
+                flex-direction: column;
+            }
+            
+            .card-btn {
+                width: 100%;
+            }
+        }
+    `;
+    
+    if (!document.getElementById('unified-fixed-styles')) {
+        unifiedStyles.id = 'unified-fixed-styles';
+        document.head.appendChild(unifiedStyles);
+    }
+    
+    // INICIALIZAR cuando se va a tarjetas
+    const originalSetTab = window.setTab;
+    window.setTab = function(tab) {
+        showIntermediateScreen = false;
+        state.currentTab = tab;
+        state.currentViewingResult = null;
+        
+        if (tab === 'memory-cards') {
+            loadVerifiedQuestions();
+        }
+        
+        render();
+    };
+    
+    console.log('✅ Header unificado corregido implementado');
+    console.log('🃏 Tarjetas infinitas implementadas');
+    
+    // Forzar renderizado
+    setTimeout(render, 100);
+</script>
 </body>
 </html>
+
 
 
 
