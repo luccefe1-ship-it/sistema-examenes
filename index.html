@@ -997,7 +997,7 @@
         function removeImage(index) {
             state.selectedImages.splice(index, 1);
             render();
-            
+            showMessage('Imagen eliminada', 'success');
         }
 
         async function transcribeImages() {
@@ -2770,7 +2770,7 @@ Genera un resumen que sea verdaderamente útil para alguien que quiere entender 
             summaryState.isProcessing = false;
             
             render();
-            
+            showMessage('¡Resumen generado exitosamente!', 'success');
             
         } catch (error) {
             summaryState.isProcessing = false;
@@ -5205,7 +5205,7 @@ Este parche implementa un sistema completo de cuentas con persistencia de datos 
         loginState.currentView = 'login';
         
         render();
-        
+        showMessage('Sesión cerrada correctamente', 'success');
     };
     
     // Función para cambiar contraseña
@@ -6373,14 +6373,35 @@ Este parche corrige específicamente el problema del botón "Crear Mi Cuenta"
         }
     };
     
-// Función showMessage desactivada - no mostrar notificaciones
-window.showMessage = function(message, type) {
-    // Solo mostrar errores en consola, ignorar mensajes de éxito
-    if (type === 'error') {
-        console.error(message);
+    // ASEGURAR que la función showMessage existe
+    if (typeof window.showMessage !== 'function') {
+        window.showMessage = function(message, type) {
+            console.log(`${type.toUpperCase()}: ${message}`);
+            
+            // Crear mensaje visual si no existe
+            let messagesDiv = document.getElementById('messages');
+            if (!messagesDiv) {
+                messagesDiv = document.createElement('div');
+                messagesDiv.id = 'messages';
+                messagesDiv.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    z-index: 9999;
+                    max-width: 400px;
+                `;
+                document.body.appendChild(messagesDiv);
+            }
+            
+            const messageClass = type === 'success' ? 'success' : 'error';
+            messagesDiv.innerHTML = `<div class="message ${messageClass}">${message}</div>`;
+            
+            // Remover mensaje después de 5 segundos
+            setTimeout(() => {
+                messagesDiv.innerHTML = '';
+            }, 5000);
+        };
     }
-    // No crear elementos DOM ni mostrar notificaciones visuales
-};
     
     // VERIFICAR que newLoginState existe
     if (typeof window.newLoginState === 'undefined') {
@@ -6814,7 +6835,7 @@ Este parche añade navegación entre Tests y Resúmenes, y botón de vuelta al m
         }
         
         render();
-        
+        showMessage('Cambiando a la sección de Tests', 'success');
     };
     
     // FUNCIÓN para ir directamente a Resúmenes
@@ -6831,7 +6852,7 @@ Este parche añade navegación entre Tests y Resúmenes, y botón de vuelta al m
         }
         
         render();
-        
+        showMessage('Cambiando a la sección de Resúmenes', 'success');
     };
     
     // INTERCEPTAR la función render para añadir botones de navegación
@@ -7056,7 +7077,7 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
             
             showIntermediateScreen = true;
             render();
-            
+            showMessage(`Bienvenido ${loginResult.user.name}`, 'success');
         } else {
             showMessage(loginResult.message, 'error');
         }
@@ -7228,7 +7249,7 @@ Versión corregida con botón en header y diseño mejorado
         loadVerifiedQuestions();
         
         render();
-      
+        showMessage('Cambiando a Tarjetas de Memoria', 'success');
     };
     
     // FUNCIÓN para volver al menú desde tarjetas
@@ -7237,7 +7258,7 @@ Versión corregida con botón en header y diseño mejorado
         showIntermediateScreen = true;
         state.currentTab = 'upload';
         render();
-        
+        showMessage('Volviendo al menú principal', 'success');
     };
     
     // FUNCIÓN para cargar preguntas verificadas
@@ -7295,98 +7316,35 @@ Versión corregida con botón en header y diseño mejorado
         showMessage('Tarjetas mezcladas aleatoriamente', 'success');
     }
     
-function renderMemoryCardsTab() {
-    if (memoryCardsState.verifiedQuestions.length === 0) {
-        return `
-            <div style="max-width: 800px; margin: 0 auto; text-align: center; padding: 40px 20px;">
-                <div style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-                    <span style="font-size: 3rem; color: white;">🃏</span>
-                </div>
-                <h2 style="color: #1f2937; margin: 0 0 15px 0; font-size: 2rem;">No hay tarjetas disponibles</h2>
-                <p style="color: #6b7280; margin: 0 0 20px 0; font-size: 1rem;">
-                    Necesitas preguntas <strong>verificadas</strong> (⭐) en tu banco de preguntas.
-                </p>
-                <button onclick="goToTestsFromSummary()" class="btn btn-primary" style="padding: 12px 20px;">
-                    📋 Ir al Banco de Preguntas
-                </button>
-            </div>
-        `;
-    }
-    
-    const currentCard = memoryCardsState.currentCard;
-    const cardNumber = memoryCardsState.cardIndex + 1;
-    const totalCards = memoryCardsState.verifiedQuestions.length;
-    const topicName = currentCard.topicId ? getTopicName(currentCard.topicId) : 'General';
-    
-    return `
-        <div style="max-width: 900px; margin: 0 auto; padding: 10px;">
-            <div style="text-align: center; margin-bottom: 15px;">
-                <h1 style="color: #1f2937; margin: 0; font-size: 1.8rem;">🃏 Tarjetas de Memoria</h1>
-                <p style="color: #6b7280; margin: 2px 0 0 0; font-size: 13px;">Tarjeta ${cardNumber} de ${totalCards}</p>
-            </div>
-            
-            <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 20px;">
-                <button onclick="shuffleCards()" class="btn btn-warning" style="padding: 8px 16px; display: flex; align-items: center; gap: 6px;">
-                    🔀 Mezclar
-                </button>
-                <div style="background: #4f46e5; color: white; padding: 8px 16px; border-radius: 16px; font-weight: 600;">
-                    ${cardNumber} / ${totalCards}
-                </div>
-            </div>
-            
-            <div style="background: white; border-radius: 16px; box-shadow: 0 8px 25px rgba(0,0,0,0.12); margin: 0 auto 20px; max-width: 700px; border: 2px solid #e2e8f0; position: relative;">
-                <div style="position: absolute; top: -6px; right: 12px; background: #3b82f6; color: white; padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 600;">
-                    ⭐ Verificada
-                </div>
-                
-                <div style="padding: 25px;">
-                    <div style="margin-bottom: 20px;">
-                        <div style="display: inline-block; background: #8b5cf6; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; margin-bottom: 15px;">
-                            📁 ${topicName}
-                        </div>
-                        <div style="font-size: 1.1rem; color: #1f2937; background: #f8fafc; padding: 18px; border-radius: 10px; border-left: 4px solid #4f46e5;">
-                            ${currentCard.question}
-                        </div>
+    // FUNCIÓN para renderizar la sección de tarjetas de memoria
+    function renderMemoryCardsTab() {
+        if (memoryCardsState.verifiedQuestions.length === 0) {
+            return `
+                <div style="max-width: 800px; margin: 0 auto; text-align: center; padding: 80px 20px;">
+                    <div style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 120px; height: 120px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(245, 158, 11, 0.3);">
+                        <span style="font-size: 4rem; color: white;">🃏</span>
                     </div>
-                    
-                    <div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                            <span style="font-size: 12px; color: #6b7280; font-weight: 600;">✅ RESPUESTA CORRECTA</span>
-                            <button onclick="toggleAnswer()" class="btn ${memoryCardsState.showAnswer ? 'btn-secondary' : 'btn-success'}" style="padding: 6px 14px; font-size: 13px; border-radius: 16px;">
-                                ${memoryCardsState.showAnswer ? '🙈 Ocultar' : '👁️ Ver Respuesta'}
-                            </button>
-                        </div>
-                        
-                        <div style="min-height: 60px; background: ${memoryCardsState.showAnswer ? '#f0fdf4' : '#f9fafb'}; border: 2px ${memoryCardsState.showAnswer ? 'solid #22c55e' : 'dashed #d1d5db'}; border-radius: 10px; padding: 18px; display: flex; align-items: center; justify-content: center;">
-                            ${memoryCardsState.showAnswer ? `
-                                <div style="text-align: center;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; color: #166534; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                                        <span>✅</span>
-                                        <span>${String.fromCharCode(97 + currentCard.correctAnswer).toUpperCase()}) ${currentCard.options[currentCard.correctAnswer]}</span>
-                                    </div>
-                                </div>
-                            ` : `
-                                <div style="color: #9ca3af; text-align: center;">
-                                    <div style="font-size: 2rem; margin-bottom: 8px;">🤔</div>
-                                    <div style="font-size: 14px;">Haz clic en "Ver Respuesta"</div>
-                                </div>
-                            `}
-                        </div>
+                    <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 2.5rem;">No hay tarjetas disponibles</h2>
+                    <p style="color: #6b7280; margin: 0 0 30px 0; font-size: 1.2rem; line-height: 1.6;">
+                        Para usar las tarjetas de memoria necesitas tener preguntas <strong>verificadas</strong> (⭐) en tu banco de preguntas.
+                    </p>
+                    <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 12px; padding: 25px; margin-bottom: 30px; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
+                        <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 1.1rem;">📝 ¿Cómo verificar preguntas?</h3>
+                        <ol style="color: #78350f; margin: 0; padding-left: 20px; line-height: 1.8;">
+                            <li>Ve a "Banco de Preguntas"</li>
+                            <li>Busca el botón ☆ junto a cada pregunta</li>
+                            <li>Haz clic para convertirlo en ⭐ (verificada)</li>
+                            <li>Vuelve aquí para practicar con tarjetas</li>
+                        </ol>
+                    </div>
+                    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                        <button onclick="goToTestsFromSummary()" class="btn btn-primary" style="padding: 15px 25px; font-size: 16px;">
+                            📋 Ir al Banco de Preguntas
+                        </button>
                     </div>
                 </div>
-            </div>
-            
-            <div style="display: flex; justify-content: center; gap: 20px;">
-                <button onclick="previousCard()" class="btn btn-secondary" style="padding: 10px 20px; border-radius: 20px; display: flex; align-items: center; gap: 8px;" ${totalCards <= 1 ? 'disabled' : ''}>
-                    ← Anterior
-                </button>
-                <button onclick="nextCard()" class="btn btn-primary" style="padding: 10px 20px; border-radius: 20px; display: flex; align-items: center; gap: 8px;" ${totalCards <= 1 ? 'disabled' : ''}>
-                    Siguiente →
-                </button>
-            </div>
-        </div>
-    `;
-}
+            `;
+        }
         
         const currentCard = memoryCardsState.currentCard;
         const cardNumber = memoryCardsState.cardIndex + 1;
@@ -7536,105 +7494,140 @@ function renderMemoryCardsTab() {
     // INTERCEPTAR la función renderIntermediateScreen para añadir la tercera opción
     const originalRenderIntermediateScreen = renderIntermediateScreen;
     window.renderIntermediateScreen = function() {
-    return `
-        <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: -30px; border-radius: 20px;">
-            <div style="background: white; border-radius: 24px; padding: 60px; box-shadow: 0 25px 50px rgba(0,0,0,0.15); max-width: 600px; width: 100%; text-align: center; position: relative; overflow: hidden;">
-                
-                <!-- Decoración de fondo -->
-                <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: linear-gradient(135deg, #667eea20, #764ba220); border-radius: 50%; z-index: 0;"></div>
-                <div style="position: absolute; bottom: -30px; left: -30px; width: 100px; height: 100px; background: linear-gradient(135deg, #764ba220, #667eea20); border-radius: 50%; z-index: 0;"></div>
-                
-                <!-- Contenido principal -->
-                <div style="position: relative; z-index: 1;">
-                    <!-- Icono principal -->
-                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);">
-                        <span style="font-size: 2.5rem; filter: drop-shadow(0 2px 4px rgba(255,255,255,0.3));">🎯</span>
-                    </div>
+        return `
+            <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: -30px; border-radius: 20px;">
+                <div style="background: white; border-radius: 24px; padding: 60px; box-shadow: 0 25px 50px rgba(0,0,0,0.15); max-width: 600px; width: 100%; text-align: center; position: relative; overflow: hidden;">
                     
-                    <!-- Título principal -->
-                    <h1 style="font-size: 2.8rem; font-weight: 700; margin: 0 0 15px 0; background: linear-gradient(135deg, #2d3748, #4a5568); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
-                        ¡Bienvenido!
-                    </h1>
+                    <!-- Decoración de fondo -->
+                    <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: linear-gradient(135deg, #667eea20, #764ba220); border-radius: 50%; z-index: 0;"></div>
+                    <div style="position: absolute; bottom: -30px; left: -30px; width: 100px; height: 100px; background: linear-gradient(135deg, #764ba220, #667eea20); border-radius: 50%; z-index: 0;"></div>
                     
-                    <!-- Subtítulo -->
-                    <p style="font-size: 1.3rem; color: #6b7280; margin: 0 0 50px 0; font-weight: 400; line-height: 1.5;">
-                        Selecciona qué te gustaría hacer hoy
-                    </p>
-                    
-                    <!-- Botones principales -->
-                    <div style="display: grid; gap: 20px; margin-bottom: 40px;">
+                    <!-- Contenido principal -->
+                    <div style="position: relative; z-index: 1;">
+                        <!-- Icono principal -->
+                        <div style="background: linear-gradient(135deg, #667eea, #764ba2); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);">
+                            <span style="font-size: 2.5rem; filter: drop-shadow(0 2px 4px rgba(255,255,255,0.3));">🎯</span>
+                        </div>
                         
-                        <!-- Botón Realizar Tests -->
-                        <button onclick="goToTests()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; border-radius: 16px; padding: 25px 40px; color: white; font-size: 1.3rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(79, 70, 229, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 25px rgba(79, 70, 229, 0.3)';">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
-                                <span style="font-size: 1.8rem;">📚</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 3px;">Realizar Tests</div>
-                                    <div style="font-size: 0.9rem; opacity: 0.9; font-weight: 400;">Crear y gestionar exámenes</div>
-                                </div>
-                            </div>
-                        </button>
+                        <!-- Título principal -->
+                        <h1 style="font-size: 2.8rem; font-weight: 700; margin: 0 0 15px 0; background: linear-gradient(135deg, #2d3748, #4a5568); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                            ¡Bienvenido!
+                        </h1>
                         
-                        <!-- Botón Ver Resúmenes -->
-                        <button onclick="goToSummaries()" style="background: linear-gradient(135deg, #059669, #0ea5e9); border: none; border-radius: 16px; padding: 25px 40px; color: white; font-size: 1.3rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 10px 25px rgba(5, 150, 105, 0.3);" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(5, 150, 105, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 25px rgba(5, 150, 105, 0.3)';">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
-                                <span style="font-size: 1.8rem;">📊</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 3px;">Ver Resúmenes</div>
-                                    <div style="font-size: 0.9rem; opacity: 0.9; font-weight: 400;">Analizar resultados y estadísticas</div>
-                                </div>
-                            </div>
-                        </button>
+                        <!-- Subtítulo -->
+                        <p style="font-size: 1.3rem; color: #6b7280; margin: 0 0 50px 0; font-weight: 400; line-height: 1.5;">
+                            Selecciona qué te gustaría hacer hoy
+                        </p>
                         
-                        <!-- Botón Tarjetas de Memoria -->
-                        <button onclick="goToMemoryCards()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 25px 40px; color: white; font-size: 1.3rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(245, 158, 11, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 25px rgba(245, 158, 11, 0.3)';">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
-                                <span style="font-size: 1.8rem;">🃏</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 3px;">Tarjetas de Memoria</div>
-                                    <div style="font-size: 0.9rem; opacity: 0.9; font-weight: 400;">Repasar con tarjetas interactivas</div>
+                        <!-- Botones principales -->
+                        <div style="display: grid; gap: 20px; margin-bottom: 40px;">
+                            
+                            <!-- Botón Realizar Tests -->
+                            <button onclick="goToTests()" style="
+                                background: linear-gradient(135deg, #4f46e5, #7c3aed); 
+                                border: none; 
+                                border-radius: 16px; 
+                                padding: 25px 40px; 
+                                color: white; 
+                                font-size: 1.3rem; 
+                                font-weight: 600; 
+                                cursor: pointer; 
+                                transition: all 0.3s ease; 
+                                box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);
+                                "
+                                onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(79, 70, 229, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 25px rgba(79, 70, 229, 0.3)';">
+                                
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+                                    <span style="font-size: 1.8rem;">📚</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 3px;">Realizar Tests</div>
+                                        <div style="font-size: 0.9rem; opacity: 0.9; font-weight: 400;">Crear y gestionar exámenes</div>
+                                    </div>
                                 </div>
-                            </div>
-                        </button>
-                    </div>
-                    
-                    <!-- Footer info -->
-                    <div style="border-top: 1px solid #e5e7eb; padding-top: 25px; color: #9ca3af; font-size: 0.9rem;">
-                        <p style="margin: 0;">Sistema de Exámenes • Usuario: ${state.currentUser.name}</p>
+                            </button>
+                            
+                            <!-- Botón Ver Resúmenes -->
+                            <button onclick="goToSummaries()" style="
+                                background: linear-gradient(135deg, #059669, #0ea5e9); 
+                                border: none; 
+                                border-radius: 16px; 
+                                padding: 25px 40px; 
+                                color: white; 
+                                font-size: 1.3rem; 
+                                font-weight: 600; 
+                                cursor: pointer; 
+                                transition: all 0.3s ease; 
+                                box-shadow: 0 10px 25px rgba(5, 150, 105, 0.3);
+                                "
+                                onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(5, 150, 105, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 25px rgba(5, 150, 105, 0.3)';">
+                                
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+                                    <span style="font-size: 1.8rem;">📊</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 3px;">Ver Resúmenes</div>
+                                        <div style="font-size: 0.9rem; opacity: 0.9; font-weight: 400;">Analizar resultados y estadísticas</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <!-- Botón Tarjetas de Memoria -->
+                            <button onclick="goToMemoryCards()" style="
+                                background: linear-gradient(135deg, #f59e0b, #d97706); 
+                                border: none; 
+                                border-radius: 16px; 
+                                padding: 25px 40px; 
+                                color: white; 
+                                font-size: 1.3rem; 
+                                font-weight: 600; 
+                                cursor: pointer; 
+                                transition: all 0.3s ease; 
+                                box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);
+                                "
+                                onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(245, 158, 11, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 25px rgba(245, 158, 11, 0.3)';">
+                                
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+                                    <span style="font-size: 1.8rem;">🃏</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 3px;">Tarjetas de Memoria</div>
+                                        <div style="font-size: 0.9rem; opacity: 0.9; font-weight: 400;">Repasar con tarjetas interactivas</div>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                        
+                        <!-- Footer info -->
+                        <div style="border-top: 1px solid #e5e7eb; padding-top: 25px; color: #9ca3af; font-size: 0.9rem;">
+                            <p style="margin: 0;">Sistema de Exámenes • Usuario: ${state.currentUser.name}</p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    `;
-};
-
-// Función para ir a tarjetas de memoria
-window.goToMemoryCards = function() {
-    showIntermediateScreen = false;
-    state.currentTab = 'memory-cards';
-    loadVerifiedQuestions();
-    render();
-};
-
-// EXTENDER renderTabContent para incluir memory-cards
-renderTabContent = function() {
-    switch(state.currentTab) {
-        case 'upload':
-            return renderUploadTab();
-        case 'questions':
-            return renderQuestionsTab();
-        case 'test':
-            return renderTestTab();
-        case 'results':
-            return renderResultsTab();
-        case 'summary':
-            return renderSummaryTab();
-        case 'memory-cards':
-            return renderMemoryCardsTab();
-        default:
-            return '<div>Error: Pestaña no encontrada - ' + state.currentTab + '</div>';
-    }
-};
+        `;
+    };
+    
+    // EXTENDER renderTabContent para incluir memory-cards
+    const originalRenderTabContentMemory = renderTabContent;
+    renderTabContent = function() {
+        switch(state.currentTab) {
+            case 'upload':
+                return renderUploadTab();
+            case 'questions':
+                return renderQuestionsTab();
+            case 'test':
+                return renderTestTab();
+            case 'results':
+                return renderResultsTab();
+            case 'summary':
+                return renderSummaryTab();
+            case 'memory-cards':
+                return renderMemoryCardsTab();
+            default:
+                return '<div>Error: Pestaña no encontrada - ' + state.currentTab + '</div>';
+        }
+    };
     
     // EXTENDER render para mostrar botón en header cuando estamos en tarjetas
     const originalRenderMemoryCards = render;
@@ -8689,72 +8682,4 @@ Este parche crea un header consistente con "Priii", botón Menú central, y boto
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
