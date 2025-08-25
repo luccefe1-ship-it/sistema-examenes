@@ -9538,8 +9538,89 @@ function startMultiplayerGame() {
 
 console.log('✅ Paso 3 completado - Crear sala implementado');
 </script>
+    <script>
+// ========== CORRECCIÓN: INICIALIZACIÓN FIREBASE MEJORADA ==========
+
+function initializeFirebase() {
+    try {
+        // Verificar si Firebase ya está inicializado
+        if (firebaseApp) {
+            console.log('Firebase ya estaba inicializado');
+            return true;
+        }
+
+        console.log('Inicializando Firebase con config:', firebaseConfig);
+        
+        firebaseApp = firebase.initializeApp(firebaseConfig);
+        database = firebase.database();
+        
+        // Test de conexión inmediato
+        database.ref('.info/connected').on('value', function(snapshot) {
+            if (snapshot.val() === true) {
+                console.log('✅ Conectado a Firebase Realtime Database');
+                multiplayerEnabled = true;
+            } else {
+                console.log('❌ Desconectado de Firebase');
+                multiplayerEnabled = false;
+            }
+        });
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Error inicializando Firebase:', error);
+        multiplayerEnabled = false;
+        
+        // Intentar usar modo offline
+        console.log('🔧 Activando modo offline para desarrollo');
+        initializeMockDatabase();
+        return false;
+    }
+}
+
+function initializeMockDatabase() {
+    // Simulador simple para desarrollo
+    window.mockRooms = {};
+    
+    database = {
+        ref: function(path) {
+            return {
+                child: function(key) {
+                    return {
+                        set: function(data) {
+                            console.log('Mock: Guardando en', path + '/' + key, data);
+                            if (!window.mockRooms[key]) window.mockRooms[key] = {};
+                            Object.assign(window.mockRooms[key], data);
+                            return Promise.resolve();
+                        },
+                        on: function(event, callback) {
+                            console.log('Mock: Escuchando', path + '/' + key);
+                            // Simular datos para demo
+                            setTimeout(() => callback({ val: () => window.mockRooms[key] }), 100);
+                        },
+                        remove: function() {
+                            delete window.mockRooms[key];
+                            return Promise.resolve();
+                        }
+                    };
+                }
+            };
+        }
+    };
+    
+    multiplayerEnabled = true;
+    console.log('✅ Modo mock activado para desarrollo');
+}
+
+// Reinicializar
+document.addEventListener('DOMContentLoaded', function() {
+    initializeFirebase();
+});
+
+console.log('✅ Sistema de Firebase corregido');
+</script>
 </body>
 </html>
+
 
 
 
