@@ -7976,7 +7976,7 @@ Este parche añade un botón "Menú" consistente en el header de todas las panta
         }
     }, 100);
 </script>
-    <!-- 
+  <!-- 
 PARCHE: HEADER UNIFICADO "PRIII" EN TODAS LAS PANTALLAS
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 Este parche crea un header consistente con "Priii", botón Menú central, y botones API/Perfil
@@ -8514,8 +8514,30 @@ Este parche crea un header consistente con "Priii", botón Menú central, y boto
                 // Pantalla intermedia (menú principal)
                 contentHTML = renderIntermediateScreen();
             } else {
-                // Otras pantallas - renderizar solo el contenido sin header
-                contentHTML = renderTabContent();
+                // Otras pantallas - renderizar contenido con navegación interna cuando corresponda
+                if (state.currentTab !== 'summary' && state.currentTab !== 'memory-cards') {
+                    // Para secciones de tests (upload, questions, test, results) mantener navegación
+                    contentHTML = `
+                        <div class="nav-tabs">
+                            <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
+                                📤 Subir Test
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
+                                📋 Banco de Preguntas (${getFilteredQuestions().length})
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
+                                🎯 Test Aleatorio
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                                📊 Resultados (${state.testResults.length})
+                            </button>
+                        </div>
+                        ${renderTabContent()}
+                    `;
+                } else {
+                    // Para resúmenes y tarjetas de memoria, solo el contenido
+                    contentHTML = renderTabContent();
+                }
             }
             
             app.innerHTML = `
@@ -8572,10 +8594,47 @@ Este parche crea un header consistente con "Priii", botón Menú central, y boto
             display: none !important;
         }
         
-        /* Ocultar botones de navegación redundantes */
+        /* Ocultar botones de navegación redundantes pero mantener navegación interna */
         #cross-navigation,
-        #universal-menu-button {
+        #universal-menu-button,
+        button[onclick*="backToIntermediateScreen"],
+        button[onclick*="backToMainMenu"],
+        button[onclick*="backToMainMenuFromCards"] {
             display: none !important;
+        }
+        
+        /* Estilos para las pestañas de navegación interna */
+        .nav-tabs {
+            display: flex;
+            margin-bottom: 30px;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .nav-tab {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            color: #6b7280;
+        }
+        
+        .nav-tab.active {
+            background: white;
+            color: #4f46e5;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-weight: 600;
+        }
+        
+        .nav-tab:hover:not(.active) {
+            background: rgba(255,255,255,0.5);
+            color: #374151;
         }
         
         /* Ajustar mensaje de notificaciones para el nuevo header */
@@ -8622,6 +8681,7 @@ Este parche crea un header consistente con "Priii", botón Menú central, y boto
 </script>
 </body>
 </html>
+
 
 
 
