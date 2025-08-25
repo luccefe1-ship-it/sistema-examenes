@@ -6793,8 +6793,239 @@ Este parche corrige: 1) Validación de usuarios únicos, 2) Reset de contraseña
         }
     }, 100);
 </script>
+    <!-- 
+PARCHE: SISTEMA DE NAVEGACIÓN CRUZADA ENTRE SECCIONES
+Añadir este código DESPUÉS de todos los parches anteriores, antes de </body>
+Este parche añade navegación entre Tests y Resúmenes, y botón de vuelta al menú principal
+-->
+
+<script>
+    // ========== PARCHE: NAVEGACIÓN CRUZADA ENTRE SECCIONES ==========
+    console.log('🧭 Implementando navegación cruzada...');
+    
+    // FUNCIÓN para volver al menú principal (pantalla de bienvenida)
+    window.backToMainMenu = function() {
+        console.log('🏠 Volviendo al menú principal...');
+        
+        // Resetear estados
+        showIntermediateScreen = true;
+        state.currentTab = 'upload';
+        
+        // Si estamos en resúmenes, resetear estado
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = 'create';
+            summarySystemState.viewingSummary = null;
+        }
+        
+        render();
+        showMessage('Volviendo al menú principal', 'success');
+    };
+    
+    // FUNCIÓN para ir directamente a Tests
+    window.goToTestsFromSummary = function() {
+        console.log('🎯 Cambiando de Resúmenes a Tests...');
+        
+        showIntermediateScreen = false;
+        state.currentTab = 'upload';
+        
+        // Si estamos en resúmenes, resetear estado
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = 'create';
+            summarySystemState.viewingSummary = null;
+        }
+        
+        render();
+        showMessage('Cambiando a la sección de Tests', 'success');
+    };
+    
+    // FUNCIÓN para ir directamente a Resúmenes
+    window.goToSummariesFromTest = function() {
+        console.log('📊 Cambiando de Tests a Resúmenes...');
+        
+        showIntermediateScreen = false;
+        state.currentTab = 'summary';
+        
+        // Asegurar que estamos en la vista de creación
+        if (typeof summarySystemState !== 'undefined') {
+            summarySystemState.currentView = 'create';
+            summarySystemState.viewingSummary = null;
+        }
+        
+        render();
+        showMessage('Cambiando a la sección de Resúmenes', 'success');
+    };
+    
+    // INTERCEPTAR la función render para añadir botones de navegación
+    const previousRenderWithNavigation = window.render;
+    window.render = function() {
+        // Llamar a la función de render original
+        previousRenderWithNavigation.call(this);
+        
+        // Solo añadir navegación si el usuario está logueado y no en pantalla intermedia
+        if (state.currentUser && !showIntermediateScreen) {
+            addNavigationButtons();
+        }
+    };
+    
+    // FUNCIÓN para añadir botones de navegación
+    function addNavigationButtons() {
+        // Esperar un poco para que el DOM se haya renderizado
+        setTimeout(() => {
+            const header = document.querySelector('.header');
+            
+            if (header && !document.getElementById('cross-navigation')) {
+                // Crear contenedor de navegación cruzada
+                const navigationDiv = document.createElement('div');
+                navigationDiv.id = 'cross-navigation';
+                navigationDiv.style.cssText = `
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                    margin-left: 20px;
+                `;
+                
+                // Determinar qué botones mostrar según la sección actual
+                let navigationHTML = '';
+                
+                if (state.currentTab === 'summary') {
+                    // Estamos en resúmenes, mostrar opciones para ir a tests y menú
+                    navigationHTML = `
+                        <button onclick="goToTestsFromSummary()" class="btn btn-primary" style="padding: 6px 12px; font-size: 12px; display: flex; align-items: center; gap: 6px;" title="Ir a la sección de Tests">
+                            <span>🎯</span> Tests
+                        </button>
+                        <button onclick="backToMainMenu()" class="btn btn-info" style="padding: 6px 12px; font-size: 12px; display: flex; align-items: center; gap: 6px;" title="Volver al menú principal">
+                            <span>🏠</span> Menú
+                        </button>
+                    `;
+                } else {
+                    // Estamos en tests (upload, questions, test, results), mostrar opciones para resúmenes y menú
+                    navigationHTML = `
+                        <button onclick="goToSummariesFromTest()" class="btn btn-success" style="padding: 6px 12px; font-size: 12px; display: flex; align-items: center; gap: 6px;" title="Ir a la sección de Resúmenes">
+                            <span>📊</span> Resúmenes
+                        </button>
+                        <button onclick="backToMainMenu()" class="btn btn-info" style="padding: 6px 12px; font-size: 12px; display: flex; align-items: center; gap: 6px;" title="Volver al menú principal">
+                            <span>🏠</span> Menú
+                        </button>
+                    `;
+                }
+                
+                navigationDiv.innerHTML = navigationHTML;
+                
+                // Insertar en el header, antes de los botones de usuario
+                const userButtons = header.querySelector('div:last-child');
+                if (userButtons) {
+                    header.insertBefore(navigationDiv, userButtons);
+                } else {
+                    header.appendChild(navigationDiv);
+                }
+            }
+        }, 100);
+    }
+    
+    // MEJORAR la función backToIntermediateScreen existente
+    const originalBackToIntermediateScreen = window.backToIntermediateScreen;
+    window.backToIntermediateScreen = function() {
+        console.log('🔙 Volviendo a pantalla intermedia...');
+        backToMainMenu();
+    };
+    
+    // AÑADIR botón especial en la pantalla de visualización de resúmenes
+    const originalRenderViewSummaryEnhanced = renderViewSummaryEnhanced;
+    if (typeof renderViewSummaryEnhanced === 'function') {
+        renderViewSummaryEnhanced = function() {
+            const originalHTML = originalRenderViewSummaryEnhanced();
+            
+            // Buscar el botón "Volver a la Biblioteca" y añadir más opciones
+            const enhancedHTML = originalHTML.replace(
+                'Volver a la Biblioteca',
+                'Volver a la Biblioteca</button>\n                    <button onclick="goToTestsFromSummary()" class="btn btn-primary" style="display: flex; align-items: center; gap: 10px; padding: 12px 20px; font-size: 14px; border-radius: 10px; transition: all 0.2s ease; background: #4f46e5; border: none; margin-left: 10px;" onmouseover="this.style.background=\'#4338ca\'" onmouseout="this.style.background=\'#4f46e5\'">\n                        <span style="font-size: 16px;">🎯</span> Ir a Tests\n                    </button>\n                    <button onclick="backToMainMenu()" class="btn btn-info" style="display: flex; align-items: center; gap: 10px; padding: 12px 20px; font-size: 14px; border-radius: 10px; transition: all 0.2s ease; background: #0ea5e9; border: none; margin-left: 10px;" onmouseover="this.style.background=\'#0284c7\'" onmouseout="this.style.background=\'#0ea5e9\'">\n                        <span style="font-size: 16px;">🏠</span> Menú'
+            );
+            
+            return enhancedHTML;
+        };
+    }
+    
+    // INTERCEPTAR las funciones setTab para preservar navegación
+    const originalSetTab = window.setTab;
+    window.setTab = function(tab) {
+        // Remover navegación anterior para re-crearla
+        const existingNav = document.getElementById('cross-navigation');
+        if (existingNav) {
+            existingNav.remove();
+        }
+        
+        // Llamar función original
+        originalSetTab.call(this, tab);
+    };
+    
+    // MEJORAR las funciones goToTests y goToSummaries originales
+    const originalGoToTests = window.goToTests;
+    window.goToTests = function() {
+        console.log('🎯 Yendo a Tests desde menú principal...');
+        showIntermediateScreen = false;
+        state.currentTab = 'upload';
+        render();
+    };
+    
+    const originalGoToSummariesMain = window.goToSummaries;
+    window.goToSummaries = function() {
+        console.log('📊 Yendo a Resúmenes desde menú principal...');
+        showIntermediateScreen = false;
+        state.currentTab = 'summary';
+        render();
+    };
+    
+    // AÑADIR estilos CSS para los botones de navegación
+    const navigationStyles = document.createElement('style');
+    navigationStyles.textContent = `
+        #cross-navigation {
+            border-left: 1px solid #e5e7eb;
+            padding-left: 15px;
+            margin-left: 15px !important;
+        }
+        
+        #cross-navigation .btn {
+            transition: all 0.2s ease;
+            font-weight: 500;
+            border: none;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        #cross-navigation .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        
+        @media (max-width: 768px) {
+            #cross-navigation {
+                display: none !important;
+            }
+        }
+    `;
+    
+    // Añadir estilos al head si no existen
+    if (!document.getElementById('navigation-styles')) {
+        navigationStyles.id = 'navigation-styles';
+        document.head.appendChild(navigationStyles);
+    }
+    
+    console.log('✅ Sistema de navegación cruzada implementado');
+    console.log('🧭 Funcionalidades añadidas:');
+    console.log('   - Botón "Tests" en sección de Resúmenes');
+    console.log('   - Botón "Resúmenes" en sección de Tests');  
+    console.log('   - Botón "Menú" en ambas secciones');
+    console.log('   - Navegación desde visualización de resúmenes');
+    
+    // Forzar re-renderizado para aplicar navegación
+    setTimeout(() => {
+        if (state.currentUser && typeof window.render === 'function') {
+            render();
+        }
+    }, 200);
+</script>
 </body>
 </html>
+
 
 
 
