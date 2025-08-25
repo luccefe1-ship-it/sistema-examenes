@@ -9767,8 +9767,382 @@ Este parche oculta las pestañas y limpia el texto de comentarios
     
     console.log('Tarjetas de memoria configuradas correctamente');
 </script>
+    <!-- PARCHE: ARREGLAR TARJETAS DE MEMORIA SIN CONFLICTOS -->
+
+<script>
+    // ========== LIMPIEZA DE TEXTO NO DESEADO ==========
+    function cleanUnwantedText() {
+        const walker = document.createTreeWalker(
+            document.body || document.documentElement,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+        
+        let node;
+        const nodesToRemove = [];
+        
+        while (node = walker.nextNode()) {
+            if (node.textContent && (
+                node.textContent.includes('RJETAS DE MEMORIA') ||
+                node.textContent.includes('Añadir este código AL FINAL') ||
+                node.textContent.includes('Este parche añade')
+            )) {
+                nodesToRemove.push(node);
+            }
+        }
+        
+        nodesToRemove.forEach(node => {
+            if (node.parentNode) {
+                node.parentNode.removeChild(node);
+            }
+        });
+    }
+    
+    // Limpiar cada segundo
+    setInterval(cleanUnwantedText, 1000);
+    
+    // ========== ESTADO DE TARJETAS DE MEMORIA ==========
+    if (typeof window.memoryCardsState === 'undefined') {
+        window.memoryCardsState = {
+            currentView: 'start',
+            verifiedQuestions: [],
+            shuffledQuestions: [],
+            currentCardIndex: 0,
+            studiedCards: 0,
+            showAnswer: false,
+            startTime: null
+        };
+    }
+    
+    // ========== FUNCIONES DE TARJETAS DE MEMORIA ==========
+    
+    // Solo definir si no existen
+    if (typeof window.shuffleArray === 'undefined') {
+        window.shuffleArray = function(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        };
+    }
+    
+    // Función principal - verificar y redefinir si es necesario
+    window.showMemoryCards = function() {
+        console.log('🧠 Iniciando tarjetas de memoria...');
+        
+        // Ocultar pestañas inmediatamente
+        setTimeout(() => {
+            const tabsElements = document.querySelectorAll('.nav-tabs, .nav-tabs-container, [class*="tab"], [class*="nav"]');
+            tabsElements.forEach(el => {
+                if (el && el.style) {
+                    el.style.display = 'none';
+                }
+            });
+        }, 100);
+        
+        if (typeof showIntermediateScreen !== 'undefined') {
+            showIntermediateScreen = false;
+        }
+        
+        if (window.state) {
+            window.state.currentTab = 'memory-cards';
+        }
+        
+        window.memoryCardsState.currentView = 'start';
+        window.memoryCardsState.verifiedQuestions = getVerifiedQuestions();
+        window.memoryCardsState.shuffledQuestions = shuffleArray(window.memoryCardsState.verifiedQuestions);
+        
+        // Forzar renderizado
+        if (typeof render === 'function') {
+            render();
+        }
+        
+        // Limpiar pestañas después del render
+        setTimeout(() => {
+            const tabsElements = document.querySelectorAll('.nav-tabs, .nav-tabs-container, [class*="tab"], [class*="nav"]');
+            tabsElements.forEach(el => {
+                if (el && el.style) {
+                    el.style.display = 'none !important';
+                }
+            });
+        }, 200);
+    };
+    
+    window.startMemorySession = function() {
+        const verified = getVerifiedQuestions();
+        if (verified.length === 0) {
+            if (typeof showMessage === 'function') {
+                showMessage('No tienes preguntas verificadas para estudiar', 'error');
+            }
+            return;
+        }
+        
+        window.memoryCardsState.currentView = 'studying';
+        window.memoryCardsState.currentCardIndex = 0;
+        window.memoryCardsState.studiedCards = 0;
+        window.memoryCardsState.showAnswer = false;
+        window.memoryCardsState.startTime = Date.now();
+        
+        if (typeof render === 'function') {
+            render();
+        }
+    };
+    
+    window.toggleAnswer = function() {
+        window.memoryCardsState.showAnswer = !window.memoryCardsState.showAnswer;
+        if (typeof render === 'function') {
+            render();
+        }
+    };
+    
+    window.nextCard = function() {
+        if (!window.memoryCardsState.showAnswer) {
+            if (typeof showMessage === 'function') {
+                showMessage('Primero revela la respuesta', 'error');
+            }
+            return;
+        }
+        
+        window.memoryCardsState.studiedCards++;
+        
+        if (window.memoryCardsState.currentCardIndex < window.memoryCardsState.shuffledQuestions.length - 1) {
+            window.memoryCardsState.currentCardIndex++;
+            window.memoryCardsState.showAnswer = false;
+        } else {
+            window.memoryCardsState.currentView = 'completed';
+        }
+        
+        if (typeof render === 'function') {
+            render();
+        }
+    };
+    
+    window.previousCard = function() {
+        if (window.memoryCardsState.currentCardIndex > 0) {
+            window.memoryCardsState.currentCardIndex--;
+            window.memoryCardsState.showAnswer = false;
+            
+            if (window.memoryCardsState.studiedCards > window.memoryCardsState.currentCardIndex) {
+                window.memoryCardsState.studiedCards = window.memoryCardsState.currentCardIndex;
+            }
+            
+            if (typeof render === 'function') {
+                render();
+            }
+        }
+    };
+    
+    // ========== RENDERIZADO DE TARJETAS ==========
+    window.renderMemoryCardsTab = function() {
+        const verifiedCount = getVerifiedQuestions().length;
+        
+        if (window.memoryCardsState.currentView === 'studying') {
+            const currentQuestion = window.memoryCardsState.shuffledQuestions[window.memoryCardsState.currentCardIndex];
+            const progress = ((window.memoryCardsState.currentCardIndex + 1) / window.memoryCardsState.shuffledQuestions.length) * 100;
+            const topicName = currentQuestion.topicId ? getTopicName(currentQuestion.topicId) : 'General';
+            const correctAnswer = currentQuestion.options[currentQuestion.correctAnswer];
+            
+            return `
+                <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+                    
+                    <!-- Header con progreso -->
+                    <div style="background: white; border-radius: 16px; padding: 20px; margin-bottom: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border: 1px solid #e5e7eb;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <div>
+                                <h2 style="color: #1f2937; margin: 0; font-size: 1.3rem; font-weight: 700;">
+                                    🧠 Sesión de Estudio
+                                </h2>
+                                <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                                    Tarjeta ${window.memoryCardsState.currentCardIndex + 1} de ${window.memoryCardsState.shuffledQuestions.length}
+                                </p>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="color: #8b5cf6; font-weight: 600; font-size: 1.1rem;">
+                                    ${Math.round(progress)}% Completado
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Barra de progreso -->
+                        <div style="background: #f3f4f6; border-radius: 10px; height: 8px; overflow: hidden;">
+                            <div style="background: linear-gradient(135deg, #8b5cf6, #a78bfa); height: 100%; border-radius: 10px; width: ${progress}%; transition: width 0.5s ease;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Tarjeta Principal -->
+                    <div style="background: white; border-radius: 24px; padding: 40px; box-shadow: 0 8px 30px rgba(139, 92, 246, 0.15); border: 2px solid #e4d4fd; min-height: 300px; display: flex; flex-direction: column; justify-content: center; margin-bottom: 30px;">
+                        
+                        <!-- Headers con tema Y verificación -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; gap: 15px;">
+                            <span style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;">
+                                📂 ${topicName}
+                            </span>
+                            <span style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;">
+                                ⭐ Verificada
+                            </span>
+                        </div>
+                        
+                        <!-- Pregunta -->
+                        <div style="text-align: center; margin-bottom: 30px;">
+                            <h3 style="color: #1f2937; font-size: 1.4rem; font-weight: 600; line-height: 1.5; margin: 0;">
+                                ${currentQuestion.question}
+                            </h3>
+                        </div>
+                        
+                        <!-- Área de respuesta -->
+                        <div style="text-align: center; min-height: 80px; display: flex; align-items: center; justify-content: center;">
+                            ${window.memoryCardsState.showAnswer ? `
+                                <div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border: 2px solid #10b981; border-radius: 16px; padding: 25px; max-width: 500px; margin: 0 auto;">
+                                    <div style="color: #065f46; font-size: 1.1rem; font-weight: 600; margin-bottom: 8px;">
+                                        ✅ Respuesta Correcta:
+                                    </div>
+                                    <div style="color: #047857; font-size: 1.2rem; font-weight: 700;">
+                                        ${String.fromCharCode(97 + currentQuestion.correctAnswer)}) ${correctAnswer}
+                                    </div>
+                                </div>
+                            ` : `
+                                <button onclick="toggleAnswer()" class="btn btn-success" style="background: linear-gradient(135deg, #10b981, #059669); border: none; padding: 18px 35px; font-size: 1.1rem; font-weight: 600; border-radius: 16px;">
+                                    🔍 Revelar Respuesta
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                    
+                    <!-- Controles de Navegación -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: white; border-radius: 16px; padding: 20px;">
+                        
+                        <button onclick="previousCard()" class="btn btn-secondary" style="padding: 15px 20px; font-size: 1rem; ${window.memoryCardsState.currentCardIndex === 0 ? 'opacity: 0.5; cursor: not-allowed;' : ''}" ${window.memoryCardsState.currentCardIndex === 0 ? 'disabled' : ''}>
+                            ← Anterior
+                        </button>
+                        
+                        <div style="text-align: center; color: #6b7280; font-size: 14px;">
+                            <div style="font-weight: 600; color: #374151;">
+                                ${window.memoryCardsState.studiedCards} de ${window.memoryCardsState.shuffledQuestions.length} estudiadas
+                            </div>
+                        </div>
+                        
+                        <button onclick="nextCard()" class="btn btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; padding: 15px 20px; font-size: 1rem; ${!window.memoryCardsState.showAnswer ? 'opacity: 0.5; cursor: not-allowed;' : ''}" ${!window.memoryCardsState.showAnswer ? 'disabled' : ''}>
+                            ${window.memoryCardsState.currentCardIndex === window.memoryCardsState.shuffledQuestions.length - 1 ? 'Finalizar ✅' : 'Siguiente →'}
+                        </button>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 25px;">
+                        <button onclick="backToMainMenu()" class="btn btn-secondary" style="padding: 10px 20px;">
+                            🏠 Menú Principal
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Vista de inicio
+            return `
+                <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+                    
+                    <div style="text-align: center; margin-bottom: 40px;">
+                        <div style="background: linear-gradient(135deg, #8b5cf6, #a78bfa); width: 120px; height: 120px; border-radius: 30px; margin: 0 auto 25px; display: flex; align-items: center; justify-content: center;">
+                            <span style="font-size: 4rem;">🧠</span>
+                        </div>
+                        <h1 style="color: #1f2937; margin: 0 0 15px 0; font-size: 2.5rem; font-weight: 800;">Tarjetas de Memoria</h1>
+                        <p style="color: #6b7280; font-size: 1.1rem;">Repasa tus preguntas verificadas de forma eficiente</p>
+                    </div>
+                    
+                    <div style="background: white; border-radius: 20px; padding: 30px; margin-bottom: 30px;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 25px;">
+                            <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #ddd6fe, #e4d4fd); border-radius: 16px;">
+                                <div style="font-size: 2.5rem; margin-bottom: 10px;">⭐</div>
+                                <div style="font-size: 2rem; font-weight: 700; color: #7c3aed;">${verifiedCount}</div>
+                                <div style="color: #6b46c1; font-weight: 500;">Preguntas Verificadas</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${verifiedCount === 0 ? `
+                        <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 20px; padding: 40px; text-align: center; margin-bottom: 30px;">
+                            <div style="font-size: 4rem; margin-bottom: 20px;">📝</div>
+                            <h3 style="color: #92400e; margin: 0 0 15px 0;">No hay preguntas verificadas</h3>
+                            <p style="color: #78350f; margin: 0 0 25px 0;">Marca algunas preguntas como verificadas (⭐) en tu banco de preguntas.</p>
+                            <button onclick="setTab('questions')" class="btn btn-warning" style="padding: 12px 25px;">
+                                📋 Ir al Banco de Preguntas
+                            </button>
+                        </div>
+                    ` : `
+                        <div style="text-align: center;">
+                            <button onclick="startMemorySession()" class="btn btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; padding: 20px 40px; font-size: 1.2rem; font-weight: 700; border-radius: 16px;">
+                                🚀 Comenzar Sesión de Estudio
+                            </button>
+                        </div>
+                    `}
+                    
+                    <div style="text-align: center; margin-top: 30px;">
+                        <button onclick="backToMainMenu()" class="btn btn-secondary" style="padding: 12px 24px;">
+                            🏠 Volver al Menú Principal
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+    };
+    
+    // ========== EXTENDER RENDER TAB CONTENT ==========
+    // Guardar la función original si existe
+    if (typeof window.originalRenderTabContent === 'undefined' && typeof window.renderTabContent === 'function') {
+        window.originalRenderTabContent = window.renderTabContent;
+    }
+    
+    window.renderTabContent = function() {
+        if (window.state && window.state.currentTab === 'memory-cards') {
+            return renderMemoryCardsTab();
+        } else if (window.originalRenderTabContent) {
+            return window.originalRenderTabContent.call(this);
+        } else {
+            return '<div>Error: Tab content not found</div>';
+        }
+    };
+    
+    // ========== CSS PARA OCULTAR PESTAÑAS ==========
+    const hideTabsStyle = document.createElement('style');
+    hideTabsStyle.textContent = `
+        .nav-tabs,
+        .nav-tabs-container,
+        [class*="tab"]:not([class*="content"]):not([class*="main"]),
+        [class*="nav"]:not([class*="content"]):not([class*="main"]) {
+            display: none !important;
+        }
+        
+        /* Ocultar específicamente cuando sea memory-cards */
+        body[data-current-tab="memory-cards"] .nav-tabs,
+        body[data-current-tab="memory-cards"] .nav-tabs-container {
+            display: none !important;
+        }
+    `;
+    document.head.appendChild(hideTabsStyle);
+    
+    // ========== OBSERVER PARA LIMPIAR ==========
+    const observer = new MutationObserver(function(mutations) {
+        if (window.state && window.state.currentTab === 'memory-cards') {
+            const tabsElements = document.querySelectorAll('.nav-tabs, .nav-tabs-container');
+            tabsElements.forEach(el => {
+                if (el && el.style) {
+                    el.style.display = 'none';
+                }
+            });
+        }
+        cleanUnwantedText();
+    });
+    
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+    
+    console.log('✅ Tarjetas de memoria configuradas correctamente - Sin conflictos');
+</script>
 </body>
 </html>
+
 
 
 
