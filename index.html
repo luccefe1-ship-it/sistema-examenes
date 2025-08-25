@@ -10226,8 +10226,131 @@ Este parche oculta las pestañas y limpia el texto de comentarios
     
     console.log('✅ Parche de redirección aplicado');
 </script>
+    <!-- PARCHE: ARREGLAR REDIRECCIÓN TARJETAS DE MEMORIA -->
+
+<script>
+    // Sobrescribir solo la función showMemoryCards para evitar redirección
+    window.showMemoryCards = function() {
+        console.log('Forzando tarjetas de memoria - sin redirección');
+        
+        // Asegurar que state existe y se setea correctamente
+        if (window.state) {
+            window.state.currentTab = 'memory-cards';
+        }
+        
+        // Ocultar pestañas inmediatamente
+        setTimeout(() => {
+            document.querySelectorAll('.nav-tabs, .nav-tabs-container, [class*="tab"]:not([class*="content"]), [class*="nav"]:not([class*="content"])').forEach(el => {
+                if (el && el.style) el.style.display = 'none';
+            });
+        }, 50);
+        
+        // Forzar contenido de tarjetas en el DOM directamente
+        const mainContent = document.getElementById('main-content') || document.querySelector('.main-content') || document.body;
+        if (mainContent) {
+            mainContent.innerHTML = `
+                <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+                    <div style="text-align: center; margin-bottom: 40px;">
+                        <div style="background: linear-gradient(135deg, #8b5cf6, #a78bfa); width: 120px; height: 120px; border-radius: 30px; margin: 0 auto 25px; display: flex; align-items: center; justify-content: center;">
+                            <span style="font-size: 4rem;">🧠</span>
+                        </div>
+                        <h1 style="color: #1f2937; margin: 0 0 15px 0; font-size: 2.5rem; font-weight: 800;">Tarjetas de Memoria</h1>
+                        <p style="color: #6b7280; font-size: 1.1rem;">Repasa tus preguntas verificadas de forma eficiente</p>
+                    </div>
+                    
+                    <div style="background: white; border-radius: 20px; padding: 30px; margin-bottom: 30px;">
+                        <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #ddd6fe, #e4d4fd); border-radius: 16px;">
+                            <div style="font-size: 2.5rem; margin-bottom: 10px;">⭐</div>
+                            <div style="font-size: 2rem; font-weight: 700; color: #7c3aed;" id="verified-count">0</div>
+                            <div style="color: #6b46c1; font-weight: 500;">Preguntas Verificadas</div>
+                        </div>
+                    </div>
+                    
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <button onclick="startMemorySession()" class="btn btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; padding: 20px 40px; font-size: 1.2rem; font-weight: 700; border-radius: 16px; color: white;">
+                            🚀 Comenzar Sesión de Estudio
+                        </button>
+                    </div>
+                    
+                    <div style="text-align: center;">
+                        <button onclick="backToMainMenu()" class="btn btn-secondary" style="padding: 12px 24px;">
+                            🏠 Volver al Menú Principal
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Actualizar contador de preguntas verificadas
+            const verifiedCount = typeof getVerifiedQuestions === 'function' ? getVerifiedQuestions().length : 0;
+            const countElement = document.getElementById('verified-count');
+            if (countElement) {
+                countElement.textContent = verifiedCount;
+            }
+        }
+        
+        // NO llamar a render() para evitar conflictos
+        console.log('Tarjetas de memoria mostradas directamente');
+    };
+    
+    // Función simple para iniciar sesión
+    window.startMemorySession = function() {
+        alert('Función de sesión de estudio - En desarrollo');
+        // Por ahora solo un placeholder para verificar que la sección funciona
+    };
+    
+    // Limpiar texto no deseado cada 2 segundos
+    setInterval(() => {
+        document.querySelectorAll('*').forEach(el => {
+            if (el.textContent && (
+                el.textContent.includes('RJETAS DE MEMORIA') ||
+                el.textContent.includes('Añadir este código AL FINAL')
+            )) {
+                el.style.display = 'none';
+            }
+        });
+    }, 2000);
+    
+    // INTERCEPTAR EL BOTÓN DEL MENÚ PRINCIPAL
+    function interceptMemoryCardsButton() {
+        // Buscar el botón de tarjetas de memoria en el menú principal
+        const buttons = document.querySelectorAll('*');
+        buttons.forEach(button => {
+            if (button.textContent && (
+                button.textContent.includes('Tarjetas de Memoria') ||
+                button.textContent.includes('Repasar preguntas')
+            )) {
+                // Remover todos los event listeners existentes
+                button.onclick = null;
+                button.removeAttribute('onclick');
+                
+                // Añadir nuestro evento
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Interceptado clic en Tarjetas de Memoria');
+                    showMemoryCards();
+                }, true);
+                
+                console.log('Botón de Tarjetas de Memoria interceptado');
+            }
+        });
+    }
+    
+    // Ejecutar interceptación cada vez que cambie el DOM
+    const observer = new MutationObserver(() => {
+        interceptMemoryCardsButton();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    // Ejecutar inmediatamente también
+    setTimeout(interceptMemoryCardsButton, 500);
+    setTimeout(interceptMemoryCardsButton, 2000);
+    
+    console.log('✅ Parche de redirección aplicado + Interceptación de botón');
+</script>
 </body>
 </html>
+
 
 
 
