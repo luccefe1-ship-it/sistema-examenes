@@ -5843,8 +5843,416 @@ Este parche FUERZA el nuevo sistema de cuentas y elimina la cuenta demo
         render();
     }, 100);
 </script>
+    <!-- 
+PARCHE: SISTEMA DE RECUPERACIÓN DE CONTRASEÑA
+Añadir este código DESPUÉS de los parches anteriores, antes de </body>
+Este parche añade recuperación de contraseña mediante pregunta de seguridad
+-->
+
+<script>
+    // ========== PARCHE: SISTEMA DE RECUPERACIÓN DE CONTRASEÑA ==========
+    
+    // Ampliar el UserManager para incluir preguntas de seguridad
+    const PasswordRecoveryManager = {
+        // Añadir pregunta de seguridad al crear cuenta
+        createAccountWithSecurity(username, password, fullName, securityQuestion, securityAnswer) {
+            const users = RealUserManager.getAllUsers();
+            
+            if (users[username]) {
+                return { success: false, message: 'El usuario ya existe' };
+            }
+            
+            if (username.length < 3) {
+                return { success: false, message: 'El usuario debe tener al menos 3 caracteres' };
+            }
+            
+            if (password.length < 4) {
+                return { success: false, message: 'La contraseña debe tener al menos 4 caracteres' };
+            }
+            
+            if (!securityAnswer || securityAnswer.trim().length < 2) {
+                return { success: false, message: 'La respuesta de seguridad es muy corta' };
+            }
+            
+            users[username] = {
+                password: password,
+                name: fullName || username,
+                securityQuestion: securityQuestion,
+                securityAnswer: securityAnswer.toLowerCase().trim(), // Normalizar para comparación
+                createdAt: new Date().toLocaleString('es-ES'),
+                lastLogin: null
+            };
+            
+            RealUserManager.saveAllUsers(users);
+            return { success: true, message: 'Cuenta creada exitosamente' };
+        },
+        
+        // Verificar si el usuario existe para recuperación
+        userExists(username) {
+            const users = RealUserManager.getAllUsers();
+            return !!users[username];
+        },
+        
+        // Obtener pregunta de seguridad
+        getSecurityQuestion(username) {
+            const users = RealUserManager.getAllUsers();
+            const user = users[username];
+            
+            if (!user) {
+                return { success: false, message: 'Usuario no encontrado' };
+            }
+            
+            return { 
+                success: true, 
+                question: user.securityQuestion,
+                message: 'Pregunta de seguridad encontrada'
+            };
+        },
+        
+        // Verificar respuesta y recuperar contraseña
+        recoverPassword(username, securityAnswer) {
+            const users = RealUserManager.getAllUsers();
+            const user = users[username];
+            
+            if (!user) {
+                return { success: false, message: 'Usuario no encontrado' };
+            }
+            
+            if (user.securityAnswer !== securityAnswer.toLowerCase().trim()) {
+                return { success: false, message: 'Respuesta de seguridad incorrecta' };
+            }
+            
+            return { 
+                success: true, 
+                password: user.password,
+                message: 'Contraseña recuperada exitosamente'
+            };
+        },
+        
+        // Cambiar contraseña después de recuperación
+        resetPassword(username, newPassword, securityAnswer) {
+            const users = RealUserManager.getAllUsers();
+            const user = users[username];
+            
+            if (!user) {
+                return { success: false, message: 'Usuario no encontrado' };
+            }
+            
+            if (user.securityAnswer !== securityAnswer.toLowerCase().trim()) {
+                return { success: false, message: 'Respuesta de seguridad incorrecta' };
+            }
+            
+            if (newPassword.length < 4) {
+                return { success: false, message: 'La nueva contraseña debe tener al menos 4 caracteres' };
+            }
+            
+            user.password = newPassword;
+            RealUserManager.saveAllUsers(users);
+            
+            return { success: true, message: 'Contraseña cambiada exitosamente' };
+        }
+    };
+    
+    // Preguntas de seguridad predefinidas
+    const securityQuestions = [
+        "¿Cuál es el nombre de tu primera mascota?",
+        "¿En qué ciudad naciste?",
+        "¿Cuál es tu color favorito?",
+        "¿Cómo se llama tu mejor amigo de la infancia?",
+        "¿Cuál es tu comida favorita?",
+        "¿En qué año terminaste la escuela?",
+        "¿Cuál es el nombre de tu madre?",
+        "¿Cuál es tu película favorita?"
+    ];
+    
+    // Actualizar el estado de login para incluir recuperación
+    newLoginState.currentView = 'login'; // 'login', 'register', 'forgot', 'recovery'
+    
+    // REEMPLAZAR la función de registro para incluir pregunta de seguridad
+    window.registerNewAccount = function() {
+        const username = document.getElementById('reg-username').value.trim();
+        const password = document.getElementById('reg-password').value;
+        const confirmPassword = document.getElementById('reg-confirm-password').value;
+        const fullName = document.getElementById('reg-fullname').value.trim();
+        const securityQuestion = document.getElementById('security-question').value;
+        const securityAnswer = document.getElementById('security-answer').value.trim();
+        
+        if (!username || !password || !confirmPassword || !fullName || !securityQuestion || !securityAnswer) {
+            showMessage('Completa todos los campos', 'error');
+            return;
+        }
+        
+        if (password !== confirmPassword) {
+            showMessage('Las contraseñas no coinciden', 'error');
+            return;
+        }
+        
+        const registerResult = PasswordRecoveryManager.createAccountWithSecurity(
+            username, password, fullName, securityQuestion, securityAnswer
+        );
+        
+        if (registerResult.success) {
+            showMessage('¡Cuenta creada! Ahora puedes iniciar sesión', 'success');
+            newLoginState.currentView = 'login';
+            render();
+        } else {
+            showMessage(registerResult.message, 'error');
+        }
+    };
+    
+    // Funciones para recuperación de contraseña
+    window.showForgotPassword = function() {
+        newLoginState.currentView = 'forgot';
+        render();
+    };
+    
+    window.startPasswordRecovery = function() {
+        const username = document.getElementById('forgot-username').value.trim();
+        
+        if (!username) {
+            showMessage('Ingresa tu nombre de usuario', 'error');
+            return;
+        }
+        
+        if (!PasswordRecoveryManager.userExists(username)) {
+            showMessage('Usuario no encontrado', 'error');
+            return;
+        }
+        
+        const result = PasswordRecoveryManager.getSecurityQuestion(username);
+        
+        if (result.success) {
+            // Guardar username temporalmente y mostrar pregunta de seguridad
+            window.tempRecoveryUsername = username;
+            window.tempRecoveryQuestion = result.question;
+            newLoginState.currentView = 'recovery';
+            render();
+        } else {
+            showMessage(result.message, 'error');
+        }
+    };
+    
+    window.recoverPassword = function() {
+        const securityAnswer = document.getElementById('security-answer-recovery').value.trim();
+        
+        if (!securityAnswer) {
+            showMessage('Responde la pregunta de seguridad', 'error');
+            return;
+        }
+        
+        const result = PasswordRecoveryManager.recoverPassword(window.tempRecoveryUsername, securityAnswer);
+        
+        if (result.success) {
+            showMessage(`Tu contraseña es: ${result.password}`, 'success');
+            
+            // Limpiar variables temporales
+            window.tempRecoveryUsername = null;
+            window.tempRecoveryQuestion = null;
+            
+            // Volver al login después de 3 segundos
+            setTimeout(() => {
+                newLoginState.currentView = 'login';
+                render();
+            }, 3000);
+        } else {
+            showMessage(result.message, 'error');
+        }
+    };
+    
+    // ACTUALIZAR la función render para incluir las nuevas pantallas
+    const previousRenderFunction = window.render;
+    window.render = function() {
+        const app = document.getElementById('app');
+        
+        if (!state.currentUser) {
+            if (newLoginState.currentView === 'register') {
+                // Pantalla de registro CON pregunta de seguridad
+                app.innerHTML = `
+                    <div class="container">
+                        <div class="login-form" style="max-width: 500px;">
+                            <div style="text-align: center; margin-bottom: 25px;">
+                                <div style="background: linear-gradient(135deg, #10b981, #059669); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);">
+                                    <span style="font-size: 2.5rem; color: white;">👤</span>
+                                </div>
+                                <h2 style="color: #1f2937; margin: 0; font-weight: 700;">Crear Nueva Cuenta</h2>
+                                <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 14px;">Regístrate para acceder al sistema</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Nombre completo</label>
+                                <input type="text" id="reg-fullname" class="form-input" placeholder="Tu nombre completo">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Usuario</label>
+                                <input type="text" id="reg-username" class="form-input" placeholder="Mínimo 3 caracteres">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Contraseña</label>
+                                <input type="password" id="reg-password" class="form-input" placeholder="Mínimo 4 caracteres">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Confirmar contraseña</label>
+                                <input type="password" id="reg-confirm-password" class="form-input" placeholder="Repite la contraseña">
+                            </div>
+                            
+                            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                                <h4 style="color: #92400e; margin: 0 0 10px 0; font-size: 14px;">🔐 Pregunta de Seguridad</h4>
+                                <p style="color: #78350f; margin: 0 0 15px 0; font-size: 12px;">Para recuperar tu contraseña si la olvidas</p>
+                                
+                                <div class="form-group" style="margin-bottom: 15px;">
+                                    <select id="security-question" class="form-input" style="margin-bottom: 10px;">
+                                        <option value="">Selecciona una pregunta...</option>
+                                        ${securityQuestions.map(q => `<option value="${q}">${q}</option>`).join('')}
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <input type="text" id="security-answer" class="form-input" placeholder="Tu respuesta">
+                                </div>
+                            </div>
+                            
+                            <button onclick="registerNewAccount()" class="btn btn-success" style="width: 100%; margin-bottom: 15px; padding: 15px; font-size: 16px; font-weight: 600;">
+                                ✅ Crear Mi Cuenta
+                            </button>
+                            
+                            <div style="text-align: center; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                                <button onclick="showLoginForm()" class="btn btn-secondary" style="background: transparent; color: #6b7280; border: 1px solid #d1d5db; padding: 10px 20px;">
+                                    ← Ya tengo cuenta
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (newLoginState.currentView === 'forgot') {
+                // Pantalla de "olvidé mi contraseña"
+                app.innerHTML = `
+                    <div class="container">
+                        <div class="login-form" style="max-width: 450px;">
+                            <div style="text-align: center; margin-bottom: 30px;">
+                                <div style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);">
+                                    <span style="font-size: 2.5rem; color: white;">🔑</span>
+                                </div>
+                                <h2 style="color: #1f2937; margin: 0; font-weight: 700;">Recuperar Contraseña</h2>
+                                <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 14px;">Ingresa tu usuario para continuar</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Usuario</label>
+                                <input type="text" id="forgot-username" class="form-input" placeholder="Tu nombre de usuario" style="font-size: 15px; padding: 12px;">
+                            </div>
+                            
+                            <button onclick="startPasswordRecovery()" class="btn btn-warning" style="width: 100%; margin-bottom: 20px; padding: 15px; font-size: 16px; font-weight: 600;">
+                                🔍 Buscar Usuario
+                            </button>
+                            
+                            <div style="text-align: center; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                                <button onclick="showLoginForm()" class="btn btn-secondary" style="background: transparent; color: #6b7280; border: 1px solid #d1d5db; padding: 10px 20px;">
+                                    ← Volver al Login
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (newLoginState.currentView === 'recovery') {
+                // Pantalla de pregunta de seguridad
+                app.innerHTML = `
+                    <div class="container">
+                        <div class="login-form" style="max-width: 500px;">
+                            <div style="text-align: center; margin-bottom: 30px;">
+                                <div style="background: linear-gradient(135deg, #0ea5e9, #0284c7); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(14, 165, 233, 0.3);">
+                                    <span style="font-size: 2.5rem; color: white;">❓</span>
+                                </div>
+                                <h2 style="color: #1f2937; margin: 0; font-weight: 700;">Pregunta de Seguridad</h2>
+                                <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 14px;">Usuario: <strong>${window.tempRecoveryUsername}</strong></p>
+                            </div>
+                            
+                            <div style="background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
+                                <h3 style="color: #0c4a6e; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">${window.tempRecoveryQuestion}</h3>
+                                <input type="text" id="security-answer-recovery" class="form-input" placeholder="Tu respuesta" style="font-size: 15px; padding: 12px; width: 100%;">
+                            </div>
+                            
+                            <button onclick="recoverPassword()" class="btn btn-info" style="width: 100%; margin-bottom: 20px; padding: 15px; font-size: 16px; font-weight: 600;">
+                                🔓 Recuperar Contraseña
+                            </button>
+                            
+                            <div style="text-align: center; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                                <button onclick="showLoginForm()" class="btn btn-secondary" style="background: transparent; color: #6b7280; border: 1px solid #d1d5db; padding: 10px 20px;">
+                                    ← Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Pantalla de login CON enlace "Olvidé mi contraseña"
+                app.innerHTML = `
+                    <div class="container">
+                        <div class="login-form" style="max-width: 450px;">
+                            <div style="text-align: center; margin-bottom: 30px;">
+                                <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);">
+                                    <span style="font-size: 2.5rem; color: white;">🔐</span>
+                                </div>
+                                <h2 style="color: #1f2937; margin: 0; font-weight: 700;">Iniciar Sesión</h2>
+                                <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 14px;">Accede a tu cuenta personal</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Usuario</label>
+                                <input type="text" id="username" class="form-input" placeholder="Tu nombre de usuario" style="font-size: 15px; padding: 12px;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Contraseña</label>
+                                <input type="password" id="password" class="form-input" placeholder="Tu contraseña" style="font-size: 15px; padding: 12px;">
+                            </div>
+                            
+                            <button onclick="login()" class="btn btn-primary" style="width: 100%; margin-bottom: 15px; padding: 15px; font-size: 16px; font-weight: 600;">
+                                🚀 Iniciar Sesión
+                            </button>
+                            
+                            <div style="text-align: center; margin-bottom: 20px;">
+                                <button onclick="showForgotPassword()" style="background: transparent; border: none; color: #f59e0b; text-decoration: underline; cursor: pointer; font-size: 14px;">
+                                    🔑 ¿Olvidaste tu contraseña?
+                                </button>
+                            </div>
+                            
+                            <div style="text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                                <p style="color: #6b7280; margin: 0 0 15px 0; font-size: 14px;">¿No tienes una cuenta?</p>
+                                <button onclick="showRegisterForm()" class="btn btn-success" style="width: 100%; padding: 12px; font-size: 15px; font-weight: 600;">
+                                    👤 Crear Nueva Cuenta
+                                </button>
+                            </div>
+                            
+                            <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                                <div style="text-align: center; margin-bottom: 10px;">
+                                    <strong style="color: #374151; font-size: 14px;">🔒 Sistema Seguro</strong>
+                                </div>
+                                <ul style="margin: 0; padding-left: 20px; color: #6b7280; font-size: 12px; line-height: 1.5;">
+                                    <li>Datos privados por usuario</li>
+                                    <li>Recuperación por pregunta de seguridad</li>
+                                    <li>Sin acceso a datos de otros</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        } else {
+            // Usuario logueado - usar función anterior
+            previousRenderFunction.call(this);
+        }
+    };
+    
+    console.log('✅ Sistema de recuperación de contraseña implementado');
+    console.log('🔑 Funcionalidades: Pregunta de seguridad, recuperación automática');
+    
+    // Forzar re-renderizado
+    setTimeout(() => {
+        render();
+    }, 100);
+</script>
 </body>
 </html>
+
 
 
 
