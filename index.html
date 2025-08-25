@@ -6438,8 +6438,364 @@ Este parche corrige específicamente el problema del botón "Crear Mi Cuenta"
         console.log('- Usuarios existentes:', Object.keys(JSON.parse(localStorage.getItem('realSystemUsers') || '{}')).length);
     }, 1000);
 </script>
+    <!-- 
+PARCHE: CORRECCIÓN USUARIOS ÚNICOS Y RESET DE CONTRASEÑA
+Añadir este código DESPUÉS de todos los parches anteriores, antes de </body>
+Este parche corrige: 1) Validación de usuarios únicos, 2) Reset de contraseña funcional
+-->
+
+<script>
+    // ========== CORRECCIÓN: USUARIOS ÚNICOS Y RESET DE CONTRASEÑA ==========
+    console.log('🔧 APLICANDO correcciones finales...');
+    
+    // MEJORAR la función de registro para verificar usuarios únicos
+    window.registerNewAccount = function() {
+        console.log('🔄 Ejecutando registro con validación de usuarios únicos...');
+        
+        try {
+            // Obtener valores de los campos
+            const username = document.getElementById('reg-username')?.value?.trim() || '';
+            const password = document.getElementById('reg-password')?.value || '';
+            const confirmPassword = document.getElementById('reg-confirm-password')?.value || '';
+            const fullName = document.getElementById('reg-fullname')?.value?.trim() || '';
+            const securityQuestion = document.getElementById('security-question')?.value || '';
+            const securityAnswer = document.getElementById('security-answer')?.value?.trim() || '';
+            
+            console.log('📝 Verificando usuario:', username);
+            
+            // Validaciones básicas
+            if (!username) {
+                showMessage('El campo usuario es obligatorio', 'error');
+                return;
+            }
+            
+            if (!password || !confirmPassword || !fullName || !securityQuestion || !securityAnswer) {
+                showMessage('Completa todos los campos', 'error');
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                showMessage('Las contraseñas no coinciden', 'error');
+                return;
+            }
+            
+            if (username.length < 3) {
+                showMessage('El usuario debe tener al menos 3 caracteres', 'error');
+                return;
+            }
+            
+            if (password.length < 4) {
+                showMessage('La contraseña debe tener al menos 4 caracteres', 'error');
+                return;
+            }
+            
+            // VERIFICAR SI EL USUARIO YA EXISTS (CRÍTICO)
+            const existingUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+            
+            // Verificar tanto el usuario exacto como variaciones (case-insensitive)
+            const usernameLower = username.toLowerCase();
+            const existingUsernames = Object.keys(existingUsers).map(u => u.toLowerCase());
+            
+            if (existingUsernames.includes(usernameLower)) {
+                showMessage(`❌ El usuario "${username}" ya existe. Elige otro nombre.`, 'error');
+                
+                // Limpiar campo de usuario para que elija otro
+                const usernameField = document.getElementById('reg-username');
+                if (usernameField) {
+                    usernameField.value = '';
+                    usernameField.focus();
+                    usernameField.style.borderColor = '#ef4444';
+                    usernameField.style.backgroundColor = '#fee2e2';
+                    
+                    // Restaurar estilo después de 3 segundos
+                    setTimeout(() => {
+                        usernameField.style.borderColor = '#d1d5db';
+                        usernameField.style.backgroundColor = 'white';
+                    }, 3000);
+                }
+                
+                console.log('❌ Usuario ya existe:', username);
+                console.log('👥 Usuarios existentes:', Object.keys(existingUsers));
+                return;
+            }
+            
+            console.log('✅ Usuario disponible, creando cuenta...');
+            
+            // Crear nueva cuenta
+            existingUsers[username] = {
+                password: password,
+                name: fullName,
+                securityQuestion: securityQuestion,
+                securityAnswer: securityAnswer.toLowerCase().trim(),
+                createdAt: new Date().toLocaleString('es-ES'),
+                lastLogin: null
+            };
+            
+            // Guardar en localStorage
+            localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
+            
+            console.log('💾 Cuenta creada exitosamente');
+            console.log('👥 Total usuarios:', Object.keys(existingUsers).length);
+            
+            // Mostrar mensaje de éxito
+            showMessage('¡Cuenta creada exitosamente! Ahora puedes iniciar sesión', 'success');
+            
+            // Cambiar a pantalla de login
+            setTimeout(() => {
+                newLoginState.currentView = 'login';
+                render();
+            }, 1500);
+            
+        } catch (error) {
+            console.error('❌ Error en registro:', error);
+            showMessage('Error al crear la cuenta: ' + error.message, 'error');
+        }
+    };
+    
+    // CORREGIR la función de recuperación de contraseña
+    window.recoverPassword = function() {
+        console.log('🔄 Ejecutando recuperación de contraseña...');
+        
+        try {
+            const securityAnswer = document.getElementById('security-answer-recovery')?.value?.trim() || '';
+            
+            if (!securityAnswer) {
+                showMessage('Responde la pregunta de seguridad', 'error');
+                return;
+            }
+            
+            if (!window.tempRecoveryUsername) {
+                showMessage('Error: Usuario no encontrado', 'error');
+                newLoginState.currentView = 'login';
+                render();
+                return;
+            }
+            
+            console.log('🔍 Verificando respuesta para usuario:', window.tempRecoveryUsername);
+            
+            // Obtener usuarios del localStorage
+            const users = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+            const user = users[window.tempRecoveryUsername];
+            
+            if (!user) {
+                showMessage('Error: Usuario no encontrado', 'error');
+                newLoginState.currentView = 'login';
+                render();
+                return;
+            }
+            
+            // Verificar respuesta (normalizada)
+            const userAnswer = securityAnswer.toLowerCase().trim();
+            const correctAnswer = user.securityAnswer;
+            
+            console.log('🔑 Verificando respuesta...');
+            console.log('- Respuesta del usuario:', userAnswer);
+            console.log('- Respuesta correcta:', correctAnswer);
+            
+            if (userAnswer !== correctAnswer) {
+                showMessage('❌ Respuesta incorrecta. Inténtalo de nuevo.', 'error');
+                
+                // Limpiar campo y darle foco
+                const answerField = document.getElementById('security-answer-recovery');
+                if (answerField) {
+                    answerField.value = '';
+                    answerField.focus();
+                }
+                return;
+            }
+            
+            console.log('✅ Respuesta correcta, iniciando reset de contraseña...');
+            
+            // Cambiar a pantalla de creación de nueva contraseña
+            newLoginState.currentView = 'reset-password';
+            render();
+            
+        } catch (error) {
+            console.error('❌ Error en recuperación:', error);
+            showMessage('Error en la recuperación: ' + error.message, 'error');
+        }
+    };
+    
+    // NUEVA función para crear nueva contraseña
+    window.resetPasswordFinal = function() {
+        console.log('🔄 Creando nueva contraseña...');
+        
+        try {
+            const newPassword = document.getElementById('new-password')?.value || '';
+            const confirmNewPassword = document.getElementById('confirm-new-password')?.value || '';
+            
+            if (!newPassword || !confirmNewPassword) {
+                showMessage('Completa ambos campos de contraseña', 'error');
+                return;
+            }
+            
+            if (newPassword !== confirmNewPassword) {
+                showMessage('Las contraseñas no coinciden', 'error');
+                return;
+            }
+            
+            if (newPassword.length < 4) {
+                showMessage('La contraseña debe tener al menos 4 caracteres', 'error');
+                return;
+            }
+            
+            if (!window.tempRecoveryUsername) {
+                showMessage('Error: Sesión expirada', 'error');
+                newLoginState.currentView = 'login';
+                render();
+                return;
+            }
+            
+            // Actualizar contraseña en localStorage
+            const users = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+            
+            if (!users[window.tempRecoveryUsername]) {
+                showMessage('Error: Usuario no encontrado', 'error');
+                newLoginState.currentView = 'login';
+                render();
+                return;
+            }
+            
+            users[window.tempRecoveryUsername].password = newPassword;
+            localStorage.setItem('realSystemUsers', JSON.stringify(users));
+            
+            console.log('✅ Contraseña actualizada exitosamente');
+            
+            // Limpiar variables temporales
+            window.tempRecoveryUsername = null;
+            window.tempRecoveryQuestion = null;
+            
+            // Mostrar mensaje de éxito y volver al login
+            showMessage('¡Contraseña actualizada exitosamente! Ahora puedes iniciar sesión', 'success');
+            
+            setTimeout(() => {
+                newLoginState.currentView = 'login';
+                render();
+            }, 2000);
+            
+        } catch (error) {
+            console.error('❌ Error al cambiar contraseña:', error);
+            showMessage('Error al cambiar la contraseña: ' + error.message, 'error');
+        }
+    };
+    
+    // ACTUALIZAR la función render para incluir la pantalla de reset
+    const previousRenderForReset = window.render;
+    window.render = function() {
+        const app = document.getElementById('app');
+        
+        if (!state.currentUser) {
+            if (newLoginState.currentView === 'reset-password') {
+                // Nueva pantalla para crear contraseña
+                app.innerHTML = `
+                    <div class="container">
+                        <div class="login-form" style="max-width: 500px;">
+                            <div style="text-align: center; margin-bottom: 30px;">
+                                <div style="background: linear-gradient(135deg, #22c55e, #16a34a); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(34, 197, 94, 0.3);">
+                                    <span style="font-size: 2.5rem; color: white;">🔐</span>
+                                </div>
+                                <h2 style="color: #1f2937; margin: 0; font-weight: 700;">Crear Nueva Contraseña</h2>
+                                <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 14px;">Usuario: <strong>${window.tempRecoveryUsername}</strong></p>
+                            </div>
+                            
+                            <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
+                                <h3 style="color: #166534; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">✅ Identidad verificada</h3>
+                                <p style="color: #15803d; margin: 0; font-size: 14px;">Ahora puedes crear una nueva contraseña segura</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Nueva contraseña</label>
+                                <input type="password" id="new-password" class="form-input" placeholder="Mínimo 4 caracteres" style="font-size: 15px; padding: 12px;">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Confirmar nueva contraseña</label>
+                                <input type="password" id="confirm-new-password" class="form-input" placeholder="Repite la contraseña" style="font-size: 15px; padding: 12px;">
+                            </div>
+                            
+                            <button onclick="resetPasswordFinal()" class="btn btn-success" style="width: 100%; margin-bottom: 20px; padding: 15px; font-size: 16px; font-weight: 600;">
+                                🔒 Cambiar Contraseña
+                            </button>
+                            
+                            <div style="text-align: center; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                                <button onclick="showLoginForm()" class="btn btn-secondary" style="background: transparent; color: #6b7280; border: 1px solid #d1d5db; padding: 10px 20px;">
+                                    ← Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Usar función anterior para otras pantallas
+                previousRenderForReset.call(this);
+            }
+        } else {
+            // Usuario logueado
+            previousRenderForReset.call(this);
+        }
+    };
+    
+    // FUNCIÓN para verificar disponibilidad de usuario en tiempo real
+    window.checkUsernameAvailability = function(username) {
+        if (username.length < 3) return;
+        
+        const users = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+        const usernameLower = username.toLowerCase();
+        const existingUsernames = Object.keys(users).map(u => u.toLowerCase());
+        
+        const usernameField = document.getElementById('reg-username');
+        if (usernameField) {
+            if (existingUsernames.includes(usernameLower)) {
+                usernameField.style.borderColor = '#ef4444';
+                usernameField.style.backgroundColor = '#fee2e2';
+                
+                // Mostrar mensaje temporal
+                let existingMsg = document.getElementById('username-status');
+                if (existingMsg) existingMsg.remove();
+                
+                const statusMsg = document.createElement('div');
+                statusMsg.id = 'username-status';
+                statusMsg.style.cssText = 'color: #ef4444; font-size: 12px; margin-top: 5px;';
+                statusMsg.textContent = '❌ Usuario no disponible';
+                usernameField.parentNode.appendChild(statusMsg);
+            } else {
+                usernameField.style.borderColor = '#22c55e';
+                usernameField.style.backgroundColor = '#f0fdf4';
+                
+                // Mostrar mensaje temporal
+                let existingMsg = document.getElementById('username-status');
+                if (existingMsg) existingMsg.remove();
+                
+                const statusMsg = document.createElement('div');
+                statusMsg.id = 'username-status';
+                statusMsg.style.cssText = 'color: #22c55e; font-size: 12px; margin-top: 5px;';
+                statusMsg.textContent = '✅ Usuario disponible';
+                usernameField.parentNode.appendChild(statusMsg);
+            }
+        }
+    };
+    
+    // AÑADIR event listener para verificar usuario en tiempo real
+    document.addEventListener('input', function(e) {
+        if (e.target && e.target.id === 'reg-username') {
+            setTimeout(() => {
+                checkUsernameAvailability(e.target.value.trim());
+            }, 500);
+        }
+    });
+    
+    console.log('✅ Correcciones aplicadas: Usuarios únicos + Reset de contraseña funcional');
+    
+    // Forzar re-renderizado
+    setTimeout(() => {
+        if (typeof window.render === 'function') {
+            render();
+        }
+    }, 100);
+</script>
 </body>
 </html>
+
 
 
 
