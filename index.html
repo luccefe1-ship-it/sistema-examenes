@@ -20,6 +20,7 @@ let expandedTopics = {};
 // Función para expandir/contraer temas
 function toggleTopic(topicId) {
     expandedTopics[topicId] = !expandedTopics[topicId];
+    debugQuestionIds(); // Llamar debug
     render(); // Re-renderizar para mostrar/ocultar preguntas
 }
 </script>
@@ -9554,11 +9555,28 @@ function getTopicName(topicId) {
     
     return topic ? topic.name : 'Tema desconocido';
 }
+    // DEBUGGING TEMPORAL - para ver qué está pasando  
+function debugQuestionIds() {
+    console.log('=== DEBUGGING QUESTION IDS ===');
+    console.log('Oponente existe:', !!multiplayerState.opponent);
+    console.log('Preguntas del oponente:', multiplayerState.opponent?.questions?.length || 0);
+    
+    if (multiplayerState.opponent?.questions) {
+        console.log('IDs de preguntas del oponente:');
+        multiplayerState.opponent.questions.forEach((q, index) => {
+            console.log(`${index}: ID="${q.id}" | Pregunta: "${q.question.substring(0, 30)}..."`);
+        });
+    }
+    
+    console.log('Temas expandidos:', expandedTopics);
+    console.log('=== FIN DEBUG ===');
+}
 // Función para seleccionar pregunta específica
 // ========== CORRECCIÓN DE FUNCIÓN selectSpecificQuestion ==========
 
 function selectSpecificQuestion(questionId) {
-    console.log('🎯 Intentando seleccionar pregunta:', questionId);
+    console.log('🎯 ID recibido:', questionId, 'Tipo:', typeof questionId);
+    debugQuestionIds();
     
     if (!multiplayerState.opponent || !multiplayerState.opponent.questions) {
         console.error('❌ No se pueden obtener las preguntas del oponente');
@@ -10361,6 +10379,7 @@ window.renderIntermediateScreen = function() {
 </script>
 </body>
 </html>
+
 
 
 
