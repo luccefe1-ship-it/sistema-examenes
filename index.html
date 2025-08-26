@@ -9540,127 +9540,151 @@ function leaveRoom() {
     render();
 }
 
-// Función para obtener preguntas del oponente organizadas por temas
+// ========== FUNCIÓN AUXILIAR PARA OBTENER NOMBRE DE TEMA ==========
+function getTopicName(topicId) {
+    if (!topicId) return 'Sin tema';
+    
+    // Buscar primero en mis temas
+    let topic = state.topics.find(t => t.id === topicId);
+    
+    // Si no está en mis temas, buscar en los temas del oponente
+    if (!topic && multiplayerState.opponent && multiplayerState.opponent.topics) {
+        topic = multiplayerState.opponent.topics.find(t => t.id === topicId);
+    }
+    
+    return topic ? topic.name : 'Tema desconocido';
+}
+// Función para seleccionar pregunta específica
+// ========== CORRECCIÓN DE FUNCIÓN selectSpecificQuestion ==========
+
+function selectSpecificQuestion(questionId) {
+    console.log('🎯 Intentando seleccionar pregunta:', questionId);
+    
+    if (!multiplayerState.opponent || !multiplayerState.opponent.questions) {
+        console.error('❌ No se pueden obtener las preguntas del oponente');
+        showMessage('Error: No se pueden obtener las preguntas del oponente', 'error');
+        return;
+    }
+
+    // Buscar la pregunta en las preguntas del oponente
+    const selectedQuestion = multiplayerState.opponent.questions.find(q => q.id === questionId);
+    console.log('🔍 Pregunta encontrada:', selectedQuestion);
+    
+    if (!selectedQuestion) {
+        console.error('❌ Pregunta no encontrada con ID:', questionId);
+        console.log('🔍 Preguntas disponibles:', multiplayerState.opponent.questions.map(q => ({id: q.id, question: q.question.substring(0, 30)})));
+        showMessage('Error: Pregunta no encontrada', 'error');
+        return;
+    }
+
+    // Verificar que no se haya usado ya
+    const usedQuestions = multiplayerState.gameQuestions || [];
+    if (usedQuestions.includes(questionId)) {
+        console.log('⚠️ Pregunta ya usada:', questionId);
+        showMessage('Esta pregunta ya fue usada', 'error');
+        return;
+    }
+
+    // Verificar que sea mi turno
+    if (!multiplayerState.myTurn) {
+        console.log('⚠️ No es mi turno');
+        showMessage('No es tu turno', 'error');
+        return;
+    }
+
+    console.log('✅ Enviando pregunta a Firebase...');
+
+    // Preparar datos para actualizar en Firebase
+    const updates = {
+        'gameData/currentQuestion': selectedQuestion,
+        'gameData/gamePhase': 'answer',
+        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host' // Cambiar turno
+    };
+    
+    // Incrementar contador de preguntas
+    const questionsPath = multiplayerState.isHost ? 'hostQuestionsAsked' : 'guestQuestionsAsked';
+    const currentCount = multiplayerState.myQuestionsAsked || 0;
+    updates[`gameData/${questionsPath}`] = currentCount + 1;
+    
+    // Añadir a preguntas usadas
+    const newUsedQuestions = [...usedQuestions, questionId];
+    updates['gameData/usedQuestions'] = newUsedQuestions;
+
+    // Actualizar en Firebase
+    database.ref(`rooms/${multiplayerState.currentRoom}`).update(updates)
+        .then(() => {
+            console.log('✅ Pregunta enviada correctamente');
+            showMessage('Pregunta enviada a tu oponente', 'success');
+            
+            // Actualizar estado local inmediatamente
+            multiplayerState.currentQuestion = selectedQuestion;
+            multiplayerState.myTurn = false;
+            multiplayerState.gameQuestions = newUsedQuestions;
+            multiplayerState.myQuestionsAsked = currentCount + 1;
+            
+            // Re-renderizar
+            render();
+        })
+        .catch((error) => {
+            console.error('❌ Error enviando pregunta:', error);
+            showMessage('Error al enviar pregunta: ' + error.message, 'error');
+        });
+}
+    // ========== FUNCIÓN AUXILIAR PARA OBTENER NOMBRE DE TEMA ==========
+function getTopicName(topicId) {
+    if (!topicId) return 'Sin tema';
+    
+    // Buscar primero en mis temas
+    let topic = state.topics.find(t => t.id === topicId);
+    
+    // Si no está en mis temas, buscar en los temas del oponente
+    if (!topic && multiplayerState.opponent && multiplayerState.opponent.topics) {
+        topic = multiplayerState.opponent.topics.find(t => t.id === topicId);
+    }
+    
+    return topic ? topic.name : 'Tema desconocido';
+}
+
+// ========== MEJORA EN getOpponentQuestionsByTopic ==========
 function getOpponentQuestionsByTopic() {
     if (!multiplayerState.opponent || !multiplayerState.opponent.questions) {
+        console.log('⚠️ No hay preguntas del oponente disponibles');
         return {};
     }
 
     const questions = multiplayerState.opponent.questions;
     const topics = multiplayerState.opponent.topics || [];
     const questionsByTopic = {};
+    
+    console.log('🔍 Organizando preguntas por temas:');
+    console.log('Preguntas del oponente:', questions.length);
+    console.log('Temas del oponente:', topics.length);
 
+    // Organizar preguntas por tema
     topics.forEach(topic => {
-        questionsByTopic[topic.id] = {
-            name: topic.name,
-            questions: questions.filter(q => q.topicId === topic.id)
-        };
+        const topicQuestions = questions.filter(q => q.topicId === topic.id);
+        if (topicQuestions.length > 0) {
+            questionsByTopic[topic.id] = {
+                name: topic.name,
+                questions: topicQuestions
+            };
+            console.log(`📁 Tema "${topic.name}": ${topicQuestions.length} preguntas`);
+        }
     });
 
+    // Preguntas sin tema
     const questionsWithoutTopic = questions.filter(q => !q.topicId);
     if (questionsWithoutTopic.length > 0) {
         questionsByTopic['no-topic'] = {
             name: 'Sin tema',
             questions: questionsWithoutTopic
         };
+        console.log(`📁 Sin tema: ${questionsWithoutTopic.length} preguntas`);
     }
 
+    console.log('✅ Temas organizados:', Object.keys(questionsByTopic).length);
     return questionsByTopic;
 }
-
-// Función para seleccionar pregunta específica
-function selectSpecificQuestion(questionId) {
-    if (!multiplayerState.opponent || !multiplayerState.opponent.questions) {
-        showMessage('Error: No se pueden obtener las preguntas del oponente', 'error');
-        return;
-    }
-
-    const selectedQuestion = multiplayerState.opponent.questions.find(q => q.id === questionId);
-    
-    if (!selectedQuestion) {
-        showMessage('Error: Pregunta no encontrada', 'error');
-        return;
-    }
-
-    if (multiplayerState.gameQuestions && multiplayerState.gameQuestions.includes(questionId)) {
-        showMessage('Esta pregunta ya fue usada', 'error');
-        return;
-    }
-
-    const updates = {
-        'gameData/currentQuestion': selectedQuestion,
-        'gameData/gamePhase': 'answer'
-    };
-    
-    const questionsPath = multiplayerState.isHost ? 'hostQuestionsAsked' : 'guestQuestionsAsked';
-    updates[`gameData/${questionsPath}`] = multiplayerState.myQuestionsAsked + 1;
-    
-    const usedQuestions = multiplayerState.gameQuestions || [];
-    usedQuestions.push(questionId);
-    updates['gameData/usedQuestions'] = usedQuestions;
-
-    database.ref(`rooms/${multiplayerState.currentRoom}`).update(updates)
-        .then(() => {
-            multiplayerState.gameQuestions = usedQuestions;
-            showMessage('Pregunta enviada a tu oponente', 'success');
-        })
-        .catch((error) => {
-            console.error('Error enviando pregunta:', error);
-            showMessage('Error al enviar pregunta', 'error');
-        });
-}
-
-// Responder pregunta del oponente
-function answerOpponentQuestion(selectedOptionIndex) {
-    if (!multiplayerState.currentQuestion) return;
-    
-    const isCorrect = selectedOptionIndex === multiplayerState.currentQuestion.correctAnswer;
-    const updates = {};
-    
-    if (!isCorrect) {
-        // Incrementar fallos del jugador actual
-        const failuresPath = multiplayerState.isHost ? 'hostFailures' : 'guestFailures';
-        updates[`gameData/${failuresPath}`] = multiplayerState.myFailures + 1;
-        
-        // Verificar si perdió (3 fallos)
-        if (multiplayerState.myFailures + 1 >= 3) {
-            updates['gameData/winner'] = multiplayerState.isHost ? 'guest' : 'host';
-            updates['gameData/gamePhase'] = 'finished';
-            updates['status'] = 'finished';
-        }
-    }
-    
-    // Verificar si se alcanzó el límite de preguntas (10 por jugador)
-    if (multiplayerState.myQuestionsAsked >= 10 && multiplayerState.opponentQuestionsAsked >= 10) {
-        // Determinar ganador por menor número de fallos
-        if (multiplayerState.myFailures < multiplayerState.opponentFailures) {
-            updates['gameData/winner'] = multiplayerState.isHost ? 'host' : 'guest';
-        } else if (multiplayerState.myFailures > multiplayerState.opponentFailures) {
-            updates['gameData/winner'] = multiplayerState.isHost ? 'guest' : 'host';
-        } else {
-            updates['gameData/winner'] = 'tie';
-        }
-        updates['gameData/gamePhase'] = 'finished';
-        updates['status'] = 'finished';
-    } else {
-        // Cambiar turno
-        updates['gameData/currentTurn'] = multiplayerState.isHost ? 'guest' : 'host';
-        updates['gameData/gamePhase'] = 'question';
-    }
-    
-    // Limpiar pregunta actual
-    updates['gameData/currentQuestion'] = null;
-    
-    database.ref(`rooms/${multiplayerState.currentRoom}`).update(updates)
-        .then(() => {
-            if (isCorrect) {
-                showMessage('¡Respuesta correcta!', 'success');
-            } else {
-                showMessage('Respuesta incorrecta', 'error');
-            }
-        });
-}
-
 // ========== FUNCIONES DE RENDERIZADO ==========
 
 // Extender renderTabContent para incluir multijugador
@@ -10337,6 +10361,7 @@ window.renderIntermediateScreen = function() {
 </script>
 </body>
 </html>
+
 
 
 
