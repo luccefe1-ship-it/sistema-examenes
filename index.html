@@ -9309,6 +9309,17 @@ function renderMultiplayerTab() {
     `;
 }
 
+// Funciones básicas (por ahora solo mostrarán mensajes)
+function createMultiplayerRoom() {
+    showMessage('Creando sala... (Próximamente)', 'success');
+    console.log('🏠 Creando sala multijugador');
+}
+
+function joinMultiplayerRoom() {
+    showMessage('Unirse a sala... (Próximamente)', 'success');
+    console.log('🚪 Uniéndose a sala multijugador');
+}
+
 console.log('✅ Paso 2 completado - Interfaz multijugador creada');
 </script>
 <script>
@@ -9325,6 +9336,7 @@ function generateRoomCode() {
     return result;
 }
 
+// Función para crear sala de multijugador
 function createMultiplayerRoom() {
     if (!multiplayerEnabled) {
         showMessage('Error: Sistema multijugador no disponible', 'error');
@@ -9336,6 +9348,7 @@ function createMultiplayerRoom() {
         return;
     }
 
+    // Verificar que el usuario tenga al menos 5 preguntas verificadas
     const verifiedQuestions = state.questions.filter(q => q.isVerified);
     if (verifiedQuestions.length < 5) {
         showMessage('Necesitas al menos 5 preguntas verificadas para crear una sala', 'error');
@@ -9344,41 +9357,47 @@ function createMultiplayerRoom() {
 
     const roomCode = generateRoomCode();
     
+    // Estructura de la sala en Firebase
     const roomData = {
         code: roomCode,
         host: {
             username: state.currentUser.username,
             name: state.currentUser.name,
-            questions: verifiedQuestions,
-            topics: state.topics,
-            questionsCount: verifiedQuestions.length,
+            questions: verifiedQuestions.length,
             ready: false
         },
         guest: null,
-        status: 'waiting',
+        status: 'waiting', // waiting, ready, playing, finished
         gameData: {
-            currentTurn: 'host',
+            currentQuestion: 0,
+            currentTurn: 'host', // host or guest
             hostFailures: 0,
             guestFailures: 0,
-            hostQuestionsAsked: 0,
-            guestQuestionsAsked: 0,
-            currentQuestion: null,
-            winner: null,
-            gamePhase: 'waiting',
-            usedQuestions: []
+            questions: [],
+            hostAnswers: {},
+            guestAnswers: {},
+            winner: null
         },
-        createdAt: firebase.database.ServerValue.TIMESTAMP
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        lastActivity: firebase.database.ServerValue.TIMESTAMP
     };
 
+    // Crear sala en Firebase
     database.ref('rooms/' + roomCode).set(roomData)
         .then(() => {
+            console.log('✅ Sala creada:', roomCode);
+            
+            // Actualizar estado local
             multiplayerState.currentRoom = roomCode;
             multiplayerState.isHost = true;
             multiplayerState.roomCode = roomCode;
             multiplayerState.gameState = 'waiting';
             
+            // Escuchar cambios en la sala
             listenToRoom(roomCode);
-            render();
+            
+            // Mostrar interfaz de sala
+            renderMultiplayerRoom();
             
             showMessage(`Sala creada con código: ${roomCode}`, 'success');
         })
@@ -9388,6 +9407,7 @@ function createMultiplayerRoom() {
         });
 }
 
+// Función para unirse a sala
 function joinMultiplayerRoom() {
     if (!multiplayerEnabled) {
         showMessage('Error: Sistema multijugador no disponible', 'error');
@@ -9399,6 +9419,7 @@ function joinMultiplayerRoom() {
         return;
     }
 
+    // Verificar que el usuario tenga al menos 5 preguntas verificadas
     const verifiedQuestions = state.questions.filter(q => q.isVerified);
     if (verifiedQuestions.length < 5) {
         showMessage('Necesitas al menos 5 preguntas verificadas para unirte a una sala', 'error');
@@ -9413,6 +9434,7 @@ function joinMultiplayerRoom() {
 
     const upperRoomCode = roomCode.toUpperCase();
     
+    // Verificar que la sala existe y está disponible
     database.ref('rooms/' + upperRoomCode).once('value')
         .then((snapshot) => {
             if (!snapshot.exists()) {
@@ -9437,25 +9459,30 @@ function joinMultiplayerRoom() {
                 return;
             }
 
+            // Unirse a la sala
             const guestData = {
                 username: state.currentUser.username,
                 name: state.currentUser.name,
-                questions: verifiedQuestions,
-                topics: state.topics,
-                questionsCount: verifiedQuestions.length,
+                questions: verifiedQuestions.length,
                 ready: false
             };
 
             return database.ref('rooms/' + upperRoomCode + '/guest').set(guestData);
         })
         .then(() => {
+            console.log('✅ Unido a sala:', upperRoomCode);
+            
+            // Actualizar estado local
             multiplayerState.currentRoom = upperRoomCode;
             multiplayerState.isHost = false;
             multiplayerState.roomCode = upperRoomCode;
             multiplayerState.gameState = 'waiting';
             
+            // Escuchar cambios en la sala
             listenToRoom(upperRoomCode);
-            render();
+            
+            // Mostrar interfaz de sala
+            renderMultiplayerRoom();
             
             showMessage(`Te has unido a la sala: ${upperRoomCode}`, 'success');
         })
@@ -9464,77 +9491,6 @@ function joinMultiplayerRoom() {
             showMessage('Error al unirse a la sala', 'error');
         });
 }
-
-  // Función para obtener preguntas del oponente organizadas por temas
-function getOpponentQuestionsByTopic() {
-    if (!multiplayerState.opponent || !multiplayerState.opponent.questions) {
-        return {};
-    }
-
-    const questions = multiplayerState.opponent.questions;
-    const topics = multiplayerState.opponent.topics || [];
-    const questionsByTopic = {};
-
-    topics.forEach(topic => {
-        questionsByTopic[topic.id] = {
-            name: topic.name,
-            questions: questions.filter(q => q.topicId === topic.id)
-        };
-    });
-
-    const questionsWithoutTopic = questions.filter(q => !q.topicId);
-    if (questionsWithoutTopic.length > 0) {
-        questionsByTopic['no-topic'] = {
-            name: 'Sin tema',
-            questions: questionsWithoutTopic
-        };
-    }
-
-    return questionsByTopic;
-}
-
-// Función para seleccionar pregunta específica
-function selectSpecificQuestion(questionId) {
-    if (!multiplayerState.opponent || !multiplayerState.opponent.questions) {
-        showMessage('Error: No se pueden obtener las preguntas del oponente', 'error');
-        return;
-    }
-
-    const selectedQuestion = multiplayerState.opponent.questions.find(q => q.id === questionId);
-    
-    if (!selectedQuestion) {
-        showMessage('Error: Pregunta no encontrada', 'error');
-        return;
-    }
-
-    if (multiplayerState.gameQuestions && multiplayerState.gameQuestions.includes(questionId)) {
-        showMessage('Esta pregunta ya fue usada', 'error');
-        return;
-    }
-
-    const updates = {
-        'gameData/currentQuestion': selectedQuestion,
-        'gameData/gamePhase': 'answer'
-    };
-    
-    const questionsPath = multiplayerState.isHost ? 'hostQuestionsAsked' : 'guestQuestionsAsked';
-    updates[`gameData/${questionsPath}`] = multiplayerState.myQuestionsAsked + 1;
-    
-    const usedQuestions = multiplayerState.gameQuestions || [];
-    usedQuestions.push(questionId);
-    updates['gameData/usedQuestions'] = usedQuestions;
-
-    database.ref(`rooms/${multiplayerState.currentRoom}`).update(updates)
-        .then(() => {
-            multiplayerState.gameQuestions = usedQuestions;
-            showMessage('Pregunta enviada a tu oponente', 'success');
-        })
-        .catch((error) => {
-            console.error('Error enviando pregunta:', error);
-            showMessage('Error al enviar pregunta', 'error');
-        });
-}  
-    
 
 // Función para escuchar cambios en la sala
 function listenToRoom(roomCode) {
@@ -9559,6 +9515,7 @@ function listenToRoom(roomCode) {
     });
 }
 
+// Función para actualizar estado local desde datos de Firebase
 function updateLocalStateFromRoom(roomData) {
     multiplayerState.gameState = roomData.status;
     
@@ -9568,18 +9525,13 @@ function updateLocalStateFromRoom(roomData) {
         multiplayerState.opponent = roomData.host;
     }
     
+    // Actualizar datos del juego si existen
     if (roomData.gameData) {
         multiplayerState.myFailures = multiplayerState.isHost ? 
             roomData.gameData.hostFailures : roomData.gameData.guestFailures;
         multiplayerState.opponentFailures = multiplayerState.isHost ? 
             roomData.gameData.guestFailures : roomData.gameData.hostFailures;
         multiplayerState.myTurn = (roomData.gameData.currentTurn === 'host') === multiplayerState.isHost;
-        multiplayerState.currentQuestion = roomData.gameData.currentQuestion;
-        multiplayerState.myQuestionsAsked = multiplayerState.isHost ? 
-            roomData.gameData.hostQuestionsAsked : roomData.gameData.guestQuestionsAsked;
-        multiplayerState.opponentQuestionsAsked = multiplayerState.isHost ? 
-            roomData.gameData.guestQuestionsAsked : roomData.gameData.hostQuestionsAsked;
-        multiplayerState.gameQuestions = roomData.gameData.usedQuestions || [];
     }
 }
 
@@ -9614,210 +9566,154 @@ function leaveRoom() {
     render();
 }
 
-function renderGameInterface() {
-    const opponent = multiplayerState.opponent;
-    const isMyTurn = multiplayerState.myTurn;
-    const currentQuestion = multiplayerState.currentQuestion;
-    const myFailures = multiplayerState.myFailures;
-    const opponentFailures = multiplayerState.opponentFailures;
-    const myQuestionsAsked = multiplayerState.myQuestionsAsked;
-    const opponentQuestionsAsked = multiplayerState.opponentQuestionsAsked;
-    
-    // Verificar si el juego terminó
-    if (multiplayerState.gameState === 'finished') {
-        return renderGameFinished();
+// Función para renderizar la interfaz de sala
+function renderMultiplayerRoom() {
+    // Esta función actualizará el contenido para mostrar la sala
+    // Por ahora, forzamos un re-render
+    render();
+}
+
+console.log('✅ Paso 1 completado - Gestión de salas implementada');
+</script>
+    <script>
+// Actualizar función renderMultiplayerTab para mostrar salas
+function renderMultiplayerTab() {
+    // Si estamos en una sala, mostrar interfaz de sala
+    if (multiplayerState.currentRoom) {
+        return renderRoomInterface();
     }
     
-    // Obtener preguntas del oponente por temas
-    const opponentQuestionsByTopic = getOpponentQuestionsByTopic();
-    const usedQuestions = multiplayerState.gameQuestions || [];
+    // Interfaz principal de multijugador
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    const hasEnoughQuestions = verifiedQuestions.length >= 5;
     
     return `
-        <div style="max-width: 1400px; margin: 0 auto; padding: 15px; min-height: calc(100vh - 150px);">
-            
-            <!-- Header del duelo -->
-            <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 15px; border-radius: 12px;">
-                <h2 style="margin: 0; font-size: 1.5rem;">⚔️ DUELO EN PROGRESO</h2>
-                <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 13px;">
-                    Sala: ${multiplayerState.roomCode} | ${isMyTurn ? 'Tu turno' : `Turno de ${opponent.name}`}
+        <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                    <span>⚔️</span> Duelo de Preguntas
+                </h1>
+                <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                    Compite con otro usuario - El primero en fallar 3 preguntas pierde
                 </p>
             </div>
             
-            <!-- Pantalla dividida CORREGIDA -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; min-height: 600px;">
+            ${!hasEnoughQuestions ? `
+                <div style="background: #fee2e2; border: 2px solid #ef4444; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center;">
+                    <h3 style="color: #dc2626; margin: 0 0 10px 0;">❌ Preguntas Insuficientes</h3>
+                    <p style="color: #991b1b; margin: 0; font-size: 14px;">
+                        Necesitas al menos <strong>5 preguntas verificadas (⭐)</strong> para jugar multijugador.
+                        <br>Actualmente tienes: <strong>${verifiedQuestions.length}</strong>
+                    </p>
+                </div>
+            ` : ''}
+            
+            <div style="display: grid; gap: 20px; max-width: 600px; margin: 0 auto;">
+                <button onclick="createMultiplayerRoom()" class="btn btn-primary" style="padding: 20px; font-size: 18px; border-radius: 12px;" ${!hasEnoughQuestions ? 'disabled' : ''}>
+                    🏠 Crear Sala
+                </button>
                 
-                <!-- LADO IZQUIERDO: Temas y preguntas del oponente para elegir -->
-                <div style="background: white; border: 2px solid #e2e8f0; border-radius: 16px; padding: 20px; overflow-y: auto;">
-                    <h3 style="color: #1f2937; margin: 0 0 20px 0; font-size: 1.2rem; text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;">
-                        📂 Temas de ${opponent.name}
-                    </h3>
-                    
-                    ${isMyTurn ? `
-                        <!-- Mi turno: Mostrar temas para elegir pregunta -->
-                        <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 10px; padding: 15px; margin-bottom: 20px; text-align: center;">
-                            <div style="color: #166534; font-weight: 600; margin-bottom: 5px;">🎯 Tu turno</div>
-                            <div style="color: #16a34a; font-size: 13px;">Elige una pregunta de los temas de ${opponent.name}</div>
-                        </div>
-                        
-                        ${Object.keys(opponentQuestionsByTopic).length === 0 ? `
-                            <div style="text-align: center; color: #6b7280; padding: 40px;">
-                                <div style="font-size: 2rem; margin-bottom: 10px;">❌</div>
-                                <p>No hay preguntas disponibles del oponente</p>
-                            </div>
-                        ` : `
-                            <!-- Mostrar temas y preguntas -->
-                            <div style="space-y: 15px;">
-                                ${Object.entries(opponentQuestionsByTopic).map(([topicId, topicData]) => `
-                                    <div style="margin-bottom: 20px;">
-                                        <h4 style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 10px 15px; margin: 0; border-radius: 8px 8px 0 0; font-size: 14px;">
-                                            📁 ${topicData.name} (${topicData.questions.filter(q => !usedQuestions.includes(q.id)).length} disponibles)
-                                        </h4>
-                                        <div style="border: 2px solid #8b5cf6; border-top: none; border-radius: 0 0 8px 8px; padding: 10px; background: #faf9ff; max-height: 200px; overflow-y: auto;">
-                                            ${topicData.questions.filter(q => !usedQuestions.includes(q.id)).length === 0 ? `
-                                                <div style="text-align: center; color: #9ca3af; font-style: italic; padding: 20px;">
-                                                    Todas las preguntas de este tema ya fueron usadas
-                                                </div>
-                                            ` : `
-                                                ${topicData.questions.filter(q => !usedQuestions.includes(q.id)).map(question => `
-                                                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;" 
-                                                         onmouseover="this.style.backgroundColor='#f8fafc'; this.style.borderColor='#8b5cf6';" 
-                                                         onmouseout="this.style.backgroundColor='white'; this.style.borderColor='#e2e8f0';"
-                                                         onclick="selectSpecificQuestion('${question.id}')">
-                                                        <div style="font-size: 14px; color: #374151; line-height: 1.4; margin-bottom: 5px;">
-                                                            ${question.question.length > 80 ? question.question.substring(0, 80) + '...' : question.question}
-                                                        </div>
-                                                        <div style="font-size: 11px; color: #6b7280;">
-                                                            ${question.options.length} opciones | Click para enviar
-                                                        </div>
-                                                    </div>
-                                                `).join('')}
-                                            `}
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        `}
-                    ` : `
-                        <!-- No es mi turno: Mostrar estadísticas del oponente -->
-                        <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 10px; padding: 15px; margin-bottom: 20px; text-align: center;">
-                            <div style="color: #92400e; font-weight: 600; margin-bottom: 5px;">⏳ Esperando</div>
-                            <div style="color: #78350f; font-size: 13px;">${opponent.name} está respondiendo</div>
-                        </div>
-                        
-                        <!-- Resumen de temas del oponente -->
-                        <div style="space-y: 10px;">
-                            ${Object.entries(opponentQuestionsByTopic).map(([topicId, topicData]) => `
-                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
-                                    <div style="font-weight: 600; color: #374151; margin-bottom: 5px;">📁 ${topicData.name}</div>
-                                    <div style="font-size: 12px; color: #6b7280;">
-                                        ${topicData.questions.length} preguntas totales | 
-                                        ${topicData.questions.filter(q => !usedQuestions.includes(q.id)).length} disponibles
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    `}
+                <button onclick="joinMultiplayerRoom()" class="btn btn-success" style="padding: 20px; font-size: 18px; border-radius: 12px;" ${!hasEnoughQuestions ? 'disabled' : ''}>
+                    🚪 Unirse a Sala
+                </button>
+                
+                <div style="text-align: center; margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
+                    <p style="color: #1e40af; margin: 0 0 10px 0; font-size: 14px;">
+                        <strong>Estado:</strong> ${multiplayerEnabled ? '✅ Conectado' : '❌ Desconectado'}
+                    </p>
+                    <p style="color: #6b7280; margin: 0; font-size: 12px;">
+                        Preguntas verificadas: ${verifiedQuestions.length}
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Nueva función para renderizar la interfaz de sala
+function renderRoomInterface() {
+    const roomCode = multiplayerState.roomCode;
+    const isHost = multiplayerState.isHost;
+    const opponent = multiplayerState.opponent;
+    const gameState = multiplayerState.gameState;
+    
+    return `
+        <div style="max-width: 700px; margin: 0 auto; padding: 20px;">
+            
+            <!-- Header de la sala -->
+            <div style="text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 25px; border-radius: 16px;">
+                <h2 style="margin: 0 0 10px 0; font-size: 1.8rem;">Sala de Duelo</h2>
+                <div style="font-size: 2rem; font-weight: bold; letter-spacing: 3px; margin: 10px 0;">
+                    ${roomCode}
+                </div>
+                <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                    Comparte este código con tu oponente
+                </p>
+            </div>
+            
+            <!-- Información de jugadores -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                
+                <!-- Jugador 1 (Host) -->
+                <div style="background: ${isHost ? '#f0fdf4' : '#f8fafc'}; border: 2px solid ${isHost ? '#22c55e' : '#e2e8f0'}; border-radius: 12px; padding: 20px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 10px;">${isHost ? '👑' : '👤'}</div>
+                    <h3 style="margin: 0 0 5px 0; color: #1f2937;">${state.currentUser.name}</h3>
+                    <p style="margin: 0; font-size: 12px; color: #6b7280;">
+                        ${isHost ? 'Anfitrión' : 'Invitado'} (Tú)
+                    </p>
                 </div>
                 
-                <!-- LADO DERECHO: Pregunta actual y respuesta -->
-                <div style="background: white; border: 2px solid #e2e8f0; border-radius: 16px; padding: 25px; display: flex; flex-direction: column;">
-                    
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <h3 style="color: #1f2937; margin: 0; font-size: 1.2rem;">
-                            ${currentQuestion ? '📝 Pregunta Planteada' : '⏸️ Sin Pregunta Activa'}
-                        </h3>
-                        <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
-                            ${currentQuestion ? (isMyTurn ? 'Esperando respuesta de ' + opponent.name : 'Responde esta pregunta') : 'Esperando que se seleccione una pregunta'}
-                        </p>
+                <!-- Jugador 2 (Guest/Waiting) -->
+                <div style="background: ${!isHost && opponent ? '#f0fdf4' : '#f9fafb'}; border: 2px solid ${!isHost && opponent ? '#22c55e' : '#d1d5db'}; border-radius: 12px; padding: 20px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 10px;">
+                        ${opponent ? (!isHost ? '👑' : '👤') : '⏳'}
                     </div>
-                    
-                    ${currentQuestion ? `
-                        <div style="flex: 1; display: flex; flex-direction: column;">
-                            <!-- Pregunta -->
-                            <div style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-left: 4px solid #4f46e5; padding: 20px; border-radius: 0 12px 12px 0; margin-bottom: 25px;">
-                                <h4 style="color: #1f2937; margin: 0 0 10px 0; font-size: 1.1rem;">
-                                    ${currentQuestion.question}
-                                </h4>
-                                ${currentQuestion.topicId ? `
-                                    <span style="background: #e0e7ff; color: #4f46e5; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">
-                                        ${getTopicName(currentQuestion.topicId)}
-                                    </span>
-                                ` : ''}
-                            </div>
-                            
-                            <!-- Opciones de respuesta -->
-                            ${!isMyTurn ? `
-                                <div style="display: grid; gap: 12px; flex: 1; margin-bottom: 20px;">
-                                    ${currentQuestion.options.map((option, index) => `
-                                        <button onclick="answerOpponentQuestion(${index})" 
-                                                style="background: #f9fafb; border: 2px solid #e2e8f0; border-radius: 12px; padding: 15px; text-align: left; cursor: pointer; transition: all 0.2s; font-size: 14px; color: #374151;" 
-                                                onmouseover="this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#4f46e5';" 
-                                                onmouseout="this.style.backgroundColor='#f9fafb'; this.style.borderColor='#e2e8f0';">
-                                            <strong>${String.fromCharCode(97 + index).toUpperCase()})</strong> ${option}
-                                        </button>
-                                    `).join('')}
-                                </div>
-                            ` : `
-                                <div style="flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; color: #6b7280; margin-bottom: 20px;">
-                                    <div>
-                                        <div style="font-size: 3rem; margin-bottom: 15px;">⏳</div>
-                                        <h4>Esperando respuesta de ${opponent.name}</h4>
-                                        <div style="display: grid; gap: 8px; margin-top: 15px;">
-                                            ${currentQuestion.options.map((option, index) => `
-                                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: left; font-size: 13px; color: #6b7280;">
-                                                    <strong>${String.fromCharCode(97 + index).toUpperCase()})</strong> ${option}
-                                                </div>
-                                            `).join('')}
-                                        </div>
-                                    </div>
-                                </div>
-                            `}
-                        </div>
-                    ` : `
-                        <div style="flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; color: #6b7280;">
-                            <div>
-                                <div style="font-size: 4rem; margin-bottom: 20px;">💭</div>
-                                <h4>No hay pregunta activa</h4>
-                                <p style="font-size: 14px; margin-top: 10px;">
-                                    ${isMyTurn ? 'Selecciona una pregunta de los temas de la izquierda' : opponent.name + ' está seleccionando una pregunta'}
-                                </p>
-                            </div>
-                        </div>
-                    `}
-                    
-                    <!-- Estadísticas propias en la parte inferior -->
-                    <div style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-radius: 10px; border: 2px solid #22c55e;">
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; text-align: center;">
-                            <div>
-                                <div style="font-size: 1.3rem; font-weight: bold; color: #ef4444;">${myFailures}/3</div>
-                                <div style="font-size: 11px; color: #166534;">Mis Fallos</div>
-                            </div>
-                            <div>
-                                <div style="font-size: 1.3rem; font-weight: bold; color: #4f46e5;">${myQuestionsAsked}/10</div>
-                                <div style="font-size: 11px; color: #166534;">Mis Preguntas</div>
-                            </div>
-                            <div>
-                                <div style="font-size: 1.3rem; font-weight: bold; color: #f59e0b;">${opponentFailures}/3</div>
-                                <div style="font-size: 11px; color: #166534;">Sus Fallos</div>
-                            </div>
-                        </div>
-                    </div>
+                    <h3 style="margin: 0 0 5px 0; color: #1f2937;">
+                        ${opponent ? opponent.name : 'Esperando...'}
+                    </h3>
+                    <p style="margin: 0; font-size: 12px; color: #6b7280;">
+                        ${opponent ? (!isHost ? 'Anfitrión' : 'Invitado') : 'Waiting for player'}
+                    </p>
                 </div>
             </div>
             
-            <!-- Botón salir (pequeño) -->
-            <div style="text-align: center; margin-top: 15px;">
-                <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 8px 16px; font-size: 13px;">
-                    🚪 Abandonar Duelo
+            <!-- Estado del juego -->
+            <div style="text-align: center; margin-bottom: 30px;">
+                ${gameState === 'waiting' ? `
+                    <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 12px; padding: 20px;">
+                        <h3 style="color: #92400e; margin: 0 0 10px 0;">
+                            ${opponent ? '⏳ Esperando que ambos estén listos' : '👥 Esperando oponente'}
+                        </h3>
+                        <p style="color: #78350f; margin: 0; font-size: 14px;">
+                            ${opponent ? 'Presiona "Listo" cuando quieras empezar' : 'Comparte el código de sala con tu oponente'}
+                        </p>
+                    </div>
+                ` : ''}
+            </div>
+            
+            <!-- Botones de acción -->
+            <div style="display: flex; gap: 15px; justify-content: center;">
+                ${opponent && gameState === 'waiting' ? `
+                    <button onclick="markAsReady()" class="btn btn-success" style="padding: 15px 25px; font-size: 16px;">
+                        ✅ Estoy Listo
+                    </button>
+                ` : ''}
+                
+                <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 15px 25px; font-size: 16px;">
+                    🚪 Salir de la Sala
                 </button>
             </div>
         </div>
     `;
 }
+
+// Función placeholder para marcar como listo (implementaremos en el siguiente paso)
+function markAsReady() {
+    showMessage('Función "Listo" será implementada en el siguiente paso', 'success');
+}
 </script>
 </body>
 </html>
-
 
 
 
