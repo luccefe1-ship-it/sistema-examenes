@@ -9711,6 +9711,446 @@ function markAsReady() {
     showMessage('FunciÃ³n "Listo" serÃ¡ implementada en el siguiente paso', 'success');
 }
 </script>
+<script>
+// ========== SISTEMA MULTIJUGADOR MEJORADO - PANTALLA DIVIDIDA ==========
+
+// Actualizar la función renderRoomInterface para incluir el juego
+function renderRoomInterface() {
+    const roomCode = multiplayerState.roomCode;
+    const isHost = multiplayerState.isHost;
+    const opponent = multiplayerState.opponent;
+    const gameState = multiplayerState.gameState;
     
+    // Si el juego está en progreso, mostrar pantalla dividida
+    if (gameState === 'playing') {
+        return renderGameScreen();
+    }
+    
+    // Interfaz de espera (código existente mejorado)
+    return `
+        <div style="max-width: 700px; margin: 0 auto; padding: 20px;">
+            
+            <!-- Header de la sala -->
+            <div style="text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 25px; border-radius: 16px;">
+                <h2 style="margin: 0 0 10px 0; font-size: 1.8rem;">Sala de Duelo</h2>
+                <div style="font-size: 2rem; font-weight: bold; letter-spacing: 3px; margin: 10px 0;">
+                    ${roomCode}
+                </div>
+                <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                    ${opponent ? 'Ambos jugadores conectados' : 'Esperando oponente...'}
+                </p>
+            </div>
+            
+            <!-- Información de jugadores -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                
+                <!-- Jugador 1 (Host) -->
+                <div style="background: ${isHost ? '#f0fdf4' : '#f8fafc'}; border: 2px solid ${isHost ? '#22c55e' : '#e2e8f0'}; border-radius: 12px; padding: 20px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 10px;">${isHost ? '👑' : '👤'}</div>
+                    <h3 style="margin: 0 0 5px 0; color: #1f2937;">${state.currentUser.name}</h3>
+                    <p style="margin: 0; font-size: 12px; color: #6b7280;">
+                        ${isHost ? 'Anfitrión' : 'Invitado'} (Tú)
+                    </p>
+                    <div style="margin-top: 10px; font-size: 12px; color: #10b981;">
+                        ✅ ${state.questions.filter(q => q.isVerified).length} preguntas listas
+                    </div>
+                </div>
+                
+                <!-- Jugador 2 (Guest/Waiting) -->
+                <div style="background: ${!isHost && opponent ? '#f0fdf4' : '#f9fafb'}; border: 2px solid ${!isHost && opponent ? '#22c55e' : '#d1d5db'}; border-radius: 12px; padding: 20px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 10px;">
+                        ${opponent ? (!isHost ? '👑' : '🎮') : '⏳'}
+                    </div>
+                    <h3 style="margin: 0 0 5px 0; color: #1f2937;">
+                        ${opponent ? opponent.name : 'Esperando...'}
+                    </h3>
+                    <p style="margin: 0; font-size: 12px; color: #6b7280;">
+                        ${opponent ? (!isHost ? 'Anfitrión' : 'Invitado') : 'Jugador pendiente'}
+                    </p>
+                    ${opponent ? `
+                        <div style="margin-top: 10px; font-size: 12px; color: #10b981;">
+                            ✅ ${opponent.questions} preguntas listas
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <!-- Botones de acción -->
+            <div style="display: flex; gap: 15px; justify-content: center; margin-bottom: 20px;">
+                ${opponent && !multiplayerState.myReady ? `
+                    <button onclick="markReady()" class="btn btn-success" style="padding: 15px 30px; font-size: 16px;">
+                        ✅ Estoy Listo
+                    </button>
+                ` : opponent && multiplayerState.myReady ? `
+                    <div style="background: #dcfce7; color: #166534; padding: 15px 30px; border-radius: 8px; font-weight: 500;">
+                        ✅ Esperando al oponente...
+                    </div>
+                ` : ''}
+                
+                <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 15px 30px;">
+                    🚪 Salir de Sala
+                </button>
+            </div>
+            
+            <div style="text-align: center; padding: 15px; background: #f0f9ff; border-radius: 8px; font-size: 14px; color: #1e40af;">
+                ${!opponent ? '⏳ Esperando que alguien se una con el código...' : 
+                  !multiplayerState.myReady && !multiplayerState.opponentReady ? '🎯 Haz clic en "Estoy Listo" cuando quieras empezar' :
+                  multiplayerState.myReady && !multiplayerState.opponentReady ? '⏳ Esperando que tu oponente esté listo...' :
+                  !multiplayerState.myReady && multiplayerState.opponentReady ? '⚡ Tu oponente está listo! Haz clic en "Estoy Listo"' :
+                  '🚀 ¡Ambos listos! Iniciando juego...'}
+            </div>
+        </div>
+    `;
+}
+
+// Nueva función para renderizar la pantalla de juego dividida
+function renderGameScreen() {
+    const isHost = multiplayerState.isHost;
+    const opponent = multiplayerState.opponent;
+    const currentQuestion = multiplayerState.currentQuestion;
+    const isMyTurn = multiplayerState.myTurn;
+    
+    // Obtener preguntas del oponente
+    const opponentQuestions = isHost ? 
+        multiplayerState.guestQuestions || [] : 
+        multiplayerState.hostQuestions || [];
+    
+    return `
+        <div class="container">
+            <!-- Header del juego -->
+            <div class="header">
+                <div class="title">⚔️ Duelo en Progreso</div>
+                <button onclick="leaveRoom()" class="btn btn-danger">🚪 Salir</button>
+            </div>
+            
+            <!-- Estadísticas -->
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px; padding: 15px; background: #f8fafc; border-radius: 12px;">
+                <div style="text-align: center;">
+                    <div style="font-weight: bold; color: ${isHost ? '#10b981' : '#6b7280'};">
+                        ${state.currentUser.name} ${isHost ? '👑' : '🎮'}
+                    </div>
+                    <div style="color: #ef4444;">❌ Fallos: ${multiplayerState.myFailures}/3</div>
+                    <div style="color: #3b82f6;">❓ Preguntas: ${multiplayerState.myQuestionsAsked || 0}/10</div>
+                </div>
+                
+                <div style="text-align: center; align-self: center;">
+                    <div style="font-size: 18px; font-weight: bold; color: #4f46e5;">
+                        Turno: ${isMyTurn ? 'TÚ' : opponent.name.toUpperCase()}
+                    </div>
+                </div>
+                
+                <div style="text-align: center;">
+                    <div style="font-weight: bold; color: ${!isHost ? '#10b981' : '#6b7280'};">
+                        ${opponent.name} ${!isHost ? '👑' : '🎮'}
+                    </div>
+                    <div style="color: #ef4444;">❌ Fallos: ${multiplayerState.opponentFailures}/3</div>
+                    <div style="color: #3b82f6;">❓ Preguntas: ${multiplayerState.opponentQuestionsAsked || 0}/10</div>
+                </div>
+            </div>
+            
+            <!-- Pantalla dividida -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; height: 500px;">
+                
+                <!-- Panel izquierdo: Preguntas del oponente -->
+                <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 20px; overflow-y: auto;">
+                    <h3 style="color: #374151; margin-bottom: 15px; text-align: center;">
+                        📋 Todas las preguntas de ${opponent.name}
+                    </h3>
+                    
+                    <div style="background: ${isMyTurn ? '#fef3c7' : '#f3f4f6'}; border: 1px solid ${isMyTurn ? '#f59e0b' : '#d1d5db'}; border-radius: 8px; padding: 10px; margin-bottom: 15px; text-align: center; font-size: 14px; color: ${isMyTurn ? '#92400e' : '#6b7280'};">
+                        ${isMyTurn ? '🎯 Es tu turno - Selecciona una pregunta para tu oponente' : '⏳ Espera tu turno'}
+                    </div>
+                    
+                    ${opponentQuestions.length > 0 ? 
+                        opponentQuestions.map((q, index) => `
+                            <div class="question-card" style="border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; margin-bottom: 10px; background: ${isMyTurn ? '#f8fafc' : '#f9fafb'}; ${isMyTurn ? 'cursor: pointer;' : 'cursor: not-allowed;'} transition: all 0.2s;" 
+                                 ${isMyTurn ? `onclick="selectQuestionForOpponent(${index})" onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='#d1d5db'"` : ''}>
+                                <div style="font-weight: 500; margin-bottom: 8px; color: #374151;">
+                                    ${q.question}
+                                </div>
+                                <div style="font-size: 12px; color: #6b7280;">
+                                    Tema: ${q.topicId ? state.topics.find(t => t.id.toString() === q.topicId.toString())?.name || 'Sin tema' : 'Sin tema'}
+                                </div>
+                            </div>
+                        `).join('') : 
+                        '<div style="text-align: center; padding: 40px; color: #6b7280;">⏳ Cargando preguntas del oponente...</div>'
+                    }
+                </div>
+                
+                <!-- Panel derecho: Pregunta actual -->
+                <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 20px;">
+                    <h3 style="color: #374151; margin-bottom: 20px; text-align: center;">
+                        ${currentQuestion ? '❓ Pregunta Actual' : '⏳ Esperando pregunta...'}
+                    </h3>
+                    
+                    ${renderCurrentQuestion()}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Función para renderizar la pregunta actual
+function renderCurrentQuestion() {
+    const currentQuestion = multiplayerState.currentQuestion;
+    const isMyTurnToAnswer = !multiplayerState.myTurn; // Si no es mi turno para preguntar, es mi turno para responder
+    
+    if (!currentQuestion) {
+        return `
+            <div style="text-align: center; padding: 60px 20px; color: #6b7280;">
+                <div style="font-size: 48px; margin-bottom: 15px;">🤔</div>
+                <div style="font-size: 18px; margin-bottom: 10px;">Esperando que se seleccione una pregunta...</div>
+                <div style="font-size: 14px;">El jugador activo debe elegir una pregunta del panel izquierdo</div>
+            </div>
+        `;
+    }
+    
+    return `
+        <div style="margin-bottom: 20px;">
+            <div style="background: #f0f9ff; border: 2px solid #3b82f6; border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+                <div style="font-weight: 600; font-size: 16px; color: #1e40af; margin-bottom: 10px;">
+                    ${currentQuestion.question}
+                </div>
+                <div style="font-size: 12px; color: #6b7280;">
+                    Tema: ${currentQuestion.topicId ? state.topics.find(t => t.id.toString() === currentQuestion.topicId.toString())?.name || 'Sin tema' : 'Sin tema'}
+                </div>
+            </div>
+            
+            ${isMyTurnToAnswer ? `
+                <div style="margin-bottom: 15px; padding: 10px; background: #dcfce7; border: 1px solid #16a34a; border-radius: 8px; text-align: center; color: #15803d; font-weight: 500;">
+                    🎯 Tu turno - Selecciona tu respuesta
+                </div>
+                
+                <div style="display: grid; gap: 10px;">
+                    ${currentQuestion.options.map((option, index) => `
+                        <button onclick="submitAnswer(${index})" class="btn" style="background: #f8fafc; border: 2px solid #e2e8f0; color: #374151; padding: 12px; text-align: left; border-radius: 8px; transition: all 0.2s;" 
+                                onmouseover="this.style.borderColor='#3b82f6'; this.style.backgroundColor='#dbeafe'" 
+                                onmouseout="this.style.borderColor='#e2e8f0'; this.style.backgroundColor='#f8fafc'">
+                            ${String.fromCharCode(65 + index)}. ${option}
+                        </button>
+                    `).join('')}
+                </div>
+            ` : `
+                <div style="padding: 20px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; text-align: center; color: #92400e;">
+                    ⏳ Esperando respuesta del oponente...
+                </div>
+                
+                <div style="display: grid; gap: 10px; margin-top: 15px; opacity: 0.6;">
+                    ${currentQuestion.options.map((option, index) => `
+                        <div style="background: #f9fafb; border: 1px solid #e5e7eb; color: #6b7280; padding: 12px; text-align: left; border-radius: 8px;">
+                            ${String.fromCharCode(65 + index)}. ${option}
+                        </div>
+                    `).join('')}
+                </div>
+            `}
+        </div>
+    `;
+}
+
+// Función para marcar como listo
+function markReady() {
+    if (!multiplayerState.currentRoom || !database) return;
+    
+    const playerPath = multiplayerState.isHost ? 'host' : 'guest';
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    
+    // Marcar como listo y añadir preguntas
+    const updates = {};
+    updates[`/rooms/${multiplayerState.currentRoom}/${playerPath}/ready`] = true;
+    updates[`/rooms/${multiplayerState.currentRoom}/${playerPath}/userQuestions`] = verifiedQuestions;
+    
+    database.ref().update(updates)
+        .then(() => {
+            multiplayerState.myReady = true;
+            showMessage('Marcado como listo', 'success');
+            
+            // Verificar si ambos están listos
+            checkIfBothReady();
+        })
+        .catch(error => {
+            console.error('Error marcando como listo:', error);
+            showMessage('Error al marcar como listo', 'error');
+        });
+}
+
+// Verificar si ambos jugadores están listos
+function checkIfBothReady() {
+    if (!database || !multiplayerState.currentRoom) return;
+    
+    database.ref(`rooms/${multiplayerState.currentRoom}`).once('value')
+        .then(snapshot => {
+            const roomData = snapshot.val();
+            
+            if (roomData.host.ready && roomData.guest && roomData.guest.ready) {
+                // Ambos listos - iniciar juego
+                if (multiplayerState.isHost) {
+                    startGame(roomData);
+                }
+            }
+        });
+}
+
+// Iniciar el juego (solo el host)
+function startGame(roomData) {
+    const gameData = {
+        status: 'playing',
+        currentTurn: 'host', // El host empieza
+        currentQuestion: null,
+        hostFailures: 0,
+        guestFailures: 0,
+        hostQuestionsAsked: 0,
+        guestQuestionsAsked: 0,
+        hostQuestions: roomData.host.userQuestions,
+        guestQuestions: roomData.guest.userQuestions
+    };
+    
+    database.ref(`rooms/${multiplayerState.currentRoom}`).update(gameData)
+        .then(() => {
+            showMessage('¡Juego iniciado! Es tu turno para elegir pregunta', 'success');
+        });
+}
+
+// Seleccionar pregunta para el oponente
+function selectQuestionForOpponent(questionIndex) {
+    if (!multiplayerState.myTurn || !database) return;
+    
+    database.ref(`rooms/${multiplayerState.currentRoom}`).once('value')
+        .then(snapshot => {
+            const roomData = snapshot.val();
+            const opponentQuestions = multiplayerState.isHost ? 
+                roomData.guestQuestions : roomData.hostQuestions;
+            
+            const selectedQuestion = opponentQuestions[questionIndex];
+            
+            database.ref(`rooms/${multiplayerState.currentRoom}/currentQuestion`).set(selectedQuestion)
+                .then(() => {
+                    showMessage('Pregunta seleccionada para tu oponente', 'success');
+                });
+        });
+}
+
+// Enviar respuesta
+function submitAnswer(selectedIndex) {
+    if (!database || multiplayerState.myTurn) return; // Solo responder si no es mi turno para preguntar
+    
+    database.ref(`rooms/${multiplayerState.currentRoom}`).once('value')
+        .then(snapshot => {
+            const roomData = snapshot.val();
+            const question = roomData.currentQuestion;
+            const isCorrect = selectedIndex === question.correctAnswer;
+            
+            const myPath = multiplayerState.isHost ? 'host' : 'guest';
+            const opponentPath = multiplayerState.isHost ? 'guest' : 'host';
+            
+            const updates = {};
+            
+            if (!isCorrect) {
+                // Incrementar mis fallos si respondo mal
+                updates[`/rooms/${multiplayerState.currentRoom}/${myPath}Failures`] = (roomData[myPath + 'Failures'] || 0) + 1;
+                showMessage('❌ Respuesta incorrecta', 'error');
+            } else {
+                showMessage('✅ ¡Respuesta correcta!', 'success');
+            }
+            
+            // Incrementar preguntas hechas por el oponente
+            updates[`/rooms/${multiplayerState.currentRoom}/${opponentPath}QuestionsAsked`] = (roomData[opponentPath + 'QuestionsAsked'] || 0) + 1;
+            
+            // Limpiar pregunta actual y cambiar turno
+            updates[`/rooms/${multiplayerState.currentRoom}/currentQuestion`] = null;
+            updates[`/rooms/${multiplayerState.currentRoom}/currentTurn`] = myPath;
+            
+            database.ref().update(updates)
+                .then(() => {
+                    // Verificar condiciones de fin de juego después de un delay
+                    setTimeout(() => checkGameEnd(), 1500);
+                });
+        });
+}
+
+// Verificar fin de juego
+function checkGameEnd() {
+    if (!database) return;
+    
+    database.ref(`rooms/${multiplayerState.currentRoom}`).once('value')
+        .then(snapshot => {
+            const roomData = snapshot.val();
+            
+            // Verificar 3 fallos
+            if (roomData.hostFailures >= 3) {
+                endGame(roomData.guest.name, 'El anfitrión alcanzó 3 fallos');
+                return;
+            }
+            if (roomData.guestFailures >= 3) {
+                endGame(roomData.host.name, 'El invitado alcanzó 3 fallos');
+                return;
+            }
+            
+            // Verificar 10 preguntas cada uno
+            if ((roomData.hostQuestionsAsked || 0) >= 10 && (roomData.guestQuestionsAsked || 0) >= 10) {
+                const hostFailures = roomData.hostFailures || 0;
+                const guestFailures = roomData.guestFailures || 0;
+                
+                if (hostFailures < guestFailures) {
+                    endGame(roomData.host.name, 'Menor número de fallos');
+                } else if (guestFailures < hostFailures) {
+                    endGame(roomData.guest.name, 'Menor número de fallos');
+                } else {
+                    endGame('Empate', 'Ambos tienen los mismos fallos');
+                }
+            }
+        });
+}
+
+// Terminar juego
+function endGame(winner, reason) {
+    const updates = {
+        [`/rooms/${multiplayerState.currentRoom}/status`]: 'finished',
+        [`/rooms/${multiplayerState.currentRoom}/winner`]: { name: winner, reason: reason }
+    };
+    
+    database.ref().update(updates)
+        .then(() => {
+            showMessage(`🏆 Juego terminado! Ganador: ${winner} (${reason})`, 
+                winner === 'Empate' ? 'warning' : 'success');
+            
+            setTimeout(() => {
+                leaveRoom();
+            }, 5000);
+        });
+}
+
+// Actualizar el listener para manejar datos del juego
+function updateLocalStateFromRoom(roomData) {
+    multiplayerState.gameState = roomData.status;
+    multiplayerState.myReady = multiplayerState.isHost ? roomData.host.ready : roomData.guest.ready;
+    multiplayerState.opponentReady = multiplayerState.isHost ? 
+        (roomData.guest ? roomData.guest.ready : false) : roomData.host.ready;
+    
+    if (multiplayerState.isHost) {
+        multiplayerState.opponent = roomData.guest;
+    } else {
+        multiplayerState.opponent = roomData.host;
+    }
+    
+    // Datos del juego
+    if (roomData.status === 'playing') {
+        multiplayerState.myTurn = (roomData.currentTurn === 'host') === multiplayerState.isHost;
+        multiplayerState.currentQuestion = roomData.currentQuestion;
+        multiplayerState.myFailures = multiplayerState.isHost ? 
+            (roomData.hostFailures || 0) : (roomData.guestFailures || 0);
+        multiplayerState.opponentFailures = multiplayerState.isHost ? 
+            (roomData.guestFailures || 0) : (roomData.hostFailures || 0);
+        multiplayerState.myQuestionsAsked = multiplayerState.isHost ? 
+            (roomData.hostQuestionsAsked || 0) : (roomData.guestQuestionsAsked || 0);
+        multiplayerState.opponentQuestionsAsked = multiplayerState.isHost ? 
+            (roomData.guestQuestionsAsked || 0) : (roomData.hostQuestionsAsked || 0);
+        multiplayerState.hostQuestions = roomData.hostQuestions;
+        multiplayerState.guestQuestions = roomData.guestQuestions;
+    }
+}
+
+console.log('✅ Sistema multijugador con pantalla dividida implementado');
+</script>    
 </body>
 </html>
+
