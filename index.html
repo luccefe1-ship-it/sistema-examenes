@@ -9711,8 +9711,484 @@ function markAsReady() {
     showMessage('Función "Listo" será implementada en el siguiente paso', 'success');
 }
 </script>
+    <!-- 
+COMPLETAR SISTEMA MULTIJUGADOR - FASE FINAL
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+-->
+
+<script>
+// ========== FASE FINAL: SISTEMA MULTIJUGADOR COMPLETO ==========
+console.log('🎮 Completando sistema multijugador...');
+
+let currentGameQuestions = [];
+let currentQuestionIndex = 0;
+let gameTimer = null;
+
+// Función para marcar como listo y empezar el juego
+function markAsReady() {
+    if (!multiplayerState.currentRoom || !database) return;
+    
+    const userPath = multiplayerState.isHost ? 'host/ready' : 'guest/ready';
+    
+    database.ref(`rooms/${multiplayerState.currentRoom}/${userPath}`).set(true)
+        .then(() => {
+            console.log('✅ Marcado como listo');
+            showMessage('Listo para jugar!', 'success');
+            
+            // Verificar si ambos jugadores están listos
+            checkIfBothReady();
+        })
+        .catch(error => {
+            console.error('❌ Error marcando como listo:', error);
+            showMessage('Error al marcar como listo', 'error');
+        });
+}
+
+// Verificar si ambos jugadores están listos para iniciar
+function checkIfBothReady() {
+    database.ref(`rooms/${multiplayerState.currentRoom}`).once('value')
+        .then(snapshot => {
+            const roomData = snapshot.val();
+            
+            if (roomData.host.ready && roomData.guest && roomData.guest.ready) {
+                if (multiplayerState.isHost) {
+                    // Solo el host inicia el juego
+                    startMultiplayerGame();
+                }
+            }
+        });
+}
+
+// Iniciar el juego multijugador
+function startMultiplayerGame() {
+    if (!multiplayerState.isHost) return; // Solo el host puede iniciar
+    
+    console.log('🎯 Iniciando juego multijugador...');
+    
+    // Obtener preguntas verificadas del host
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    const selectedQuestions = [...verifiedQuestions]
+        .sort(() => Math.random() - 0.5) // Mezclar
+        .slice(0, Math.min(10, verifiedQuestions.length)); // Máximo 10 preguntas
+    
+    // Preparar datos del juego
+    const gameData = {
+        status: 'playing',
+        currentQuestion: 0,
+        currentTurn: Math.random() > 0.5 ? 'host' : 'guest', // Turno aleatorio
+        hostFailures: 0,
+        guestFailures: 0,
+        questions: selectedQuestions,
+        hostAnswers: {},
+        guestAnswers: {},
+        winner: null,
+        timeLeft: 30, // 30 segundos por pregunta
+        questionStartTime: Date.now()
+    };
+    
+    // Actualizar sala con datos del juego
+    database.ref(`rooms/${multiplayerState.currentRoom}`).update({
+        status: 'playing',
+        gameData: gameData
+    });
+}
+
+// Función para renderizar la interfaz de juego
+function renderGameInterface(roomData) {
+    const gameData = roomData.gameData;
+    const currentQ = gameData.questions[gameData.currentQuestion];
+    const isMyTurn = (gameData.currentTurn === 'host') === multiplayerState.isHost;
+    
+    const hostName = roomData.host.name;
+    const guestName = roomData.guest.name;
+    const myName = multiplayerState.isHost ? hostName : guestName;
+    const opponentName = multiplayerState.isHost ? guestName : hostName;
+    
+    return `
+        <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+            
+            <!-- Header del juego -->
+            <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 20px; border-radius: 16px;">
+                <h2 style="margin: 0 0 10px 0; font-size: 1.8rem;">⚔️ DUELO EN PROGRESO</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="text-align: left;">
+                        <div style="font-size: 14px; opacity: 0.9;">Pregunta ${gameData.currentQuestion + 1} de ${gameData.questions.length}</div>
+                        <div style="font-size: 12px; opacity: 0.7;">Sala: ${multiplayerState.roomCode}</div>
+                    </div>
+                    <div style="text-align: center; font-size: 1.5rem; font-weight: bold;">
+                        ${gameData.timeLeft}s
+                    </div>
+                    <div style="text-align: right; font-size: 14px; opacity: 0.9;">
+                        Turno: ${isMyTurn ? 'TÚ' : 'OPONENTE'}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Marcador -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px;">
+                <div style="background: ${multiplayerState.isHost ? '#f0fdf4' : '#f8fafc'}; border: 2px solid ${multiplayerState.isHost ? '#22c55e' : '#e2e8f0'}; border-radius: 12px; padding: 15px; text-align: center;">
+                    <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 5px;">${myName}</div>
+                    <div style="color: #ef4444; font-size: 1.5rem; font-weight: bold;">
+                        ${Array(multiplayerState.myFailures).fill('❌').join('')}
+                        ${Array(3 - multiplayerState.myFailures).fill('⭕').join('')}
+                    </div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">TÚ</div>
+                </div>
+                
+                <div style="background: ${!multiplayerState.isHost ? '#f0fdf4' : '#f8fafc'}; border: 2px solid ${!multiplayerState.isHost ? '#22c55e' : '#e2e8f0'}; border-radius: 12px; padding: 15px; text-align: center;">
+                    <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 5px;">${opponentName}</div>
+                    <div style="color: #ef4444; font-size: 1.5rem; font-weight: bold;">
+                        ${Array(multiplayerState.opponentFailures).fill('❌').join('')}
+                        ${Array(3 - multiplayerState.opponentFailures).fill('⭕').join('')}
+                    </div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">OPONENTE</div>
+                </div>
+            </div>
+            
+            <!-- Pregunta actual -->
+            <div style="background: white; border: 2px solid ${isMyTurn ? '#4f46e5' : '#e2e8f0'}; border-radius: 16px; padding: 25px; margin-bottom: 25px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div style="background: ${isMyTurn ? '#4f46e5' : '#6b7280'}; color: white; display: inline-block; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;">
+                        ${isMyTurn ? '🎯 TU TURNO' : '⏳ TURNO DEL OPONENTE'}
+                    </div>
+                </div>
+                
+                <h3 style="text-align: center; margin-bottom: 20px; font-size: 1.3rem; line-height: 1.4; color: #1f2937;">
+                    ${currentQ.question}
+                </h3>
+                
+                ${isMyTurn ? `
+                    <div style="display: grid; gap: 12px;">
+                        ${currentQ.options.map((option, index) => `
+                            <button onclick="submitAnswer(${index})" style="
+                                background: #f9fafb;
+                                border: 2px solid #e5e7eb;
+                                border-radius: 10px;
+                                padding: 15px 20px;
+                                text-align: left;
+                                font-size: 15px;
+                                cursor: pointer;
+                                transition: all 0.2s ease;
+                            " onmouseover="this.style.background='#f3f4f6'; this.style.borderColor='#4f46e5'" onmouseout="this.style.background='#f9fafb'; this.style.borderColor='#e5e7eb'">
+                                <strong>${String.fromCharCode(97 + index).toUpperCase()})</strong> ${option}
+                            </button>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div style="text-align: center; padding: 40px; color: #6b7280; font-style: italic;">
+                        <div style="font-size: 2.5rem; margin-bottom: 15px;">⏳</div>
+                        <div style="font-size: 1.1rem;">Esperando respuesta del oponente...</div>
+                    </div>
+                `}
+            </div>
+            
+            <!-- Botón salir -->
+            <div style="text-align: center;">
+                <button onclick="leaveRoom()" class="btn btn-danger">
+                    🚪 Abandonar Juego
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Función para enviar respuesta
+function submitAnswer(selectedIndex) {
+    if (!multiplayerState.currentRoom || !database) return;
+    
+    const userType = multiplayerState.isHost ? 'host' : 'guest';
+    const answerPath = `gameData/${userType}Answers/${currentQuestionIndex}`;
+    
+    database.ref(`rooms/${multiplayerState.currentRoom}/${answerPath}`).set({
+        answer: selectedIndex,
+        timestamp: Date.now()
+    }).then(() => {
+        console.log('✅ Respuesta enviada');
+        
+        // Procesar la respuesta y avanzar el juego
+        processAnswer(selectedIndex);
+    });
+}
+
+// Procesar respuesta y avanzar el juego
+function processAnswer(selectedIndex) {
+    database.ref(`rooms/${multiplayerState.currentRoom}`).once('value')
+        .then(snapshot => {
+            const roomData = snapshot.val();
+            const gameData = roomData.gameData;
+            const currentQ = gameData.questions[gameData.currentQuestion];
+            
+            const isCorrect = selectedIndex === currentQ.correctAnswer;
+            const userType = multiplayerState.isHost ? 'host' : 'guest';
+            
+            let updates = {};
+            
+            if (!isCorrect) {
+                // Respuesta incorrecta - aumentar fallos
+                const currentFailures = gameData[`${userType}Failures`] || 0;
+                updates[`gameData/${userType}Failures`] = currentFailures + 1;
+                
+                // Verificar si perdió (3 fallos)
+                if (currentFailures + 1 >= 3) {
+                    updates['gameData/winner'] = multiplayerState.isHost ? 'guest' : 'host';
+                    updates['status'] = 'finished';
+                }
+            }
+            
+            // Cambiar turno y avanzar pregunta
+            if (updates['status'] !== 'finished') {
+                updates['gameData/currentTurn'] = gameData.currentTurn === 'host' ? 'guest' : 'host';
+                
+                // Si ambos respondieron la misma pregunta, avanzar
+                const nextQuestion = gameData.currentQuestion + 1;
+                if (nextQuestion < gameData.questions.length) {
+                    updates['gameData/currentQuestion'] = nextQuestion;
+                } else {
+                    // Se acabaron las preguntas - gana quien tenga menos fallos
+                    const hostFailures = updates[`gameData/hostFailures`] || gameData.hostFailures || 0;
+                    const guestFailures = updates[`gameData/guestFailures`] || gameData.guestFailures || 0;
+                    
+                    if (hostFailures < guestFailures) {
+                        updates['gameData/winner'] = 'host';
+                    } else if (guestFailures < hostFailures) {
+                        updates['gameData/winner'] = 'guest';
+                    } else {
+                        updates['gameData/winner'] = 'tie';
+                    }
+                    updates['status'] = 'finished';
+                }
+                
+                updates['gameData/timeLeft'] = 30; // Reset timer
+                updates['gameData/questionStartTime'] = Date.now();
+            }
+            
+            return database.ref(`rooms/${multiplayerState.currentRoom}`).update(updates);
+        });
+}
+
+// Función para renderizar resultado final
+function renderGameResult(roomData) {
+    const winner = roomData.gameData.winner;
+    const hostName = roomData.host.name;
+    const guestName = roomData.guest.name;
+    
+    let resultTitle = '';
+    let resultIcon = '';
+    let resultColor = '';
+    
+    if (winner === 'tie') {
+        resultTitle = '🤝 ¡EMPATE!';
+        resultIcon = '🤝';
+        resultColor = '#f59e0b';
+    } else {
+        const winnerName = winner === 'host' ? hostName : guestName;
+        const didIWin = (winner === 'host') === multiplayerState.isHost;
+        
+        if (didIWin) {
+            resultTitle = '🏆 ¡GANASTE!';
+            resultIcon = '🏆';
+            resultColor = '#22c55e';
+        } else {
+            resultTitle = '💥 PERDISTE';
+            resultIcon = '💥';
+            resultColor = '#ef4444';
+        }
+    }
+    
+    return `
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; text-align: center;">
+            
+            <!-- Resultado principal -->
+            <div style="background: linear-gradient(135deg, ${resultColor}20, ${resultColor}10); border: 3px solid ${resultColor}; border-radius: 20px; padding: 40px; margin-bottom: 30px;">
+                <div style="font-size: 4rem; margin-bottom: 20px;">${resultIcon}</div>
+                <h1 style="color: ${resultColor}; margin: 0 0 15px 0; font-size: 2.5rem; font-weight: bold;">
+                    ${resultTitle}
+                </h1>
+                ${winner !== 'tie' ? `
+                    <p style="color: #6b7280; font-size: 1.2rem; margin: 0;">
+                        Ganador: <strong>${winner === 'host' ? hostName : guestName}</strong>
+                    </p>
+                ` : ''}
+            </div>
+            
+            <!-- Estadísticas finales -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #1f2937;">${hostName}</h3>
+                    <div style="font-size: 1.5rem; color: #ef4444;">
+                        ${roomData.gameData.hostFailures || 0} fallos
+                    </div>
+                </div>
+                
+                <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #1f2937;">${guestName}</h3>
+                    <div style="font-size: 1.5rem; color: #ef4444;">
+                        ${roomData.gameData.guestFailures || 0} fallos
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Botones de acción -->
+            <div style="display: flex; gap: 15px; justify-content: center;">
+                <button onclick="leaveRoom()" class="btn btn-primary" style="padding: 15px 25px; font-size: 16px;">
+                    🏠 Volver al Menú
+                </button>
+                <button onclick="playAgain()" class="btn btn-success" style="padding: 15px 25px; font-size: 16px;">
+                    🔄 Jugar Otra Vez
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Función para jugar otra vez
+function playAgain() {
+    if (multiplayerState.isHost) {
+        // Reset game data
+        const resetData = {
+            status: 'waiting',
+            'host/ready': false,
+            'guest/ready': false,
+            gameData: null
+        };
+        
+        database.ref(`rooms/${multiplayerState.currentRoom}`).update(resetData);
+    }
+}
+
+// Timer del juego
+function startGameTimer() {
+    if (gameTimer) clearInterval(gameTimer);
+    
+    gameTimer = setInterval(() => {
+        if (!multiplayerState.currentRoom || !database) {
+            clearInterval(gameTimer);
+            return;
+        }
+        
+        database.ref(`rooms/${multiplayerState.currentRoom}/gameData/timeLeft`).transaction(timeLeft => {
+            if (timeLeft <= 1) {
+                // Tiempo agotado - fallo automático para el jugador actual
+                processTimeOut();
+                return 30; // Reset
+            }
+            return (timeLeft || 30) - 1;
+        });
+    }, 1000);
+}
+
+// Procesar tiempo agotado
+function processTimeOut() {
+    database.ref(`rooms/${multiplayerState.currentRoom}`).once('value')
+        .then(snapshot => {
+            const roomData = snapshot.val();
+            const gameData = roomData.gameData;
+            const currentTurnUser = gameData.currentTurn;
+            
+            // El jugador que tiene el turno falla automáticamente
+            const failuresPath = `gameData/${currentTurnUser}Failures`;
+            const currentFailures = gameData[`${currentTurnUser}Failures`] || 0;
+            
+            let updates = {};
+            updates[failuresPath] = currentFailures + 1;
+            
+            if (currentFailures + 1 >= 3) {
+                // Game over
+                updates['gameData/winner'] = currentTurnUser === 'host' ? 'guest' : 'host';
+                updates['status'] = 'finished';
+            } else {
+                // Cambiar turno
+                updates['gameData/currentTurn'] = currentTurnUser === 'host' ? 'guest' : 'host';
+                updates['gameData/timeLeft'] = 30;
+                updates['gameData/questionStartTime'] = Date.now();
+            }
+            
+            database.ref(`rooms/${multiplayerState.currentRoom}`).update(updates);
+        });
+}
+
+// Actualizar función updateLocalStateFromRoom
+const originalUpdateLocalStateFromRoom = updateLocalStateFromRoom;
+updateLocalStateFromRoom = function(roomData) {
+    originalUpdateLocalStateFromRoom(roomData);
+    
+    // Manejar timer del juego
+    if (roomData.status === 'playing' && !gameTimer) {
+        startGameTimer();
+    } else if (roomData.status !== 'playing' && gameTimer) {
+        clearInterval(gameTimer);
+        gameTimer = null;
+    }
+    
+    // Actualizar índice de pregunta actual
+    if (roomData.gameData) {
+        currentQuestionIndex = roomData.gameData.currentQuestion || 0;
+    }
+};
+
+// Actualizar función renderRoomInterface para manejar diferentes estados
+const originalRenderRoomInterface = renderRoomInterface;
+renderRoomInterface = function() {
+    // Si no estamos en una sala, usar función original
+    if (!multiplayerState.currentRoom) {
+        return originalRenderRoomInterface();
+    }
+    
+    // Obtener datos actuales de la sala
+    return new Promise((resolve) => {
+        database.ref(`rooms/${multiplayerState.currentRoom}`).once('value')
+            .then(snapshot => {
+                if (!snapshot.exists()) {
+                    resolve('<div>Error: Sala no encontrada</div>');
+                    return;
+                }
+                
+                const roomData = snapshot.val();
+                
+                switch (roomData.status) {
+                    case 'waiting':
+                        resolve(originalRenderRoomInterface());
+                        break;
+                    case 'playing':
+                        resolve(renderGameInterface(roomData));
+                        break;
+                    case 'finished':
+                        resolve(renderGameResult(roomData));
+                        break;
+                    default:
+                        resolve('<div>Estado desconocido</div>');
+                }
+            })
+            .catch(error => {
+                console.error('Error obteniendo datos de sala:', error);
+                resolve('<div>Error cargando sala</div>');
+            });
+    });
+};
+
+// Limpiar timers al salir de la sala
+const originalLeaveRoom = leaveRoom;
+leaveRoom = function() {
+    if (gameTimer) {
+        clearInterval(gameTimer);
+        gameTimer = null;
+    }
+    
+    originalLeaveRoom();
+};
+
+console.log('✅ Sistema multijugador completado');
+console.log('🎮 Funcionalidades implementadas:');
+console.log('   - Crear y unirse a salas');
+console.log('   - Sistema de turnos');
+console.log('   - Timer por pregunta (30s)');
+console.log('   - Sistema de fallos (3 strikes)');
+console.log('   - Pantalla de resultados');
+console.log('   - Opción de revancha');
+</script>
 </body>
 </html>
+
 
 
 
