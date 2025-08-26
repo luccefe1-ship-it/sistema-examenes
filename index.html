@@ -7538,8 +7538,7 @@ Versión corregida con botón en header y diseño mejorado
                             </div>
                         </button>
                         
-                        <button onclick="if(!state.currentUser){showMessage('Debes estar logueado','error');return;}multiplayerState.gameState='menu';render();" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+<button onclick="goToMultiplayer()" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
                                 <span style="font-size: 1.5rem;">⚔️</span>
                                 <div style="text-align: left;">
                                     <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Duelo de Preguntas</div>
@@ -9800,7 +9799,7 @@ function getOpponentQuestionsByTopic() {
 
 // Extender renderTabContent para incluir multijugador
 const originalRenderTabContentMultiplayer = renderTabContent;
-renderTabContent = function() {
+window.renderTabContent = function() {
     switch(state.currentTab) {
         case 'upload':
             return renderUploadTab();
@@ -10389,6 +10388,17 @@ function renderGameFinished() {
 }
 
 console.log('✅ Sistema multijugador completo implementado');
+    // Función para ir al multijugador
+function goToMultiplayer() {
+    console.log('🎯 Cambiando a Multijugador...');
+    if (!state.currentUser) {
+        showMessage('Debes estar logueado para acceder al modo multijugador', 'error');
+        return;
+    }
+    state.currentTab = 'multiplayer';
+    multiplayerState.gameState = 'menu';
+    render();
+}
 </script>
 
 <!-- AÑADIR AL MENÚ PRINCIPAL -->
@@ -10448,8 +10458,7 @@ window.renderIntermediateScreen = function() {
                             </div>
                         </button>
                         
-                        <button onclick="if(!state.currentUser){showMessage('Debes estar logueado','error');return;}multiplayerState.gameState='menu';render();" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+<button onclick="goToMultiplayer()" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
                                 <span style="font-size: 1.5rem;">⚔️</span>
                                 <div style="text-align: left;">
                                     <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Duelo de Preguntas</div>
@@ -10472,6 +10481,7 @@ window.renderIntermediateScreen = function() {
     
 </body>
 </html>
+
 
 
 
