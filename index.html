@@ -9571,81 +9571,70 @@ function debugQuestionIds() {
     console.log('Temas expandidos:', expandedTopics);
     console.log('=== FIN DEBUG ===');
 }
-// Función para seleccionar pregunta específica
-// ========== CORRECCIÓN DE FUNCIÓN selectSpecificQuestion ==========
-
 function selectSpecificQuestion(questionId) {
     console.log('🎯 ID recibido:', questionId, 'Tipo:', typeof questionId);
     debugQuestionIds();
     
     if (!multiplayerState.opponent || !multiplayerState.opponent.questions) {
-        console.error('❌ No se pueden obtener las preguntas del oponente');
         showMessage('Error: No se pueden obtener las preguntas del oponente', 'error');
         return;
     }
 
-    // Buscar la pregunta en las preguntas del oponente
-    const selectedQuestion = multiplayerState.opponent.questions.find(q => q.id === questionId);
-    console.log('🔍 Pregunta encontrada:', selectedQuestion);
+    // CONVERSIÓN ROBUSTA: Convertir ambos a string para comparar
+    const questionIdStr = String(questionId);
+    const selectedQuestion = multiplayerState.opponent.questions.find(q => String(q.id) === questionIdStr);
+    
+    console.log('Buscando ID:', questionIdStr);
+    console.log('Pregunta encontrada:', selectedQuestion);
     
     if (!selectedQuestion) {
-        console.error('❌ Pregunta no encontrada con ID:', questionId);
-        console.log('🔍 Preguntas disponibles:', multiplayerState.opponent.questions.map(q => ({id: q.id, question: q.question.substring(0, 30)})));
+        console.error('❌ Pregunta no encontrada. IDs disponibles:');
+        multiplayerState.opponent.questions.forEach(q => {
+            console.log(`  - "${String(q.id)}" vs "${questionIdStr}" = ${String(q.id) === questionIdStr}`);
+        });
         showMessage('Error: Pregunta no encontrada', 'error');
         return;
     }
 
     // Verificar que no se haya usado ya
     const usedQuestions = multiplayerState.gameQuestions || [];
-    if (usedQuestions.includes(questionId)) {
-        console.log('⚠️ Pregunta ya usada:', questionId);
+    if (usedQuestions.includes(questionIdStr) || usedQuestions.includes(questionId)) {
         showMessage('Esta pregunta ya fue usada', 'error');
         return;
     }
 
     // Verificar que sea mi turno
     if (!multiplayerState.myTurn) {
-        console.log('⚠️ No es mi turno');
         showMessage('No es tu turno', 'error');
         return;
     }
 
-    console.log('✅ Enviando pregunta a Firebase...');
-
-    // Preparar datos para actualizar en Firebase
     const updates = {
         'gameData/currentQuestion': selectedQuestion,
         'gameData/gamePhase': 'answer',
-        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host' // Cambiar turno
+        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host' // CAMBIAR TURNO
     };
     
-    // Incrementar contador de preguntas
     const questionsPath = multiplayerState.isHost ? 'hostQuestionsAsked' : 'guestQuestionsAsked';
     const currentCount = multiplayerState.myQuestionsAsked || 0;
     updates[`gameData/${questionsPath}`] = currentCount + 1;
     
-    // Añadir a preguntas usadas
-    const newUsedQuestions = [...usedQuestions, questionId];
+    const newUsedQuestions = [...usedQuestions, questionIdStr];
     updates['gameData/usedQuestions'] = newUsedQuestions;
 
-    // Actualizar en Firebase
     database.ref(`rooms/${multiplayerState.currentRoom}`).update(updates)
         .then(() => {
             console.log('✅ Pregunta enviada correctamente');
-            showMessage('Pregunta enviada a tu oponente', 'success');
-            
-            // Actualizar estado local inmediatamente
+            multiplayerState.gameQuestions = newUsedQuestions;
             multiplayerState.currentQuestion = selectedQuestion;
             multiplayerState.myTurn = false;
-            multiplayerState.gameQuestions = newUsedQuestions;
             multiplayerState.myQuestionsAsked = currentCount + 1;
-            
-            // Re-renderizar
+            showMessage('Pregunta enviada a tu oponente', 'success');
             render();
         })
         .catch((error) => {
-            console.error('❌ Error enviando pregunta:', error);
-            showMessage('Error al enviar pregunta: ' + error.message, 'error');
+            console.error('Error enviando pregunta:', error);
+            showMessage('Error al enviar pregunta', 'error');
         });
 }
     // ========== FUNCIÓN AUXILIAR PARA OBTENER NOMBRE DE TEMA ==========
@@ -10379,6 +10368,7 @@ window.renderIntermediateScreen = function() {
 </script>
 </body>
 </html>
+
 
 
 
