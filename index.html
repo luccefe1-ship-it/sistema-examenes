@@ -9447,10 +9447,17 @@ function listenToRoom(roomCode) {
 function updateLocalStateFromRoom(roomData) {
     multiplayerState.gameState = roomData.status;
     
+    // CORRECCIÓN: Obtener oponente correctamente
     if (multiplayerState.isHost) {
         multiplayerState.opponent = roomData.guest;
     } else {
         multiplayerState.opponent = roomData.host;
+    }
+    
+    // Verificar que el oponente existe
+    if (!multiplayerState.opponent) {
+        console.log('⚠️ Oponente aún no disponible');
+        return;
     }
     
     if (roomData.gameData) {
@@ -10101,7 +10108,7 @@ function renderGameInterface() {
                         </h3>
                         <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 13px;">
                             ${currentQuestion ? 
-                                (isMyTurn ? `Esperando respuesta de ${opponent.name}` : 'Tu turno de responder') : 
+                                (!isMyTurn ? 'Tu turno de responder' : `Esperando respuesta de ${opponent?.name || 'oponente'}`) :
                                 'Esperando selección de pregunta'
                             }
                         </p>
@@ -10122,8 +10129,8 @@ function renderGameInterface() {
                         
                         <!-- Opciones -->
                         <div style="flex: 1; display: flex; flex-direction: column;">
-                            ${!isMyTurn ? `
-                                <!-- Opciones para responder -->
+                            ${!isMyTurn && currentQuestion ? `
+    <!-- Opciones para responder -->
                                 <div style="display: grid; gap: 12px; flex: 1;">
                                     ${currentQuestion.options.map((option, index) => `
                                         <button onclick="answerOpponentQuestion(${index})" 
@@ -10145,7 +10152,7 @@ function renderGameInterface() {
                                 </div>
                                 <div style="text-align: center; margin-top: 15px; color: #6b7280;">
                                     <div style="font-size: 2rem; margin-bottom: 10px;">⏳</div>
-                                    <p style="font-size: 14px;">Esperando respuesta de ${opponent.name}</p>
+                                    <p style="font-size: 14px;">Esperando respuesta de ${opponent?.name || 'oponente'}</p>
                                 </div>
                             `}
                         </div>
@@ -10462,6 +10469,7 @@ window.renderIntermediateScreen = function() {
 </script>
 </body>
 </html>
+
 
 
 
