@@ -13,7 +13,16 @@
             padding: 0;
             box-sizing: border-box;
         }
+<script>
+// Variable global para manejar temas expandidos
+let expandedTopics = {};
 
+// Función para expandir/contraer temas
+function toggleTopic(topicId) {
+    expandedTopics[topicId] = !expandedTopics[topicId];
+    render(); // Re-renderizar para mostrar/ocultar preguntas
+}
+</script>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -9812,6 +9821,18 @@ function renderRoomInterface() {
     `;
 }
 
+// ========== NUEVA INTERFAZ DE TRES COLUMNAS ==========
+
+// 1. VARIABLE GLOBAL para manejar temas expandidos
+let expandedTopics = {};
+
+// 2. FUNCIÓN para expandir/contraer temas
+function toggleTopic(topicId) {
+    expandedTopics[topicId] = !expandedTopics[topicId];
+    render(); // Re-renderizar para mostrar/ocultar preguntas
+}
+
+// 3. FUNCIÓN PRINCIPAL DE INTERFAZ CORREGIDA
 function renderGameInterface() {
     const opponent = multiplayerState.opponent;
     const isMyTurn = multiplayerState.myTurn;
@@ -9820,6 +9841,7 @@ function renderGameInterface() {
     const opponentFailures = multiplayerState.opponentFailures;
     const myQuestionsAsked = multiplayerState.myQuestionsAsked;
     const opponentQuestionsAsked = multiplayerState.opponentQuestionsAsked;
+    const isHost = multiplayerState.isHost;
     
     // Verificar si el juego terminó
     if (multiplayerState.gameState === 'finished') {
@@ -9831,7 +9853,7 @@ function renderGameInterface() {
     const usedQuestions = multiplayerState.gameQuestions || [];
     
     return `
-        <div style="max-width: 1400px; margin: 0 auto; padding: 15px; min-height: calc(100vh - 150px);">
+        <div style="max-width: 1600px; margin: 0 auto; padding: 15px; min-height: calc(100vh - 100px);">
             
             <!-- Header del duelo -->
             <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 15px; border-radius: 12px;">
@@ -9841,111 +9863,143 @@ function renderGameInterface() {
                 </p>
             </div>
             
-            <!-- Pantalla dividida CORREGIDA -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; min-height: 600px;">
+            <!-- INTERFAZ DE TRES COLUMNAS -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; min-height: 600px;">
                 
-                <!-- LADO IZQUIERDO: Temas y preguntas del oponente para elegir -->
-                <div style="background: white; border: 2px solid #e2e8f0; border-radius: 16px; padding: 20px; overflow-y: auto;">
-                    <h3 style="color: #1f2937; margin: 0 0 20px 0; font-size: 1.2rem; text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;">
-                        📂 Temas de ${opponent.name}
-                    </h3>
+                <!-- COLUMNA IZQUIERDA: ANFITRIÓN (AZUL) -->
+                <div style="background: ${isHost ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)' : '#94a3b8'}; border-radius: 16px; padding: 20px; color: white; position: relative;">
                     
-                    ${isMyTurn ? `
-                        <!-- Mi turno: Mostrar temas para elegir pregunta -->
-                        <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 10px; padding: 15px; margin-bottom: 20px; text-align: center;">
-                            <div style="color: #166534; font-weight: 600; margin-bottom: 5px;">🎯 Tu turno</div>
-                            <div style="color: #16a34a; font-size: 13px;">Elige una pregunta de los temas de ${opponent.name}</div>
-                        </div>
-                        
-                        ${Object.keys(opponentQuestionsByTopic).length === 0 ? `
-                            <div style="text-align: center; color: #6b7280; padding: 40px;">
-                                <div style="font-size: 2rem; margin-bottom: 10px;">❌</div>
-                                <p>No hay preguntas disponibles del oponente</p>
-                            </div>
-                        ` : `
-                            <!-- Mostrar temas y preguntas -->
-                            <div style="space-y: 15px;">
-                                ${Object.entries(opponentQuestionsByTopic).map(([topicId, topicData]) => `
-                                    <div style="margin-bottom: 20px;">
-                                        <h4 style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 10px 15px; margin: 0; border-radius: 8px 8px 0 0; font-size: 14px;">
-                                            📁 ${topicData.name} (${topicData.questions.filter(q => !usedQuestions.includes(q.id)).length} disponibles)
-                                        </h4>
-                                        <div style="border: 2px solid #8b5cf6; border-top: none; border-radius: 0 0 8px 8px; padding: 10px; background: #faf9ff; max-height: 200px; overflow-y: auto;">
-                                            ${topicData.questions.filter(q => !usedQuestions.includes(q.id)).length === 0 ? `
-                                                <div style="text-align: center; color: #9ca3af; font-style: italic; padding: 20px;">
-                                                    Todas las preguntas de este tema ya fueron usadas
-                                                </div>
-                                            ` : `
-                                                ${topicData.questions.filter(q => !usedQuestions.includes(q.id)).map(question => `
-                                                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;" 
-                                                         onmouseover="this.style.backgroundColor='#f8fafc'; this.style.borderColor='#8b5cf6';" 
-                                                         onmouseout="this.style.backgroundColor='white'; this.style.borderColor='#e2e8f0';"
-                                                         onclick="selectSpecificQuestion('${question.id}')">
-                                                        <div style="font-size: 14px; color: #374151; line-height: 1.4; margin-bottom: 5px;">
-                                                            ${question.question.length > 80 ? question.question.substring(0, 80) + '...' : question.question}
-                                                        </div>
-                                                        <div style="font-size: 11px; color: #6b7280;">
-                                                            ${question.options.length} opciones | Click para enviar
+                    <!-- Header Anfitrión -->
+                    <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid rgba(255,255,255,0.3); padding-bottom: 15px;">
+                        <h3 style="margin: 0; font-size: 1.1rem;">👑 ANFITRIÓN</h3>
+                        <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">
+                            ${isHost ? 'TÚ' : multiplayerState.opponent?.name || 'Oponente'}
+                        </p>
+                    </div>
+                    
+                    ${isHost ? `
+                        <!-- MI VISTA: Temas del oponente para elegir -->
+                        <div style="color: white;">
+                            ${isMyTurn ? `
+                                <div style="background: rgba(34, 197, 94, 0.8); border-radius: 8px; padding: 12px; margin-bottom: 15px; text-align: center;">
+                                    <div style="font-weight: 600; margin-bottom: 5px;">🎯 Tu turno</div>
+                                    <div style="font-size: 12px; opacity: 0.9;">Elige pregunta de ${opponent.name}</div>
+                                </div>
+                            ` : `
+                                <div style="background: rgba(245, 158, 11, 0.8); border-radius: 8px; padding: 12px; margin-bottom: 15px; text-align: center;">
+                                    <div style="font-weight: 600; margin-bottom: 5px;">⏳ Esperando</div>
+                                    <div style="font-size: 12px; opacity: 0.9;">Turno de ${opponent.name}</div>
+                                </div>
+                            `}
+                            
+                            <!-- Temas del oponente -->
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                ${Object.keys(opponentQuestionsByTopic).length === 0 ? `
+                                    <div style="text-align: center; color: rgba(255,255,255,0.7); padding: 40px;">
+                                        <div style="font-size: 2rem; margin-bottom: 10px;">📭</div>
+                                        <p style="font-size: 14px;">Sin temas disponibles</p>
+                                    </div>
+                                ` : `
+                                    ${Object.entries(opponentQuestionsByTopic).map(([topicId, topicData]) => {
+                                        const availableQuestions = topicData.questions.filter(q => !usedQuestions.includes(q.id));
+                                        const isExpanded = expandedTopics[topicId];
+                                        
+                                        return `
+                                            <div style="margin-bottom: 12px;">
+                                                <!-- Tema header clicable -->
+                                                <div onclick="toggleTopic('${topicId}')" 
+                                                     style="background: rgba(255,255,255,0.2); border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s;"
+                                                     onmouseover="this.style.backgroundColor='rgba(255,255,255,0.3)'"
+                                                     onmouseout="this.style.backgroundColor='rgba(255,255,255,0.2)'">
+                                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                        <span style="font-weight: 600; font-size: 14px;">📁 ${topicData.name}</span>
+                                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                                            <span style="background: rgba(255,255,255,0.3); padding: 2px 6px; border-radius: 10px; font-size: 11px;">
+                                                                ${availableQuestions.length}
+                                                            </span>
+                                                            <span style="font-size: 12px;">${isExpanded ? '▼' : '▶'}</span>
                                                         </div>
                                                     </div>
-                                                `).join('')}
-                                            `}
-                                        </div>
-                                    </div>
-                                `).join('')}
+                                                </div>
+                                                
+                                                <!-- Preguntas (mostrar solo si expandido) -->
+                                                ${isExpanded && availableQuestions.length > 0 ? `
+                                                    <div style="margin-top: 8px; padding-left: 10px;">
+                                                        ${availableQuestions.map(question => `
+                                                            <div onclick="selectSpecificQuestion('${question.id}')"
+                                                                 style="background: rgba(255,255,255,0.15); border-radius: 6px; padding: 10px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s; border-left: 3px solid rgba(255,255,255,0.4);"
+                                                                 onmouseover="this.style.backgroundColor='rgba(255,255,255,0.25)'"
+                                                                 onmouseout="this.style.backgroundColor='rgba(255,255,255,0.15)'">
+                                                                <div style="font-size: 13px; line-height: 1.3; margin-bottom: 4px;">
+                                                                    ${question.question.length > 60 ? question.question.substring(0, 60) + '...' : question.question}
+                                                                </div>
+                                                                <div style="font-size: 10px; opacity: 0.8;">
+                                                                    ${question.options.length} opciones | Click para enviar
+                                                                </div>
+                                                            </div>
+                                                        `).join('')}
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                `}
                             </div>
-                        `}
-                    ` : `
-                        <!-- No es mi turno: Mostrar estadísticas del oponente -->
-                        <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 10px; padding: 15px; margin-bottom: 20px; text-align: center;">
-                            <div style="color: #92400e; font-weight: 600; margin-bottom: 5px;">⏳ Esperando</div>
-                            <div style="color: #78350f; font-size: 13px;">${opponent.name} está respondiendo</div>
                         </div>
-                        
-                        <!-- Resumen de temas del oponente -->
-                        <div style="space-y: 10px;">
-                            ${Object.entries(opponentQuestionsByTopic).map(([topicId, topicData]) => `
-                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
-                                    <div style="font-weight: 600; color: #374151; margin-bottom: 5px;">📁 ${topicData.name}</div>
-                                    <div style="font-size: 12px; color: #6b7280;">
-                                        ${topicData.questions.length} preguntas totales | 
-                                        ${topicData.questions.filter(q => !usedQuestions.includes(q.id)).length} disponibles
-                                    </div>
-                                </div>
-                            `).join('')}
+                    ` : `
+                        <!-- VISTA DEL OPONENTE: Solo color sólido -->
+                        <div style="height: 400px; display: flex; align-items: center; justify-content: center; text-align: center;">
+                            <div>
+                                <div style="font-size: 3rem; margin-bottom: 15px; opacity: 0.3;">🛡️</div>
+                                <p style="opacity: 0.7; font-size: 14px;">Zona del anfitrión</p>
+                            </div>
                         </div>
                     `}
+                    
+                    <!-- Stats anfitrión -->
+                    <div style="position: absolute; bottom: 15px; left: 15px; right: 15px; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px; text-align: center;">
+                        <div style="font-size: 11px; opacity: 0.8; margin-bottom: 5px;">Estadísticas</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+                            <div>Fallos: ${isHost ? myFailures : opponentFailures}/3</div>
+                            <div>Preguntas: ${isHost ? myQuestionsAsked : opponentQuestionsAsked}/10</div>
+                        </div>
+                    </div>
                 </div>
                 
-                <!-- LADO DERECHO: Pregunta actual y respuesta -->
-                <div style="background: white; border: 2px solid #e2e8f0; border-radius: 16px; padding: 25px; display: flex; flex-direction: column;">
+                <!-- COLUMNA CENTRAL: PREGUNTA ACTIVA -->
+                <div style="background: white; border: 3px solid #e5e7eb; border-radius: 16px; padding: 25px; display: flex; flex-direction: column;">
                     
-                    <div style="text-align: center; margin-bottom: 20px;">
+                    <!-- Header pregunta -->
+                    <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px;">
                         <h3 style="color: #1f2937; margin: 0; font-size: 1.2rem;">
-                            ${currentQuestion ? '📝 Pregunta Planteada' : '⏸️ Sin Pregunta Activa'}
+                            ${currentQuestion ? '📝 Pregunta Activa' : '⏸️ Sin Pregunta'}
                         </h3>
-                        <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
-                            ${currentQuestion ? (isMyTurn ? 'Esperando respuesta de ' + opponent.name : 'Responde esta pregunta') : 'Esperando que se seleccione una pregunta'}
+                        <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 13px;">
+                            ${currentQuestion ? 
+                                (isMyTurn ? `Esperando respuesta de ${opponent.name}` : 'Tu turno de responder') : 
+                                'Esperando selección de pregunta'
+                            }
                         </p>
                     </div>
                     
                     ${currentQuestion ? `
+                        <!-- Pregunta -->
+                        <div style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-left: 4px solid #4f46e5; padding: 20px; border-radius: 0 12px 12px 0; margin-bottom: 20px;">
+                            <h4 style="color: #1f2937; margin: 0 0 10px 0; font-size: 1.1rem; line-height: 1.3;">
+                                ${currentQuestion.question}
+                            </h4>
+                            ${currentQuestion.topicId ? `
+                                <span style="background: #e0e7ff; color: #4f46e5; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">
+                                    ${getTopicName(currentQuestion.topicId)}
+                                </span>
+                            ` : ''}
+                        </div>
+                        
+                        <!-- Opciones -->
                         <div style="flex: 1; display: flex; flex-direction: column;">
-                            <!-- Pregunta -->
-                            <div style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-left: 4px solid #4f46e5; padding: 20px; border-radius: 0 12px 12px 0; margin-bottom: 25px;">
-                                <h4 style="color: #1f2937; margin: 0 0 10px 0; font-size: 1.1rem;">
-                                    ${currentQuestion.question}
-                                </h4>
-                                ${currentQuestion.topicId ? `
-                                    <span style="background: #e0e7ff; color: #4f46e5; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">
-                                        ${getTopicName(currentQuestion.topicId)}
-                                    </span>
-                                ` : ''}
-                            </div>
-                            
-                            <!-- Opciones de respuesta -->
                             ${!isMyTurn ? `
-                                <div style="display: grid; gap: 12px; flex: 1; margin-bottom: 20px;">
+                                <!-- Opciones para responder -->
+                                <div style="display: grid; gap: 12px; flex: 1;">
                                     ${currentQuestion.options.map((option, index) => `
                                         <button onclick="answerOpponentQuestion(${index})" 
                                                 style="background: #f9fafb; border: 2px solid #e2e8f0; border-radius: 12px; padding: 15px; text-align: left; cursor: pointer; transition: all 0.2s; font-size: 14px; color: #374151;" 
@@ -9956,62 +10010,146 @@ function renderGameInterface() {
                                     `).join('')}
                                 </div>
                             ` : `
-                                <div style="flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; color: #6b7280; margin-bottom: 20px;">
-                                    <div>
-                                        <div style="font-size: 3rem; margin-bottom: 15px;">⏳</div>
-                                        <h4>Esperando respuesta de ${opponent.name}</h4>
-                                        <div style="display: grid; gap: 8px; margin-top: 15px;">
-                                            ${currentQuestion.options.map((option, index) => `
-                                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: left; font-size: 13px; color: #6b7280;">
-                                                    <strong>${String.fromCharCode(97 + index).toUpperCase()})</strong> ${option}
-                                                </div>
-                                            `).join('')}
+                                <!-- Solo mostrar opciones (no clicables) -->
+                                <div style="display: grid; gap: 8px; flex: 1;">
+                                    ${currentQuestion.options.map((option, index) => `
+                                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 13px; color: #6b7280;">
+                                            <strong>${String.fromCharCode(97 + index).toUpperCase()})</strong> ${option}
                                         </div>
-                                    </div>
+                                    `).join('')}
+                                </div>
+                                <div style="text-align: center; margin-top: 15px; color: #6b7280;">
+                                    <div style="font-size: 2rem; margin-bottom: 10px;">⏳</div>
+                                    <p style="font-size: 14px;">Esperando respuesta de ${opponent.name}</p>
                                 </div>
                             `}
                         </div>
                     ` : `
+                        <!-- Sin pregunta activa -->
                         <div style="flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; color: #6b7280;">
                             <div>
                                 <div style="font-size: 4rem; margin-bottom: 20px;">💭</div>
-                                <h4>No hay pregunta activa</h4>
+                                <h4 style="color: #374151;">No hay pregunta activa</h4>
                                 <p style="font-size: 14px; margin-top: 10px;">
-                                    ${isMyTurn ? 'Selecciona una pregunta de los temas de la izquierda' : opponent.name + ' está seleccionando una pregunta'}
+                                    ${isMyTurn ? 'Selecciona una pregunta desde tu panel' : opponent.name + ' está seleccionando una pregunta'}
                                 </p>
                             </div>
                         </div>
                     `}
+                </div>
+                
+                <!-- COLUMNA DERECHA: INVITADO (NARANJA) -->
+                <div style="background: ${!isHost ? 'linear-gradient(135deg, #f97316, #ea580c)' : '#94a3b8'}; border-radius: 16px; padding: 20px; color: white; position: relative;">
                     
-                    <!-- Estadísticas propias en la parte inferior -->
-                    <div style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-radius: 10px; border: 2px solid #22c55e;">
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; text-align: center;">
-                            <div>
-                                <div style="font-size: 1.3rem; font-weight: bold; color: #ef4444;">${myFailures}/3</div>
-                                <div style="font-size: 11px; color: #166534;">Mis Fallos</div>
+                    <!-- Header Invitado -->
+                    <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid rgba(255,255,255,0.3); padding-bottom: 15px;">
+                        <h3 style="margin: 0; font-size: 1.1rem;">🎮 INVITADO</h3>
+                        <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">
+                            ${!isHost ? 'TÚ' : multiplayerState.opponent?.name || 'Oponente'}
+                        </p>
+                    </div>
+                    
+                    ${!isHost ? `
+                        <!-- MI VISTA: Temas del oponente para elegir -->
+                        <div style="color: white;">
+                            ${isMyTurn ? `
+                                <div style="background: rgba(34, 197, 94, 0.8); border-radius: 8px; padding: 12px; margin-bottom: 15px; text-align: center;">
+                                    <div style="font-weight: 600; margin-bottom: 5px;">🎯 Tu turno</div>
+                                    <div style="font-size: 12px; opacity: 0.9;">Elige pregunta de ${opponent.name}</div>
+                                </div>
+                            ` : `
+                                <div style="background: rgba(245, 158, 11, 0.8); border-radius: 8px; padding: 12px; margin-bottom: 15px; text-align: center;">
+                                    <div style="font-weight: 600; margin-bottom: 5px;">⏳ Esperando</div>
+                                    <div style="font-size: 12px; opacity: 0.9;">Turno de ${opponent.name}</div>
+                                </div>
+                            `}
+                            
+                            <!-- Temas del oponente -->
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                ${Object.keys(opponentQuestionsByTopic).length === 0 ? `
+                                    <div style="text-align: center; color: rgba(255,255,255,0.7); padding: 40px;">
+                                        <div style="font-size: 2rem; margin-bottom: 10px;">📭</div>
+                                        <p style="font-size: 14px;">Sin temas disponibles</p>
+                                    </div>
+                                ` : `
+                                    ${Object.entries(opponentQuestionsByTopic).map(([topicId, topicData]) => {
+                                        const availableQuestions = topicData.questions.filter(q => !usedQuestions.includes(q.id));
+                                        const isExpanded = expandedTopics[topicId];
+                                        
+                                        return `
+                                            <div style="margin-bottom: 12px;">
+                                                <!-- Tema header clicable -->
+                                                <div onclick="toggleTopic('${topicId}')" 
+                                                     style="background: rgba(255,255,255,0.2); border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s;"
+                                                     onmouseover="this.style.backgroundColor='rgba(255,255,255,0.3)'"
+                                                     onmouseout="this.style.backgroundColor='rgba(255,255,255,0.2)'">
+                                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                        <span style="font-weight: 600; font-size: 14px;">📁 ${topicData.name}</span>
+                                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                                            <span style="background: rgba(255,255,255,0.3); padding: 2px 6px; border-radius: 10px; font-size: 11px;">
+                                                                ${availableQuestions.length}
+                                                            </span>
+                                                            <span style="font-size: 12px;">${isExpanded ? '▼' : '▶'}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Preguntas (mostrar solo si expandido) -->
+                                                ${isExpanded && availableQuestions.length > 0 ? `
+                                                    <div style="margin-top: 8px; padding-left: 10px;">
+                                                        ${availableQuestions.map(question => `
+                                                            <div onclick="selectSpecificQuestion('${question.id}')"
+                                                                 style="background: rgba(255,255,255,0.15); border-radius: 6px; padding: 10px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s; border-left: 3px solid rgba(255,255,255,0.4);"
+                                                                 onmouseover="this.style.backgroundColor='rgba(255,255,255,0.25)'"
+                                                                 onmouseout="this.style.backgroundColor='rgba(255,255,255,0.15)'">
+                                                                <div style="font-size: 13px; line-height: 1.3; margin-bottom: 4px;">
+                                                                    ${question.question.length > 60 ? question.question.substring(0, 60) + '...' : question.question}
+                                                                </div>
+                                                                <div style="font-size: 10px; opacity: 0.8;">
+                                                                    ${question.options.length} opciones | Click para enviar
+                                                                </div>
+                                                            </div>
+                                                        `).join('')}
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                `}
                             </div>
+                        </div>
+                    ` : `
+                        <!-- VISTA DEL OPONENTE: Solo color sólido -->
+                        <div style="height: 400px; display: flex; align-items: center; justify-content: center; text-align: center;">
                             <div>
-                                <div style="font-size: 1.3rem; font-weight: bold; color: #4f46e5;">${myQuestionsAsked}/10</div>
-                                <div style="font-size: 11px; color: #166534;">Mis Preguntas</div>
+                                <div style="font-size: 3rem; margin-bottom: 15px; opacity: 0.3;">⚡</div>
+                                <p style="opacity: 0.7; font-size: 14px;">Zona del invitado</p>
                             </div>
-                            <div>
-                                <div style="font-size: 1.3rem; font-weight: bold; color: #f59e0b;">${opponentFailures}/3</div>
-                                <div style="font-size: 11px; color: #166534;">Sus Fallos</div>
-                            </div>
+                        </div>
+                    `}
+                    
+                    <!-- Stats invitado -->
+                    <div style="position: absolute; bottom: 15px; left: 15px; right: 15px; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px; text-align: center;">
+                        <div style="font-size: 11px; opacity: 0.8; margin-bottom: 5px;">Estadísticas</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+                            <div>Fallos: ${!isHost ? myFailures : opponentFailures}/3</div>
+                            <div>Preguntas: ${!isHost ? myQuestionsAsked : opponentQuestionsAsked}/10</div>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <!-- Botón salir (pequeño) -->
-            <div style="text-align: center; margin-top: 15px;">
-                <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 8px 16px; font-size: 13px;">
+            <!-- Botón salir -->
+            <div style="text-align: center; margin-top: 20px;">
+                <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 10px 20px; font-size: 14px;">
                     🚪 Abandonar Duelo
                 </button>
             </div>
         </div>
     `;
 }
+
+console.log('✅ Nueva interfaz de tres columnas implementada');
 
 // Renderizar pantalla de juego terminado
 function renderGameFinished() {
@@ -10199,6 +10337,7 @@ window.renderIntermediateScreen = function() {
 </script>
 </body>
 </html>
+
 
 
 
