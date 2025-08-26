@@ -9579,6 +9579,100 @@ function selectSpecificQuestion(questionId) {
         showMessage('Error: No se pueden obtener las preguntas del oponente', 'error');
         return;
     }
+// Responder pregunta del oponente
+function answerOpponentQuestion(selectedOptionIndex) {
+    console.log('🔍 Respondiendo pregunta. Opción seleccionada:', selectedOptionIndex);
+    console.log('📝 Pregunta actual:', multiplayerState.currentQuestion);
+    
+    if (!multiplayerState.currentQuestion) {
+        showMessage('No hay pregunta activa', 'error');
+        return;
+    }
+    
+    if (multiplayerState.myTurn) {
+        showMessage('No es tu turno para responder', 'error');
+        return;
+    }
+    
+    const isCorrect = selectedOptionIndex === multiplayerState.currentQuestion.correctAnswer;
+    console.log('✅ Respuesta correcta?', isCorrect, 'Índice correcto:', multiplayerState.currentQuestion.correctAnswer);
+    
+    const updates = {};
+    
+    if (!isCorrect) {
+        // Incrementar fallos del jugador actual
+        const failuresPath = multiplayerState.isHost ? 'hostFailures' : 'guestFailures';
+        const newFailures = multiplayerState.myFailures + 1;
+        updates[`gameData/${failuresPath}`] = newFailures;
+        
+        console.log('❌ Respuesta incorrecta. Nuevos fallos:', newFailures);
+        
+        // Verificar si perdió (3 fallos)
+        if (newFailures >= 3) {
+            updates['gameData/winner'] = multiplayerState.isHost ? 'guest' : 'host';
+            updates['gameData/gamePhase'] = 'finished';
+            updates['status'] = 'finished';
+            console.log('🏁 Juego terminado por 3 fallos');
+        }
+    }
+    
+    // Verificar si se alcanzó el límite de preguntas (10 por jugador)
+    const myQuestions = multiplayerState.myQuestionsAsked || 0;
+    const opponentQuestions = multiplayerState.opponentQuestionsAsked || 0;
+    
+    if (myQuestions >= 10 && opponentQuestions >= 10) {
+        console.log('🏁 Límite de preguntas alcanzado');
+        // Determinar ganador por menor número de fallos
+        const myFailures = isCorrect ? multiplayerState.myFailures : multiplayerState.myFailures + 1;
+        const opponentFailures = multiplayerState.opponentFailures;
+        
+        if (myFailures < opponentFailures) {
+            updates['gameData/winner'] = multiplayerState.isHost ? 'host' : 'guest';
+        } else if (myFailures > opponentFailures) {
+            updates['gameData/winner'] = multiplayerState.isHost ? 'guest' : 'host';
+        } else {
+            updates['gameData/winner'] = 'tie';
+        }
+        updates['gameData/gamePhase'] = 'finished';
+        updates['status'] = 'finished';
+    } else {
+        // Cambiar turno al oponente
+        updates['gameData/currentTurn'] = multiplayerState.isHost ? 'guest' : 'host';
+        updates['gameData/gamePhase'] = 'question';
+        console.log('🔄 Cambiando turno a:', multiplayerState.isHost ? 'guest' : 'host');
+    }
+    
+    // Limpiar pregunta actual
+    updates['gameData/currentQuestion'] = null;
+    
+    console.log('📤 Enviando actualizaciones a Firebase:', updates);
+    
+    database.ref(`rooms/${multiplayerState.currentRoom}`).update(updates)
+        .then(() => {
+            console.log('✅ Respuesta procesada correctamente');
+            
+            // Actualizar estado local inmediatamente
+            if (!isCorrect) {
+                multiplayerState.myFailures = multiplayerState.myFailures + 1;
+            }
+            multiplayerState.currentQuestion = null;
+            multiplayerState.myTurn = true; // Ahora es mi turno para hacer pregunta
+            
+            // Mostrar mensaje
+            if (isCorrect) {
+                showMessage('¡Respuesta correcta!', 'success');
+            } else {
+                showMessage(`Respuesta incorrecta. Fallos: ${multiplayerState.myFailures}/3`, 'error');
+            }
+            
+            // Re-renderizar
+            render();
+        })
+        .catch((error) => {
+            console.error('❌ Error procesando respuesta:', error);
+            showMessage('Error al procesar respuesta', 'error');
+        });
+}
 
     // CONVERSIÓN ROBUSTA: Convertir ambos a string para comparar
     const questionIdStr = String(questionId);
@@ -10368,6 +10462,7 @@ window.renderIntermediateScreen = function() {
 </script>
 </body>
 </html>
+
 
 
 
