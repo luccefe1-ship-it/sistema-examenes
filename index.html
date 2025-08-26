@@ -9273,10 +9273,13 @@ function generateRoomCode() {
 // Ir a multijugador desde el menú principal
 function goToMultiplayer() {
     console.log('🎯 Cambiando a Multijugador...');
-    showIntermediateScreen = false;
-    state.currentTab = 'multiplayer';
+    if (!state.currentUser) {
+        showMessage('Debes estar logueado para acceder al modo multijugador', 'error');
+        return;
+    }
+    multiplayerState.gameState = 'menu';
     render();
-};
+}
 
 // Crear sala de multijugador
 function createMultiplayerRoom() {
@@ -10467,6 +10470,7 @@ window.renderIntermediateScreen = function() {
 </script>
 </body>
 </html>
+
 
 
 
