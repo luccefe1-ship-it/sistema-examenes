@@ -9820,16 +9820,19 @@ window.renderTabContent = function() {
     }
 };
 
-// Renderizar pestaña multijugador
-function renderMultiplayerTab() {
-    // Si estamos en una sala, mostrar interfaz de juego
-    if (multiplayerState.currentRoom) {
-        if (multiplayerState.gameState === 'playing') {
-            return renderGameInterface();
-        } else {
-            return renderRoomInterface();
-        }
+// Función para ir al multijugador desde el menú principal
+function goToMultiplayer() {
+    console.log('🎯 Cambiando a Multijugador...');
+    if (!state.currentUser) {
+        showMessage('Debes estar logueado para acceder al modo multijugador', 'error');
+        return;
     }
+    state.currentTab = 'multiplayer';
+    if (typeof multiplayerState !== 'undefined') {
+        multiplayerState.gameState = 'menu';
+    }
+    render();
+}
     
     // Interfaz principal de multijugador
     const verifiedQuestions = state.questions.filter(q => q.isVerified);
@@ -10482,6 +10485,7 @@ window.renderIntermediateScreen = function() {
     
 </body>
 </html>
+
 
 
 
