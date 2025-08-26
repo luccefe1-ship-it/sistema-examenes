@@ -9293,7 +9293,9 @@ function createMultiplayerRoom() {
         host: {
             username: state.currentUser.username,
             name: state.currentUser.name,
-            questions: verifiedQuestions.length,
+            questions: verifiedQuestions,
+            topics: state.topics,
+            questionsCount: verifiedQuestions.length,
             ready: false
         },
         guest: null,
@@ -9306,7 +9308,8 @@ function createMultiplayerRoom() {
             guestQuestionsAsked: 0,
             currentQuestion: null,
             winner: null,
-            gamePhase: 'waiting' // waiting, question, answer, finished
+            gamePhase: 'waiting',
+            usedQuestions: []
         },
         createdAt: firebase.database.ServerValue.TIMESTAMP
     };
@@ -9382,7 +9385,9 @@ function joinMultiplayerRoom() {
             const guestData = {
                 username: state.currentUser.username,
                 name: state.currentUser.name,
-                questions: verifiedQuestions.length,
+                questions: verifiedQuestions,
+                topics: state.topics,
+                questionsCount: verifiedQuestions.length,
                 ready: false
             };
 
@@ -9429,7 +9434,6 @@ function listenToRoom(roomCode) {
     });
 }
 
-// Actualizar estado local desde Firebase
 function updateLocalStateFromRoom(roomData) {
     multiplayerState.gameState = roomData.status;
     
@@ -9450,6 +9454,7 @@ function updateLocalStateFromRoom(roomData) {
             roomData.gameData.hostQuestionsAsked : roomData.gameData.guestQuestionsAsked;
         multiplayerState.opponentQuestionsAsked = multiplayerState.isHost ? 
             roomData.gameData.guestQuestionsAsked : roomData.gameData.hostQuestionsAsked;
+        multiplayerState.gameQuestions = roomData.gameData.usedQuestions || [];
     }
 }
 
@@ -9526,35 +9531,73 @@ function leaveRoom() {
     render();
 }
 
-// Seleccionar pregunta para el oponente
-function selectQuestionForOpponent() {
-    const verifiedQuestions = state.questions.filter(q => q.isVerified);
-    const availableQuestions = verifiedQuestions.filter(q => 
-        !multiplayerState.gameQuestions.includes(q.id)
-    );
-    
-    if (availableQuestions.length === 0) {
-        showMessage('No hay más preguntas disponibles', 'error');
+// Función para obtener preguntas del oponente organizadas por temas
+function getOpponentQuestionsByTopic() {
+    if (!multiplayerState.opponent || !multiplayerState.opponent.questions) {
+        return {};
+    }
+
+    const questions = multiplayerState.opponent.questions;
+    const topics = multiplayerState.opponent.topics || [];
+    const questionsByTopic = {};
+
+    topics.forEach(topic => {
+        questionsByTopic[topic.id] = {
+            name: topic.name,
+            questions: questions.filter(q => q.topicId === topic.id)
+        };
+    });
+
+    const questionsWithoutTopic = questions.filter(q => !q.topicId);
+    if (questionsWithoutTopic.length > 0) {
+        questionsByTopic['no-topic'] = {
+            name: 'Sin tema',
+            questions: questionsWithoutTopic
+        };
+    }
+
+    return questionsByTopic;
+}
+
+// Función para seleccionar pregunta específica
+function selectSpecificQuestion(questionId) {
+    if (!multiplayerState.opponent || !multiplayerState.opponent.questions) {
+        showMessage('Error: No se pueden obtener las preguntas del oponente', 'error');
         return;
     }
+
+    const selectedQuestion = multiplayerState.opponent.questions.find(q => q.id === questionId);
     
-    // Seleccionar pregunta aleatoria
-    const selectedQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
-    
-    // Actualizar en Firebase
+    if (!selectedQuestion) {
+        showMessage('Error: Pregunta no encontrada', 'error');
+        return;
+    }
+
+    if (multiplayerState.gameQuestions && multiplayerState.gameQuestions.includes(questionId)) {
+        showMessage('Esta pregunta ya fue usada', 'error');
+        return;
+    }
+
     const updates = {
         'gameData/currentQuestion': selectedQuestion,
         'gameData/gamePhase': 'answer'
     };
     
-    // Incrementar contador de preguntas
     const questionsPath = multiplayerState.isHost ? 'hostQuestionsAsked' : 'guestQuestionsAsked';
     updates[`gameData/${questionsPath}`] = multiplayerState.myQuestionsAsked + 1;
     
+    const usedQuestions = multiplayerState.gameQuestions || [];
+    usedQuestions.push(questionId);
+    updates['gameData/usedQuestions'] = usedQuestions;
+
     database.ref(`rooms/${multiplayerState.currentRoom}`).update(updates)
         .then(() => {
-            multiplayerState.gameQuestions.push(selectedQuestion.id);
+            multiplayerState.gameQuestions = usedQuestions;
             showMessage('Pregunta enviada a tu oponente', 'success');
+        })
+        .catch((error) => {
+            console.error('Error enviando pregunta:', error);
+            showMessage('Error al enviar pregunta', 'error');
         });
 }
 
@@ -9769,7 +9812,6 @@ function renderRoomInterface() {
     `;
 }
 
-// Renderizar interfaz del juego (pantalla dividida)
 function renderGameInterface() {
     const opponent = multiplayerState.opponent;
     const isMyTurn = multiplayerState.myTurn;
@@ -9784,8 +9826,12 @@ function renderGameInterface() {
         return renderGameFinished();
     }
     
+    // Obtener preguntas del oponente por temas
+    const opponentQuestionsByTopic = getOpponentQuestionsByTopic();
+    const usedQuestions = multiplayerState.gameQuestions || [];
+    
     return `
-        <div style="max-width: 1200px; margin: 0 auto; padding: 15px; min-height: calc(100vh - 150px);">
+        <div style="max-width: 1400px; margin: 0 auto; padding: 15px; min-height: calc(100vh - 150px);">
             
             <!-- Header del duelo -->
             <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 15px; border-radius: 12px;">
@@ -9795,138 +9841,162 @@ function renderGameInterface() {
                 </p>
             </div>
             
-            <!-- Pantalla dividida -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; min-height: 500px;">
+            <!-- Pantalla dividida CORREGIDA -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; min-height: 600px;">
                 
-                <!-- LADO IZQUIERDO: Información del oponente -->
-                <div style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); border: 2px solid #e2e8f0; border-radius: 16px; padding: 25px;">
-                    <h3 style="color: #1f2937; margin: 0 0 20px 0; font-size: 1.3rem; text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;">
-                        📊 Todas las preguntas de ${opponent.name}
+                <!-- LADO IZQUIERDO: Temas y preguntas del oponente para elegir -->
+                <div style="background: white; border: 2px solid #e2e8f0; border-radius: 16px; padding: 20px; overflow-y: auto;">
+                    <h3 style="color: #1f2937; margin: 0 0 20px 0; font-size: 1.2rem; text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;">
+                        📂 Temas de ${opponent.name}
                     </h3>
                     
-                    <!-- Estadísticas del oponente -->
-                    <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; text-align: center;">
-                            <div>
-                                <div style="font-size: 2rem; font-weight: bold; color: #ef4444;">${opponentFailures}</div>
-                                <div style="font-size: 12px; color: #6b7280;">Fallos</div>
-                            </div>
-                            <div>
-                                <div style="font-size: 2rem; font-weight: bold; color: #4f46e5;">${opponentQuestionsAsked}/10</div>
-                                <div style="font-size: 12px; color: #6b7280;">Preguntas</div>
-                            </div>
+                    ${isMyTurn ? `
+                        <!-- Mi turno: Mostrar temas para elegir pregunta -->
+                        <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 10px; padding: 15px; margin-bottom: 20px; text-align: center;">
+                            <div style="color: #166534; font-weight: 600; margin-bottom: 5px;">🎯 Tu turno</div>
+                            <div style="color: #16a34a; font-size: 13px;">Elige una pregunta de los temas de ${opponent.name}</div>
                         </div>
                         
-                        <!-- Barra de progreso de fallos del oponente -->
-                        <div style="margin-top: 15px;">
-                            <div style="background: #f3f4f6; border-radius: 10px; height: 8px; overflow: hidden;">
-                                <div style="background: #ef4444; height: 100%; width: ${(opponentFailures / 3) * 100}%; transition: width 0.3s ease;"></div>
+                        ${Object.keys(opponentQuestionsByTopic).length === 0 ? `
+                            <div style="text-align: center; color: #6b7280; padding: 40px;">
+                                <div style="font-size: 2rem; margin-bottom: 10px;">❌</div>
+                                <p>No hay preguntas disponibles del oponente</p>
                             </div>
-                            <div style="text-align: center; margin-top: 5px; font-size: 11px; color: #6b7280;">
-                                ${opponentFailures}/3 fallos para perder
+                        ` : `
+                            <!-- Mostrar temas y preguntas -->
+                            <div style="space-y: 15px;">
+                                ${Object.entries(opponentQuestionsByTopic).map(([topicId, topicData]) => `
+                                    <div style="margin-bottom: 20px;">
+                                        <h4 style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 10px 15px; margin: 0; border-radius: 8px 8px 0 0; font-size: 14px;">
+                                            📁 ${topicData.name} (${topicData.questions.filter(q => !usedQuestions.includes(q.id)).length} disponibles)
+                                        </h4>
+                                        <div style="border: 2px solid #8b5cf6; border-top: none; border-radius: 0 0 8px 8px; padding: 10px; background: #faf9ff; max-height: 200px; overflow-y: auto;">
+                                            ${topicData.questions.filter(q => !usedQuestions.includes(q.id)).length === 0 ? `
+                                                <div style="text-align: center; color: #9ca3af; font-style: italic; padding: 20px;">
+                                                    Todas las preguntas de este tema ya fueron usadas
+                                                </div>
+                                            ` : `
+                                                ${topicData.questions.filter(q => !usedQuestions.includes(q.id)).map(question => `
+                                                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;" 
+                                                         onmouseover="this.style.backgroundColor='#f8fafc'; this.style.borderColor='#8b5cf6';" 
+                                                         onmouseout="this.style.backgroundColor='white'; this.style.borderColor='#e2e8f0';"
+                                                         onclick="selectSpecificQuestion('${question.id}')">
+                                                        <div style="font-size: 14px; color: #374151; line-height: 1.4; margin-bottom: 5px;">
+                                                            ${question.question.length > 80 ? question.question.substring(0, 80) + '...' : question.question}
+                                                        </div>
+                                                        <div style="font-size: 11px; color: #6b7280;">
+                                                            ${question.options.length} opciones | Click para enviar
+                                                        </div>
+                                                    </div>
+                                                `).join('')}
+                                            `}
+                                        </div>
+                                    </div>
+                                `).join('')}
                             </div>
+                        `}
+                    ` : `
+                        <!-- No es mi turno: Mostrar estadísticas del oponente -->
+                        <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 10px; padding: 15px; margin-bottom: 20px; text-align: center;">
+                            <div style="color: #92400e; font-weight: 600; margin-bottom: 5px;">⏳ Esperando</div>
+                            <div style="color: #78350f; font-size: 13px;">${opponent.name} está respondiendo</div>
                         </div>
-                    </div>
-                    
-                    <!-- Estado del oponente -->
-                    <div style="text-align: center; padding: 15px; background: ${!isMyTurn ? '#fef3c7' : '#f0fdf4'}; border-radius: 10px; border: 2px solid ${!isMyTurn ? '#f59e0b' : '#22c55e'};">
-                        <div style="font-size: 1.1rem; font-weight: 600; color: ${!isMyTurn ? '#92400e' : '#166534'}; margin-bottom: 5px;">
-                            ${!isMyTurn ? '🤔 Pensando...' : '⏳ Esperando tu pregunta'}
+                        
+                        <!-- Resumen de temas del oponente -->
+                        <div style="space-y: 10px;">
+                            ${Object.entries(opponentQuestionsByTopic).map(([topicId, topicData]) => `
+                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+                                    <div style="font-weight: 600; color: #374151; margin-bottom: 5px;">📁 ${topicData.name}</div>
+                                    <div style="font-size: 12px; color: #6b7280;">
+                                        ${topicData.questions.length} preguntas totales | 
+                                        ${topicData.questions.filter(q => !usedQuestions.includes(q.id)).length} disponibles
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
-                        <div style="font-size: 12px; color: ${!isMyTurn ? '#78350f' : '#16a34a'};">
-                            ${!isMyTurn ? 'Respondiendo tu pregunta' : 'Tu turno para preguntar'}
-                        </div>
-                    </div>
+                    `}
                 </div>
                 
-                <!-- LADO DERECHO: Pregunta/Respuesta -->
+                <!-- LADO DERECHO: Pregunta actual y respuesta -->
                 <div style="background: white; border: 2px solid #e2e8f0; border-radius: 16px; padding: 25px; display: flex; flex-direction: column;">
                     
-                    ${isMyTurn ? `
-                        <!-- Mi turno: Seleccionar pregunta -->
-                        <div style="text-align: center; margin-bottom: 20px;">
-                            <h3 style="color: #1f2937; margin: 0; font-size: 1.3rem;">🎯 Tu Turno</h3>
-                            <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
-                                Preguntas realizadas: ${myQuestionsAsked}/10
-                            </p>
-                        </div>
-                        
-                        <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
-                            ${myQuestionsAsked < 10 ? `
-                                <div style="text-align: center;">
-                                    <div style="font-size: 4rem; margin-bottom: 20px;">❓</div>
-                                    <h4 style="color: #1f2937; margin-bottom: 15px;">Envía una pregunta a ${opponent.name}</h4>
-                                    <p style="color: #6b7280; margin-bottom: 25px; font-size: 14px;">
-                                        Se seleccionará automáticamente una pregunta aleatoria de tu banco
-                                    </p>
-                                    <button onclick="selectQuestionForOpponent()" class="btn btn-primary" style="padding: 15px 30px; font-size: 16px;">
-                                        🚀 Enviar Pregunta
-                                    </button>
-                                </div>
-                            ` : `
-                                <div style="text-align: center; color: #6b7280;">
-                                    <div style="font-size: 3rem; margin-bottom: 15px;">⏸️</div>
-                                    <h4>Has alcanzado el límite de preguntas</h4>
-                                    <p style="font-size: 14px;">Esperando que ${opponent.name} termine sus preguntas</p>
-                                </div>
-                            `}
-                        </div>
-                    ` : `
-                        <!-- Turno del oponente: Responder pregunta -->
-                        <div style="text-align: center; margin-bottom: 20px;">
-                            <h3 style="color: #1f2937; margin: 0; font-size: 1.3rem;">📝 Pregunta de ${opponent.name}</h3>
-                            <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
-                                Tus fallos: ${myFailures}/3
-                            </p>
-                        </div>
-                        
-                        ${currentQuestion ? `
-                            <div style="flex: 1; display: flex; flex-direction: column;">
-                                <!-- Pregunta -->
-                                <div style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-left: 4px solid #4f46e5; padding: 20px; border-radius: 0 12px 12px 0; margin-bottom: 25px;">
-                                    <h4 style="color: #1f2937; margin: 0 0 10px 0; font-size: 1.1rem;">
-                                        ${currentQuestion.question}
-                                    </h4>
-                                    ${currentQuestion.topicId ? `
-                                        <span style="background: #e0e7ff; color: #4f46e5; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">
-                                            ${getTopicName(currentQuestion.topicId)}
-                                        </span>
-                                    ` : ''}
-                                </div>
-                                
-                                <!-- Opciones de respuesta -->
-                                <div style="display: grid; gap: 12px; flex: 1;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="color: #1f2937; margin: 0; font-size: 1.2rem;">
+                            ${currentQuestion ? '📝 Pregunta Planteada' : '⏸️ Sin Pregunta Activa'}
+                        </h3>
+                        <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                            ${currentQuestion ? (isMyTurn ? 'Esperando respuesta de ' + opponent.name : 'Responde esta pregunta') : 'Esperando que se seleccione una pregunta'}
+                        </p>
+                    </div>
+                    
+                    ${currentQuestion ? `
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <!-- Pregunta -->
+                            <div style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-left: 4px solid #4f46e5; padding: 20px; border-radius: 0 12px 12px 0; margin-bottom: 25px;">
+                                <h4 style="color: #1f2937; margin: 0 0 10px 0; font-size: 1.1rem;">
+                                    ${currentQuestion.question}
+                                </h4>
+                                ${currentQuestion.topicId ? `
+                                    <span style="background: #e0e7ff; color: #4f46e5; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">
+                                        ${getTopicName(currentQuestion.topicId)}
+                                    </span>
+                                ` : ''}
+                            </div>
+                            
+                            <!-- Opciones de respuesta -->
+                            ${!isMyTurn ? `
+                                <div style="display: grid; gap: 12px; flex: 1; margin-bottom: 20px;">
                                     ${currentQuestion.options.map((option, index) => `
                                         <button onclick="answerOpponentQuestion(${index})" 
                                                 style="background: #f9fafb; border: 2px solid #e2e8f0; border-radius: 12px; padding: 15px; text-align: left; cursor: pointer; transition: all 0.2s; font-size: 14px; color: #374151;" 
-                                                onmouseover="this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#d1d5db';" 
+                                                onmouseover="this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#4f46e5';" 
                                                 onmouseout="this.style.backgroundColor='#f9fafb'; this.style.borderColor='#e2e8f0';">
                                             <strong>${String.fromCharCode(97 + index).toUpperCase()})</strong> ${option}
                                         </button>
                                     `).join('')}
                                 </div>
-                            </div>
-                        ` : `
-                            <div style="flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; color: #6b7280;">
-                                <div>
-                                    <div style="font-size: 3rem; margin-bottom: 15px;">⏳</div>
-                                    <h4>Esperando pregunta...</h4>
-                                    <p style="font-size: 14px;">${opponent.name} está seleccionando una pregunta</p>
+                            ` : `
+                                <div style="flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; color: #6b7280; margin-bottom: 20px;">
+                                    <div>
+                                        <div style="font-size: 3rem; margin-bottom: 15px;">⏳</div>
+                                        <h4>Esperando respuesta de ${opponent.name}</h4>
+                                        <div style="display: grid; gap: 8px; margin-top: 15px;">
+                                            ${currentQuestion.options.map((option, index) => `
+                                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: left; font-size: 13px; color: #6b7280;">
+                                                    <strong>${String.fromCharCode(97 + index).toUpperCase()})</strong> ${option}
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
                                 </div>
+                            `}
+                        </div>
+                    ` : `
+                        <div style="flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; color: #6b7280;">
+                            <div>
+                                <div style="font-size: 4rem; margin-bottom: 20px;">💭</div>
+                                <h4>No hay pregunta activa</h4>
+                                <p style="font-size: 14px; margin-top: 10px;">
+                                    ${isMyTurn ? 'Selecciona una pregunta de los temas de la izquierda' : opponent.name + ' está seleccionando una pregunta'}
+                                </p>
                             </div>
-                        `}
+                        </div>
                     `}
                     
                     <!-- Estadísticas propias en la parte inferior -->
                     <div style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-radius: 10px; border: 2px solid #22c55e;">
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; text-align: center;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; text-align: center;">
                             <div>
-                                <div style="font-size: 1.5rem; font-weight: bold; color: #ef4444;">${myFailures}/3</div>
+                                <div style="font-size: 1.3rem; font-weight: bold; color: #ef4444;">${myFailures}/3</div>
                                 <div style="font-size: 11px; color: #166534;">Mis Fallos</div>
                             </div>
                             <div>
-                                <div style="font-size: 1.5rem; font-weight: bold; color: #4f46e5;">${myQuestionsAsked}/10</div>
+                                <div style="font-size: 1.3rem; font-weight: bold; color: #4f46e5;">${myQuestionsAsked}/10</div>
                                 <div style="font-size: 11px; color: #166534;">Mis Preguntas</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 1.3rem; font-weight: bold; color: #f59e0b;">${opponentFailures}/3</div>
+                                <div style="font-size: 11px; color: #166534;">Sus Fallos</div>
                             </div>
                         </div>
                     </div>
@@ -10129,6 +10199,7 @@ window.renderIntermediateScreen = function() {
 </script>
 </body>
 </html>
+
 
 
 
