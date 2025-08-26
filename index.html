@@ -9194,9 +9194,1017 @@ Este parche añade el botón de logout al header en todas las páginas
         }
     }, 100);
 </script>
+<script>
+// ========== SISTEMA MULTIJUGADOR COMPLETO Y DEFINITIVO ==========
+console.log('🎮 Iniciando sistema multijugador definitivo...');
 
+// ===== VARIABLES GLOBALES =====
+window.multiplayerSystem = {
+    enabled: false,
+    firebaseApp: null,
+    database: null,
+    currentRoom: null,
+    isHost: false,
+    roomCode: null,
+    roomData: null,
+    roomListener: null
+};
+
+// ===== CONFIGURACIÓN FIREBASE =====
+const firebaseConfigMultiplayer = {
+    apiKey: "AIzaSyBzeTnm6iYR0b_gccYmenaR_NsOY9VmUz8",
+    authDomain: "priii-572dd.firebaseapp.com",
+    databaseURL: "https://priii-572dd-default-rtdb.firebaseio.com",
+    projectId: "priii-572dd",
+    storageBucket: "priii-572dd.firebasestorage.app",
+    messagingSenderId: "858611366137",
+    appId: "1:858611366137:web:9d84afde86f5b209e04a28"
+};
+
+// ===== INICIALIZACIÓN FIREBASE =====
+function initializeMultiplayerFirebase() {
+    try {
+        if (typeof firebase === 'undefined') {
+            console.warn('Firebase no disponible');
+            return false;
+        }
+        
+        // Usar una configuración separada para multijugador
+        window.multiplayerSystem.firebaseApp = firebase.initializeApp(firebaseConfigMultiplayer, 'multiplayer');
+        window.multiplayerSystem.database = window.multiplayerSystem.firebaseApp.database();
+        window.multiplayerSystem.enabled = true;
+        
+        console.log('✅ Firebase multijugador inicializado');
+        return true;
+    } catch (error) {
+        console.error('Error inicializando Firebase multijugador:', error);
+        window.multiplayerSystem.enabled = false;
+        return false;
+    }
+}
+
+// ===== FUNCIÓN PRINCIPAL PARA IR A MULTIJUGADOR =====
+window.goToMultiplayer = function() {
+    console.log('🎮 goToMultiplayer ejecutándose...');
+    
+    try {
+        // Verificar preguntas verificadas
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        console.log('Preguntas verificadas encontradas:', verifiedQuestions.length);
+        
+        if (verifiedQuestions.length < 5) {
+            showMessage('Necesitas al menos 5 preguntas verificadas (marca con ⭐ en el Banco de Preguntas)', 'warning');
+            return;
+        }
+        
+        // Verificar sistema multijugador
+        if (!window.multiplayerSystem.enabled) {
+            console.log('Sistema multijugador no habilitado, intentando inicializar...');
+            if (!initializeMultiplayerFirebase()) {
+                showMessage('Sistema multijugador no disponible. Verifica tu conexión.', 'error');
+                return;
+            }
+        }
+        
+        console.log('Cambiando a interfaz multijugador...');
+        showIntermediateScreen = false;
+        state.currentTab = 'multiplayer';
+        
+        // Forzar renderizado
+        renderMultiplayerInterface();
+        
+        showMessage('¡Multijugador activado!', 'success');
+        console.log('✅ Multijugador activado correctamente');
+        
+    } catch (error) {
+        console.error('❌ Error en goToMultiplayer:', error);
+        showMessage('Error al activar multijugador: ' + error.message, 'error');
+    }
+};
+
+// ===== UTILIDADES =====
+function generateRoomCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+// ===== FUNCIONES DE SALA =====
+window.crearSalaMultijugador = function() {
+    console.log('Creando sala multijugador...');
+    
+    if (!window.multiplayerSystem.enabled) {
+        showMessage('Sistema multijugador no disponible', 'error');
+        return;
+    }
+    
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    const roomCode = generateRoomCode();
+    
+    const roomData = {
+        code: roomCode,
+        host: {
+            username: state.currentUser.username,
+            name: state.currentUser.name,
+            questions: verifiedQuestions,
+            ready: false,
+            failures: 0,
+            questionsAsked: 0
+        },
+        guest: null,
+        status: 'waiting',
+        gameData: {
+            currentTurn: 'host',
+            currentQuestion: null,
+            maxFailures: 3,
+            maxQuestions: 10,
+            gamePhase: 'waiting',
+            winner: null
+        },
+        createdAt: Date.now(),
+        lastActivity: Date.now()
+    };
+    
+    window.multiplayerSystem.database.ref('rooms/' + roomCode).set(roomData)
+        .then(() => {
+            window.multiplayerSystem.currentRoom = roomCode;
+            window.multiplayerSystem.isHost = true;
+            window.multiplayerSystem.roomCode = roomCode;
+            
+            listenToMultiplayerRoom(roomCode);
+            showMessage(`Sala creada: ${roomCode}`, 'success');
+        })
+        .catch((error) => {
+            console.error('Error creando sala:', error);
+            showMessage('Error al crear la sala', 'error');
+        });
+};
+
+window.unirseASala = function() {
+    const roomCode = document.getElementById('join-room-code')?.value?.trim();
+    
+    if (!roomCode) {
+        showMessage('Ingresa el código de la sala', 'error');
+        return;
+    }
+    
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    
+    window.multiplayerSystem.database.ref('rooms/' + roomCode).once('value')
+        .then((snapshot) => {
+            const roomData = snapshot.val();
+            
+            if (!roomData) {
+                showMessage('Sala no encontrada', 'error');
+                return;
+            }
+            
+            if (roomData.guest) {
+                showMessage('La sala ya está llena', 'error');
+                return;
+            }
+            
+            const guestData = {
+                username: state.currentUser.username,
+                name: state.currentUser.name,
+                questions: verifiedQuestions,
+                ready: false,
+                failures: 0,
+                questionsAsked: 0
+            };
+            
+            window.multiplayerSystem.database.ref('rooms/' + roomCode + '/guest').set(guestData)
+                .then(() => {
+                    window.multiplayerSystem.currentRoom = roomCode;
+                    window.multiplayerSystem.isHost = false;
+                    window.multiplayerSystem.roomCode = roomCode;
+                    
+                    listenToMultiplayerRoom(roomCode);
+                    showMessage('Te has unido a la sala', 'success');
+                });
+        })
+        .catch((error) => {
+            console.error('Error uniéndose a sala:', error);
+            showMessage('Error al unirse a la sala', 'error');
+        });
+};
+
+window.marcarComoListo = function() {
+    if (!window.multiplayerSystem.currentRoom) return;
+    
+    const playerPath = window.multiplayerSystem.isHost ? 'host' : 'guest';
+    
+    window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}/${playerPath}/ready`).set(true)
+        .then(() => {
+            showMessage('Marcado como listo', 'success');
+            
+            // Verificar si ambos están listos
+            window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}`).once('value')
+                .then((snapshot) => {
+                    const roomData = snapshot.val();
+                    
+                    if (roomData.host.ready && roomData.guest && roomData.guest.ready) {
+                        iniciarJuegoMultijugador();
+                    }
+                });
+        });
+};
+
+function iniciarJuegoMultijugador() {
+    if (!window.multiplayerSystem.isHost) return;
+    
+    window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}/gameData/gamePhase`).set('playing')
+        .then(() => {
+            window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}/status`).set('playing');
+            showMessage('¡Juego iniciado!', 'success');
+        });
+}
+
+window.seleccionarPregunta = function(questionIndex) {
+    if (!window.multiplayerSystem.currentRoom) return;
+    
+    window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}`).once('value')
+        .then((snapshot) => {
+            const roomData = snapshot.val();
+            const isMyTurn = (roomData.gameData.currentTurn === 'host' && window.multiplayerSystem.isHost) ||
+                             (roomData.gameData.currentTurn === 'guest' && !window.multiplayerSystem.isHost);
+            
+            if (!isMyTurn) {
+                showMessage('No es tu turno', 'error');
+                return;
+            }
+            
+            const opponent = window.multiplayerSystem.isHost ? roomData.guest : roomData.host;
+            const selectedQuestion = opponent.questions[questionIndex];
+            
+            window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}/gameData/currentQuestion`).set(selectedQuestion)
+                .then(() => {
+                    showMessage('Pregunta seleccionada', 'success');
+                });
+        });
+};
+
+window.responderPregunta = function(selectedIndex) {
+    if (!window.multiplayerSystem.currentRoom) return;
+    
+    window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}`).once('value')
+        .then((snapshot) => {
+            const roomData = snapshot.val();
+            const question = roomData.gameData.currentQuestion;
+            const isCorrect = selectedIndex === question.correctAnswer;
+            
+            const respondingPlayer = window.multiplayerSystem.isHost ? 'guest' : 'host';
+            const askingPlayer = window.multiplayerSystem.isHost ? 'host' : 'guest';
+            
+            if (isCorrect) {
+                showMessage('¡Respuesta correcta!', 'success');
+            } else {
+                showMessage('Respuesta incorrecta', 'error');
+                const currentFailures = roomData[respondingPlayer].failures;
+                window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}/${respondingPlayer}/failures`).set(currentFailures + 1);
+            }
+            
+            const currentQuestionsAsked = roomData[askingPlayer].questionsAsked;
+            window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}/${askingPlayer}/questionsAsked`).set(currentQuestionsAsked + 1);
+            
+            setTimeout(() => {
+                verificarFinDeJuego();
+            }, 1500);
+        });
+};
+
+function verificarFinDeJuego() {
+    window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}`).once('value')
+        .then((snapshot) => {
+            const roomData = snapshot.val();
+            
+            if (roomData.host.failures >= 3) {
+                terminarJuego(roomData.guest.name, 'El anfitrión alcanzó 3 fallos');
+                return;
+            }
+            
+            if (roomData.guest.failures >= 3) {
+                terminarJuego(roomData.host.name, 'El invitado alcanzó 3 fallos');
+                return;
+            }
+            
+            if (roomData.host.questionsAsked >= 10 && roomData.guest.questionsAsked >= 10) {
+                if (roomData.host.failures < roomData.guest.failures) {
+                    terminarJuego(roomData.host.name, 'Menor número de fallos');
+                } else if (roomData.guest.failures < roomData.host.failures) {
+                    terminarJuego(roomData.guest.name, 'Menor número de fallos');
+                } else {
+                    terminarJuego('Empate', 'Mismo número de fallos');
+                }
+                return;
+            }
+            
+            const nextTurn = roomData.gameData.currentTurn === 'host' ? 'guest' : 'host';
+            
+            window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}/gameData`).update({
+                currentTurn: nextTurn,
+                currentQuestion: null
+            });
+        });
+}
+
+function terminarJuego(winner, reason) {
+    window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}/status`).set('finished');
+    window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}/gameData/gamePhase`).set('finished');
+    window.multiplayerSystem.database.ref(`rooms/${window.multiplayerSystem.currentRoom}/gameData/winner`).set({ name: winner, reason: reason });
+    
+    showMessage(`¡Juego terminado! Ganador: ${winner}`, winner === 'Empate' ? 'warning' : 'success');
+    
+    setTimeout(() => {
+        salirDeSala();
+    }, 5000);
+}
+
+window.salirDeSala = function() {
+    if (window.multiplayerSystem.roomListener) {
+        window.multiplayerSystem.roomListener.off();
+    }
+    
+    if (window.multiplayerSystem.currentRoom) {
+        if (window.multiplayerSystem.isHost) {
+            window.multiplayerSystem.database.ref('rooms/' + window.multiplayerSystem.currentRoom).remove();
+        } else {
+            window.multiplayerSystem.database.ref('rooms/' + window.multiplayerSystem.currentRoom + '/guest').remove();
+        }
+    }
+    
+    // Reset estado
+    window.multiplayerSystem.currentRoom = null;
+    window.multiplayerSystem.isHost = false;
+    window.multiplayerSystem.roomCode = null;
+    window.multiplayerSystem.roomData = null;
+    window.multiplayerSystem.roomListener = null;
+    
+    // Volver al menú
+    backToIntermediateScreen();
+    showMessage('Has salido de la sala', 'success');
+};
+
+// ===== LISTENER DE SALA =====
+function listenToMultiplayerRoom(roomCode) {
+    if (window.multiplayerSystem.roomListener) {
+        window.multiplayerSystem.roomListener.off();
+    }
+    
+    window.multiplayerSystem.roomListener = window.multiplayerSystem.database.ref('rooms/' + roomCode);
+    
+    window.multiplayerSystem.roomListener.on('value', (snapshot) => {
+        const roomData = snapshot.val();
+        
+        if (!roomData) {
+            showMessage('La sala ha sido eliminada', 'error');
+            salirDeSala();
+            return;
+        }
+        
+        window.multiplayerSystem.roomData = roomData;
+        renderMultiplayerInterface();
+    });
+}
+
+// ===== RENDERIZADO =====
+window.renderMultiplayerInterface = function() {
+    console.log('Renderizando interfaz multijugador...');
+    const app = document.getElementById('app');
+    
+    if (!app) {
+        console.error('No se encontró el elemento app');
+        return;
+    }
+    
+    // Si estamos en una sala, mostrar interfaz de sala
+    if (window.multiplayerSystem.currentRoom && window.multiplayerSystem.roomData) {
+        app.innerHTML = renderSalaMultijugador();
+        return;
+    }
+    
+    // Interfaz principal de multijugador
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    
+    app.innerHTML = `
+        <div class="container">
+            <div class="header">
+                <div class="title">🎮 Duelo de Preguntas</div>
+                <button onclick="backToIntermediateScreen()" class="btn btn-secondary">🏠 Volver al Menú</button>
+            </div>
+            
+            <div style="max-width: 800px; margin: 0 auto;">
+                
+                <!-- Estado del jugador -->
+                <div style="background: #f0f9ff; border: 2px solid #3b82f6; border-radius: 12px; padding: 20px; margin-bottom: 30px; text-align: center;">
+                    <h3 style="color: #1e40af; margin-bottom: 15px;">📊 Tu Estado para Multijugador</h3>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 15px;">
+                        <div>
+                            <div style="font-size: 28px; font-weight: bold; color: ${verifiedQuestions.length >= 5 ? '#10b981' : '#ef4444'};">
+                                ${verifiedQuestions.length}
+                            </div>
+                            <div style="color: #6b7280; font-size: 14px; margin-bottom: 15px;">
+                                ${roomData.guest.questions.length} preguntas verificadas
+                            </div>
+                            <div style="padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 500; ${roomData.guest.ready ? 'background: #dcfce7; color: #166534;' : 'background: #fef3c7; color: #92400e;'}">
+                                ${roomData.guest.ready ? '✅ Listo para el duelo' : '⏳ Preparándose...'}
+                            </div>
+                        ` : `
+                            <div style="color: #9ca3af; margin-bottom: 15px; font-size: 16px;">Esperando jugador...</div>
+                            <div style="color: #6b7280; font-size: 14px; margin-bottom: 15px;">
+                                El invitado se unirá con el código de sala
+                            </div>
+                            <div style="padding: 12px; background: #f3f4f6; border-radius: 8px; font-size: 14px; color: #6b7280;">
+                                Sala vacía
+                            </div>
+                        `}
+                    </div>
+                </div>
+                
+                <!-- Acciones -->
+                ${roomData.guest ? `
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        ${(window.multiplayerSystem.isHost && !roomData.host.ready) || (!window.multiplayerSystem.isHost && !roomData.guest.ready) ? `
+                            <button onclick="marcarComoListo()" class="btn btn-success" style="font-size: 18px; padding: 15px 40px; font-weight: 600;">
+                                🚀 ¡Estoy Listo para el Duelo!
+                            </button>
+                        ` : `
+                            <div style="background: #dcfce7; border: 2px solid #16a34a; border-radius: 12px; padding: 20px;">
+                                <div style="color: #15803d; font-size: 18px; font-weight: bold; margin-bottom: 10px;">
+                                    ✅ Ya estás listo
+                                </div>
+                                <div style="color: #166534;">
+                                    Esperando que el otro jugador esté listo...
+                                </div>
+                            </div>
+                        `}
+                    </div>
+                    
+                    ${roomData.host.ready && roomData.guest.ready ? `
+                        <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; border-radius: 12px; padding: 25px; text-align: center; margin-bottom: 20px;">
+                            <div style="font-size: 24px; font-weight: bold; margin-bottom: 15px;">
+                                🎮 ¡Iniciando Duelo de Preguntas!
+                            </div>
+                            <div style="font-size: 16px; opacity: 0.9;">
+                                El juego comenzará automáticamente en unos segundos...
+                            </div>
+                        </div>
+                    ` : ''}
+                ` : `
+                    <div style="text-align: center; padding: 30px; background: #fef3c7; border: 2px dashed #f59e0b; border-radius: 12px;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">⏳</div>
+                        <div style="color: #92400e; font-size: 18px; font-weight: 600; margin-bottom: 10px;">
+                            Esperando segundo jugador
+                        </div>
+                        <div style="color: #78350f; font-size: 14px;">
+                            Comparte el código de sala para que alguien se una al duelo
+                        </div>
+                    </div>
+                `}
+                
+                <!-- Instrucciones finales -->
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;">
+                    <div style="text-align: center; color: #6b7280; font-size: 14px; line-height: 1.6;">
+                        💡 <strong>Recordatorio:</strong> Una vez que ambos estén listos, verás una pantalla dividida.<br>
+                        A la izquierda estarán las preguntas de tu oponente, y a la derecha el área de juego.
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderJuegoEnProgreso(roomData) {
+    const isMyTurn = (roomData.gameData.currentTurn === 'host' && window.multiplayerSystem.isHost) ||
+                     (roomData.gameData.currentTurn === 'guest' && !window.multiplayerSystem.isHost);
+    
+    const opponent = window.multiplayerSystem.isHost ? roomData.guest : roomData.host;
+    const currentPlayer = window.multiplayerSystem.isHost ? roomData.host : roomData.guest;
+    
+    return `
+        <div class="container">
+            <div class="header">
+                <div class="title">🎮 Duelo en Progreso</div>
+                <button onclick="salirDeSala()" class="btn btn-danger">Abandonar Duelo</button>
+            </div>
+            
+            <!-- Estadísticas del juego -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding: 20px; background: #f8fafc; border-radius: 12px; border: 2px solid #e5e7eb;">
+                <div style="text-align: center;">
+                    <div style="font-weight: bold; font-size: 16px; color: ${window.multiplayerSystem.isHost ? '#10b981' : '#6b7280'}; margin-bottom: 8px;">
+                        ${roomData.host.name} (Anfitrión)
+                    </div>
+                    <div style="color: #ef4444; font-size: 14px; margin-bottom: 4px;">❌ Fallos: ${roomData.host.failures}/3</div>
+                    <div style="color: #3b82f6; font-size: 14px;">❓ Preguntas: ${roomData.host.questionsAsked}/10</div>
+                </div>
+                
+                <div style="text-align: center; padding: 0 20px;">
+                    <div style="font-size: 18px; font-weight: bold; color: #4f46e5; margin-bottom: 5px;">
+                        Turno Actual
+                    </div>
+                    <div style="font-size: 16px; color: #374151; padding: 8px 16px; background: #dbeafe; border-radius: 8px;">
+                        ${roomData.gameData.currentTurn === 'host' ? roomData.host.name : roomData.guest.name}
+                    </div>
+                </div>
+                
+                <div style="text-align: center;">
+                    <div style="font-weight: bold; font-size: 16px; color: ${!window.multiplayerSystem.isHost ? '#10b981' : '#6b7280'}; margin-bottom: 8px;">
+                        ${roomData.guest.name} (Invitado)
+                    </div>
+                    <div style="color: #ef4444; font-size: 14px; margin-bottom: 4px;">❌ Fallos: ${roomData.guest.failures}/3</div>
+                    <div style="color: #3b82f6; font-size: 14px;">❓ Preguntas: ${roomData.guest.questionsAsked}/10</div>
+                </div>
+            </div>
+            
+            <!-- Pantalla dividida -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; height: 600px;">
+                
+                <!-- Panel izquierdo: Banco de preguntas del oponente -->
+                <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 20px; overflow-y: auto;">
+                    <div style="position: sticky; top: 0; background: white; padding-bottom: 15px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9;">
+                        <h3 style="color: #374151; margin-bottom: 10px; font-size: 18px; text-align: center;">
+                            📋 Preguntas de ${opponent.name}
+                        </h3>
+                        <div style="text-align: center; color: #6b7280; font-size: 14px;">
+                            ${opponent.questions.length} preguntas disponibles
+                        </div>
+                    </div>
+                    
+                    <div style="background: ${isMyTurn ? '#dcfce7' : '#fef3c7'}; border: 1px solid ${isMyTurn ? '#16a34a' : '#f59e0b'}; border-radius: 8px; padding: 12px; margin-bottom: 20px; text-align: center; font-size: 14px; color: ${isMyTurn ? '#15803d' : '#92400e'};">
+                        ${isMyTurn ? '🎯 Es tu turno - Selecciona una pregunta para tu oponente' : '⏳ Espera tu turno - El oponente está eligiendo'}
+                    </div>
+                    
+                    <div style="display: grid; gap: 12px;">
+                        ${opponent.questions.map((q, index) => `
+                            <div class="question-card" style="
+                                border: 2px solid ${isMyTurn ? '#d1d5db' : '#e5e7eb'}; 
+                                border-radius: 10px; 
+                                padding: 15px; 
+                                background: ${isMyTurn ? '#f8fafc' : '#f9fafb'}; 
+                                ${isMyTurn && currentPlayer.questionsAsked < 10 ? 'cursor: pointer;' : 'cursor: not-allowed;'} 
+                                transition: all 0.3s ease;
+                                ${isMyTurn && currentPlayer.questionsAsked < 10 ? 'border-style: solid;' : 'border-style: dashed;'}
+                            " 
+                            ${isMyTurn && currentPlayer.questionsAsked < 10 ? `
+                                onclick="seleccionarPregunta(${index})" 
+                                onmouseover="this.style.borderColor='#3b82f6'; this.style.backgroundColor='#dbeafe'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.1)'" 
+                                onmouseout="this.style.borderColor='#d1d5db'; this.style.backgroundColor='#f8fafc'; this.style.transform='translateY(0)'; this.style.boxShadow='none'"
+                            ` : ''}>
+                                <div style="font-weight: 500; margin-bottom: 8px; color: #374151; line-height: 1.4;">
+                                    ${q.question}
+                                </div>
+                                <div style="font-size: 12px; color: #6b7280;">
+                                    <span style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px;">
+                                        ${q.topicId ? (state.topics.find(t => t.id.toString() === q.topicId.toString())?.name || 'Sin tema') : 'Sin tema'}
+                                    </span>
+                                </div>
+                                ${isMyTurn && currentPlayer.questionsAsked < 10 ? `
+                                    <div style="margin-top: 8px; font-size: 12px; color: #3b82f6; font-weight: 500; text-align: center;">
+                                        👆 Clic para seleccionar
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    ${currentPlayer.questionsAsked >= 10 ? `
+                        <div style="text-align: center; margin-top: 20px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; color: #92400e;">
+                            <strong>Límite alcanzado:</strong> Ya has hecho ${currentPlayer.questionsAsked} preguntas
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <!-- Panel derecho: Pregunta actual -->
+                <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 20px; display: flex; flex-direction: column;">
+                    <div style="position: sticky; top: 0; background: white; padding-bottom: 15px; margin-bottom: 20px; border-bottom: 2px solid #f1f5f9; text-align: center;">
+                        <h3 style="color: #374151; margin: 0; font-size: 18px;">
+                            ${roomData.gameData.currentQuestion ? '❓ Pregunta Actual' : '⏳ Esperando pregunta...'}
+                        </h3>
+                    </div>
+                    
+                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                        ${renderPreguntaActual(roomData)}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderPreguntaActual(roomData) {
+    if (!roomData.gameData.currentQuestion) {
+        return `
+            <div style="text-align: center; padding: 40px 20px; color: #6b7280;">
+                <div style="font-size: 64px; margin-bottom: 20px; opacity: 0.7;">🤔</div>
+                <div style="font-size: 20px; margin-bottom: 15px; color: #374151;">Esperando selección de pregunta...</div>
+                <div style="font-size: 16px; color: #6b7280;">El jugador activo debe elegir una pregunta del panel izquierdo</div>
+            </div>
+        `;
+    }
+
+    const question = roomData.gameData.currentQuestion;
+    const isMyTurn = (roomData.gameData.currentTurn === 'host' && !window.multiplayerSystem.isHost) ||
+                     (roomData.gameData.currentTurn === 'guest' && window.multiplayerSystem.isHost);
+
+    return `
+        <div style="margin-bottom: 20px;">
+            <!-- Pregunta -->
+            <div style="background: linear-gradient(135deg, #f0f9ff, #dbeafe); border: 2px solid #3b82f6; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
+                <div style="font-weight: 600; font-size: 18px; color: #1e40af; margin-bottom: 12px; line-height: 1.4;">
+                    ${question.question}
+                </div>
+                <div style="font-size: 14px; color: #6b7280;">
+                    <span style="background: rgba(255,255,255,0.8); padding: 6px 12px; border-radius: 6px;">
+                        Tema: ${question.topicId ? (state.topics.find(t => t.id.toString() === question.topicId.toString())?.name || 'Sin tema') : 'Sin tema'}
+                    </span>
+                </div>
+            </div>
+            
+            ${isMyTurn ? `
+                <!-- Es mi turno para responder -->
+                <div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #dcfce7, #bbf7d0); border: 2px solid #16a34a; border-radius: 10px; text-align: center;">
+                    <div style="color: #15803d; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
+                        🎯 ¡Tu turno para responder!
+                    </div>
+                    <div style="color: #166534; font-size: 14px;">
+                        Selecciona la respuesta correcta
+                    </div>
+                </div>
+                
+                <!-- Opciones de respuesta -->
+                <div style="display: grid; gap: 12px;">
+                    ${question.options.map((option, index) => `
+                        <button onclick="responderPregunta(${index})" class="btn" style="
+                            background: white; 
+                            border: 3px solid #e2e8f0; 
+                            color: #374151; 
+                            padding: 15px 20px; 
+                            text-align: left; 
+                            border-radius: 10px; 
+                            transition: all 0.3s ease;
+                            font-size: 16px;
+                            font-weight: 500;
+                        " 
+                        onmouseover="this.style.borderColor='#3b82f6'; this.style.backgroundColor='#dbeafe'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(59,130,246,0.3)'" 
+                        onmouseout="this.style.borderColor='#e2e8f0'; this.style.backgroundColor='white'; this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                            <span style="display: inline-block; width: 30px; height: 30px; background: #f1f5f9; border-radius: 50%; text-align: center; line-height: 30px; margin-right: 12px; font-weight: bold; color: #374151;">
+                                ${String.fromCharCode(65 + index)}
+                            </span>
+                            ${option}
+                        </button>
+                    `).join('')}
+                </div>
+            ` : `
+                <!-- Esperando respuesta del oponente -->
+                <div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #fef3c7, #fed7aa); border: 2px solid #f59e0b; border-radius: 10px; text-align: center;">
+                    <div style="font-size: 48px; margin-bottom: 15px;">⏳</div>
+                    <div style="color: #92400e; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
+                        Esperando respuesta del oponente...
+                    </div>
+                    <div style="color: #78350f; font-size: 14px;">
+                        Tu oponente está pensando la respuesta
+                    </div>
+                </div>
+                
+                <!-- Opciones mostradas pero deshabilitadas -->
+                <div style="display: grid; gap: 12px; opacity: 0.6;">
+                    ${question.options.map((option, index) => `
+                        <div style="
+                            background: #f9fafb; 
+                            border: 2px dashed #d1d5db; 
+                            color: #6b7280; 
+                            padding: 15px 20px; 
+                            text-align: left; 
+                            border-radius: 10px;
+                            font-size: 16px;
+                        ">
+                            <span style="display: inline-block; width: 30px; height: 30px; background: #e5e7eb; border-radius: 50%; text-align: center; line-height: 30px; margin-right: 12px; color: #9ca3af;">
+                                ${String.fromCharCode(65 + index)}
+                            </span>
+                            ${option}
+                        </div>
+                    `).join('')}
+                </div>
+            `}
+        </div>
+    `;
+}
+
+function renderJuegoTerminado(roomData) {
+    const winner = roomData.gameData.winner;
+    const isWinner = winner.name === (window.multiplayerSystem.isHost ? roomData.host.name : roomData.guest.name);
+    
+    return `
+        <div class="container">
+            <div class="header">
+                <div class="title">🏆 Duelo Terminado</div>
+                <button onclick="salirDeSala()" class="btn btn-primary">Volver al Menú</button>
+            </div>
+            
+            <div style="text-align: center; padding: 40px; max-width: 600px; margin: 0 auto;">
+                <!-- Resultado principal -->
+                <div style="font-size: 96px; margin-bottom: 25px;">
+                    ${winner.name === 'Empate' ? '🤝' : (isWinner ? '🏆' : '😞')}
+                </div>
+                
+                <div style="font-size: 36px; font-weight: bold; margin-bottom: 15px; color: ${winner.name === 'Empate' ? '#f59e0b' : (isWinner ? '#10b981' : '#ef4444')};">
+                    ${winner.name === 'Empate' ? '¡Empate!' : (isWinner ? '¡Victoria!' : 'Derrota')}
+                </div>
+                
+                <div style="font-size: 20px; color: #6b7280; margin-bottom: 30px;">
+                    ${winner.name !== 'Empate' ? `Ganador: ${winner.name}` : 'Resultado: Empate'}
+                </div>
+                
+                <!-- Estadísticas finales -->
+                <div style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+                    <h4 style="color: #374151; margin-bottom: 20px; font-size: 20px;">📊 Estadísticas Finales del Duelo</h4>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px;">
+                        <div style="text-align: center; padding: 15px; background: ${window.multiplayerSystem.isHost ? '#dcfce7' : '#f9fafb'}; border-radius: 10px;">
+                            <div style="font-weight: bold; color: #10b981; margin-bottom: 12px; font-size: 18px;">
+                                ${roomData.host.name}
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <span style="color: #ef4444; font-weight: 500;">❌ Fallos:</span> ${roomData.host.failures}/3
+                            </div>
+                            <div>
+                                <span style="color: #3b82f6; font-weight: 500;">❓ Preguntas hechas:</span> ${roomData.host.questionsAsked}/10
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center; padding: 15px; background: ${!window.multiplayerSystem.isHost ? '#dcfce7' : '#f9fafb'}; border-radius: 10px;">
+                            <div style="font-weight: bold; color: #3b82f6; margin-bottom: 12px; font-size: 18px;">
+                                ${roomData.guest.name}
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <span style="color: #ef4444; font-weight: 500;">❌ Fallos:</span> ${roomData.guest.failures}/3
+                            </div>
+                            <div>
+                                <span style="color: #3b82f6; font-weight: 500;">❓ Preguntas hechas:</span> ${roomData.guest.questionsAsked}/10
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Razón del resultado -->
+                <div style="background: #dbeafe; border: 1px solid #3b82f6; border-radius: 10px; padding: 20px; margin-bottom: 25px;">
+                    <div style="color: #1e40af; font-weight: 500; margin-bottom: 8px;">📋 Razón del resultado:</div>
+                    <div style="color: #3730a3; font-size: 16px;">${winner.reason}</div>
+                </div>
+                
+                <!-- Botón para volver -->
+                <button onclick="salirDeSala()" class="btn btn-success" style="font-size: 18px; padding: 15px 40px; font-weight: 600;">
+                    🏠 Volver al Menú Principal
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// ===== INTEGRACIÓN CON EL SISTEMA PRINCIPAL =====
+
+// Extender el render principal para manejar multijugador
+const renderOriginalMultiplayer = render;
+render = function() {
+    if (state.currentUser && state.currentTab === 'multiplayer') {
+        renderMultiplayerInterface();
+    } else {
+        renderOriginalMultiplayer.call(this);
+    }
+};
+
+// Inicializar Firebase cuando se carga todo
+setTimeout(() => {
+    console.log('Intentando inicializar Firebase multijugador...');
+    initializeMultiplayerFirebase();
+}, 3000);
+
+console.log('✅ Sistema multijugador completo y definitivo implementado');
+console.log('🎮 Funcionalidades implementadas:');
+console.log('   - Creación y unión a salas');
+console.log('   - Pantalla dividida con banco de preguntas del oponente');
+console.log('   - Sistema de turnos alternados');
+console.log('   - Mecánica de 3 fallos = derrota');
+console.log('   - Límite de 10 preguntas máximo por jugador');
+console.log('   - Interfaz completa en tiempo real');
+console.log('   - Sistema de estadísticas y resultados finales');
+</script>: #6b7280; font-size: 14px;">Preguntas Verificadas</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 28px; font-weight: bold; color: #3b82f6;">
+                                ${state.questions.length}
+                            </div>
+                            <div style="color: #6b7280; font-size: 14px;">Total Preguntas</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 28px; font-weight: bold; color: #8b5cf6;">
+                                ${state.topics.length}
+                            </div>
+                            <div style="color: #6b7280; font-size: 14px;">Temas Creados</div>
+                        </div>
+                    </div>
+                    
+                    ${verifiedQuestions.length < 5 ? `
+                        <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px;">
+                            <div style="color: #92400e; font-weight: 500; margin-bottom: 8px;">⚠️ Necesitas verificar más preguntas</div>
+                            <div style="color: #78350f; font-size: 14px;">
+                                Ve a "Banco de Preguntas" y marca preguntas con la estrella (⭐) para verificarlas
+                            </div>
+                        </div>
+                    ` : `
+                        <div style="background: #dcfce7; border: 1px solid #16a34a; border-radius: 8px; padding: 15px;">
+                            <div style="color: #15803d; font-weight: 500;">✅ ¡Listo para el duelo multijugador!</div>
+                        </div>
+                    `}
+                </div>
+                
+                <!-- Opciones de juego -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 30px;">
+                    
+                    <!-- Crear Sala -->
+                    <div style="background: white; border: 2px solid #10b981; border-radius: 12px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div style="font-size: 64px; margin-bottom: 20px;">🏠</div>
+                        <h3 style="color: #059669; margin-bottom: 15px; font-size: 1.3rem;">Crear Sala de Duelo</h3>
+                        <p style="color: #6b7280; margin-bottom: 20px; line-height: 1.6;">
+                            Crea una nueva sala y comparte el código con otro jugador para iniciar el duelo
+                        </p>
+                        
+                        <div style="background: #f0fdf4; border: 1px solid #16a34a; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                            <div style="color: #15803d; font-weight: 500; font-size: 14px; margin-bottom: 8px;">🎯 Reglas del Duelo:</div>
+                            <div style="color: #166534; font-size: 12px; text-align: left;">
+                                • Turnos alternados<br>
+                                • 3 fallos = derrota<br>
+                                • Máximo 10 preguntas por jugador<br>
+                                • Eliges preguntas del oponente
+                            </div>
+                        </div>
+                        
+                        <button onclick="crearSalaMultijugador()" class="btn btn-success" style="width: 100%; font-size: 16px; padding: 15px; font-weight: 600;" ${verifiedQuestions.length < 5 ? 'disabled' : ''}>
+                            ${verifiedQuestions.length >= 5 ? '🎮 Crear Sala de Duelo' : '🚫 Necesitas 5+ preguntas verificadas'}
+                        </button>
+                    </div>
+                    
+                    <!-- Unirse a Sala -->
+                    <div style="background: white; border: 2px solid #3b82f6; border-radius: 12px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div style="font-size: 64px; margin-bottom: 20px;">🚪</div>
+                        <h3 style="color: #2563eb; margin-bottom: 15px; font-size: 1.3rem;">Unirse a Duelo</h3>
+                        <p style="color: #6b7280; margin-bottom: 20px; line-height: 1.6;">
+                            Ingresa el código de una sala existente para unirte al duelo de preguntas
+                        </p>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; color: #374151; font-weight: 500; margin-bottom: 8px;">Código de Sala:</label>
+                            <input type="text" id="join-room-code" placeholder="Ejemplo: ABC123" 
+                                   style="width: 100%; padding: 15px; border: 2px solid #d1d5db; border-radius: 10px; text-align: center; font-size: 18px; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;" 
+                                   maxlength="6">
+                        </div>
+                        
+                        <button onclick="unirseASala()" class="btn btn-primary" style="width: 100%; font-size: 16px; padding: 15px; font-weight: 600;" ${verifiedQuestions.length < 5 ? 'disabled' : ''}>
+                            ${verifiedQuestions.length >= 5 ? '🎯 Unirse al Duelo' : '🚫 Necesitas 5+ preguntas verificadas'}
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Información del juego -->
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px;">
+                    <h4 style="color: #374151; margin-bottom: 20px; text-align: center; font-size: 1.2rem;">ℹ️ Cómo Funciona el Duelo Multijugador</h4>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">1️⃣</div>
+                            <div style="font-weight: 600; color: #374151; margin-bottom: 8px;">Preparación</div>
+                            <div style="color: #6b7280; font-size: 13px; line-height: 1.4;">
+                                Ambos jugadores deben tener al menos 5 preguntas verificadas
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">2️⃣</div>
+                            <div style="font-weight: 600; color: #374151; margin-bottom: 8px;">Pantalla Dividida</div>
+                            <div style="color: #6b7280; font-size: 13px; line-height: 1.4;">
+                                Verás las preguntas del oponente a la izquierda y el juego a la derecha
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">3️⃣</div>
+                            <div style="font-weight: 600; color: #374151; margin-bottom: 8px;">Turnos</div>
+                            <div style="color: #6b7280; font-size: 13px; line-height: 1.4;">
+                                En tu turno eliges una pregunta del oponente para que la responda
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">4️⃣</div>
+                            <div style="font-weight: 600; color: #374151; margin-bottom: 8px;">Victoria</div>
+                            <div style="color: #6b7280; font-size: 13px; line-height: 1.4;">
+                                Ganas si el oponente falla 3 veces o tienes menos fallos al final
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Auto-focus y formato del input
+    setTimeout(() => {
+        const codeInput = document.getElementById('join-room-code');
+        if (codeInput) {
+            codeInput.addEventListener('input', function() {
+                this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            });
+            codeInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    unirseASala();
+                }
+            });
+        }
+    }, 100);
+};
+
+function renderSalaMultijugador() {
+    const roomData = window.multiplayerSystem.roomData;
+    
+    if (roomData.gameData.gamePhase === 'playing') {
+        return renderJuegoEnProgreso(roomData);
+    }
+    
+    if (roomData.gameData.gamePhase === 'finished') {
+        return renderJuegoTerminado(roomData);
+    }
+    
+    // Sala en espera
+    return `
+        <div class="container">
+            <div class="header">
+                <div class="title">🎮 Sala: ${roomData.code}</div>
+                <button onclick="salirDeSala()" class="btn btn-danger">Salir de la Sala</button>
+            </div>
+            
+            <div style="max-width: 700px; margin: 0 auto;">
+                
+                <!-- Código de sala -->
+                <div style="background: #dbeafe; border: 2px solid #3b82f6; border-radius: 12px; padding: 20px; margin-bottom: 30px; text-align: center;">
+                    <div style="font-size: 32px; font-weight: bold; color: #1e40af; margin-bottom: 10px; letter-spacing: 3px;">
+                        ${roomData.code}
+                    </div>
+                    <div style="color: #3730a3; font-size: 16px;">
+                        Comparte este código con tu oponente
+                    </div>
+                </div>
+                
+                <!-- Jugadores -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                    
+                    <!-- Anfitrión -->
+                    <div style="background: white; border: 2px solid #10b981; border-radius: 12px; padding: 25px; text-align: center;">
+                        <div style="font-size: 20px; font-weight: bold; color: #059669; margin-bottom: 15px;">
+                            🏠 Anfitrión
+                        </div>
+                        <div style="font-size: 18px; color: #374151; margin-bottom: 8px;">${roomData.host.name}</div>
+                        <div style="color: #6b7280; font-size: 14px; margin-bottom: 15px;">
+                            ${roomData.host.questions.length} preguntas verificadas
+                        </div>
+                        <div style="padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 500; ${roomData.host.ready ? 'background: #dcfce7; color: #166534;' : 'background: #fef3c7; color: #92400e;'}">
+                            ${roomData.host.ready ? '✅ Listo para el duelo' : '⏳ Preparándose...'}
+                        </div>
+                    </div>
+                    
+                    <!-- Invitado -->
+                    <div style="background: white; border: 2px solid ${roomData.guest ? '#3b82f6' : '#d1d5db'}; border-radius: 12px; padding: 25px; text-align: center;">
+                        <div style="font-size: 20px; font-weight: bold; color: ${roomData.guest ? '#2563eb' : '#9ca3af'}; margin-bottom: 15px;">
+                            👤 Invitado
+                        </div>
+                        ${roomData.guest ? `
+                            <div style="font-size: 18px; color: #374151; margin-bottom: 8px;">${roomData.guest.name}</div>
+                            <div style="color
+                                <div style="color: #6b7280; font-size: 14px; margin-bottom: 15px;">
+                                ${roomData.guest.questions.length} preguntas verificadas
+                            </div>
+                            <div style="padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 500; ${roomData.guest.ready ? 'background: #dcfce7; color: #166534;' : 'background: #fef3c7; color: #92400e;'}">
+                                ${roomData.guest.ready ? '✅ Listo para el duelo' : '⏳ Preparándose...'}
+                            </div>
+                        ` : `
+                            <div style="color: #9ca3af; margin-bottom: 15px; font-size: 16px;">Esperando jugador...</div>
+                            <div style="color: #6b7280; font-size: 14px; margin-bottom: 15px;">
+                                El invitado se unirá con el código de sala
+                            </div>
+                            <div style="padding: 12px; background: #f3f4f6; border-radius: 8px; font-size: 14px; color: #6b7280;">
+                                Sala vacía
+                            </div>
+                        `}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+console.log('✅ Sistema multijugador completo implementado');
+</script>
 </body>
 </html>
+
 
 
 
