@@ -10929,9 +10929,298 @@ if (multiplayerState.currentRoom) {
         forceReloadRoomData();
     }, 1000);
 }
-</script>            
+</script>   
+    <!-- CORRECCIÓN DEFINITIVA v2 -->
+<script>
+console.log('🔧 CORRECCIÓN v2: Arreglando sincronización específica...');
+
+// 1. INTERCEPTAR Y CORREGIR updateLocalStateFromRoom COMPLETAMENTE
+const originalUpdateLocalStateFromRoomV2 = window.updateLocalStateFromRoom;
+
+window.updateLocalStateFromRoom = function(roomData) {
+    console.log('=== updateLocalStateFromRoom v2 ===');
+    console.log('roomData recibida:', roomData);
+    
+    // Actualizar estado básico
+    multiplayerState.gameState = roomData.status;
+    multiplayerState.currentRoomData = roomData;
+    
+    if (multiplayerState.isHost) {
+        multiplayerState.opponent = roomData.guest;
+    } else {
+        multiplayerState.opponent = roomData.host;
+    }
+    
+    // CRÍTICO: Sincronización de bancos con logging detallado
+    if (roomData.questionBanks) {
+        console.log('📚 questionBanks encontrados en roomData:', roomData.questionBanks);
+        
+        // Verificar estructura
+        console.log('- host bank existe:', !!roomData.questionBanks.host);
+        console.log('- guest bank existe:', !!roomData.questionBanks.guest);
+        
+        if (roomData.questionBanks.host) {
+            console.log('- host bank keys:', Object.keys(roomData.questionBanks.host));
+            console.log('- host bank completo:', roomData.questionBanks.host);
+        }
+        
+        if (roomData.questionBanks.guest) {
+            console.log('- guest bank keys:', Object.keys(roomData.questionBanks.guest));
+            console.log('- guest bank completo:', roomData.questionBanks.guest);
+        }
+        
+        // ASIGNACIÓN DIRECTA CON VERIFICACIÓN
+        multiplayerState.hostQuestionBank = roomData.questionBanks.host || {};
+        multiplayerState.guestQuestionBank = roomData.questionBanks.guest || {};
+        
+        console.log('✅ Después de asignación:');
+        console.log('- multiplayerState.hostQuestionBank:', multiplayerState.hostQuestionBank);
+        console.log('- multiplayerState.guestQuestionBank:', multiplayerState.guestQuestionBank);
+        console.log('- hostQuestionBank keys:', Object.keys(multiplayerState.hostQuestionBank));
+        console.log('- guestQuestionBank keys:', Object.keys(multiplayerState.guestQuestionBank));
+        
+        // VERIFICACIÓN INMEDIATA
+        const testOpponentBank = multiplayerState.isHost ? 
+            multiplayerState.guestQuestionBank : 
+            multiplayerState.hostQuestionBank;
+            
+        console.log('🧪 Test banco oponente inmediato:', testOpponentBank);
+        console.log('🧪 Test banco oponente keys:', Object.keys(testOpponentBank));
+        
+    } else {
+        console.error('❌ NO HAY questionBanks en roomData');
+        console.log('roomData completo:', JSON.stringify(roomData, null, 2));
+    }
+    
+    // Actualizar datos del juego
+    if (roomData.gameData) {
+        multiplayerState.myTurn = (roomData.gameData.currentTurn === 'host') === multiplayerState.isHost;
+        multiplayerState.myFailures = multiplayerState.isHost ? 
+            roomData.gameData.hostFailures : roomData.gameData.guestFailures;
+        multiplayerState.opponentFailures = multiplayerState.isHost ? 
+            roomData.gameData.guestFailures : roomData.gameData.hostFailures;
+    }
+};
+
+// 2. FUNCIÓN getOpponentQuestionBank SUPER DETALLADA
+window.getOpponentQuestionBank = function() {
+    console.log('🎯 === getOpponentQuestionBank v2 ===');
+    console.log('multiplayerState completo:', multiplayerState);
+    console.log('isHost:', multiplayerState.isHost);
+    
+    console.log('hostQuestionBank en multiplayerState:');
+    console.log('- Existe:', !!multiplayerState.hostQuestionBank);
+    console.log('- Tipo:', typeof multiplayerState.hostQuestionBank);
+    console.log('- Keys:', Object.keys(multiplayerState.hostQuestionBank || {}));
+    console.log('- Contenido:', multiplayerState.hostQuestionBank);
+    
+    console.log('guestQuestionBank en multiplayerState:');
+    console.log('- Existe:', !!multiplayerState.guestQuestionBank);
+    console.log('- Tipo:', typeof multiplayerState.guestQuestionBank);
+    console.log('- Keys:', Object.keys(multiplayerState.guestQuestionBank || {}));
+    console.log('- Contenido:', multiplayerState.guestQuestionBank);
+    
+    let result = {};
+    
+    if (multiplayerState.isHost) {
+        console.log('🎯 Soy HOST, necesito banco del GUEST');
+        result = multiplayerState.guestQuestionBank || {};
+        console.log('🎯 Banco guest asignado a result:', result);
+    } else {
+        console.log('🎯 Soy GUEST, necesito banco del HOST');
+        result = multiplayerState.hostQuestionBank || {};
+        console.log('🎯 Banco host asignado a result:', result);
+    }
+    
+    console.log('🎯 Resultado FINAL de getOpponentQuestionBank:');
+    console.log('- Tipo:', typeof result);
+    console.log('- Keys:', Object.keys(result));
+    console.log('- Contenido completo:', result);
+    
+    return result;
+};
+
+// 3. FUNCIÓN DE DIAGNÓSTICO MEJORADA
+window.debugMultiplayerStateV2 = function() {
+    console.log('=== DIAGNÓSTICO SUPER DETALLADO v2 ===');
+    
+    // Estado general
+    console.log('1. ESTADO GENERAL:');
+    console.log('- currentRoom:', multiplayerState.currentRoom);
+    console.log('- isHost:', multiplayerState.isHost);
+    console.log('- gameState:', multiplayerState.gameState);
+    
+    // Datos de Firebase
+    console.log('2. DATOS DE FIREBASE:');
+    console.log('- currentRoomData existe:', !!multiplayerState.currentRoomData);
+    
+    if (multiplayerState.currentRoomData && multiplayerState.currentRoomData.questionBanks) {
+        const fb = multiplayerState.currentRoomData.questionBanks;
+        console.log('- Firebase host bank:', fb.host);
+        console.log('- Firebase guest bank:', fb.guest);
+        console.log('- Firebase host keys:', Object.keys(fb.host || {}));
+        console.log('- Firebase guest keys:', Object.keys(fb.guest || {}));
+    } else {
+        console.error('❌ NO hay questionBanks en currentRoomData');
+    }
+    
+    // Estado local
+    console.log('3. ESTADO LOCAL:');
+    console.log('- hostQuestionBank:', multiplayerState.hostQuestionBank);
+    console.log('- guestQuestionBank:', multiplayerState.guestQuestionBank);
+    console.log('- hostQuestionBank keys:', Object.keys(multiplayerState.hostQuestionBank || {}));
+    console.log('- guestQuestionBank keys:', Object.keys(multiplayerState.guestQuestionBank || {}));
+    
+    // Funciones calculadas
+    console.log('4. FUNCIONES CALCULADAS:');
+    const myBank = getMyQuestionBank();
+    const opponentBank = getOpponentQuestionBank();
+    console.log('- Mi banco:', myBank);
+    console.log('- Banco oponente:', opponentBank);
+    console.log('- Mi banco keys:', Object.keys(myBank));
+    console.log('- Banco oponente keys:', Object.keys(opponentBank));
+    
+    // Verificación directa desde Firebase
+    if (multiplayerState.currentRoom && database) {
+        console.log('5. VERIFICACIÓN FIREBASE DIRECTA:');
+        database.ref('rooms/' + multiplayerState.currentRoom + '/questionBanks').once('value')
+            .then((snapshot) => {
+                const fbData = snapshot.val();
+                console.log('- Datos DIRECTOS de Firebase:', fbData);
+                if (fbData) {
+                    console.log('- Host direct keys:', Object.keys(fbData.host || {}));
+                    console.log('- Guest direct keys:', Object.keys(fbData.guest || {}));
+                    
+                    // SINCRONIZACIÓN FORZADA
+                    console.log('🔄 FORZANDO SINCRONIZACIÓN...');
+                    multiplayerState.hostQuestionBank = fbData.host || {};
+                    multiplayerState.guestQuestionBank = fbData.guest || {};
+                    
+                    console.log('✅ Después de sincronización forzada:');
+                    console.log('- hostQuestionBank:', Object.keys(multiplayerState.hostQuestionBank));
+                    console.log('- guestQuestionBank:', Object.keys(multiplayerState.guestQuestionBank));
+                    
+                    // Re-render
+                    render();
+                }
+            });
+    }
+};
+
+// 4. FUNCIÓN PARA FORZAR SINCRONIZACIÓN DESDE FIREBASE
+window.forceSyncFromFirebase = function() {
+    if (!multiplayerState.currentRoom || !database) {
+        console.error('❌ No hay sala o conexión');
+        return;
+    }
+    
+    console.log('🔄 SINCRONIZACIÓN FORZADA DESDE FIREBASE...');
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).once('value')
+        .then((snapshot) => {
+            if (!snapshot.exists()) {
+                console.error('❌ Sala no existe en Firebase');
+                return;
+            }
+            
+            const roomData = snapshot.val();
+            console.log('📡 Datos obtenidos de Firebase:', roomData);
+            
+            if (roomData.questionBanks) {
+                console.log('✅ questionBanks encontrados, sincronizando...');
+                
+                // SINCRONIZACIÓN DIRECTA
+                multiplayerState.hostQuestionBank = roomData.questionBanks.host || {};
+                multiplayerState.guestQuestionBank = roomData.questionBanks.guest || {};
+                multiplayerState.currentRoomData = roomData;
+                
+                console.log('✅ Sincronización completada:');
+                console.log('- Host banco:', Object.keys(multiplayerState.hostQuestionBank));
+                console.log('- Guest banco:', Object.keys(multiplayerState.guestQuestionBank));
+                
+                // Verificar oponente
+                const opponentBank = getOpponentQuestionBank();
+                console.log('- Banco oponente después de sync:', Object.keys(opponentBank));
+                
+                // Re-render
+                render();
+                showMessage('Sincronización forzada completada', 'success');
+                
+            } else {
+                console.error('❌ No hay questionBanks en Firebase');
+                showMessage('Error: No hay bancos de preguntas en Firebase', 'error');
+            }
+        })
+        .catch((error) => {
+            console.error('❌ Error en sincronización forzada:', error);
+        });
+};
+
+// 5. ACTUALIZAR renderOpponentTopics para debug
+const originalRenderOpponentTopics = window.renderOpponentTopics;
+window.renderOpponentTopics = function(questionBank) {
+    console.log('🎨 renderOpponentTopics v2 ejecutándose...');
+    console.log('🎨 Banco recibido:', questionBank);
+    console.log('🎨 Tipo del banco:', typeof questionBank);
+    console.log('🎨 Keys del banco:', Object.keys(questionBank || {}));
+    
+    // Verificación super detallada
+    if (!questionBank) {
+        console.error('❌ questionBank es null/undefined');
+    } else if (typeof questionBank !== 'object') {
+        console.error('❌ questionBank no es objeto:', typeof questionBank);
+    } else if (Object.keys(questionBank).length === 0) {
+        console.error('❌ questionBank está vacío');
+        console.log('Diagnosticando...');
+        
+        // Debug inmediato
+        const directOpponent = getOpponentQuestionBank();
+        console.log('🧪 getOpponentQuestionBank() directo:', directOpponent);
+        console.log('🧪 Keys directo:', Object.keys(directOpponent));
+    }
+    
+    // Llamar función original si el banco no está vacío
+    if (questionBank && Object.keys(questionBank).length > 0) {
+        return originalRenderOpponentTopics(questionBank);
+    } else {
+        // Devolver HTML con debug mejorado
+        return `
+            <div style="text-align: center; padding: 20px; color: #6b7280;">
+                <p style="margin: 0 0 10px 0; font-size: 14px;">Sin temas disponibles</p>
+                <div style="font-size: 11px; color: #9ca3af; margin: 10px 0;">
+                    Banco recibido: ${typeof questionBank}<br>
+                    Keys: ${Object.keys(questionBank || {}).length}
+                </div>
+                <button onclick="debugMultiplayerStateV2()" style="margin: 5px; padding: 5px 10px; font-size: 11px; background: #ef4444; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                    🔍 Debug v2
+                </button>
+                <button onclick="forceSyncFromFirebase()" style="margin: 5px; padding: 5px 10px; font-size: 11px; background: #10b981; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                    🔄 Forzar Sync
+                </button>
+            </div>
+        `;
+    }
+};
+
+// 6. AUTO-DIAGNÓSTICO AL CARGAR
+setTimeout(() => {
+    if (multiplayerState.currentRoom && multiplayerState.gameState === 'playing') {
+        console.log('🚀 AUTO-DIAGNÓSTICO v2...');
+        debugMultiplayerStateV2();
+    }
+}, 2000);
+
+console.log('✅ CORRECCIÓN v2 APLICADA');
+console.log('🔧 Nuevas funciones disponibles:');
+console.log('   - debugMultiplayerStateV2()');
+console.log('   - forceSyncFromFirebase()');
+console.log('   - updateLocalStateFromRoom() mejorado');
+console.log('   - getOpponentQuestionBank() super detallado');
+console.log('   - renderOpponentTopics() con debug mejorado');
+</script>
 </body>
 </html>
+
 
 
 
