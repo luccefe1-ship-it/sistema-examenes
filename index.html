@@ -11993,8 +11993,189 @@ console.log('✅ SOLUCIÓN DIRECTA APLICADA');
 console.log('🔥 Función principal: forceFixBothBanks()');
 console.log('🧪 Función de test: testBanksNow()');
 </script>
+    <!-- ARREGLO SIMPLE SIN INFORMACIÓN EXTRA -->
+<script>
+// FUNCIÓN SILENCIOSA PARA ARREGLAR BANCOS
+function fixMultiplayerSilently() {
+    if (!multiplayerState.currentRoom || !database) return;
+    
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    if (verifiedQuestions.length < 5) return;
+    
+    // Organizar banco
+    const myBank = {};
+    state.topics.forEach(topic => {
+        const topicQuestions = verifiedQuestions.filter(q => q.topicId === topic.id);
+        if (topicQuestions.length > 0) {
+            const cleanTopicId = topic.id.toString().replace(/[.#$\/\[\]]/g, '_');
+            myBank[cleanTopicId] = {
+                id: topic.id,
+                name: topic.name,
+                questions: topicQuestions.map(q => ({
+                    id: q.id,
+                    firebaseKey: q.id.toString().replace(/[.#$\/\[\]]/g, '_'),
+                    question: q.question,
+                    options: q.options,
+                    correctAnswer: q.correctAnswer,
+                    topicId: q.topicId
+                }))
+            };
+        }
+    });
+    
+    // Actualizar silenciosamente
+    const updates = {};
+    if (multiplayerState.isHost) {
+        updates['host'] = {
+            username: state.currentUser.username,
+            name: state.currentUser.name,
+            questions: verifiedQuestions.length,
+            ready: true
+        };
+        updates['questionBanks/host'] = myBank;
+    } else {
+        updates['guest'] = {
+            username: state.currentUser.username,
+            name: state.currentUser.name,
+            questions: verifiedQuestions.length,
+            ready: true
+        };
+        updates['questionBanks/guest'] = myBank;
+    }
+    updates['status'] = 'playing';
+    updates['gameData/currentTurn'] = 'host';
+    updates['lastActivity'] = firebase.database.ServerValue.TIMESTAMP;
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).update(updates);
+}
+
+// REEMPLAZAR updateLocalStateFromRoom COMPLETAMENTE
+window.updateLocalStateFromRoom = function(roomData) {
+    multiplayerState.gameState = roomData.status;
+    multiplayerState.currentRoomData = roomData;
+    
+    if (multiplayerState.isHost) {
+        multiplayerState.opponent = roomData.guest;
+    } else {
+        multiplayerState.opponent = roomData.host;
+    }
+    
+    // CRÍTICO: Sincronizar bancos
+    if (roomData.questionBanks) {
+        multiplayerState.hostQuestionBank = roomData.questionBanks.host || {};
+        multiplayerState.guestQuestionBank = roomData.questionBanks.guest || {};
+    }
+    
+    // Datos de juego
+    if (roomData.gameData) {
+        multiplayerState.myTurn = (roomData.gameData.currentTurn === 'host') === multiplayerState.isHost;
+        multiplayerState.myFailures = multiplayerState.isHost ? roomData.gameData.hostFailures || 0 : roomData.gameData.guestFailures || 0;
+        multiplayerState.opponentFailures = multiplayerState.isHost ? roomData.gameData.guestFailures || 0 : roomData.gameData.hostFailures || 0;
+    }
+};
+
+// REEMPLAZAR getOpponentQuestionBank
+window.getOpponentQuestionBank = function() {
+    if (multiplayerState.isHost) {
+        return multiplayerState.guestQuestionBank || {};
+    } else {
+        return multiplayerState.hostQuestionBank || {};
+    }
+};
+
+// REEMPLAZAR renderOpponentTopics
+window.renderOpponentTopics = function(questionBank) {
+    if (!questionBank || Object.keys(questionBank).length === 0) {
+        return '<div style="text-align: center; padding: 20px; color: #6b7280;"><p style="margin: 0; font-size: 14px;">Sin temas disponibles</p></div>';
+    }
+    
+    let html = '<div style="font-size: 13px; color: #374151; margin-bottom: 15px; text-align: center; font-weight: 600;">Temas del Oponente:</div>';
+    
+    Object.keys(questionBank).forEach(topicKey => {
+        const topic = questionBank[topicKey];
+        if (topic && topic.questions && topic.questions.length > 0) {
+            html += `
+                <div style="margin-bottom: 15px; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden;">
+                    <div style="background: #f9fafb; padding: 10px; cursor: pointer;" onclick="toggleTopicQuestions('${topicKey}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 500; color: #374151; font-size: 13px;">${topic.name}</span>
+                            <span style="background: #e5e7eb; color: #374151; padding: 2px 6px; border-radius: 10px; font-size: 11px;">${topic.questions.length}</span>
+                        </div>
+                    </div>
+                    <div id="questions-${topicKey}" style="display: none; max-height: 200px; overflow-y: auto;">
+                        ${topic.questions.map((question, index) => `
+                            <div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; cursor: pointer; font-size: 12px;" 
+                                 onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey || question.id}')"
+                                 onmouseover="this.style.backgroundColor='#f3f4f6'" 
+                                 onmouseout="this.style.backgroundColor='white'">
+                                <strong>P${index + 1}:</strong> ${question.question.substring(0, 80)}${question.question.length > 80 ? '...' : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    return html;
+};
+
+// REEMPLAZAR renderRoomInterface - SOLO MOSTRAR LO BÁSICO
+window.renderRoomInterface = function() {
+    if (multiplayerState.gameState === 'playing') {
+        return renderDuelInterface();
+    }
+    
+    const roomCode = multiplayerState.roomCode;
+    const opponent = multiplayerState.opponent;
+    
+    return `
+        <div style="max-width: 700px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 25px; border-radius: 16px;">
+                <h2 style="margin: 0 0 10px 0; font-size: 1.8rem;">Duelo de Preguntas</h2>
+                <div style="font-size: 2rem; font-weight: bold; letter-spacing: 3px; margin: 10px 0;">${roomCode}</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; padding: 20px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 10px;">👑</div>
+                    <h3 style="margin: 0; color: #1f2937;">${state.currentUser.name}</h3>
+                    <p style="margin: 0; font-size: 12px; color: #6b7280;">Anfitrión</p>
+                </div>
+                
+                <div style="background: ${opponent ? '#f0fdf4' : '#f9fafb'}; border: 2px solid ${opponent ? '#22c55e' : '#d1d5db'}; border-radius: 12px; padding: 20px; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 10px;">${opponent ? '👤' : '⏳'}</div>
+                    <h3 style="margin: 0; color: #1f2937;">${opponent ? opponent.name : 'Esperando...'}</h3>
+                    <p style="margin: 0; font-size: 12px; color: #6b7280;">${opponent ? 'Invitado' : 'Esperando jugador'}</p>
+                </div>
+            </div>
+            
+            <div style="text-align: center;">
+                <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 15px 25px; font-size: 16px;">Salir de la Sala</button>
+            </div>
+        </div>
+    `;
+};
+
+// AUTO-ARREGLO SILENCIOSO
+setTimeout(() => {
+    if (multiplayerState.currentRoom) {
+        fixMultiplayerSilently();
+        
+        setTimeout(() => {
+            database.ref('rooms/' + multiplayerState.currentRoom).once('value')
+                .then((snapshot) => {
+                    const roomData = snapshot.val();
+                    updateLocalStateFromRoom(roomData);
+                    render();
+                });
+        }, 2000);
+    }
+}, 1000);
+</script>
 </body>
 </html>
+
 
 
 
