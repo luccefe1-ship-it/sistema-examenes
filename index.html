@@ -10038,8 +10038,348 @@ Este paso integra con el código existente para implementar estados ready
     console.log('   - Mejorada renderRoomInterface con indicadores visuales');
     console.log('   - Detección automática de ambos listos y auto-inicio');
 </script>
+    <!-- 
+PASO 2: SINCRONIZACIÓN DE BANCOS DE PREGUNTAS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
+-->
+
+<script>
+    // ========== PASO 2: SINCRONIZACIÓN DE BANCOS DE PREGUNTAS ==========
+    console.log('🎮 PASO 2: Implementando sincronización de bancos de preguntas...');
+
+    // FUNCIÓN AUXILIAR: Organizar preguntas por temas para Firebase
+    function organizeQuestionsForFirebase(questions, topics) {
+        const organized = {};
+        
+        // Crear estructura por temas existentes
+        topics.forEach(topic => {
+            const topicQuestions = questions.filter(q => q.topicId === topic.id);
+            if (topicQuestions.length > 0) {
+                organized[topic.id] = {
+                    id: topic.id,
+                    name: topic.name,
+                    questions: topicQuestions.map(q => ({
+                        id: q.id,
+                        question: q.question,
+                        options: q.options,
+                        correctAnswer: q.correctAnswer,
+                        topicId: q.topicId
+                    }))
+                };
+            }
+        });
+        
+        // Preguntas sin tema asignado
+        const questionsWithoutTopic = questions.filter(q => !q.topicId);
+        if (questionsWithoutTopic.length > 0) {
+            organized['no-topic'] = {
+                id: 'no-topic',
+                name: 'Sin tema asignado',
+                questions: questionsWithoutTopic.map(q => ({
+                    id: q.id,
+                    question: q.question,
+                    options: q.options,
+                    correctAnswer: q.correctAnswer,
+                    topicId: null
+                }))
+            };
+        }
+        
+        return organized;
+    }
+
+    // REEMPLAZAR función createMultiplayerRoom para incluir banco del anfitrión
+    window.createMultiplayerRoom = function() {
+        if (!multiplayerEnabled) {
+            showMessage('Error: Sistema multijugador no disponible', 'error');
+            return;
+        }
+
+        if (!state.currentUser) {
+            showMessage('Debes estar logueado para crear una sala', 'error');
+            return;
+        }
+
+        // Verificar que el usuario tenga al menos 5 preguntas verificadas
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        if (verifiedQuestions.length < 5) {
+            showMessage('Necesitas al menos 5 preguntas verificadas para crear una sala', 'error');
+            return;
+        }
+
+        const roomCode = generateRoomCode();
+        
+        // Organizar preguntas del anfitrión por temas
+        const hostQuestionBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+        
+        console.log('📚 Banco del anfitrión organizado:', hostQuestionBank);
+        
+        // ESTRUCTURA ACTUALIZADA con banco de preguntas del anfitrión
+        const roomData = {
+            code: roomCode,
+            host: {
+                username: state.currentUser.username,
+                name: state.currentUser.name,
+                questions: verifiedQuestions.length,
+                ready: false
+            },
+            guest: null,
+            hostReady: false,
+            guestReady: false,
+            status: 'waiting',
+            // NUEVOS CAMPOS: Bancos de preguntas
+            questionBanks: {
+                host: hostQuestionBank,
+                guest: null // Se llenará cuando el invitado se una
+            },
+            gameData: {
+                currentQuestion: 0,
+                currentTurn: 'host',
+                hostFailures: 0,
+                guestFailures: 0,
+                currentQuestionData: null, // Pregunta actual siendo respondida
+                hostAnswers: {},
+                guestAnswers: {},
+                winner: null
+            },
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            lastActivity: firebase.database.ServerValue.TIMESTAMP
+        };
+
+        // Crear sala en Firebase
+        database.ref('rooms/' + roomCode).set(roomData)
+            .then(() => {
+                console.log('✅ Sala creada con banco de preguntas:', roomCode);
+                
+                // Actualizar estado local
+                multiplayerState.currentRoom = roomCode;
+                multiplayerState.isHost = true;
+                multiplayerState.roomCode = roomCode;
+                multiplayerState.gameState = 'waiting';
+                
+                // Escuchar cambios en la sala
+                listenToRoom(roomCode);
+                
+                // Re-renderizar
+                render();
+                
+                showMessage(`Sala creada con código: ${roomCode}`, 'success');
+            })
+            .catch((error) => {
+                console.error('❌ Error creando sala:', error);
+                showMessage('Error al crear la sala. Inténtalo de nuevo.', 'error');
+            });
+    };
+
+    // REEMPLAZAR función joinMultiplayerRoom para incluir banco del invitado
+    window.joinMultiplayerRoom = function() {
+        if (!multiplayerEnabled) {
+            showMessage('Error: Sistema multijugador no disponible', 'error');
+            return;
+        }
+
+        if (!state.currentUser) {
+            showMessage('Debes estar logueado para unirte a una sala', 'error');
+            return;
+        }
+
+        // Verificar que el usuario tenga al menos 5 preguntas verificadas
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        if (verifiedQuestions.length < 5) {
+            showMessage('Necesitas al menos 5 preguntas verificadas para unirte a una sala', 'error');
+            return;
+        }
+
+        const roomCode = prompt('Ingresa el código de la sala (6 caracteres):');
+        if (!roomCode || roomCode.length !== 6) {
+            showMessage('Código de sala inválido', 'error');
+            return;
+        }
+
+        const upperRoomCode = roomCode.toUpperCase();
+        
+        // Organizar preguntas del invitado por temas
+        const guestQuestionBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+        
+        console.log('📚 Banco del invitado organizado:', guestQuestionBank);
+        
+        // Verificar que la sala existe y está disponible
+        database.ref('rooms/' + upperRoomCode).once('value')
+            .then((snapshot) => {
+                if (!snapshot.exists()) {
+                    showMessage('La sala no existe', 'error');
+                    return;
+                }
+
+                const roomData = snapshot.val();
+                
+                if (roomData.status !== 'waiting') {
+                    showMessage('La sala no está disponible', 'error');
+                    return;
+                }
+
+                if (roomData.guest !== null) {
+                    showMessage('La sala está llena', 'error');
+                    return;
+                }
+
+                if (roomData.host.username === state.currentUser.username) {
+                    showMessage('No puedes unirte a tu propia sala', 'error');
+                    return;
+                }
+
+                // Datos del invitado CON su banco de preguntas
+                const guestData = {
+                    username: state.currentUser.username,
+                    name: state.currentUser.name,
+                    questions: verifiedQuestions.length,
+                    ready: false
+                };
+
+                // Actualizar sala con invitado Y su banco de preguntas
+                const updates = {
+                    guest: guestData,
+                    'questionBanks/guest': guestQuestionBank,
+                    lastActivity: firebase.database.ServerValue.TIMESTAMP
+                };
+
+                return database.ref('rooms/' + upperRoomCode).update(updates);
+            })
+            .then(() => {
+                console.log('✅ Unido a sala con banco de preguntas:', upperRoomCode);
+                
+                // Actualizar estado local
+                multiplayerState.currentRoom = upperRoomCode;
+                multiplayerState.isHost = false;
+                multiplayerState.roomCode = upperRoomCode;
+                multiplayerState.gameState = 'waiting';
+                
+                // Escuchar cambios en la sala
+                listenToRoom(upperRoomCode);
+                
+                // Re-renderizar
+                render();
+                
+                showMessage(`Te has unido a la sala: ${upperRoomCode}`, 'success');
+            })
+            .catch((error) => {
+                console.error('❌ Error uniéndose a sala:', error);
+                showMessage('Error al unirse a la sala', 'error');
+            });
+    };
+
+    // EXTENDER updateLocalStateFromRoom para manejar bancos de preguntas
+    const originalUpdateLocalStateFromRoomStep2 = updateLocalStateFromRoom;
+    updateLocalStateFromRoom = function(roomData) {
+        // Llamar función original
+        originalUpdateLocalStateFromRoomStep2(roomData);
+        
+        // Procesar bancos de preguntas si existen
+        if (roomData.questionBanks) {
+            multiplayerState.hostQuestionBank = roomData.questionBanks.host || {};
+            multiplayerState.guestQuestionBank = roomData.questionBanks.guest || {};
+            
+            console.log('📚 Bancos de preguntas actualizados:', {
+                hostTopics: Object.keys(multiplayerState.hostQuestionBank).length,
+                guestTopics: Object.keys(multiplayerState.guestQuestionBank).length
+            });
+        }
+    };
+
+    // FUNCIÓN para obtener banco de preguntas del oponente
+    function getOpponentQuestionBank() {
+        if (multiplayerState.isHost) {
+            return multiplayerState.guestQuestionBank || {};
+        } else {
+            return multiplayerState.hostQuestionBank || {};
+        }
+    }
+
+    // FUNCIÓN para obtener mi banco de preguntas
+    function getMyQuestionBank() {
+        if (multiplayerState.isHost) {
+            return multiplayerState.hostQuestionBank || {};
+        } else {
+            return multiplayerState.guestQuestionBank || {};
+        }
+    }
+
+    // FUNCIÓN para seleccionar pregunta del oponente
+    function selectQuestionFromOpponent(topicId, questionId) {
+        const opponentBank = getOpponentQuestionBank();
+        
+        if (!opponentBank[topicId] || !opponentBank[topicId].questions) {
+            console.error('❌ Tema no encontrado:', topicId);
+            showMessage('Error: Tema no encontrado', 'error');
+            return;
+        }
+        
+        const question = opponentBank[topicId].questions.find(q => q.id === questionId);
+        
+        if (!question) {
+            console.error('❌ Pregunta no encontrada:', questionId);
+            showMessage('Error: Pregunta no encontrada', 'error');
+            return;
+        }
+        
+        console.log('🎯 Enviando pregunta al oponente:', question);
+        
+        // Enviar pregunta a Firebase para que la vea el oponente
+        database.ref('rooms/' + multiplayerState.currentRoom).update({
+            'gameData/currentQuestionData': question,
+            'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
+            lastActivity: firebase.database.ServerValue.TIMESTAMP
+        });
+        
+        showMessage('Pregunta enviada al oponente', 'success');
+    }
+
+    // FUNCIÓN de prueba para mostrar bancos en consola
+    window.debugQuestionBanks = function() {
+        console.log('🔍 DEBUG - Bancos de preguntas:');
+        console.log('Mi banco:', getMyQuestionBank());
+        console.log('Banco del oponente:', getOpponentQuestionBank());
+        console.log('Estado multiplayer:', multiplayerState);
+    };
+
+    // ACTUALIZAR renderRoomInterface para mostrar información de bancos (solo para debug)
+    const originalRenderRoomInterface = renderRoomInterface;
+    renderRoomInterface = function() {
+        const originalHTML = originalRenderRoomInterface();
+        
+        // Si el juego está en estado 'playing', mostrar información adicional
+        if (multiplayerState.gameState === 'playing') {
+            const opponentBank = getOpponentQuestionBank();
+            const opponentTopicsCount = Object.keys(opponentBank).length;
+            
+            // Reemplazar el mensaje de "La interfaz de juego se cargará próximamente"
+            const updatedHTML = originalHTML.replace(
+                'La interfaz de juego se cargará próximamente...',
+                `Bancos sincronizados correctamente. 
+                Tienes acceso a ${opponentTopicsCount} tema${opponentTopicsCount === 1 ? '' : 's'} del oponente.
+                <br><small>Usa debugQuestionBanks() en consola para ver detalles.</small>`
+            );
+            
+            return updatedHTML;
+        }
+        
+        return originalHTML;
+    };
+
+    console.log('✅ PASO 2 completado - Sincronización de bancos de preguntas implementada');
+    console.log('🎮 Funcionalidades añadidas:');
+    console.log('   - Organización automática de preguntas por temas');
+    console.log('   - Sincronización del banco del anfitrión al crear sala');
+    console.log('   - Sincronización del banco del invitado al unirse');
+    console.log('   - Funciones para acceder a bancos del oponente y propios');
+    console.log('   - Función selectQuestionFromOpponent() preparada');
+    console.log('   - Función debugQuestionBanks() para testing');
+    console.log('   - Estado local actualizado con ambos bancos');
+</script>
 </body>
 </html>
+
 
 
 
