@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="es">
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
@@ -10039,236 +10040,337 @@ Este paso integra con el código existente para implementar estados ready
     console.log('   - Detección automática de ambos listos y auto-inicio');
 </script>
    <!-- 
-PASO 2+4 CORREGIDO: SINCRONIZACIÓN Y SELECCIÓN DE PREGUNTAS
-Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-CORRIGE completamente la sincronización de bancos de preguntas
+PASO 2 CORREGIDO: SINCRONIZACIÓN DE BANCOS DE PREGUNTAS
+REEMPLAZAR el código del PASO 2 anterior con este código corregido
 -->
 
 <script>
-    // ========== PASO 2 CORREGIDO: SINCRONIZACIÓN DE BANCOS ==========
-    console.log('🎮 PASO 2+4 CORREGIDO: Reparando sincronización de bancos...');
+    // ========== PASO 2 CORREGIDO: SINCRONIZACIÓN DE BANCOS DE PREGUNTAS ==========
+    console.log('🎮 PASO 2 CORREGIDO: Implementando sincronización con IDs válidos...');
 
-    // FUNCIÓN para limpiar IDs de Firebase (del paso 2 original)
+    // FUNCIÓN para limpiar IDs para Firebase (quitar caracteres prohibidos)
     function cleanFirebaseKey(key) {
-        return key.replace(/[.#$\/\[\]]/g, '_');
+        if (!key) return 'invalid-key';
+        return key.toString().replace(/[.#$\/\[\]]/g, '_');
     }
 
-    // FUNCIÓN CORREGIDA para sincronizar banco de preguntas del anfitrión
-    function syncHostQuestionBankFixed() {
-        console.log('👑 Sincronizando banco del ANFITRIÓN...');
+    // FUNCIÓN AUXILIAR: Organizar preguntas por temas para Firebase (CORREGIDA)
+    function organizeQuestionsForFirebase(questions, topics) {
+        const organized = {};
         
-        // Obtener todas las preguntas verificadas del anfitrión
-        const verifiedQuestions = state.questions.filter(q => q.verified === true);
-        console.log('📚 Preguntas verificadas del anfitrión:', verifiedQuestions.length);
-        
-        if (verifiedQuestions.length === 0) {
-            console.log('⚠️ El anfitrión no tiene preguntas verificadas');
-            return {};
-        }
-        
-        // Organizar por temas
-        const organizedBank = {};
-        verifiedQuestions.forEach(question => {
-            const topic = question.topic || 'Sin tema asignado';
-            const topicKey = cleanFirebaseKey(topic.toLowerCase().replace(/\s+/g, '_'));
-            
-            if (!organizedBank[topicKey]) {
-                organizedBank[topicKey] = {
-                    name: topic,
-                    questions: []
+        // Crear estructura por temas existentes
+        topics.forEach(topic => {
+            const topicQuestions = questions.filter(q => q.topicId === topic.id);
+            if (topicQuestions.length > 0) {
+                const cleanTopicId = cleanFirebaseKey(topic.id);
+                organized[cleanTopicId] = {
+                    id: topic.id, // ID original para referencia
+                    name: topic.name,
+                    questions: topicQuestions.map(q => ({
+                        id: q.id, // ID original
+                        firebaseKey: cleanFirebaseKey(q.id), // ID limpio para Firebase
+                        question: q.question,
+                        options: q.options,
+                        correctAnswer: q.correctAnswer,
+                        topicId: q.topicId
+                    }))
                 };
             }
-            
-            // Agregar pregunta con clave limpia para Firebase
-            organizedBank[topicKey].questions.push({
-                ...question,
-                firebaseKey: cleanFirebaseKey(question.id.toString())
-            });
         });
         
-        console.log('🎯 Banco del anfitrión organizado:', organizedBank);
-        return organizedBank;
-    }
-
-    // FUNCIÓN CORREGIDA para sincronizar banco de preguntas del invitado
-    function syncGuestQuestionBankFixed() {
-        console.log('👤 Sincronizando banco del INVITADO...');
-        
-        // Obtener todas las preguntas verificadas del invitado
-        const verifiedQuestions = state.questions.filter(q => q.verified === true);
-        console.log('📚 Preguntas verificadas del invitado:', verifiedQuestions.length);
-        
-        if (verifiedQuestions.length === 0) {
-            console.log('⚠️ El invitado no tiene preguntas verificadas');
-            return {};
+        // Preguntas sin tema asignado
+        const questionsWithoutTopic = questions.filter(q => !q.topicId);
+        if (questionsWithoutTopic.length > 0) {
+            organized['no-topic'] = {
+                id: 'no-topic',
+                name: 'Sin tema asignado',
+                questions: questionsWithoutTopic.map(q => ({
+                    id: q.id,
+                    firebaseKey: cleanFirebaseKey(q.id),
+                    question: q.question,
+                    options: q.options,
+                    correctAnswer: q.correctAnswer,
+                    topicId: null
+                }))
+            };
         }
         
-        // Organizar por temas
-        const organizedBank = {};
-        verifiedQuestions.forEach(question => {
-            const topic = question.topic || 'Sin tema asignado';
-            const topicKey = cleanFirebaseKey(topic.toLowerCase().replace(/\s+/g, '_'));
-            
-            if (!organizedBank[topicKey]) {
-                organizedBank[topicKey] = {
-                    name: topic,
-                    questions: []
-                };
-            }
-            
-            // Agregar pregunta con clave limpia para Firebase
-            organizedBank[topicKey].questions.push({
-                ...question,
-                firebaseKey: cleanFirebaseKey(question.id.toString())
-            });
-        });
-        
-        console.log('🎯 Banco del invitado organizado:', organizedBank);
-        return organizedBank;
+        return organized;
     }
 
-    // SOBRESCRIBIR createMultiplayerRoom para incluir banco del anfitrión
-    const originalCreateMultiplayerRoomFixed = createMultiplayerRoom;
-    createMultiplayerRoom = function() {
-        console.log('🏠 Creando sala multijugador (versión corregida)...');
-        
-        // Generar código de sala
+    // REEMPLAZAR función createMultiplayerRoom CORREGIDA
+    window.createMultiplayerRoom = function() {
+        if (!multiplayerEnabled) {
+            showMessage('Error: Sistema multijugador no disponible', 'error');
+            return;
+        }
+
+        if (!state.currentUser) {
+            showMessage('Debes estar logueado para crear una sala', 'error');
+            return;
+        }
+
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        if (verifiedQuestions.length < 5) {
+            showMessage('Necesitas al menos 5 preguntas verificadas para crear una sala', 'error');
+            return;
+        }
+
         const roomCode = generateRoomCode();
-        multiplayerState.roomCode = roomCode;
-        multiplayerState.isHost = true;
         
-        // Sincronizar banco de preguntas del anfitrión
-        const hostQuestionBank = syncHostQuestionBankFixed();
+        // Organizar preguntas del anfitrión por temas (con IDs limpios)
+        const hostQuestionBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
         
-        // Datos iniciales de la sala
+        console.log('📚 Banco del anfitrión organizado (IDs limpios):', hostQuestionBank);
+        
         const roomData = {
             code: roomCode,
             host: {
-                id: state.currentUser.id,
+                username: state.currentUser.username,
                 name: state.currentUser.name,
+                questions: verifiedQuestions.length,
                 ready: false
             },
             guest: null,
+            hostReady: false,
+            guestReady: false,
             status: 'waiting',
-            gameState: 'waiting',
-            createdAt: Date.now(),
-            // BANCO DE PREGUNTAS
             questionBanks: {
                 host: hostQuestionBank,
-                guest: {} // Se llenará cuando se una el invitado
+                guest: null
             },
-            // DATOS DE JUEGO
             gameData: {
-                currentTurn: 'host', // Quien puede seleccionar pregunta
+                currentQuestion: 0,
+                currentTurn: 'host',
                 hostFailures: 0,
                 guestFailures: 0,
-                hostReady: false,
-                guestReady: false,
                 currentQuestionData: null,
-                questionStartTime: null,
-                lastAction: 'room_created',
-                lastUpdate: Date.now()
-            }
+                hostAnswers: {},
+                guestAnswers: {},
+                winner: null
+            },
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            lastActivity: firebase.database.ServerValue.TIMESTAMP
         };
-        
-        console.log('📊 Datos iniciales de sala:', roomData);
-        
-        // Crear sala en Firebase
-        multiplayerState.roomRef = database.ref('multiplayerRooms').child(roomCode);
-        
-        multiplayerState.roomRef.set(roomData)
+
+        database.ref('rooms/' + roomCode).set(roomData)
             .then(() => {
-                console.log('✅ Sala creada exitosamente con banco del anfitrión');
-                showMessage(`Sala creada: ${roomCode}`, 'success');
+                console.log('✅ Sala creada correctamente con IDs válidos:', roomCode);
                 
-                // Configurar listener de cambios
-                setupRoomListener();
+                multiplayerState.currentRoom = roomCode;
+                multiplayerState.isHost = true;
+                multiplayerState.roomCode = roomCode;
+                multiplayerState.gameState = 'waiting';
                 
-                // Actualizar interfaz
-                renderInterface();
+                listenToRoom(roomCode);
+                render();
                 
+                showMessage(`Sala creada con código: ${roomCode}`, 'success');
             })
             .catch((error) => {
                 console.error('❌ Error creando sala:', error);
-                showMessage('Error creando sala: ' + error.message, 'error');
-                multiplayerState.gameState = 'menu';
-                renderInterface();
+                showMessage('Error al crear la sala: ' + error.message, 'error');
             });
     };
 
-    // SOBRESCRIBIR joinMultiplayerRoom para sincronizar banco del invitado
-    const originalJoinMultiplayerRoomFixed = joinMultiplayerRoom;
-    joinMultiplayerRoom = function(roomCode) {
-        console.log('🚪 Uniéndose a sala multijugador (versión corregida):', roomCode);
-        
-        if (!roomCode || roomCode.length !== 5) {
+    // REEMPLAZAR función joinMultiplayerRoom CORREGIDA
+    window.joinMultiplayerRoom = function() {
+        if (!multiplayerEnabled) {
+            showMessage('Error: Sistema multijugador no disponible', 'error');
+            return;
+        }
+
+        if (!state.currentUser) {
+            showMessage('Debes estar logueado para unirte a una sala', 'error');
+            return;
+        }
+
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        if (verifiedQuestions.length < 5) {
+            showMessage('Necesitas al menos 5 preguntas verificadas para unirte a una sala', 'error');
+            return;
+        }
+
+        const roomCode = prompt('Ingresa el código de la sala (6 caracteres):');
+        if (!roomCode || roomCode.length !== 6) {
             showMessage('Código de sala inválido', 'error');
             return;
         }
+
+        const upperRoomCode = roomCode.toUpperCase();
         
-        multiplayerState.roomCode = roomCode.toUpperCase();
-        multiplayerState.isHost = false;
-        multiplayerState.roomRef = database.ref('multiplayerRooms').child(roomCode.toUpperCase());
+        // Organizar preguntas del invitado por temas (con IDs limpios)
+        const guestQuestionBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
         
-        // Verificar que la sala existe
-        multiplayerState.roomRef.once('value')
+        console.log('📚 Banco del invitado organizado (IDs limpios):', guestQuestionBank);
+        
+        database.ref('rooms/' + upperRoomCode).once('value')
             .then((snapshot) => {
+                if (!snapshot.exists()) {
+                    showMessage('La sala no existe', 'error');
+                    return;
+                }
+
                 const roomData = snapshot.val();
                 
-                if (!roomData) {
-                    showMessage('Sala no encontrada', 'error');
-                    multiplayerState.gameState = 'menu';
-                    renderInterface();
+                if (roomData.status !== 'waiting') {
+                    showMessage('La sala no está disponible', 'error');
                     return;
                 }
-                
-                if (roomData.guest) {
-                    showMessage('La sala ya tiene un invitado', 'error');
-                    multiplayerState.gameState = 'menu';
-                    renderInterface();
+
+                if (roomData.guest !== null) {
+                    showMessage('La sala está llena', 'error');
                     return;
                 }
-                
-                // Sincronizar banco de preguntas del invitado
-                const guestQuestionBank = syncGuestQuestionBankFixed();
-                
-                // Actualizar sala con datos del invitado
-                const updates = {
-                    guest: {
-                        id: state.currentUser.id,
-                        name: state.currentUser.name,
-                        ready: false
-                    },
-                    status: 'ready_to_start',
-                    ['questionBanks/guest']: guestQuestionBank,
-                    ['gameData/lastAction']: 'guest_joined',
-                    ['gameData/lastUpdate']: Date.now()
+
+                if (roomData.host.username === state.currentUser.username) {
+                    showMessage('No puedes unirte a tu propia sala', 'error');
+                    return;
+                }
+
+                const guestData = {
+                    username: state.currentUser.username,
+                    name: state.currentUser.name,
+                    questions: verifiedQuestions.length,
+                    ready: false
                 };
-                
-                console.log('📤 Actualizando sala con banco del invitado:', updates);
-                
-                return multiplayerState.roomRef.update(updates);
+
+                const updates = {
+                    guest: guestData,
+                    'questionBanks/guest': guestQuestionBank,
+                    lastActivity: firebase.database.ServerValue.TIMESTAMP
+                };
+
+                return database.ref('rooms/' + upperRoomCode).update(updates);
             })
             .then(() => {
-                console.log('✅ Unido exitosamente con banco del invitado');
-                showMessage('¡Te has unido a la sala!', 'success');
+                console.log('✅ Unido a sala correctamente con IDs válidos:', upperRoomCode);
                 
-                // Configurar listener
-                setupRoomListener();
+                multiplayerState.currentRoom = upperRoomCode;
+                multiplayerState.isHost = false;
+                multiplayerState.roomCode = upperRoomCode;
+                multiplayerState.gameState = 'waiting';
                 
-                // Actualizar interfaz
-                renderInterface();
+                listenToRoom(upperRoomCode);
+                render();
                 
+                showMessage(`Te has unido a la sala: ${upperRoomCode}`, 'success');
             })
             .catch((error) => {
                 console.error('❌ Error uniéndose a sala:', error);
-                showMessage('Error: ' + error.message, 'error');
-                multiplayerState.gameState = 'menu';
-                renderInterface();
+                showMessage('Error al unirse a la sala: ' + error.message, 'error');
             });
     };
-    <script>
+
+    // EXTENDER updateLocalStateFromRoom para manejar bancos de preguntas
+    const originalUpdateLocalStateFromRoomStep2 = updateLocalStateFromRoom;
+    updateLocalStateFromRoom = function(roomData) {
+        originalUpdateLocalStateFromRoomStep2(roomData);
         
+        if (roomData.questionBanks) {
+            multiplayerState.hostQuestionBank = roomData.questionBanks.host || {};
+            multiplayerState.guestQuestionBank = roomData.questionBanks.guest || {};
+            
+            console.log('📚 Bancos de preguntas sincronizados correctamente:', {
+                hostTopics: Object.keys(multiplayerState.hostQuestionBank).length,
+                guestTopics: Object.keys(multiplayerState.guestQuestionBank).length
+            });
+        }
+    };
+
+    // FUNCIÓN para obtener banco de preguntas del oponente
+    function getOpponentQuestionBank() {
+        if (multiplayerState.isHost) {
+            return multiplayerState.guestQuestionBank || {};
+        } else {
+            return multiplayerState.hostQuestionBank || {};
+        }
+    }
+
+    // FUNCIÓN para obtener mi banco de preguntas  
+    function getMyQuestionBank() {
+        if (multiplayerState.isHost) {
+            return multiplayerState.hostQuestionBank || {};
+        } else {
+            return multiplayerState.guestQuestionBank || {};
+        }
+    }
+
+    // FUNCIÓN para seleccionar pregunta del oponente (PREPARADA)
+    function selectQuestionFromOpponent(topicKey, questionFirebaseKey) {
+        const opponentBank = getOpponentQuestionBank();
+        
+        if (!opponentBank[topicKey] || !opponentBank[topicKey].questions) {
+            console.error('❌ Tema no encontrado:', topicKey);
+            showMessage('Error: Tema no encontrado', 'error');
+            return;
+        }
+        
+        const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionFirebaseKey);
+        
+        if (!question) {
+            console.error('❌ Pregunta no encontrada:', questionFirebaseKey);
+            showMessage('Error: Pregunta no encontrada', 'error');
+            return;
+        }
+        
+        console.log('🎯 Enviando pregunta al oponente:', question);
+        
+        database.ref('rooms/' + multiplayerState.currentRoom).update({
+            'gameData/currentQuestionData': question,
+            'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
+            lastActivity: firebase.database.ServerValue.TIMESTAMP
+        });
+        
+        showMessage('Pregunta enviada al oponente', 'success');
+    }
+
+    // FUNCIÓN de prueba mejorada
+    window.debugQuestionBanks = function() {
+        console.log('🔍 DEBUG - Bancos de preguntas (IDs corregidos):');
+        console.log('Mi banco:', getMyQuestionBank());
+        console.log('Banco del oponente:', getOpponentQuestionBank());
+        
+        // Mostrar estadísticas
+        const myBank = getMyQuestionBank();
+        const opponentBank = getOpponentQuestionBank();
+        
+        console.log('📊 Estadísticas:');
+        console.log(`- Mis temas: ${Object.keys(myBank).length}`);
+        console.log(`- Temas del oponente: ${Object.keys(opponentBank).length}`);
+        
+        Object.keys(opponentBank).forEach(topicKey => {
+            const topic = opponentBank[topicKey];
+            console.log(`- ${topic.name}: ${topic.questions.length} preguntas`);
+        });
+    };
+
+    // ACTUALIZAR renderRoomInterface con mensaje mejorado
+    const originalRenderRoomInterface = renderRoomInterface;
+    renderRoomInterface = function() {
+        const originalHTML = originalRenderRoomInterface();
+        
+        if (multiplayerState.gameState === 'playing') {
+            const opponentBank = getOpponentQuestionBank();
+            const opponentTopicsCount = Object.keys(opponentBank).length;
+            
+            const updatedHTML = originalHTML.replace(
+                'La interfaz de juego se cargará próximamente...',
+                `✅ Bancos sincronizados correctamente.<br>
+                Tienes acceso a ${opponentTopicsCount} tema${opponentTopicsCount === 1 ? '' : 's'} del oponente.<br>
+                <small style="color: #059669;">Usa debugQuestionBanks() en consola para detalles.</small>`
+            );
+            
+            return updatedHTML;
+        }
+        
+        return originalHTML;
+    };
+
+    console.log('✅ PASO 2 CORREGIDO completado - IDs válidos para Firebase');
+    console.log('🔧 Corrección aplicada: cleanFirebaseKey() para caracteres prohibidos');
+    console.log('📚 Sincronización de bancos funcionando correctamente');
+</script>
     <!-- 
 PASO 3: INTERFAZ DE DUELO (3 FRANJAS)
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
@@ -10542,432 +10644,8 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
     console.log('   - Función toggleTopicQuestions() para expandir/contraer');
     console.log('   - Función answerCurrentQuestion() preparada para siguiente paso');
 </script>
-  // ========== PASO 4: SISTEMA DE SELECCIÓN DE PREGUNTAS ==========
-    console.log('🎮 PASO 4: Sistema de selección de preguntas...');
-
-    // FUNCIÓN principal para seleccionar pregunta del banco del oponente
-    window.selectQuestionFromOpponent = function(topicKey, questionKey) {
-        console.log('🎯 Seleccionando pregunta:', { topicKey, questionKey });
-        
-        // Verificar que es nuestro turno
-        if (!multiplayerState.myTurn) {
-            showMessage('No es tu turno para seleccionar pregunta', 'warning');
-            return;
-        }
-        
-        // Obtener la pregunta del banco del oponente
-        const opponentBank = getOpponentQuestionBankFixed();
-        console.log('🏦 Banco del oponente para selección:', opponentBank);
-        
-        if (!opponentBank || !opponentBank[topicKey] || !opponentBank[topicKey].questions) {
-            showMessage('Error: No se encontró el tema seleccionado', 'error');
-            console.error('❌ No se encontró tema:', topicKey, 'en banco:', opponentBank);
-            return;
-        }
-        
-        // Buscar la pregunta específica
-        const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionKey);
-        if (!question) {
-            showMessage('Error: No se encontró la pregunta seleccionada', 'error');
-            console.error('❌ No se encontró pregunta:', questionKey);
-            return;
-        }
-        
-        // Preparar datos de la pregunta para enviar a Firebase
-        const questionData = {
-            question: question.question,
-            options: question.options,
-            correctAnswer: question.correctAnswer,
-            topic: question.topic || 'Sin tema',
-            difficulty: question.difficulty || 'normal',
-            sentBy: multiplayerState.isHost ? 'host' : 'guest',
-            timestamp: Date.now(),
-            originalId: question.id,
-            topicKey: topicKey,
-            questionKey: questionKey
-        };
-        
-        console.log('📤 Enviando pregunta a Firebase:', questionData);
-        
-        // Enviar pregunta a Firebase
-        sendQuestionToFirebase(questionData);
-    };
-
-    // FUNCIÓN para enviar pregunta seleccionada a Firebase
-    function sendQuestionToFirebase(questionData) {
-        if (!multiplayerState.roomRef) {
-            showMessage('Error: No hay conexión a la sala', 'error');
-            return;
-        }
-        
-        // Actualizar Firebase con la pregunta actual
-        const updates = {
-            [`gameData/currentQuestionData`]: questionData,
-            [`gameData/questionStartTime`]: Date.now(),
-            [`gameData/lastAction`]: `${questionData.sentBy}_selected_question`,
-            [`gameData/lastUpdate`]: Date.now()
-        };
-        
-        multiplayerState.roomRef.update(updates)
-            .then(() => {
-                console.log('✅ Pregunta enviada exitosamente a Firebase');
-                showMessage('Pregunta enviada al oponente', 'success');
-                collapseAllTopics();
-            })
-            .catch((error) => {
-                console.error('❌ Error enviando pregunta a Firebase:', error);
-                showMessage('Error enviando pregunta: ' + error.message, 'error');
-            });
-    }
-
-    // FUNCIÓN para colapsar todos los dropdowns de temas
-    function collapseAllTopics() {
-        const questionDivs = document.querySelectorAll('[id^="questions-"]');
-        questionDivs.forEach(div => {
-            div.style.display = 'none';
-        });
-    }
-
-    // FUNCIÓN CORREGIDA para obtener el banco del oponente
-    function getOpponentQuestionBankFixed() {
-        console.log('🏦 Obteniendo banco del oponente (versión corregida)...');
-        
-        const roomData = multiplayerState.currentRoomData;
-        if (!roomData || !roomData.questionBanks) {
-            console.log('❌ No hay datos de sala o bancos de preguntas');
-            return {};
-        }
-        
-        const isHost = multiplayerState.isHost;
-        const opponentBankKey = isHost ? 'guest' : 'host';
-        const opponentBank = roomData.questionBanks[opponentBankKey];
-        
-        console.log('🎯 Soy host:', isHost);
-        console.log('🎯 Clave del oponente:', opponentBankKey);
-        console.log('🎯 Banco del oponente:', opponentBank);
-        console.log('🎯 Temas disponibles:', Object.keys(opponentBank || {}));
-        
-        return opponentBank || {};
-    }
-
-    // FUNCIÓN CORREGIDA para obtener mi banco
-    function getMyQuestionBankFixed() {
-        console.log('🏦 Obteniendo mi banco (versión corregida)...');
-        
-        const roomData = multiplayerState.currentRoomData;
-        if (!roomData || !roomData.questionBanks) {
-            console.log('❌ No hay datos de sala o bancos');
-            return {};
-        }
-        
-        const isHost = multiplayerState.isHost;
-        const myBankKey = isHost ? 'host' : 'guest';
-        const myBank = roomData.questionBanks[myBankKey];
-        
-        console.log('🎯 Mi clave:', myBankKey);
-        console.log('🎯 Mi banco:', myBank);
-        
-        return myBank || {};
-    }
-
-    // FUNCIÓN CORREGIDA para renderizar temas del oponente
-    function renderOpponentTopicsFixed(questionBank) {
-        console.log('🎨 Renderizando temas del oponente:', questionBank);
-        
-        if (!questionBank || Object.keys(questionBank).length === 0) {
-            console.log('⚠️ No hay banco de preguntas o está vacío');
-            return `
-                <div style="text-align: center; padding: 20px; color: #6b7280;">
-                    <div style="font-size: 1.5rem; margin-bottom: 10px;">📚</div>
-                    <p style="margin: 0; font-size: 14px;">Sin temas disponibles</p>
-                    <button onclick="debugQuestionBanksFixed()" style="margin-top: 10px; background: none; border: 1px solid #d1d5db; color: #6b7280; font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
-                        🔍 Debug Bancos
-                    </button>
-                </div>
-            `;
-        }
-        
-        let html = '<div style="font-size: 13px; color: #374151; margin-bottom: 15px; text-align: center; font-weight: 600;">Temas Disponibles:</div>';
-        let hasTopics = false;
-        
-        Object.keys(questionBank).forEach(topicKey => {
-            const topic = questionBank[topicKey];
-            console.log(`📂 Procesando tema '${topicKey}':`, topic);
-            
-            if (topic.questions && topic.questions.length > 0) {
-                hasTopics = true;
-                html += `
-                    <div style="margin-bottom: 15px; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden;">
-                        <div style="background: #f9fafb; padding: 10px; border-bottom: 1px solid #d1d5db; cursor: pointer;" onclick="toggleTopicQuestions('${topicKey}')">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-weight: 500; color: #374151; font-size: 13px;">${topic.name}</span>
-                                <span style="background: #e5e7eb; color: #374151; padding: 2px 6px; border-radius: 10px; font-size: 11px;">
-                                    ${topic.questions.length}
-                                </span>
-                            </div>
-                        </div>
-                        <div id="questions-${topicKey}" style="display: none; max-height: 200px; overflow-y: auto;">
-                            ${topic.questions.map((question, index) => `
-                                <div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; cursor: pointer; font-size: 12px; line-height: 1.4;" 
-                                     onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey}')"
-                                     onmouseover="this.style.backgroundColor='#f3f4f6'" 
-                                     onmouseout="this.style.backgroundColor='white'">
-                                    <strong>P${index + 1}:</strong> ${question.question.substring(0, 80)}${question.question.length > 80 ? '...' : ''}
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-        });
-        
-        if (!hasTopics) {
-            html += `
-                <div style="text-align: center; padding: 20px; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 10px;">
-                    <div style="font-size: 1.5rem; margin-bottom: 10px;">📝</div>
-                    <p style="margin: 0; font-size: 13px;">El oponente no tiene preguntas verificadas</p>
-                </div>
-            `;
-        }
-        
-        console.log('✅ HTML de temas generado, topics encontrados:', hasTopics);
-        return html;
-    }
-
-    // FUNCIÓN para alternar la visualización de preguntas de un tema
-    window.toggleTopicQuestions = function(topicKey) {
-        console.log('🔄 Alternando tema:', topicKey);
-        const questionsDiv = document.getElementById(`questions-${topicKey}`);
-        if (questionsDiv) {
-            const isHidden = questionsDiv.style.display === 'none';
-            questionsDiv.style.display = isHidden ? 'block' : 'none';
-            console.log('📂 Tema', topicKey, isHidden ? 'expandido' : 'colapsado');
-        }
-    };
-
-    // FUNCIÓN CORREGIDA para debug de bancos
-    window.debugQuestionBanksFixed = function() {
-        console.log('🔍 DEBUG - Bancos de Preguntas (CORREGIDO):');
-        console.log('MultiplayerState:', multiplayerState);
-        console.log('Current Room Data:', multiplayerState.currentRoomData);
-        console.log('Question Banks:', multiplayerState.currentRoomData?.questionBanks);
-        console.log('My Bank:', getMyQuestionBankFixed());
-        console.log('Opponent Bank:', getOpponentQuestionBankFixed());
-        console.log('Is Host:', multiplayerState.isHost);
-        console.log('State Questions:', state.questions);
-        console.log('Verified Questions:', state.questions.filter(q => q.verified === true));
-        
-        const myBank = getMyQuestionBankFixed();
-        const opponentBank = getOpponentQuestionBankFixed();
-        
-        const myTopicCount = Object.keys(myBank || {}).length;
-        const opponentTopicCount = Object.keys(opponentBank || {}).length;
-        
-        console.log(`📊 RESUMEN: Mi banco ${myTopicCount} temas, Oponente ${opponentTopicCount} temas`);
-        
-        showMessage(`Debug: Mi banco ${myTopicCount} temas, Oponente ${opponentTopicCount} temas. Ver consola para detalles.`, 'info');
-        
-        return {
-            myBank: myBank,
-            opponentBank: opponentBank,
-            roomData: multiplayerState.currentRoomData
-        };
-    };
-
-    // ACTUALIZAR renderRoomInterface para usar funciones corregidas
-    const originalRenderRoomInterfaceStep4Fixed = renderRoomInterface;
-    renderRoomInterface = function() {
-        if (multiplayerState.gameState === 'playing') {
-            return renderDuelInterfaceFixed();
-        }
-        return originalRenderRoomInterfaceStep4Fixed();
-    };
-
-    // FUNCIÓN CORREGIDA para renderizar la interfaz de duelo  
-    function renderDuelInterfaceFixed() {
-        const isHost = multiplayerState.isHost;
-        const opponent = multiplayerState.opponent;
-        const myTurn = multiplayerState.myTurn;
-        const myFailures = multiplayerState.myFailures || 0;
-        const opponentFailures = multiplayerState.opponentFailures || 0;
-        
-        const opponentBank = getOpponentQuestionBankFixed();
-        const myBank = getMyQuestionBankFixed();
-        
-        console.log('🎨 Renderizando duelo - Mi turno:', myTurn);
-        console.log('🎨 Banco oponente temas:', Object.keys(opponentBank || {}));
-        console.log('🎨 Mi banco temas:', Object.keys(myBank || {}));
-        
-        const currentQuestion = multiplayerState.currentRoomData?.gameData?.currentQuestionData || null;
-        
-        return `
-            <div style="max-width: 1400px; margin: 0 auto; padding: 20px; min-height: calc(100vh - 200px);">
-                
-                <!-- Header del duelo -->
-                <div style="text-align: center; margin-bottom: 25px; background: linear-gradient(135deg, #dc2626, #7f1d1d); color: white; padding: 20px; border-radius: 16px;">
-                    <h1 style="margin: 0 0 10px 0; font-size: 2rem; font-weight: 800;">⚔️ Duelo de Preguntas</h1>
-                    <div style="font-size: 1.8rem; font-weight: bold; letter-spacing: 2px; margin: 5px 0;">
-                        ${multiplayerState.roomCode}
-                    </div>
-                    <p style="margin: 0; opacity: 0.9; font-size: 14px;">
-                        ${myTurn ? 'Tu turno: Selecciona una pregunta' : 'Turno del oponente: Espera tu respuesta'}
-                    </p>
-                </div>
-                
-                <!-- Interfaz de 3 franjas -->
-                <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 20px; min-height: 500px;">
-                    
-                    <!-- FRANJA IZQUIERDA -->
-                    <div style="background: ${myTurn ? '#f0f9ff' : '#f8fafc'}; border: 2px solid ${myTurn ? '#0ea5e9' : '#e2e8f0'}; border-radius: 12px; overflow-y: auto; max-height: 600px;">
-                        <div style="padding: 15px; border-bottom: 2px solid ${myTurn ? '#0ea5e9' : '#e2e8f0'}; background: ${myTurn ? '#0ea5e9' : '#6b7280'}; color: white; text-align: center;">
-                            <h3 style="margin: 0; font-size: 16px;">${isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</h3>
-                            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${state.currentUser.name}</p>
-                            <div style="margin-top: 8px;">
-                                <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; font-size: 12px;">
-                                    ❌ ${myFailures}/3 Fallos
-                                </span>
-                            </div>
-                        </div>
-                        
-                        <div style="padding: 15px;">
-                            ${myTurn ? renderOpponentTopicsFixed(opponentBank) : `
-                                <div style="text-align: center; padding: 40px 20px; color: #6b7280;">
-                                    <div style="font-size: 2rem; margin-bottom: 10px;">⏳</div>
-                                    <p style="margin: 0; font-size: 14px;">Esperando tu turno</p>
-                                </div>
-                            `}
-                        </div>
-                    </div>
-                    
-                    <!-- FRANJA CENTRAL -->
-                    <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; display: flex; flex-direction: column;">
-                        <div style="padding: 20px; border-bottom: 2px solid #e2e8f0; background: linear-gradient(135deg, #f8fafc, #e2e8f0); text-align: center;">
-                            <h3 style="margin: 0; color: #374151; font-size: 18px;">📋 Pregunta Actual</h3>
-                        </div>
-                        
-                        <div style="flex: 1; padding: 25px; display: flex; align-items: center; justify-content: center;">
-                            ${currentQuestion ? renderCurrentQuestionFixed(currentQuestion, !myTurn) : `
-                                <div style="text-align: center; color: #9ca3af;">
-                                    <div style="font-size: 4rem; margin-bottom: 20px;">🎯</div>
-                                    <h3 style="color: #6b7280; margin: 0 0 10px 0;">Esperando pregunta</h3>
-                                    <p style="margin: 0; font-size: 14px;">
-                                        ${myTurn ? 'Selecciona una pregunta del banco del oponente' : 'Tu oponente está seleccionando una pregunta'}
-                                    </p>
-                                </div>
-                            `}
-                        </div>
-                    </div>
-                    
-                    <!-- FRANJA DERECHA -->
-                    <div style="background: ${!myTurn ? '#fef3c7' : '#f8fafc'}; border: 2px solid ${!myTurn ? '#f59e0b' : '#e2e8f0'}; border-radius: 12px; overflow-y: auto; max-height: 600px;">
-                        <div style="padding: 15px; border-bottom: 2px solid ${!myTurn ? '#f59e0b' : '#e2e8f0'}; background: ${!myTurn ? '#f59e0b' : '#6b7280'}; color: white; text-align: center;">
-                            <h3 style="margin: 0; font-size: 16px;">${!isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</h3>
-                            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${opponent ? opponent.name : 'Oponente'}</p>
-                            <div style="margin-top: 8px;">
-                                <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; font-size: 12px;">
-                                    ❌ ${opponentFailures}/3 Fallos
-                                </span>
-                            </div>
-                        </div>
-                        
-                        <div style="padding: 15px;">
-                            ${!myTurn ? renderOpponentTopicsFixed(myBank) : `
-                                <div style="text-align: center; padding: 40px 20px; color: #6b7280;">
-                                    <div style="font-size: 2rem; margin-bottom: 10px;">🤔</div>
-                                    <p style="margin: 0; font-size: 14px;">Seleccionando pregunta...</p>
-                                </div>
-                            `}
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Botones de debug -->
-                <div style="text-align: center; margin-top: 15px;">
-                    <button onclick="debugQuestionBanksFixed()" class="btn btn-secondary" style="padding: 8px 16px; margin: 0 5px; font-size: 12px;">
-                        🔍 Debug Bancos
-                    </button>
-                </div>
-                
-                <!-- Botón salir -->
-                <div style="text-align: center; margin-top: 15px;">
-                    <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 12px 24px;">
-                        🚪 Salir del Duelo
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
-    // FUNCIÓN CORREGIDA para renderizar la pregunta actual
-    function renderCurrentQuestionFixed(question, canAnswer) {
-        if (!question) return '';
-        
-        const isMyQuestion = (question.sentBy === 'host') === multiplayerState.isHost;
-        
-        return `
-            <div style="width: 100%; max-width: 500px;">
-                <div style="text-align: center; margin-bottom: 20px; padding: 10px; background: ${isMyQuestion ? '#fef3c7' : '#f0f9ff'}; border-radius: 8px;">
-                    <div style="font-size: 12px; color: ${isMyQuestion ? '#92400e' : '#1e40af'}; font-weight: 500;">
-                        ${isMyQuestion ? '📤 Pregunta enviada por ti' : '📨 Pregunta recibida'} • ${question.topic}
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: 25px;">
-                    <h4 style="color: #1f2937; font-size: 18px; line-height: 1.5; margin: 0; text-align: center;">
-                        ${question.question}
-                    </h4>
-                </div>
-                
-                <div style="display: grid; gap: 12px;">
-                    ${question.options.map((option, index) => `
-                        <div style="
-                            padding: 15px; 
-                            background: ${canAnswer ? '#f9fafb' : '#f8fafc'}; 
-                            border: 2px solid ${canAnswer ? '#d1d5db' : '#e2e8f0'}; 
-                            border-radius: 8px; 
-                            ${canAnswer ? 'cursor: pointer;' : 'cursor: default;'}
-                            transition: all 0.2s;
-                            font-size: 14px;
-                            line-height: 1.4;
-                        " 
-                        ${canAnswer ? `
-                            onclick="answerCurrentQuestion(${index})"
-                            onmouseover="this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#4f46e5';" 
-                            onmouseout="this.style.backgroundColor='#f9fafb'; this.style.borderColor='#d1d5db';"
-                        ` : ''}>
-                            <strong>${String.fromCharCode(97 + index)}) </strong>${option}
-                        </div>
-                    `).join('')}
-                </div>
-                
-                ${canAnswer ? `
-                    <div style="text-align: center; margin-top: 20px; padding: 12px; background: #f0f9ff; border-radius: 6px; border: 1px solid #bfdbfe;">
-                        <span style="color: #1e40af; font-size: 13px; font-weight: 500;">💡 Haz clic en una opción para responder</span>
-                    </div>
-                ` : `
-                    <div style="text-align: center; margin-top: 20px; padding: 12px; background: #fef3c7; border-radius: 6px; border: 1px solid #fde68a;">
-                        <span style="color: #92400e; font-size: 13px; font-weight: 500;">⏳ Esperando respuesta del oponente</span>
-                    </div>
-                `}
-            </div>
-        `;
-    }
-
-    console.log('✅ PASO 2+4 CORREGIDO completado');
-    console.log('🔧 Correcciones aplicadas:');
-    console.log('   - Sincronización corregida de bancos al crear/unirse a sala');
-    console.log('   - Funciones getOpponentQuestionBankFixed() y getMyQuestionBankFixed()');
-    console.log('   - Sistema de selección y envío de preguntas funcional');
-    console.log('   - Renderizado corregido de temas con toggleTopicQuestions()');
-    console.log('   - Debug mejorado con debugQuestionBanksFixed()');
-</script>
 </body>
 </html>
-
-
-
-
-
 
 
 
