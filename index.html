@@ -11218,8 +11218,302 @@ console.log('   - updateLocalStateFromRoom() mejorado');
 console.log('   - getOpponentQuestionBank() super detallado');
 console.log('   - renderOpponentTopics() con debug mejorado');
 </script>
+    <!-- CORRECCIÓN FINAL: PROBLEMA GUEST BANK -->
+<script>
+console.log('🚨 CORRECCIÓN FINAL: Arreglando problema del guest bank...');
+
+// 1. FUNCIÓN PARA REPARAR SALA ACTUAL
+window.repairCurrentRoom = function() {
+    if (!multiplayerState.currentRoom || !database) {
+        console.error('❌ No hay sala activa');
+        showMessage('No hay sala activa', 'error');
+        return;
+    }
+    
+    console.log('🔧 REPARANDO SALA ACTUAL...');
+    console.log('- Sala:', multiplayerState.currentRoom);
+    console.log('- Soy host:', multiplayerState.isHost);
+    
+    // Obtener preguntas verificadas del usuario actual
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    console.log('- Preguntas verificadas:', verifiedQuestions.length);
+    
+    if (verifiedQuestions.length < 5) {
+        showMessage('Error: Necesitas al menos 5 preguntas verificadas', 'error');
+        return;
+    }
+    
+    // Organizar preguntas por temas
+    const organizedBank = {};
+    
+    // Crear estructura por temas
+    state.topics.forEach(topic => {
+        const topicQuestions = verifiedQuestions.filter(q => q.topicId === topic.id);
+        if (topicQuestions.length > 0) {
+            const cleanTopicId = topic.id.toString().replace(/[.#$\/\[\]]/g, '_');
+            organizedBank[cleanTopicId] = {
+                id: topic.id,
+                name: topic.name,
+                questions: topicQuestions.map(q => ({
+                    id: q.id,
+                    firebaseKey: q.id.toString().replace(/[.#$\/\[\]]/g, '_'),
+                    question: q.question,
+                    options: q.options,
+                    correctAnswer: q.correctAnswer,
+                    topicId: q.topicId
+                }))
+            };
+        }
+    });
+    
+    // Preguntas sin tema
+    const questionsWithoutTopic = verifiedQuestions.filter(q => !q.topicId);
+    if (questionsWithoutTopic.length > 0) {
+        organizedBank['no-topic'] = {
+            id: 'no-topic',
+            name: 'Sin tema asignado',
+            questions: questionsWithoutTopic.map(q => ({
+                id: q.id,
+                firebaseKey: q.id.toString().replace(/[.#$\/\[\]]/g, '_'),
+                question: q.question,
+                options: q.options,
+                correctAnswer: q.correctAnswer,
+                topicId: null
+            }))
+        };
+    }
+    
+    console.log('📚 Banco organizado:', organizedBank);
+    console.log('📚 Temas en banco:', Object.keys(organizedBank));
+    
+    // Determinar qué campo actualizar
+    const bankField = multiplayerState.isHost ? 'questionBanks/host' : 'questionBanks/guest';
+    const userField = multiplayerState.isHost ? 'host' : 'guest';
+    
+    console.log('🎯 Actualizando campo:', bankField);
+    
+    // Preparar datos del usuario
+    const userData = {
+        username: state.currentUser.username,
+        name: state.currentUser.name,
+        questions: verifiedQuestions.length,
+        ready: true // Mantener ready en true
+    };
+    
+    const updates = {};
+    updates[bankField] = organizedBank;
+    updates[userField] = userData;
+    updates['lastActivity'] = firebase.database.ServerValue.TIMESTAMP;
+    
+    // Actualizar en Firebase
+    database.ref('rooms/' + multiplayerState.currentRoom).update(updates)
+        .then(() => {
+            console.log('✅ Sala reparada correctamente');
+            showMessage('Sala reparada - recargando datos...', 'success');
+            
+            // Esperar un momento y recargar
+            setTimeout(() => {
+                forceSyncFromFirebase();
+            }, 1000);
+        })
+        .catch((error) => {
+            console.error('❌ Error reparando sala:', error);
+            showMessage('Error reparando sala: ' + error.message, 'error');
+        });
+};
+
+// 2. FUNCIÓN PARA FORZAR INICIO DE JUEGO
+window.forceStartGame = function() {
+    if (!multiplayerState.currentRoom || !database) {
+        console.error('❌ No hay sala activa');
+        return;
+    }
+    
+    console.log('🚀 FORZANDO INICIO DE JUEGO...');
+    
+    const updates = {
+        'status': 'playing',
+        'gameData/currentTurn': 'host',
+        'gameData/hostFailures': 0,
+        'gameData/guestFailures': 0,
+        'gameData/currentQuestionData': null,
+        'lastActivity': firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).update(updates)
+        .then(() => {
+            console.log('✅ Juego iniciado forzadamente');
+            showMessage('Juego iniciado - cargando interfaz...', 'success');
+            
+            // Actualizar estado local
+            multiplayerState.gameState = 'playing';
+            multiplayerState.myTurn = multiplayerState.isHost;
+            multiplayerState.myFailures = 0;
+            multiplayerState.opponentFailures = 0;
+            
+            // Re-render
+            render();
+        })
+        .catch((error) => {
+            console.error('❌ Error forzando inicio:', error);
+            showMessage('Error iniciando juego: ' + error.message, 'error');
+        });
+};
+
+// 3. FUNCIÓN PARA VERIFICAR Y REPARAR ESTADO COMPLETO
+window.diagnoseAndRepair = function() {
+    if (!multiplayerState.currentRoom || !database) {
+        console.error('❌ No hay sala activa');
+        return;
+    }
+    
+    console.log('🔍 DIAGNÓSTICO COMPLETO Y REPARACIÓN...');
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).once('value')
+        .then((snapshot) => {
+            if (!snapshot.exists()) {
+                console.error('❌ La sala no existe');
+                showMessage('Error: La sala no existe', 'error');
+                return;
+            }
+            
+            const roomData = snapshot.val();
+            console.log('📡 Datos actuales de la sala:', roomData);
+            
+            // Verificar problemas
+            const problems = [];
+            
+            // Problema 1: Falta guest
+            if (!roomData.guest) {
+                problems.push('❌ No hay información del invitado');
+            } else if (!roomData.guest.name || roomData.guest.name === 'undefined') {
+                problems.push('❌ Nombre del invitado inválido');
+            }
+            
+            // Problema 2: Falta banco de preguntas del guest
+            if (!roomData.questionBanks || !roomData.questionBanks.guest) {
+                problems.push('❌ Falta banco de preguntas del invitado');
+            } else if (Object.keys(roomData.questionBanks.guest).length === 0) {
+                problems.push('❌ Banco del invitado está vacío');
+            }
+            
+            // Problema 3: Estados inconsistentes
+            if (roomData.hostReady && roomData.guestReady && roomData.status === 'waiting') {
+                problems.push('⚠️ Ambos listos pero estado sigue en "waiting"');
+            }
+            
+            console.log('🚨 Problemas detectados:', problems);
+            
+            if (problems.length === 0) {
+                console.log('✅ No se detectaron problemas');
+                showMessage('No se detectaron problemas', 'success');
+                return;
+            }
+            
+            // Mostrar problemas al usuario
+            const problemsText = problems.join('\n');
+            const shouldRepair = confirm(`Problemas detectados:\n${problemsText}\n\n¿Deseas repararlos automáticamente?`);
+            
+            if (shouldRepair) {
+                // Reparar automáticamente
+                console.log('🔧 Iniciando reparación automática...');
+                
+                // Paso 1: Reparar banco de preguntas
+                repairCurrentRoom();
+                
+                // Paso 2: Después de 3 segundos, forzar inicio si es necesario
+                setTimeout(() => {
+                    if (multiplayerState.gameState !== 'playing') {
+                        forceStartGame();
+                    }
+                }, 3000);
+            }
+        })
+        .catch((error) => {
+            console.error('❌ Error en diagnóstico:', error);
+            showMessage('Error en diagnóstico: ' + error.message, 'error');
+        });
+};
+
+// 4. ACTUALIZAR renderRoomInterface para mostrar botones de reparación
+const originalRenderRoomInterface = renderRoomInterface;
+renderRoomInterface = function() {
+    const originalHTML = originalRenderRoomInterface();
+    
+    // Si estamos en estado problemático, añadir botones de reparación
+    if (multiplayerState.gameState === 'waiting' || multiplayerState.gameState === 'ready') {
+        const repairButtons = `
+            <div style="text-align: center; margin: 20px 0; padding: 15px; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px;">
+                <p style="margin: 0 0 15px 0; color: #92400e; font-weight: 600;">
+                    🔧 Herramientas de Reparación
+                </p>
+                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <button onclick="diagnoseAndRepair()" style="padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                        🔍 Diagnosticar y Reparar
+                    </button>
+                    <button onclick="repairCurrentRoom()" style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                        🔧 Reparar Banco
+                    </button>
+                    <button onclick="forceStartGame()" style="padding: 8px 16px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                        🚀 Forzar Inicio
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Insertar antes del botón "Salir de la Sala"
+        return originalHTML.replace(
+            '<button onclick="leaveRoom()"',
+            repairButtons + '<button onclick="leaveRoom()"'
+        );
+    }
+    
+    return originalHTML;
+};
+
+// 5. AUTO-DIAGNÓSTICO INICIAL
+setTimeout(() => {
+    if (multiplayerState.currentRoom && 
+        (multiplayerState.gameState === 'waiting' || multiplayerState.gameState === 'ready')) {
+        console.log('🚀 AUTO-DIAGNÓSTICO INICIAL...');
+        
+        // Verificar si hay problemas obvios
+        database.ref('rooms/' + multiplayerState.currentRoom).once('value')
+            .then((snapshot) => {
+                if (snapshot.exists()) {
+                    const roomData = snapshot.val();
+                    
+                    // Si falta el banco del guest, sugerir reparación
+                    if (!roomData.questionBanks || !roomData.questionBanks.guest || 
+                        Object.keys(roomData.questionBanks.guest || {}).length === 0) {
+                        
+                        console.log('🚨 PROBLEMA DETECTADO: Falta banco del invitado');
+                        
+                        showMessage('Problema detectado: Faltan datos del invitado. Usa los botones de reparación.', 'error');
+                        
+                        // Auto-reparar después de 3 segundos
+                        setTimeout(() => {
+                            if (confirm('¿Deseas reparar automáticamente los datos faltantes?')) {
+                                diagnoseAndRepair();
+                            }
+                        }, 3000);
+                    }
+                }
+            });
+    }
+}, 2000);
+
+console.log('✅ CORRECCIÓN FINAL APLICADA');
+console.log('🔧 Nuevas funciones disponibles:');
+console.log('   - diagnoseAndRepair() - Diagnóstico completo y reparación automática');
+console.log('   - repairCurrentRoom() - Reparar banco de preguntas del usuario actual');
+console.log('   - forceStartGame() - Forzar inicio del juego');
+console.log('🚨 La página debería dejar de cargarse indefinidamente');
+console.log('🚨 Los botones de reparación aparecerán en la interfaz');
+</script>
 </body>
 </html>
+
 
 
 
