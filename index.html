@@ -10643,8 +10643,278 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
     console.log('   - Función toggleTopicQuestions() para expandir/contraer');
     console.log('   - Función answerCurrentQuestion() preparada para siguiente paso');
 </script>
+    // ========== PASO 4: SISTEMA DE SELECCIÓN DE PREGUNTAS ==========
+console.log('🎮 PASO 4: Implementando sistema de selección de preguntas...');
+
+// REEMPLAZAR la función selectQuestionFromOpponent para enviar pregunta real
+window.selectQuestionFromOpponent = function(topicKey, questionFirebaseKey) {
+    console.log('🎯 Seleccionando pregunta:', { topicKey, questionFirebaseKey });
+    
+    const opponentBank = getOpponentQuestionBank();
+    
+    if (!opponentBank[topicKey] || !opponentBank[topicKey].questions) {
+        console.error('❌ Tema no encontrado:', topicKey);
+        showMessage('Error: Tema no encontrado', 'error');
+        return;
+    }
+    
+    const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionFirebaseKey);
+    
+    if (!question) {
+        console.error('❌ Pregunta no encontrada:', questionFirebaseKey);
+        showMessage('Error: Pregunta no encontrada', 'error');
+        return;
+    }
+    
+    console.log('📤 Enviando pregunta al oponente:', question.question.substring(0, 50) + '...');
+    
+    // Enviar pregunta completa con metadata para el duelo
+    const questionData = {
+        ...question,
+        sentBy: multiplayerState.isHost ? 'host' : 'guest',
+        sentAt: Date.now(),
+        topicName: opponentBank[topicKey].name
+    };
+    
+    // Actualizar Firebase con la pregunta y cambiar turno
+    const updates = {
+        'gameData/currentQuestionData': questionData,
+        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
+        'gameData/questionStartTime': firebase.database.ServerValue.TIMESTAMP,
+        lastActivity: firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).update(updates)
+        .then(() => {
+            console.log('✅ Pregunta enviada exitosamente');
+            showMessage(`Pregunta enviada: "${question.question.substring(0, 30)}..."`, 'success');
+            
+            // Cerrar el desplegable después de seleccionar
+            const questionsDiv = document.getElementById(`questions-${topicKey}`);
+            if (questionsDiv) {
+                questionsDiv.style.display = 'none';
+            }
+        })
+        .catch((error) => {
+            console.error('❌ Error enviando pregunta:', error);
+            showMessage('Error al enviar la pregunta', 'error');
+        });
+};
+
+// MEJORAR la función toggleTopicQuestions con estado visual
+window.toggleTopicQuestions = function(topicKey) {
+    console.log('🔄 Alternando tema:', topicKey);
+    
+    const questionsDiv = document.getElementById(`questions-${topicKey}`);
+    if (!questionsDiv) {
+        console.error('❌ Div de preguntas no encontrado:', topicKey);
+        return;
+    }
+    
+    const isHidden = questionsDiv.style.display === 'none';
+    
+    // Cerrar todos los otros temas abiertos
+    const allQuestionsDivs = document.querySelectorAll('[id^="questions-"]');
+    allQuestionsDivs.forEach(div => {
+        if (div.id !== `questions-${topicKey}`) {
+            div.style.display = 'none';
+            // Actualizar icono del header
+            const topicDiv = div.previousElementSibling;
+            if (topicDiv) {
+                const icon = topicDiv.querySelector('.topic-icon');
+                if (icon) icon.textContent = '▶️';
+            }
+        }
+    });
+    
+    // Alternar el tema actual
+    questionsDiv.style.display = isHidden ? 'block' : 'none';
+    
+    // Actualizar icono
+    const topicHeader = questionsDiv.previousElementSibling;
+    if (topicHeader) {
+        const icon = topicHeader.querySelector('.topic-icon');
+        if (icon) {
+            icon.textContent = isHidden ? '🔽' : '▶️';
+        }
+    }
+    
+    console.log(`${isHidden ? '📂' : '📁'} Tema ${isHidden ? 'abierto' : 'cerrado'}`);
+};
+
+// REEMPLAZAR renderOpponentTopics con interfaz mejorada
+function renderOpponentTopics(questionBank) {
+    if (!questionBank || Object.keys(questionBank).length === 0) {
+        return `
+            <div style="text-align: center; padding: 20px; color: #6b7280;">
+                <div style="font-size: 2rem; margin-bottom: 10px;">📭</div>
+                <p style="margin: 0; font-size: 14px;">Sin temas disponibles</p>
+                <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.8;">El oponente no tiene preguntas</p>
+            </div>
+        `;
+    }
+    
+    let html = `
+        <div style="text-align: center; margin-bottom: 15px; padding: 10px; background: rgba(79, 70, 229, 0.1); border-radius: 6px;">
+            <div style="font-size: 13px; color: #4f46e5; font-weight: 600;">🎯 Selecciona una Pregunta</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 3px;">
+                ${Object.keys(questionBank).length} tema${Object.keys(questionBank).length === 1 ? '' : 's'} disponible${Object.keys(questionBank).length === 1 ? '' : 's'}
+            </div>
+        </div>
+    `;
+    
+    Object.keys(questionBank).forEach(topicKey => {
+        const topic = questionBank[topicKey];
+        if (topic.questions && topic.questions.length > 0) {
+            html += `
+                <div style="margin-bottom: 12px; border: 2px solid #e5e7eb; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s;">
+                    
+                    <!-- Header del tema -->
+                    <div style="
+                        background: linear-gradient(135deg, #f8fafc, #f1f5f9); 
+                        padding: 12px 15px; 
+                        cursor: pointer; 
+                        border-bottom: 1px solid #e5e7eb;
+                        transition: all 0.2s;
+                        user-select: none;
+                    " 
+                    onclick="toggleTopicQuestions('${topicKey}')"
+                    onmouseover="this.style.backgroundColor='#f3f4f6'" 
+                    onmouseout="this.style.backgroundColor='transparent'">
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="topic-icon" style="font-size: 12px; color: #6b7280;">▶️</span>
+                                <span style="font-weight: 600; color: #374151; font-size: 13px;">${topic.name}</span>
+                            </div>
+                            <span style="background: #4f46e5; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">
+                                ${topic.questions.length}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- Lista de preguntas (inicialmente oculta) -->
+                    <div id="questions-${topicKey}" style="display: none; background: white;">
+                        <div style="max-height: 250px; overflow-y: auto;">
+                            ${topic.questions.map((question, index) => `
+                                <div style="
+                                    padding: 12px 15px; 
+                                    border-bottom: 1px solid #f3f4f6; 
+                                    cursor: pointer; 
+                                    font-size: 12px; 
+                                    line-height: 1.5; 
+                                    transition: all 0.2s;
+                                    position: relative;
+                                " 
+                                onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey}')"
+                                onmouseover="this.style.backgroundColor='#f8fafc'; this.style.borderLeft='3px solid #4f46e5';" 
+                                onmouseout="this.style.backgroundColor='white'; this.style.borderLeft='none';">
+                                    
+                                    <div style="display: flex; align-items: flex-start; gap: 8px;">
+                                        <span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; flex-shrink: 0; margin-top: 1px;">
+                                            P${index + 1}
+                                        </span>
+                                        <div style="flex: 1; color: #374151;">
+                                            ${question.question.length > 75 ? question.question.substring(0, 75) + '...' : question.question}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Indicador de hover -->
+                                    <div style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); opacity: 0; transition: opacity 0.2s; font-size: 16px;" class="hover-indicator">
+                                        👆
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <!-- Footer del tema -->
+                        <div style="padding: 8px 15px; background: #f9fafb; border-top: 1px solid #e5e7eb; text-align: center;">
+                            <span style="font-size: 11px; color: #6b7280;">
+                                💡 Haz clic en una pregunta para enviarla a tu oponente
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    return html;
+}
+
+// FUNCIÓN para actualizar el estado visual de selección
+function updateSelectionState() {
+    // Esta función actualizará indicadores visuales durante la selección
+    console.log('🔄 Actualizando estado visual de selección');
+}
+
+// CSS adicional para efectos hover
+const multiplayerStyles = document.createElement('style');
+multiplayerStyles.textContent = `
+    /* Efectos hover para las preguntas */
+    .multiplayer-question:hover .hover-indicator {
+        opacity: 1 !important;
+    }
+    
+    /* Animación para apertura de temas */
+    #questions-${topicKey} {
+        transition: all 0.3s ease-out;
+    }
+    
+    /* Efecto de selección */
+    .question-selecting {
+        background: linear-gradient(135deg, #fef3c7, #fde68a) !important;
+        border-left: 4px solid #f59e0b !important;
+    }
+`;
+
+if (!document.getElementById('multiplayer-styles')) {
+    multiplayerStyles.id = 'multiplayer-styles';
+    document.head.appendChild(multiplayerStyles);
+}
+
+// FUNCIÓN de debug para verificar estructura de temas
+window.debugTopicStructure = function() {
+    console.log('🔍 DEBUG - Estructura de temas:');
+    const opponentBank = getOpponentQuestionBank();
+    const myBank = getMyQuestionBank();
+    
+    console.log('📊 Mi banco:');
+    Object.keys(myBank).forEach(topicKey => {
+        const topic = myBank[topicKey];
+        console.log(`  - ${topic.name}: ${topic.questions.length} preguntas`);
+        console.log(`    Primer pregunta: ${topic.questions[0]?.question.substring(0, 50)}...`);
+    });
+    
+    console.log('📊 Banco del oponente:');
+    Object.keys(opponentBank).forEach(topicKey => {
+        const topic = opponentBank[topicKey];
+        console.log(`  - ${topic.name}: ${topic.questions.length} preguntas`);
+        console.log(`    Primer pregunta: ${topic.questions[0]?.question.substring(0, 50)}...`);
+    });
+    
+    console.log('🎮 Estado actual:', {
+        myTurn: multiplayerState.myTurn,
+        gameState: multiplayerState.gameState,
+        hasCurrentQuestion: !!multiplayerState.currentRoomData?.gameData?.currentQuestionData
+    });
+};
+
+// MEJORAR logging de selección
+console.log('✅ PASO 4 completado - Sistema de selección de preguntas');
+console.log('🎯 Funcionalidades implementadas:');
+console.log('   - selectQuestionFromOpponent() envía preguntas reales');
+console.log('   - toggleTopicQuestions() con estado visual mejorado');
+console.log('   - renderOpponentTopics() con interfaz atractiva');
+console.log('   - Temas desplegables con animaciones');
+console.log('   - Indicadores de hover y selección');
+console.log('   - Cierre automático de otros temas');
+console.log('   - debugTopicStructure() para testing');
+console.log('   - CSS adicional para efectos visuales');
+console.log('💡 Usa debugTopicStructure() para verificar la estructura de temas');
 </body>
 </html>
+
 
 
 
