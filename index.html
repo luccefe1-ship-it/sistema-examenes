@@ -10643,9 +10643,334 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
     console.log('   - Función toggleTopicQuestions() para expandir/contraer');
     console.log('   - Función answerCurrentQuestion() preparada para siguiente paso');
 </script>
-    
+   <!-- 
+PASO 4: SISTEMA DE SELECCIÓN DE PREGUNTAS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este paso implementa la selección y envío de preguntas entre jugadores
+-->
+
+<script>
+    // ========== PASO 4: SISTEMA DE SELECCIÓN DE PREGUNTAS ==========
+    console.log('🎮 PASO 4: Implementando sistema de selección de preguntas...');
+
+    // FUNCIÓN principal para seleccionar pregunta del banco del oponente
+    window.selectQuestionFromOpponent = function(topicKey, questionKey) {
+        console.log('🎯 Seleccionando pregunta:', { topicKey, questionKey });
+        
+        // Verificar que es nuestro turno
+        if (!multiplayerState.myTurn) {
+            showMessage('No es tu turno para seleccionar pregunta', 'warning');
+            return;
+        }
+        
+        // Obtener la pregunta del banco del oponente
+        const opponentBank = getOpponentQuestionBank();
+        if (!opponentBank || !opponentBank[topicKey] || !opponentBank[topicKey].questions) {
+            showMessage('Error: No se encontró el tema seleccionado', 'error');
+            return;
+        }
+        
+        // Buscar la pregunta específica
+        const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionKey);
+        if (!question) {
+            showMessage('Error: No se encontró la pregunta seleccionada', 'error');
+            return;
+        }
+        
+        // Preparar datos de la pregunta para enviar a Firebase
+        const questionData = {
+            question: question.question,
+            options: question.options,
+            correctAnswer: question.correctAnswer,
+            topic: question.topic || 'Sin tema',
+            difficulty: question.difficulty || 'normal',
+            sentBy: multiplayerState.isHost ? 'host' : 'guest',
+            timestamp: Date.now(),
+            // IDs para referencia
+            originalId: question.id,
+            topicKey: topicKey,
+            questionKey: questionKey
+        };
+        
+        console.log('📤 Enviando pregunta a Firebase:', questionData);
+        
+        // Enviar pregunta a Firebase
+        sendQuestionToFirebase(questionData);
+    };
+
+    // FUNCIÓN para enviar pregunta seleccionada a Firebase
+    function sendQuestionToFirebase(questionData) {
+        if (!multiplayerState.roomRef) {
+            showMessage('Error: No hay conexión a la sala', 'error');
+            return;
+        }
+        
+        // Actualizar Firebase con la pregunta actual
+        const updates = {
+            [`gameData/currentQuestionData`]: questionData,
+            [`gameData/questionStartTime`]: Date.now(),
+            [`gameData/lastAction`]: `${questionData.sentBy}_selected_question`,
+            [`gameData/lastUpdate`]: Date.now()
+        };
+        
+        multiplayerState.roomRef.update(updates)
+            .then(() => {
+                console.log('✅ Pregunta enviada exitosamente a Firebase');
+                showMessage('Pregunta enviada al oponente', 'success');
+                
+                // Colapsar todos los temas después de seleccionar
+                collapseAllTopics();
+                
+            })
+            .catch((error) => {
+                console.error('❌ Error enviando pregunta a Firebase:', error);
+                showMessage('Error enviando pregunta: ' + error.message, 'error');
+            });
+    }
+
+    // FUNCIÓN para colapsar todos los dropdowns de temas después de seleccionar
+    function collapseAllTopics() {
+        const questionDivs = document.querySelectorAll('[id^="questions-"]');
+        questionDivs.forEach(div => {
+            div.style.display = 'none';
+        });
+    }
+
+    // FUNCIÓN para manejar cuando se recibe una pregunta nueva
+    function handleNewQuestionReceived(questionData) {
+        console.log('📨 Nueva pregunta recibida:', questionData);
+        
+        if (!questionData) {
+            console.log('⚠️ No hay datos de pregunta');
+            return;
+        }
+        
+        // Determinar quién debe responder (el que no envió la pregunta)
+        const shouldAnswer = (questionData.sentBy === 'host') !== multiplayerState.isHost;
+        
+        console.log('🎮 Estado de pregunta:', {
+            sentBy: questionData.sentBy,
+            isHost: multiplayerState.isHost,
+            shouldAnswer: shouldAnswer,
+            question: questionData.question.substring(0, 50) + '...'
+        });
+        
+        // Mostrar notificación apropiada
+        if (shouldAnswer) {
+            showMessage('¡Nueva pregunta recibida! Es tu turno de responder.', 'info');
+        } else {
+            showMessage('Pregunta enviada. Esperando respuesta del oponente.', 'success');
+        }
+    }
+
+    // FUNCIÓN para verificar si hay una nueva pregunta en los datos de Firebase
+    function checkForNewQuestion(roomData) {
+        const currentQuestion = roomData?.gameData?.currentQuestionData;
+        const lastStoredQuestion = multiplayerState.lastQuestionData;
+        
+        // Comparar timestamps para detectar nueva pregunta
+        if (currentQuestion && 
+            (!lastStoredQuestion || currentQuestion.timestamp !== lastStoredQuestion.timestamp)) {
+            
+            // Almacenar la nueva pregunta localmente
+            multiplayerState.lastQuestionData = currentQuestion;
+            
+            // Manejar la nueva pregunta
+            handleNewQuestionReceived(currentQuestion);
+        }
+    }
+
+    // FUNCIÓN mejorada para mostrar información de debug sobre preguntas
+    window.debugCurrentQuestion = function() {
+        const roomData = multiplayerState.currentRoomData;
+        const questionData = roomData?.gameData?.currentQuestionData;
+        
+        console.log('🔍 DEBUG - Pregunta Actual:');
+        console.log('Room Data:', roomData);
+        console.log('Question Data:', questionData);
+        console.log('My Turn:', multiplayerState.myTurn);
+        console.log('Game State:', multiplayerState.gameState);
+        
+        if (questionData) {
+            console.log('- Pregunta:', questionData.question);
+            console.log('- Opciones:', questionData.options);
+            console.log('- Respuesta correcta:', questionData.correctAnswer);
+            console.log('- Enviada por:', questionData.sentBy);
+            console.log('- Timestamp:', questionData.timestamp);
+        }
+        
+        return questionData;
+    };
+
+    // FUNCIÓN para limpiar pregunta actual (útil para testing)
+    window.clearCurrentQuestion = function() {
+        if (!multiplayerState.roomRef) {
+            showMessage('No hay conexión a sala activa', 'error');
+            return;
+        }
+        
+        const updates = {
+            [`gameData/currentQuestionData`]: null,
+            [`gameData/questionStartTime`]: null,
+            [`gameData/lastAction`]: 'question_cleared',
+            [`gameData/lastUpdate`]: Date.now()
+        };
+        
+        multiplayerState.roomRef.update(updates)
+            .then(() => {
+                console.log('✅ Pregunta actual limpiada');
+                showMessage('Pregunta limpiada', 'success');
+            })
+            .catch((error) => {
+                console.error('❌ Error limpiando pregunta:', error);
+                showMessage('Error: ' + error.message, 'error');
+            });
+    };
+
+    // ACTUALIZAR updateLocalStateFromRoom para detectar nuevas preguntas
+    const originalUpdateLocalStateFromRoomStep4 = updateLocalStateFromRoom;
+    updateLocalStateFromRoom = function(roomData) {
+        // Llamar función original del paso anterior
+        originalUpdateLocalStateFromRoomStep4(roomData);
+        
+        // Verificar si hay nueva pregunta
+        checkForNewQuestion(roomData);
+        
+        // Actualizar datos de la pregunta actual
+        if (roomData?.gameData?.currentQuestionData) {
+            multiplayerState.currentQuestionData = roomData.gameData.currentQuestionData;
+        }
+    };
+
+    // FUNCIÓN helper para obtener información sobre quién puede responder
+    function whoCanAnswer() {
+        const questionData = multiplayerState.currentRoomData?.gameData?.currentQuestionData;
+        if (!questionData) return null;
+        
+        const shouldAnswer = (questionData.sentBy === 'host') !== multiplayerState.isHost;
+        
+        return {
+            questionExists: true,
+            sentBy: questionData.sentBy,
+            shouldAnswer: shouldAnswer,
+            canAnswer: shouldAnswer,
+            myTurn: multiplayerState.myTurn
+        };
+    }
+
+    // FUNCIÓN de utilidad para desarrolladores
+    window.multiplayerDebug = function() {
+        console.log('🎮 MULTIPLAYER DEBUG INFO:');
+        console.log('Current State:', multiplayerState);
+        console.log('Question Banks:', {
+            mine: getMyQuestionBank(),
+            opponent: getOpponentQuestionBank()
+        });
+        console.log('Who can answer?', whoCanAnswer());
+        console.log('Current question debug:', debugCurrentQuestion());
+        
+        return {
+            state: multiplayerState,
+            myBank: getMyQuestionBank(),
+            opponentBank: getOpponentQuestionBank(),
+            whoCanAnswer: whoCanAnswer(),
+            currentQuestion: debugCurrentQuestion()
+        };
+    };
+
+    // MEJORAR renderCurrentQuestion para mejor feedback visual
+    const originalRenderCurrentQuestion = renderCurrentQuestion;
+    function renderCurrentQuestion(question, canAnswer) {
+        if (!question) {
+            return `
+                <div style="text-align: center; color: #9ca3af;">
+                    <div style="font-size: 4rem; margin-bottom: 20px;">🎯</div>
+                    <h3 style="color: #6b7280; margin: 0 0 10px 0;">Esperando pregunta</h3>
+                    <p style="margin: 0; font-size: 14px;">
+                        ${multiplayerState.myTurn ? 'Selecciona una pregunta del banco del oponente' : 'Tu oponente está seleccionando una pregunta'}
+                    </p>
+                </div>
+            `;
+        }
+        
+        const questionInfo = whoCanAnswer();
+        const isMyQuestion = (question.sentBy === 'host') === multiplayerState.isHost;
+        
+        return `
+            <div style="width: 100%; max-width: 500px;">
+                <!-- Info sobre la pregunta -->
+                <div style="text-align: center; margin-bottom: 20px; padding: 10px; background: ${isMyQuestion ? '#fef3c7' : '#f0f9ff'}; border-radius: 8px;">
+                    <div style="font-size: 12px; color: ${isMyQuestion ? '#92400e' : '#1e40af'}; font-weight: 500;">
+                        ${isMyQuestion ? '📤 Pregunta enviada por ti' : '📨 Pregunta recibida'} • ${question.topic}
+                    </div>
+                </div>
+                
+                <!-- Pregunta -->
+                <div style="margin-bottom: 25px;">
+                    <h4 style="color: #1f2937; font-size: 18px; line-height: 1.5; margin: 0; text-align: center;">
+                        ${question.question}
+                    </h4>
+                </div>
+                
+                <!-- Opciones -->
+                <div style="display: grid; gap: 12px;">
+                    ${question.options.map((option, index) => `
+                        <div style="
+                            padding: 15px; 
+                            background: ${canAnswer ? '#f9fafb' : '#f8fafc'}; 
+                            border: 2px solid ${canAnswer ? '#d1d5db' : '#e2e8f0'}; 
+                            border-radius: 8px; 
+                            ${canAnswer ? 'cursor: pointer;' : 'cursor: default;'}
+                            transition: all 0.2s;
+                            font-size: 14px;
+                            line-height: 1.4;
+                        " 
+                        ${canAnswer ? `
+                            onclick="answerCurrentQuestion(${index})"
+                            onmouseover="this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#4f46e5';" 
+                            onmouseout="this.style.backgroundColor='#f9fafb'; this.style.borderColor='#d1d5db';"
+                        ` : ''}>
+                            <strong>${String.fromCharCode(97 + index)}) </strong>${option}
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <!-- Feedback -->
+                ${canAnswer ? `
+                    <div style="text-align: center; margin-top: 20px; padding: 12px; background: #f0f9ff; border-radius: 6px; border: 1px solid #bfdbfe;">
+                        <span style="color: #1e40af; font-size: 13px; font-weight: 500;">💡 Haz clic en una opción para responder</span>
+                    </div>
+                ` : `
+                    <div style="text-align: center; margin-top: 20px; padding: 12px; background: #fef3c7; border-radius: 6px; border: 1px solid #fde68a;">
+                        <span style="color: #92400e; font-size: 13px; font-weight: 500;">⏳ Esperando respuesta del oponente</span>
+                    </div>
+                `}
+                
+                <!-- Debug info (solo en desarrollo) -->
+                <div style="text-align: center; margin-top: 15px;">
+                    <button onclick="debugCurrentQuestion()" style="background: none; border: 1px solid #d1d5db; color: #6b7280; font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
+                        🔍 Debug Info
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    console.log('✅ PASO 4 completado - Sistema de selección de preguntas implementado');
+    console.log('🎮 Funcionalidades añadidas:');
+    console.log('   - selectQuestionFromOpponent() completamente funcional');
+    console.log('   - Envío automático de preguntas a Firebase');
+    console.log('   - Detección en tiempo real de nuevas preguntas');
+    console.log('   - Colapso automático de temas después de seleccionar');
+    console.log('   - Sistema de notificaciones para nuevas preguntas');
+    console.log('   - Funciones de debug: debugCurrentQuestion(), multiplayerDebug()');
+    console.log('   - Función de utilidad: clearCurrentQuestion()');
+    console.log('   - Mejor feedback visual en renderCurrentQuestion()');
+    console.log('📋 Listo para PASO 5: Sistema de Respuestas y Verificación');
+</script> 
 </body>
 </html>
+
 
 
 
