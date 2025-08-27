@@ -9712,8 +9712,335 @@ function markAsReady() {
     showMessage('Función "Listo" será implementada en el siguiente paso', 'success');
 }
 </script>
+    <!-- 
+PASO 1 INTEGRADO: SISTEMA DE ESTADOS "LISTO" MULTIJUGADOR
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este paso integra con el código existente para implementar estados ready
+-->
+
+<script>
+    // ========== PASO 1 INTEGRADO: SISTEMA DE ESTADOS "LISTO" ==========
+    console.log('🎮 PASO 1 INTEGRADO: Implementando sistema de estados "Listo"...');
+
+    // REEMPLAZAR la función createMultiplayerRoom existente
+    window.createMultiplayerRoom = function() {
+        if (!multiplayerEnabled) {
+            showMessage('Error: Sistema multijugador no disponible', 'error');
+            return;
+        }
+
+        if (!state.currentUser) {
+            showMessage('Debes estar logueado para crear una sala', 'error');
+            return;
+        }
+
+        // Verificar que el usuario tenga al menos 5 preguntas verificadas
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        if (verifiedQuestions.length < 5) {
+            showMessage('Necesitas al menos 5 preguntas verificadas para crear una sala', 'error');
+            return;
+        }
+
+        const roomCode = generateRoomCode();
+        
+        // ESTRUCTURA ACTUALIZADA con campos ready específicos
+        const roomData = {
+            code: roomCode,
+            host: {
+                username: state.currentUser.username,
+                name: state.currentUser.name,
+                questions: verifiedQuestions.length,
+                ready: false
+            },
+            guest: null,
+            hostReady: false,    // Campo específico para control de estado
+            guestReady: false,   // Campo específico para control de estado
+            status: 'waiting', // waiting, ready, playing, finished
+            gameData: {
+                currentQuestion: 0,
+                currentTurn: 'host',
+                hostFailures: 0,
+                guestFailures: 0,
+                questions: [],
+                hostAnswers: {},
+                guestAnswers: {},
+                winner: null
+            },
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            lastActivity: firebase.database.ServerValue.TIMESTAMP
+        };
+
+        // Crear sala en Firebase
+        database.ref('rooms/' + roomCode).set(roomData)
+            .then(() => {
+                console.log('✅ Sala creada con estados ready:', roomCode);
+                
+                // Actualizar estado local
+                multiplayerState.currentRoom = roomCode;
+                multiplayerState.isHost = true;
+                multiplayerState.roomCode = roomCode;
+                multiplayerState.gameState = 'waiting';
+                
+                // Escuchar cambios en la sala
+                listenToRoom(roomCode);
+                
+                // Re-renderizar
+                render();
+                
+                showMessage(`Sala creada con código: ${roomCode}`, 'success');
+            })
+            .catch((error) => {
+                console.error('❌ Error creando sala:', error);
+                showMessage('Error al crear la sala. Inténtalo de nuevo.', 'error');
+            });
+    };
+
+    // IMPLEMENTAR la función markAsReady que estaba como placeholder
+    window.markAsReady = function() {
+        if (!multiplayerState.currentRoom || !database) {
+            showMessage('Error: No hay conexión con la sala', 'error');
+            return;
+        }
+
+        console.log('🎯 Marcando como listo...', {
+            room: multiplayerState.currentRoom,
+            isHost: multiplayerState.isHost,
+            user: state.currentUser.username
+        });
+
+        const readyField = multiplayerState.isHost ? 'hostReady' : 'guestReady';
+        const playerField = multiplayerState.isHost ? 'host/ready' : 'guest/ready';
+        
+        // Actualizar tanto el campo específico como el del jugador
+        const updates = {};
+        updates[readyField] = true;
+        updates[playerField] = true;
+        updates['lastActivity'] = firebase.database.ServerValue.TIMESTAMP;
+
+        database.ref('rooms/' + multiplayerState.currentRoom).update(updates)
+            .then(() => {
+                console.log('✅ Marcado como listo correctamente');
+                showMessage('Marcado como listo - esperando al oponente...', 'success');
+            })
+            .catch((error) => {
+                console.error('❌ Error marcando como listo:', error);
+                showMessage('Error al marcar como listo', 'error');
+            });
+    };
+
+    // FUNCIÓN para verificar si ambos jugadores están listos
+    function checkBothReady(roomData) {
+        const hostReady = roomData.hostReady || false;
+        const guestReady = roomData.guestReady || false;
+        
+        console.log('🔍 Verificando estados ready:', {
+            hostReady,
+            guestReady,
+            currentStatus: roomData.status
+        });
+
+        // Si ambos están listos y el estado es 'waiting', cambiar a 'ready'
+        if (hostReady && guestReady && roomData.status === 'waiting') {
+            console.log('🚀 ¡Ambos jugadores listos! Iniciando transición...');
+            
+            // Actualizar estado en Firebase
+            database.ref('rooms/' + multiplayerState.currentRoom).update({
+                status: 'ready',
+                lastActivity: firebase.database.ServerValue.TIMESTAMP
+            });
+            
+            return true;
+        }
+        
+        return false;
+    }
+
+    // FUNCIÓN para iniciar el juego
+    function startGame() {
+        if (!multiplayerState.currentRoom || !database) return;
+        
+        console.log('🎮 Iniciando juego...');
+        
+        // Cambiar estado a 'playing'
+        database.ref('rooms/' + multiplayerState.currentRoom).update({
+            status: 'playing',
+            'gameData/currentTurn': 'host', // El anfitrión empieza
+            lastActivity: firebase.database.ServerValue.TIMESTAMP
+        });
+        
+        showMessage('¡El duelo ha comenzado! El anfitrión inicia seleccionando una pregunta.', 'success');
+    }
+
+    // REEMPLAZAR función updateLocalStateFromRoom para manejar transiciones
+    const originalUpdateLocalStateFromRoom = updateLocalStateFromRoom;
+    updateLocalStateFromRoom = function(roomData) {
+        const previousState = multiplayerState.gameState;
+        
+        // Llamar función original
+        originalUpdateLocalStateFromRoom(roomData);
+        
+        // Guardar datos completos para acceso en render
+        multiplayerState.currentRoomData = roomData;
+        
+        // Verificar transiciones de estado
+        if (previousState === 'waiting' && roomData.status === 'waiting') {
+            // Verificar si ambos están listos
+            checkBothReady(roomData);
+        } else if (previousState === 'waiting' && roomData.status === 'ready') {
+            console.log('🎯 Estado cambió a READY - preparando inicio del juego...');
+            
+            // Mostrar mensaje y auto-iniciar después de 3 segundos
+            showMessage('¡Ambos jugadores listos! Iniciando duelo en 3 segundos...', 'success');
+            
+            setTimeout(() => {
+                if (multiplayerState.isHost && multiplayerState.gameState === 'ready') {
+                    startGame();
+                }
+            }, 3000);
+            
+        } else if (previousState !== 'playing' && roomData.status === 'playing') {
+            console.log('🚀 ¡JUEGO INICIADO!');
+            showMessage('¡El duelo ha comenzado!', 'success');
+        }
+    };
+
+    // REEMPLAZAR función renderRoomInterface para mostrar estados ready
+    function renderRoomInterface() {
+        const roomCode = multiplayerState.roomCode;
+        const isHost = multiplayerState.isHost;
+        const opponent = multiplayerState.opponent;
+        const gameState = multiplayerState.gameState;
+        
+        // Obtener estados ready desde los datos de la sala
+        const roomData = multiplayerState.currentRoomData || {};
+        const myReady = isHost ? (roomData.hostReady || false) : (roomData.guestReady || false);
+        const opponentReady = !isHost ? (roomData.hostReady || false) : (roomData.guestReady || false);
+        
+        return `
+            <div style="max-width: 700px; margin: 0 auto; padding: 20px;">
+                
+                <!-- Header de la sala -->
+                <div style="text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 25px; border-radius: 16px;">
+                    <h2 style="margin: 0 0 10px 0; font-size: 1.8rem;">⚔️ Duelo de Preguntas</h2>
+                    <div style="font-size: 2rem; font-weight: bold; letter-spacing: 3px; margin: 10px 0;">
+                        ${roomCode}
+                    </div>
+                    <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                        ${gameState === 'waiting' ? 'Preparando duelo...' : 
+                          gameState === 'ready' ? '¡Iniciando en breve!' : 
+                          gameState === 'playing' ? '¡Duelo en curso!' : 'Comparte este código'}
+                    </p>
+                </div>
+                
+                <!-- Información de jugadores CON ESTADOS READY -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                    
+                    <!-- Jugador Anfitrión -->
+                    <div style="background: ${isHost ? '#f0fdf4' : '#f8fafc'}; border: 2px solid ${isHost ? '#22c55e' : '#e2e8f0'}; border-radius: 12px; padding: 20px; text-align: center; position: relative;">
+                        
+                        <!-- Indicador de estado ready -->
+                        <div style="position: absolute; top: 10px; right: 10px; width: 16px; height: 16px; border-radius: 50%; background: ${(isHost ? myReady : opponentReady) ? '#22c55e' : '#ef4444'}; border: 2px solid white; box-shadow: 0 0 0 2px ${(isHost ? myReady : opponentReady) ? '#22c55e40' : '#ef444440'};"></div>
+                        
+                        <div style="font-size: 1.5rem; margin-bottom: 10px;">👑</div>
+                        <h3 style="margin: 0 0 5px 0; color: #1f2937;">${isHost ? state.currentUser.name : (opponent?.name || 'Anfitrión')}</h3>
+                        <p style="margin: 0; font-size: 12px; color: #6b7280;">
+                            Anfitrión ${isHost ? '(Tú)' : ''}
+                        </p>
+                        <div style="margin-top: 8px; font-size: 11px; font-weight: 600; color: ${(isHost ? myReady : opponentReady) ? '#16a34a' : '#dc2626'};">
+                            ${(isHost ? myReady : opponentReady) ? '✅ LISTO' : '⏳ ESPERANDO'}
+                        </div>
+                    </div>
+                    
+                    <!-- Jugador Invitado -->
+                    <div style="background: ${!isHost && opponent ? '#f0fdf4' : '#f9fafb'}; border: 2px solid ${!isHost && opponent ? '#22c55e' : '#d1d5db'}; border-radius: 12px; padding: 20px; text-align: center; position: relative;">
+                        
+                        <!-- Indicador de estado ready -->
+                        ${opponent ? `
+                            <div style="position: absolute; top: 10px; right: 10px; width: 16px; height: 16px; border-radius: 50%; background: ${(!isHost ? myReady : opponentReady) ? '#22c55e' : '#ef4444'}; border: 2px solid white; box-shadow: 0 0 0 2px ${(!isHost ? myReady : opponentReady) ? '#22c55e40' : '#ef444440'};"></div>
+                        ` : ''}
+                        
+                        <div style="font-size: 1.5rem; margin-bottom: 10px;">
+                            ${opponent ? '👤' : '⏳'}
+                        </div>
+                        <h3 style="margin: 0 0 5px 0; color: #1f2937;">
+                            ${opponent ? (isHost ? opponent.name : state.currentUser.name) : 'Esperando...'}
+                        </h3>
+                        <p style="margin: 0; font-size: 12px; color: #6b7280;">
+                            ${opponent ? `Invitado ${!isHost ? '(Tú)' : ''}` : 'Esperando jugador'}
+                        </p>
+                        ${opponent ? `
+                            <div style="margin-top: 8px; font-size: 11px; font-weight: 600; color: ${(!isHost ? myReady : opponentReady) ? '#16a34a' : '#dc2626'};">
+                                ${(!isHost ? myReady : opponentReady) ? '✅ LISTO' : '⏳ ESPERANDO'}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+                
+                <!-- Estado del juego ACTUALIZADO -->
+                <div style="text-align: center; margin-bottom: 30px;">
+                    ${gameState === 'waiting' ? `
+                        <div style="background: ${opponent ? '#fef3c7' : '#e0f2fe'}; border: 2px solid ${opponent ? '#f59e0b' : '#0ea5e9'}; border-radius: 12px; padding: 20px;">
+                            <h3 style="color: ${opponent ? '#92400e' : '#0c4a6e'}; margin: 0 0 10px 0;">
+                                ${opponent ? 
+                                    (myReady && opponentReady ? '🚀 ¡Iniciando duelo!' : 
+                                     myReady ? '⏳ Esperando que tu oponente esté listo' : 
+                                     opponentReady ? '⚡ Tu oponente está listo - ¿Estás preparado?' : 
+                                     '📋 Presiona "Estoy Listo" cuando quieras empezar') : 
+                                    '👥 Esperando oponente'
+                                }
+                            </h3>
+                            <p style="color: ${opponent ? '#78350f' : '#0369a1'}; margin: 0; font-size: 14px;">
+                                ${opponent ? 
+                                    (myReady && opponentReady ? 'El duelo comenzará en unos segundos...' :
+                                     'Ambos jugadores deben estar listos para iniciar') : 
+                                    'Comparte el código de sala con tu oponente'
+                                }
+                            </p>
+                        </div>
+                    ` : gameState === 'ready' ? `
+                        <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; padding: 20px;">
+                            <h3 style="color: #166534; margin: 0 0 10px 0;">🎯 ¡Duelo Preparado!</h3>
+                            <p style="color: #15803d; margin: 0; font-size: 14px;">Iniciando automáticamente...</p>
+                        </div>
+                    ` : gameState === 'playing' ? `
+                        <div style="background: #fef2f2; border: 2px solid #ef4444; border-radius: 12px; padding: 20px;">
+                            <h3 style="color: #dc2626; margin: 0 0 10px 0;">⚔️ ¡DUELO EN CURSO!</h3>
+                            <p style="color: #991b1b; margin: 0; font-size: 14px;">La interfaz de juego se cargará próximamente...</p>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <!-- Botones de acción ACTUALIZADOS -->
+                <div style="display: flex; gap: 15px; justify-content: center;">
+                    ${opponent && gameState === 'waiting' && !myReady ? `
+                        <button onclick="markAsReady()" class="btn btn-success" style="padding: 15px 25px; font-size: 16px;">
+                            ✅ Estoy Listo
+                        </button>
+                    ` : opponent && gameState === 'waiting' && myReady ? `
+                        <button disabled class="btn btn-secondary" style="padding: 15px 25px; font-size: 16px; opacity: 0.6;">
+                            ✅ Listo - Esperando...
+                        </button>
+                    ` : ''}
+                    
+                    <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 15px 25px; font-size: 16px;">
+                        🚪 Salir de la Sala
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    console.log('✅ PASO 1 INTEGRADO completado - Sistema de estados "Listo" funcional');
+    console.log('🎮 Integración realizada con código existente:');
+    console.log('   - Reemplazada createMultiplayerRoom con soporte ready states');
+    console.log('   - Implementada markAsReady funcional');
+    console.log('   - Actualizada updateLocalStateFromRoom con transiciones');
+    console.log('   - Mejorada renderRoomInterface con indicadores visuales');
+    console.log('   - Detección automática de ambos listos y auto-inicio');
+</script>
 </body>
 </html>
+
 
 
 
