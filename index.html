@@ -10644,8 +10644,252 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
     console.log('   - Función toggleTopicQuestions() para expandir/contraer');
     console.log('   - Función answerCurrentQuestion() preparada para siguiente paso');
 </script>
+    // ========== CORRECCIÓN: SINCRONIZACIÓN DE BANCOS MULTIJUGADOR ==========
+console.log('🔧 CORRECCIÓN: Arreglando sincronización de bancos de preguntas...');
+
+// FUNCIÓN DE DIAGNÓSTICO para ver qué está pasando
+window.debugMultiplayerState = function() {
+    console.log('🔍 DIAGNÓSTICO MULTIJUGADOR:');
+    console.log('Estado actual:', multiplayerState);
+    console.log('Datos de la sala:', multiplayerState.currentRoomData);
+    console.log('Mi banco:', getMyQuestionBank());
+    console.log('Banco del oponente:', getOpponentQuestionBank());
+    
+    // Verificar en Firebase
+    if (multiplayerState.currentRoom && database) {
+        database.ref('rooms/' + multiplayerState.currentRoom).once('value').then((snapshot) => {
+            console.log('Datos en Firebase:', snapshot.val());
+        });
+    }
+};
+
+// REEMPLAZAR updateLocalStateFromRoom con versión mejorada
+const originalUpdateFromRoomFixed = updateLocalStateFromRoom;
+updateLocalStateFromRoom = function(roomData) {
+    console.log('📡 Actualizando estado desde Firebase:', roomData);
+    
+    // Llamar función original
+    originalUpdateFromRoomFixed(roomData);
+    
+    // CRÍTICO: Asegurarse de que los bancos se guardan correctamente
+    if (roomData.questionBanks) {
+        multiplayerState.hostQuestionBank = roomData.questionBanks.host || {};
+        multiplayerState.guestQuestionBank = roomData.questionBanks.guest || {};
+        
+        console.log('📚 Bancos sincronizados:');
+        console.log('- Host banco:', multiplayerState.hostQuestionBank);
+        console.log('- Guest banco:', multiplayerState.guestQuestionBank);
+        console.log('- Soy host:', multiplayerState.isHost);
+        
+        // Debug específico
+        const myBank = getMyQuestionBank();
+        const opponentBank = getOpponentQuestionBank();
+        console.log('- Mi banco (calculado):', myBank);
+        console.log('- Banco oponente (calculado):', opponentBank);
+        console.log('- Temas del oponente:', Object.keys(opponentBank).length);
+    } else {
+        console.warn('⚠️ No hay questionBanks en los datos de Firebase');
+    }
+};
+
+// MEJORAR función getOpponentQuestionBank con debug
+const originalGetOpponentBank = getOpponentQuestionBank;
+getOpponentQuestionBank = function() {
+    let result;
+    if (multiplayerState.isHost) {
+        result = multiplayerState.guestQuestionBank || {};
+    } else {
+        result = multiplayerState.hostQuestionBank || {};
+    }
+    
+    console.log('🎯 getOpponentQuestionBank():', {
+        isHost: multiplayerState.isHost,
+        result: result,
+        keys: Object.keys(result)
+    });
+    
+    return result;
+};
+
+// MEJORAR función renderOpponentTopics con debug
+function renderOpponentTopics(questionBank) {
+    console.log('🎨 renderOpponentTopics llamada con:', questionBank);
+    console.log('🎨 Claves del banco:', Object.keys(questionBank || {}));
+    
+    if (!questionBank || Object.keys(questionBank).length === 0) {
+        console.warn('⚠️ Banco de preguntas vacío o undefined');
+        return `
+            <div style="text-align: center; padding: 20px; color: #6b7280;">
+                <p style="margin: 0 0 10px 0; font-size: 14px;">Sin temas disponibles</p>
+                <button onclick="debugMultiplayerState()" style="padding: 5px 10px; font-size: 11px; background: #f59e0b; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    🔍 Debug
+                </button>
+            </div>
+        `;
+    }
+    
+    let html = '<div style="font-size: 13px; color: #374151; margin-bottom: 15px; text-align: center; font-weight: 600;">Temas del Oponente:</div>';
+    
+    Object.keys(questionBank).forEach(topicKey => {
+        const topic = questionBank[topicKey];
+        console.log('🎨 Procesando tema:', topicKey, topic);
+        
+        if (topic.questions && topic.questions.length > 0) {
+            html += `
+                <div style="margin-bottom: 15px; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden;">
+                    <div style="background: #f9fafb; padding: 10px; border-bottom: 1px solid #d1d5db; cursor: pointer;" onclick="toggleTopicQuestions('${topicKey}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 500; color: #374151; font-size: 13px;">${topic.name}</span>
+                            <span style="background: #e5e7eb; color: #374151; padding: 2px 6px; border-radius: 10px; font-size: 11px;">
+                                ${topic.questions.length}
+                            </span>
+                        </div>
+                    </div>
+                    <div id="questions-${topicKey}" style="display: none; max-height: 200px; overflow-y: auto;">
+                        ${topic.questions.map((question, index) => `
+                            <div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; cursor: pointer; font-size: 12px; line-height: 1.4;" 
+                                 onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey}')"
+                                 onmouseover="this.style.backgroundColor='#f3f4f6'" 
+                                 onmouseout="this.style.backgroundColor='white'"
+                                 title="Respuesta correcta: ${question.options[question.correctAnswer]}">
+                                <strong>P${index + 1}:</strong> ${question.question.substring(0, 80)}${question.question.length > 80 ? '...' : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    // Añadir botón de debug al final
+    html += `
+        <div style="text-align: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+            <button onclick="debugMultiplayerState()" style="padding: 5px 10px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                🔍 Debug Estado
+            </button>
+        </div>
+    `;
+    
+    console.log('🎨 HTML generado para temas:', html.length, 'caracteres');
+    return html;
+}
+
+// FUNCIÓN para forzar recarga de datos
+window.forceReloadRoomData = function() {
+    if (!multiplayerState.currentRoom || !database) {
+        console.error('❌ No hay sala activa');
+        return;
+    }
+    
+    console.log('🔄 Forzando recarga de datos de la sala...');
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).once('value')
+        .then((snapshot) => {
+            if (snapshot.exists()) {
+                const roomData = snapshot.val();
+                console.log('📡 Datos recargados:', roomData);
+                updateLocalStateFromRoom(roomData);
+                render();
+                showMessage('Datos recargados correctamente', 'success');
+            } else {
+                console.error('❌ La sala no existe');
+                showMessage('Error: La sala no existe', 'error');
+            }
+        })
+        .catch((error) => {
+            console.error('❌ Error recargando datos:', error);
+            showMessage('Error recargando datos', 'error');
+        });
+};
+
+// MEJORAR selectQuestionFromOpponent con mejor manejo
+const originalSelectQuestion = selectQuestionFromOpponent;
+selectQuestionFromOpponent = function(topicKey, questionFirebaseKey) {
+    console.log('🎯 Seleccionando pregunta:', { topicKey, questionFirebaseKey });
+    
+    const opponentBank = getOpponentQuestionBank();
+    console.log('🎯 Banco del oponente:', opponentBank);
+    
+    if (!opponentBank[topicKey] || !opponentBank[topicKey].questions) {
+        console.error('❌ Tema no encontrado:', topicKey);
+        showMessage('Error: Tema no encontrado', 'error');
+        return;
+    }
+    
+    const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionFirebaseKey);
+    
+    if (!question) {
+        console.error('❌ Pregunta no encontrada:', questionFirebaseKey);
+        showMessage('Error: Pregunta no encontrada', 'error');
+        return;
+    }
+    
+    console.log('✅ Pregunta encontrada:', question);
+    
+    // Enviar pregunta a Firebase
+    const updates = {
+        'gameData/currentQuestionData': question,
+        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
+        'gameData/questionSelectedBy': multiplayerState.isHost ? 'host' : 'guest',
+        lastActivity: firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).update(updates)
+        .then(() => {
+            console.log('✅ Pregunta enviada correctamente');
+            showMessage('Pregunta enviada al oponente', 'success');
+        })
+        .catch((error) => {
+            console.error('❌ Error enviando pregunta:', error);
+            showMessage('Error enviando pregunta', 'error');
+        });
+};
+
+// Añadir botones de debug a la interfaz de duelo
+const originalRenderDuelInterface = renderDuelInterface;
+renderDuelInterface = function() {
+    const originalHTML = originalRenderDuelInterface();
+    
+    // Añadir panel de debug al final
+    const debugPanel = `
+        <div style="max-width: 600px; margin: 20px auto; padding: 15px; background: #f3f4f6; border-radius: 8px; border: 1px solid #d1d5db;">
+            <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">🔧 Panel de Debug</h4>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button onclick="debugMultiplayerState()" class="btn btn-info" style="padding: 6px 12px; font-size: 12px;">
+                    🔍 Debug Estado
+                </button>
+                <button onclick="forceReloadRoomData()" class="btn btn-warning" style="padding: 6px 12px; font-size: 12px;">
+                    🔄 Recargar Datos
+                </button>
+                <button onclick="console.log('Mi banco:', getMyQuestionBank()); console.log('Banco oponente:', getOpponentQuestionBank());" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">
+                    📚 Log Bancos
+                </button>
+            </div>
+        </div>
+        
+        <!-- Botón salir original -->
+        <div style="text-align: center; margin-top: 15px;">
+            <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 12px 24px;">
+                🚪 Salir del Duelo
+            </button>
+        </div>
+    `;
+    
+    return originalHTML.replace(
+        '<div style="text-align: center; margin-top: 25px;">',
+        debugPanel + '<div style="text-align: center; margin-top: 15px; display: none;">'
+    );
+};
+
+console.log('✅ Corrección aplicada - Sistema de debug activado');
+console.log('🔧 Funciones de debug disponibles:');
+console.log('   - debugMultiplayerState() - Estado completo');
+console.log('   - forceReloadRoomData() - Recargar desde Firebase');
+console.log('   - Panel de debug en interfaz de duelo');
+console.log('   - Logs detallados en todas las funciones');
 </body>
 </html>
+
 
 
 
