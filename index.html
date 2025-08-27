@@ -11511,8 +11511,264 @@ console.log('   - forceStartGame() - Forzar inicio del juego');
 console.log('🚨 La página debería dejar de cargarse indefinidamente');
 console.log('🚨 Los botones de reparación aparecerán en la interfaz');
 </script>
+    <!-- REPARACIÓN ESPECÍFICA: DATOS DEL INVITADO -->
+<script>
+console.log('🚨 REPARACIÓN ESPECÍFICA: Datos del invitado incompletos');
+
+// 1. FUNCIÓN PARA DETECTAR PROBLEMA DE GUEST
+window.detectGuestProblem = function() {
+    if (!multiplayerState.currentRoom || !database) {
+        console.error('❌ No hay sala activa');
+        return;
+    }
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).once('value')
+        .then((snapshot) => {
+            if (!snapshot.exists()) {
+                console.error('❌ La sala no existe');
+                return;
+            }
+            
+            const roomData = snapshot.val();
+            console.log('🔍 Analizando datos de la sala:', roomData);
+            
+            const problems = [];
+            
+            // Verificar guest
+            if (!roomData.guest) {
+                problems.push('❌ No hay datos del invitado');
+            } else {
+                if (!roomData.guest.name || roomData.guest.name === 'undefined') {
+                    problems.push('❌ Invitado sin nombre');
+                }
+                if (!roomData.guest.username) {
+                    problems.push('❌ Invitado sin username');
+                }
+            }
+            
+            // Verificar banco del guest
+            if (!roomData.questionBanks || !roomData.questionBanks.guest) {
+                problems.push('❌ Falta banco de preguntas del invitado');
+            }
+            
+            console.log('🚨 Problemas detectados:', problems);
+            
+            if (problems.length > 0) {
+                showGuestRepairOptions(problems);
+            } else {
+                console.log('✅ No hay problemas detectados');
+                showMessage('Los datos están correctos', 'success');
+            }
+        });
+};
+
+// 2. MOSTRAR OPCIONES DE REPARACIÓN
+function showGuestRepairOptions(problems) {
+    const problemsText = problems.join('\n');
+    
+    const message = `PROBLEMAS DETECTADOS:\n${problemsText}\n\nOPCIONES:\n\n1. KICK INVITADO - Expulsar al invitado actual para que se una correctamente\n\n2. ESPERAR - El invitado debe refrescar su página y volver a unirse\n\n3. FORZAR DATOS - Intentar reparar con datos por defecto (no recomendado)\n\n¿Qué deseas hacer?`;
+    
+    // Mostrar en UI
+    showMessage('Datos del invitado incompletos - Revisa las opciones en consola', 'error');
+    
+    console.log('🚨 ' + message);
+    console.log('💡 Usa estas funciones:');
+    console.log('   - kickGuest() - Expulsar invitado');
+    console.log('   - waitForGuest() - Mostrar código para reenviar');
+    console.log('   - forceGuestData() - Forzar datos (último recurso)');
+}
+
+// 3. FUNCIÓN PARA EXPULSAR AL INVITADO
+window.kickGuest = function() {
+    if (!multiplayerState.currentRoom || !database) {
+        console.error('❌ No hay sala activa');
+        return;
+    }
+    
+    const confirmKick = confirm('¿Estás seguro de que quieres expulsar al invitado?\n\nEsto limpiará su conexión parcial para que pueda unirse correctamente.');
+    
+    if (!confirmKick) {
+        console.log('❌ Operación cancelada');
+        return;
+    }
+    
+    console.log('🚪 Expulsando invitado...');
+    
+    const updates = {
+        'guest': null,
+        'guestReady': false,
+        'questionBanks/guest': null,
+        'status': 'waiting',
+        'lastActivity': firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).update(updates)
+        .then(() => {
+            console.log('✅ Invitado expulsado correctamente');
+            showMessage('Invitado expulsado. Pueden volver a unirse con el código: ' + multiplayerState.roomCode, 'success');
+            
+            // Actualizar estado local
+            multiplayerState.opponent = null;
+            multiplayerState.gameState = 'waiting';
+            
+            render();
+        })
+        .catch((error) => {
+            console.error('❌ Error expulsando invitado:', error);
+            showMessage('Error expulsando invitado: ' + error.message, 'error');
+        });
+};
+
+// 4. FUNCIÓN PARA MOSTRAR CÓDIGO Y ESPERAR
+window.waitForGuest = function() {
+    const roomCode = multiplayerState.roomCode;
+    
+    showMessage(`Código de sala: ${roomCode} - Compártelo con tu oponente para que se una correctamente`, 'success');
+    
+    console.log('📱 CÓDIGO DE SALA:', roomCode);
+    console.log('💬 Dile a tu oponente que:');
+    console.log('   1. Refresque su página (Ctrl+F5)');
+    console.log('   2. Vaya a Multijugador');
+    console.log('   3. Use "Unirse a Sala" con el código:', roomCode);
+    console.log('   4. Asegúrese de tener al menos 5 preguntas verificadas');
+    
+    // Crear modal con código grande
+    const modal = document.createElement('div');
+    modal.innerHTML = `
+        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center;" onclick="this.remove()">
+            <div style="background: white; padding: 40px; border-radius: 16px; text-align: center; max-width: 500px;" onclick="event.stopPropagation()">
+                <h2 style="color: #1f2937; margin: 0 0 20px 0;">Código de Sala</h2>
+                <div style="font-size: 4rem; font-weight: bold; color: #4f46e5; letter-spacing: 8px; margin: 20px 0; padding: 20px; background: #f0f9ff; border-radius: 12px;">
+                    ${roomCode}
+                </div>
+                <p style="color: #6b7280; margin: 20px 0;">Comparte este código con tu oponente</p>
+                <button onclick="this.parentElement.parentElement.remove()" style="padding: 12px 24px; background: #4f46e5; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px;">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+};
+
+// 5. FUNCIÓN DE ÚLTIMO RECURSO - FORZAR DATOS
+window.forceGuestData = function() {
+    const confirmForce = confirm('⚠️ ADVERTENCIA ⚠️\n\nEsto es un último recurso y puede causar problemas.\n\n¿Estás seguro de que quieres forzar datos por defecto para el invitado?');
+    
+    if (!confirmForce) {
+        console.log('❌ Operación cancelada');
+        return;
+    }
+    
+    console.log('🔧 Forzando datos por defecto...');
+    
+    // Crear datos básicos de invitado
+    const guestData = {
+        username: 'GuestUser',
+        name: 'Invitado',
+        questions: 0,
+        ready: true
+    };
+    
+    // Crear banco vacío para que no falle
+    const emptyBank = {
+        'placeholder': {
+            id: 'placeholder',
+            name: 'Sin preguntas',
+            questions: []
+        }
+    };
+    
+    const updates = {
+        'guest': guestData,
+        'questionBanks/guest': emptyBank,
+        'lastActivity': firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).update(updates)
+        .then(() => {
+            console.log('⚠️ Datos forzados aplicados');
+            showMessage('Datos forzados aplicados - El invitado aparecerá sin preguntas', 'success');
+            
+            setTimeout(() => {
+                forceSyncFromFirebase();
+            }, 1000);
+        })
+        .catch((error) => {
+            console.error('❌ Error forzando datos:', error);
+            showMessage('Error forzando datos: ' + error.message, 'error');
+        });
+};
+
+// 6. ACTUALIZAR INTERFAZ CON BOTONES DE REPARACIÓN DE GUEST
+const originalRenderRoomInterfaceGuest = renderRoomInterface;
+renderRoomInterface = function() {
+    const originalHTML = originalRenderRoomInterfaceGuest();
+    
+    // Si hay problema con el guest, mostrar opciones
+    if (multiplayerState.opponent && (!multiplayerState.opponent.name || multiplayerState.opponent.name === 'undefined')) {
+        
+        const guestRepairHTML = `
+            <div style="margin: 20px 0; padding: 20px; background: #fef2f2; border: 2px solid #ef4444; border-radius: 12px;">
+                <h3 style="color: #dc2626; margin: 0 0 15px 0; text-align: center;">🚨 Problema con el Invitado</h3>
+                <p style="color: #991b1b; margin: 0 0 15px 0; font-size: 14px; text-align: center;">
+                    El invitado se conectó parcialmente pero faltan sus datos.
+                </p>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                    <button onclick="detectGuestProblem()" style="padding: 10px 15px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                        🔍 Analizar Problema
+                    </button>
+                    
+                    <button onclick="kickGuest()" style="padding: 10px 15px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                        🚪 Expulsar Invitado
+                    </button>
+                    
+                    <button onclick="waitForGuest()" style="padding: 10px 15px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                        📱 Mostrar Código
+                    </button>
+                </div>
+                
+                <div style="text-align: center; margin-top: 10px;">
+                    <small style="color: #7f1d1d;">
+                        Recomendado: Expulsar invitado y que se una de nuevo correctamente
+                    </small>
+                </div>
+            </div>
+        `;
+        
+        // Insertar después del header
+        return originalHTML.replace(
+            '</div>',
+            guestRepairHTML + '</div>'
+        );
+    }
+    
+    return originalHTML;
+};
+
+// 7. AUTO-DETECCIÓN AL CARGAR
+setTimeout(() => {
+    if (multiplayerState.currentRoom) {
+        detectGuestProblem();
+    }
+}, 2000);
+
+console.log('✅ REPARACIÓN DE GUEST APLICADA');
+console.log('🔧 Funciones disponibles:');
+console.log('   - detectGuestProblem() - Analizar problema del invitado');
+console.log('   - kickGuest() - Expulsar invitado para reconexión limpia');
+console.log('   - waitForGuest() - Mostrar código de sala grande');
+console.log('   - forceGuestData() - Último recurso (no recomendado)');
+console.log('');
+console.log('💡 SOLUCIÓN RECOMENDADA:');
+console.log('   1. Ejecutar kickGuest()');
+console.log('   2. Compartir código con invitado');
+console.log('   3. Que el invitado refresque página y se una de nuevo');
+</script>
 </body>
 </html>
+
 
 
 
