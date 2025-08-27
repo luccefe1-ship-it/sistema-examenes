@@ -12173,8 +12173,200 @@ setTimeout(() => {
     }
 }, 1000);
 </script>
+    <!-- SISTEMA LISTO Y TRANSICIÓN AL DUELO -->
+<script>
+// FUNCIÓN PARA MARCAR COMO LISTO
+window.markAsReady = function() {
+    if (!multiplayerState.currentRoom || !database) {
+        showMessage('Error de conexión', 'error');
+        return;
+    }
+    
+    const readyField = multiplayerState.isHost ? 'hostReady' : 'guestReady';
+    const playerField = multiplayerState.isHost ? 'host/ready' : 'guest/ready';
+    
+    const updates = {};
+    updates[readyField] = true;
+    updates[playerField] = true;
+    updates['lastActivity'] = firebase.database.ServerValue.TIMESTAMP;
+
+    database.ref('rooms/' + multiplayerState.currentRoom).update(updates)
+        .then(() => {
+            showMessage('Marcado como listo', 'success');
+        })
+        .catch((error) => {
+            showMessage('Error: ' + error.message, 'error');
+        });
+};
+
+// FUNCIÓN PARA VERIFICAR SI AMBOS ESTÁN LISTOS E INICIAR JUEGO
+function checkBothReadyAndStart(roomData) {
+    const hostReady = roomData.hostReady || false;
+    const guestReady = roomData.guestReady || false;
+    
+    if (hostReady && guestReady && roomData.status === 'waiting') {
+        // Iniciar juego automáticamente
+        database.ref('rooms/' + multiplayerState.currentRoom).update({
+            status: 'playing',
+            'gameData/currentTurn': 'host',
+            lastActivity: firebase.database.ServerValue.TIMESTAMP
+        });
+        showMessage('¡Iniciando duelo!', 'success');
+    }
+}
+
+// REEMPLAZAR updateLocalStateFromRoom PARA MANEJAR TRANSICIONES
+window.updateLocalStateFromRoom = function(roomData) {
+    multiplayerState.gameState = roomData.status;
+    multiplayerState.currentRoomData = roomData;
+    
+    if (multiplayerState.isHost) {
+        multiplayerState.opponent = roomData.guest;
+    } else {
+        multiplayerState.opponent = roomData.host;
+    }
+    
+    // Sincronizar bancos
+    if (roomData.questionBanks) {
+        multiplayerState.hostQuestionBank = roomData.questionBanks.host || {};
+        multiplayerState.guestQuestionBank = roomData.questionBanks.guest || {};
+    }
+    
+    // Datos de juego
+    if (roomData.gameData) {
+        multiplayerState.myTurn = (roomData.gameData.currentTurn === 'host') === multiplayerState.isHost;
+        multiplayerState.myFailures = multiplayerState.isHost ? roomData.gameData.hostFailures || 0 : roomData.gameData.guestFailures || 0;
+        multiplayerState.opponentFailures = multiplayerState.isHost ? roomData.gameData.guestFailures || 0 : roomData.gameData.hostFailures || 0;
+    }
+    
+    // Verificar si ambos están listos para iniciar
+    checkBothReadyAndStart(roomData);
+};
+
+// RENDERIZAR INTERFAZ DE SALA CON BOTONES LISTO
+window.renderRoomInterface = function() {
+    if (multiplayerState.gameState === 'playing') {
+        return renderDuelInterface();
+    }
+    
+    const roomCode = multiplayerState.roomCode;
+    const isHost = multiplayerState.isHost;
+    const opponent = multiplayerState.opponent;
+    const roomData = multiplayerState.currentRoomData || {};
+    
+    const myReady = isHost ? (roomData.hostReady || false) : (roomData.guestReady || false);
+    const opponentReady = !isHost ? (roomData.hostReady || false) : (roomData.guestReady || false);
+    
+    return `
+        <div style="max-width: 700px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 25px; border-radius: 16px;">
+                <h2 style="margin: 0 0 10px 0; font-size: 1.8rem;">Duelo de Preguntas</h2>
+                <div style="font-size: 2rem; font-weight: bold; letter-spacing: 3px; margin: 10px 0;">${roomCode}</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                <div style="background: ${isHost ? '#f0fdf4' : '#f8fafc'}; border: 2px solid ${isHost ? '#22c55e' : '#e2e8f0'}; border-radius: 12px; padding: 20px; text-align: center; position: relative;">
+                    <div style="position: absolute; top: 10px; right: 10px; width: 12px; height: 12px; border-radius: 50%; background: ${(isHost ? myReady : opponentReady) ? '#22c55e' : '#ef4444'};"></div>
+                    <div style="font-size: 1.5rem; margin-bottom: 10px;">👑</div>
+                    <h3 style="margin: 0; color: #1f2937;">${isHost ? state.currentUser.name : (opponent?.name || 'Anfitrión')}</h3>
+                    <p style="margin: 5px 0; font-size: 12px; color: #6b7280;">Anfitrión ${isHost ? '(Tú)' : ''}</p>
+                    <div style="margin-top: 8px; font-size: 11px; color: ${(isHost ? myReady : opponentReady) ? '#16a34a' : '#dc2626'};">
+                        ${(isHost ? myReady : opponentReady) ? '✅ LISTO' : '⏳ ESPERANDO'}
+                    </div>
+                </div>
+                
+                <div style="background: ${!isHost && opponent ? '#f0fdf4' : '#f9fafb'}; border: 2px solid ${!isHost && opponent ? '#22c55e' : '#d1d5db'}; border-radius: 12px; padding: 20px; text-align: center; position: relative;">
+                    ${opponent ? `<div style="position: absolute; top: 10px; right: 10px; width: 12px; height: 12px; border-radius: 50%; background: ${(!isHost ? myReady : opponentReady) ? '#22c55e' : '#ef4444'};"></div>` : ''}
+                    <div style="font-size: 1.5rem; margin-bottom: 10px;">${opponent ? '👤' : '⏳'}</div>
+                    <h3 style="margin: 0; color: #1f2937;">${opponent ? (isHost ? opponent.name : state.currentUser.name) : 'Esperando...'}</h3>
+                    <p style="margin: 5px 0; font-size: 12px; color: #6b7280;">${opponent ? `Invitado ${!isHost ? '(Tú)' : ''}` : 'Esperando jugador'}</p>
+                    ${opponent ? `<div style="margin-top: 8px; font-size: 11px; color: ${(!isHost ? myReady : opponentReady) ? '#16a34a' : '#dc2626'};"> ${(!isHost ? myReady : opponentReady) ? '✅ LISTO' : '⏳ ESPERANDO'}</div>` : ''}
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-bottom: 30px;">
+                ${opponent ? `
+                    <div style="margin-bottom: 20px;">
+                        ${myReady && opponentReady ? `
+                            <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; padding: 20px;">
+                                <h3 style="color: #166534; margin: 0;">🚀 ¡Iniciando duelo!</h3>
+                            </div>
+                        ` : myReady ? `
+                            <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 12px; padding: 20px;">
+                                <h3 style="color: #92400e; margin: 0;">⏳ Esperando que tu oponente esté listo</h3>
+                            </div>
+                        ` : opponentReady ? `
+                            <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 12px; padding: 20px;">
+                                <h3 style="color: #92400e; margin: 0;">⚡ Tu oponente está listo</h3>
+                            </div>
+                        ` : `
+                            <div style="background: #f0f9ff; border: 2px solid #3b82f6; border-radius: 12px; padding: 20px;">
+                                <h3 style="color: #1e40af; margin: 0;">📋 Presiona "Estoy Listo" para comenzar</h3>
+                            </div>
+                        `}
+                    </div>
+                ` : ''}
+            </div>
+            
+            <div style="text-align: center;">
+                ${opponent && !myReady ? `
+                    <button onclick="markAsReady()" class="btn btn-success" style="padding: 15px 25px; font-size: 16px; margin-right: 15px;">
+                        ✅ Estoy Listo
+                    </button>
+                ` : ''}
+                <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 15px 25px; font-size: 16px;">
+                    🚪 Salir de la Sala
+                </button>
+            </div>
+        </div>
+    `;
+};
+
+// ASEGURAR QUE toggleTopicQuestions EXISTE
+window.toggleTopicQuestions = function(topicKey) {
+    const element = document.getElementById(`questions-${topicKey}`);
+    if (element) {
+        element.style.display = element.style.display === 'none' ? 'block' : 'none';
+    }
+};
+
+// ASEGURAR QUE selectQuestionFromOpponent EXISTE
+window.selectQuestionFromOpponent = function(topicKey, questionKey) {
+    const opponentBank = getOpponentQuestionBank();
+    
+    if (!opponentBank[topicKey]) {
+        showMessage('Error: Tema no encontrado', 'error');
+        return;
+    }
+    
+    const topic = opponentBank[topicKey];
+    const question = topic.questions.find(q => q.firebaseKey === questionKey || q.id === questionKey);
+    
+    if (!question) {
+        showMessage('Error: Pregunta no encontrada', 'error');
+        return;
+    }
+    
+    const updates = {
+        'gameData/currentQuestionData': question,
+        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
+        lastActivity: firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).update(updates)
+        .then(() => {
+            showMessage('Pregunta enviada', 'success');
+        })
+        .catch((error) => {
+            showMessage('Error enviando pregunta', 'error');
+        });
+};
+
+console.log('✅ Sistema de listo y transición al duelo activado');
+</script>
 </body>
 </html>
+
 
 
 
