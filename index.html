@@ -10643,15 +10643,15 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
     console.log('   - Función toggleTopicQuestions() para expandir/contraer');
     console.log('   - Función answerCurrentQuestion() preparada para siguiente paso');
 </script>
-   <!-- 
-PASO 4: SISTEMA DE SELECCIÓN DE PREGUNTAS
+  <!-- 
+PASO 4 CORREGIDO: SISTEMA DE SELECCIÓN DE PREGUNTAS
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este paso implementa la selección y envío de preguntas entre jugadores
+CORRIGE los problemas de visualización de temas
 -->
 
 <script>
-    // ========== PASO 4: SISTEMA DE SELECCIÓN DE PREGUNTAS ==========
-    console.log('🎮 PASO 4: Implementando sistema de selección de preguntas...');
+    // ========== PASO 4 CORREGIDO: SISTEMA DE SELECCIÓN DE PREGUNTAS ==========
+    console.log('🎮 PASO 4 CORREGIDO: Implementando sistema de selección de preguntas...');
 
     // FUNCIÓN principal para seleccionar pregunta del banco del oponente
     window.selectQuestionFromOpponent = function(topicKey, questionKey) {
@@ -10665,8 +10665,11 @@ Este paso implementa la selección y envío de preguntas entre jugadores
         
         // Obtener la pregunta del banco del oponente
         const opponentBank = getOpponentQuestionBank();
+        console.log('🏦 Banco del oponente:', opponentBank);
+        
         if (!opponentBank || !opponentBank[topicKey] || !opponentBank[topicKey].questions) {
             showMessage('Error: No se encontró el tema seleccionado', 'error');
+            console.error('❌ No se encontró tema:', topicKey, 'en banco:', opponentBank);
             return;
         }
         
@@ -10674,6 +10677,7 @@ Este paso implementa la selección y envío de preguntas entre jugadores
         const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionKey);
         if (!question) {
             showMessage('Error: No se encontró la pregunta seleccionada', 'error');
+            console.error('❌ No se encontró pregunta:', questionKey);
             return;
         }
         
@@ -10734,6 +10738,92 @@ Este paso implementa la selección y envío de preguntas entre jugadores
         questionDivs.forEach(div => {
             div.style.display = 'none';
         });
+    }
+
+    // FUNCIÓN CORREGIDA para renderizar los temas del oponente
+    function renderOpponentTopicsFixed(questionBank) {
+        console.log('🎨 Renderizando temas del oponente:', questionBank);
+        
+        if (!questionBank || Object.keys(questionBank).length === 0) {
+            console.log('⚠️ No hay banco de preguntas o está vacío');
+            return `
+                <div style="text-align: center; padding: 20px; color: #6b7280;">
+                    <div style="font-size: 1.5rem; margin-bottom: 10px;">📚</div>
+                    <p style="margin: 0; font-size: 14px;">Sin temas disponibles</p>
+                    <button onclick="debugQuestionBanks()" style="margin-top: 10px; background: none; border: 1px solid #d1d5db; color: #6b7280; font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
+                        🔍 Debug Bancos
+                    </button>
+                </div>
+            `;
+        }
+        
+        let html = '<div style="font-size: 13px; color: #374151; margin-bottom: 15px; text-align: center; font-weight: 600;">Temas Disponibles:</div>';
+        let hasTopics = false;
+        
+        Object.keys(questionBank).forEach(topicKey => {
+            const topic = questionBank[topicKey];
+            console.log(`📂 Procesando tema '${topicKey}':`, topic);
+            
+            if (topic.questions && topic.questions.length > 0) {
+                hasTopics = true;
+                html += `
+                    <div style="margin-bottom: 15px; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden;">
+                        <div style="background: #f9fafb; padding: 10px; border-bottom: 1px solid #d1d5db; cursor: pointer;" onclick="toggleTopicQuestions('${topicKey}')">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-weight: 500; color: #374151; font-size: 13px;">${topic.name}</span>
+                                <span style="background: #e5e7eb; color: #374151; padding: 2px 6px; border-radius: 10px; font-size: 11px;">
+                                    ${topic.questions.length}
+                                </span>
+                            </div>
+                        </div>
+                        <div id="questions-${topicKey}" style="display: none; max-height: 200px; overflow-y: auto;">
+                            ${topic.questions.map((question, index) => `
+                                <div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; cursor: pointer; font-size: 12px; line-height: 1.4;" 
+                                     onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey}')"
+                                     onmouseover="this.style.backgroundColor='#f3f4f6'" 
+                                     onmouseout="this.style.backgroundColor='white'">
+                                    <strong>P${index + 1}:</strong> ${question.question.substring(0, 80)}${question.question.length > 80 ? '...' : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        
+        if (!hasTopics) {
+            html += `
+                <div style="text-align: center; padding: 20px; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 10px;">
+                    <div style="font-size: 1.5rem; margin-bottom: 10px;">📝</div>
+                    <p style="margin: 0; font-size: 13px;">El oponente no tiene preguntas verificadas</p>
+                </div>
+            `;
+        }
+        
+        console.log('✅ HTML de temas generado, topics encontrados:', hasTopics);
+        return html;
+    }
+
+    // FUNCIÓN CORREGIDA para obtener el banco del oponente con debug
+    function getOpponentQuestionBankWithDebug() {
+        console.log('🏦 Obteniendo banco del oponente...');
+        console.log('Current room data:', multiplayerState.currentRoomData);
+        
+        const roomData = multiplayerState.currentRoomData;
+        if (!roomData || !roomData.questionBanks) {
+            console.log('❌ No hay datos de sala o bancos de preguntas');
+            return {};
+        }
+        
+        const isHost = multiplayerState.isHost;
+        const opponentBankKey = isHost ? 'guest' : 'host';
+        const opponentBank = roomData.questionBanks[opponentBankKey];
+        
+        console.log('🎯 Soy host:', isHost);
+        console.log('🎯 Clave del oponente:', opponentBankKey);
+        console.log('🎯 Banco del oponente:', opponentBank);
+        
+        return opponentBank || {};
     }
 
     // FUNCIÓN para manejar cuando se recibe una pregunta nueva
@@ -10802,6 +10892,32 @@ Este paso implementa la selección y envío de preguntas entre jugadores
         return questionData;
     };
 
+    // FUNCIÓN corregida para debug de bancos de preguntas
+    window.debugQuestionBanks = function() {
+        console.log('🔍 DEBUG - Bancos de Preguntas:');
+        console.log('MultiplayerState:', multiplayerState);
+        console.log('Current Room Data:', multiplayerState.currentRoomData);
+        console.log('Question Banks:', multiplayerState.currentRoomData?.questionBanks);
+        console.log('My Bank:', getMyQuestionBank());
+        console.log('Opponent Bank:', getOpponentQuestionBankWithDebug());
+        console.log('Is Host:', multiplayerState.isHost);
+        
+        // Mostrar información en pantalla también
+        const myBank = getMyQuestionBank();
+        const opponentBank = getOpponentQuestionBankWithDebug();
+        
+        const myTopicCount = Object.keys(myBank || {}).length;
+        const opponentTopicCount = Object.keys(opponentBank || {}).length;
+        
+        showMessage(`Debug: Mi banco ${myTopicCount} temas, Oponente ${opponentTopicCount} temas`, 'info');
+        
+        return {
+            myBank: myBank,
+            opponentBank: opponentBank,
+            roomData: multiplayerState.currentRoomData
+        };
+    };
+
     // FUNCIÓN para limpiar pregunta actual (útil para testing)
     window.clearCurrentQuestion = function() {
         if (!multiplayerState.roomRef) {
@@ -10827,60 +10943,138 @@ Este paso implementa la selección y envío de preguntas entre jugadores
             });
     };
 
-    // ACTUALIZAR updateLocalStateFromRoom para detectar nuevas preguntas
-    const originalUpdateLocalStateFromRoomStep4 = updateLocalStateFromRoom;
-    updateLocalStateFromRoom = function(roomData) {
-        // Llamar función original del paso anterior
-        originalUpdateLocalStateFromRoomStep4(roomData);
-        
-        // Verificar si hay nueva pregunta
-        checkForNewQuestion(roomData);
-        
-        // Actualizar datos de la pregunta actual
-        if (roomData?.gameData?.currentQuestionData) {
-            multiplayerState.currentQuestionData = roomData.gameData.currentQuestionData;
+    // ACTUALIZAR renderRoomInterface para usar la función corregida
+    const originalRenderRoomInterfaceStep4 = renderRoomInterface;
+    renderRoomInterface = function() {
+        // Si el juego está en curso, mostrar interfaz de duelo
+        if (multiplayerState.gameState === 'playing') {
+            return renderDuelInterfaceFixed();
         }
+        
+        // Si no, mostrar la interfaz de sala normal
+        return originalRenderRoomInterfaceStep4();
     };
 
-    // FUNCIÓN helper para obtener información sobre quién puede responder
-    function whoCanAnswer() {
-        const questionData = multiplayerState.currentRoomData?.gameData?.currentQuestionData;
-        if (!questionData) return null;
+    // FUNCIÓN CORREGIDA para renderizar la interfaz de duelo
+    function renderDuelInterfaceFixed() {
+        const isHost = multiplayerState.isHost;
+        const opponent = multiplayerState.opponent;
+        const myTurn = multiplayerState.myTurn;
+        const myFailures = multiplayerState.myFailures || 0;
+        const opponentFailures = multiplayerState.opponentFailures || 0;
         
-        const shouldAnswer = (questionData.sentBy === 'host') !== multiplayerState.isHost;
+        // Obtener bancos de preguntas con debug
+        const opponentBank = getOpponentQuestionBankWithDebug();
+        const myBank = getMyQuestionBank();
         
-        return {
-            questionExists: true,
-            sentBy: questionData.sentBy,
-            shouldAnswer: shouldAnswer,
-            canAnswer: shouldAnswer,
-            myTurn: multiplayerState.myTurn
-        };
+        console.log('🎨 Renderizando duelo - Mi turno:', myTurn, 'Banco oponente:', opponentBank);
+        
+        // Datos de la pregunta actual si existe
+        const currentQuestion = multiplayerState.currentRoomData?.gameData?.currentQuestionData || null;
+        
+        return `
+            <div style="max-width: 1400px; margin: 0 auto; padding: 20px; min-height: calc(100vh - 200px);">
+                
+                <!-- Header del duelo -->
+                <div style="text-align: center; margin-bottom: 25px; background: linear-gradient(135deg, #dc2626, #7f1d1d); color: white; padding: 20px; border-radius: 16px;">
+                    <h1 style="margin: 0 0 10px 0; font-size: 2rem; font-weight: 800;">⚔️ Duelo de Preguntas</h1>
+                    <div style="font-size: 1.8rem; font-weight: bold; letter-spacing: 2px; margin: 5px 0;">
+                        ${multiplayerState.roomCode}
+                    </div>
+                    <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                        ${myTurn ? 'Tu turno: Selecciona una pregunta' : 'Turno del oponente: Espera tu respuesta'}
+                    </p>
+                </div>
+                
+                <!-- Interfaz de 3 franjas -->
+                <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 20px; min-height: 500px;">
+                    
+                    <!-- FRANJA IZQUIERDA: Panel del jugador que puede seleccionar pregunta -->
+                    <div style="background: ${myTurn ? '#f0f9ff' : '#f8fafc'}; border: 2px solid ${myTurn ? '#0ea5e9' : '#e2e8f0'}; border-radius: 12px; overflow-y: auto; max-height: 600px;">
+                        <div style="padding: 15px; border-bottom: 2px solid ${myTurn ? '#0ea5e9' : '#e2e8f0'}; background: ${myTurn ? '#0ea5e9' : '#6b7280'}; color: white; text-align: center;">
+                            <h3 style="margin: 0; font-size: 16px;">${isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</h3>
+                            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${state.currentUser.name}</p>
+                            <div style="margin-top: 8px;">
+                                <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; font-size: 12px;">
+                                    ❌ ${myFailures}/3 Fallos
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div style="padding: 15px;">
+                            ${myTurn ? renderOpponentTopicsFixed(opponentBank) : `
+                                <div style="text-align: center; padding: 40px 20px; color: #6b7280;">
+                                    <div style="font-size: 2rem; margin-bottom: 10px;">⏳</div>
+                                    <p style="margin: 0; font-size: 14px;">Esperando tu turno</p>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                    
+                    <!-- FRANJA CENTRAL: Pregunta actual -->
+                    <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; display: flex; flex-direction: column;">
+                        <div style="padding: 20px; border-bottom: 2px solid #e2e8f0; background: linear-gradient(135deg, #f8fafc, #e2e8f0); text-align: center;">
+                            <h3 style="margin: 0; color: #374151; font-size: 18px;">📋 Pregunta Actual</h3>
+                        </div>
+                        
+                        <div style="flex: 1; padding: 25px; display: flex; align-items: center; justify-content: center;">
+                            ${currentQuestion ? renderCurrentQuestionFixed(currentQuestion, !myTurn) : `
+                                <div style="text-align: center; color: #9ca3af;">
+                                    <div style="font-size: 4rem; margin-bottom: 20px;">🎯</div>
+                                    <h3 style="color: #6b7280; margin: 0 0 10px 0;">Esperando pregunta</h3>
+                                    <p style="margin: 0; font-size: 14px;">
+                                        ${myTurn ? 'Selecciona una pregunta del banco del oponente' : 'Tu oponente está seleccionando una pregunta'}
+                                    </p>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                    
+                    <!-- FRANJA DERECHA: Panel del oponente -->
+                    <div style="background: ${!myTurn ? '#fef3c7' : '#f8fafc'}; border: 2px solid ${!myTurn ? '#f59e0b' : '#e2e8f0'}; border-radius: 12px; overflow-y: auto; max-height: 600px;">
+                        <div style="padding: 15px; border-bottom: 2px solid ${!myTurn ? '#f59e0b' : '#e2e8f0'}; background: ${!myTurn ? '#f59e0b' : '#6b7280'}; color: white; text-align: center;">
+                            <h3 style="margin: 0; font-size: 16px;">${!isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</h3>
+                            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${opponent ? opponent.name : 'Oponente'}</p>
+                            <div style="margin-top: 8px;">
+                                <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; font-size: 12px;">
+                                    ❌ ${opponentFailures}/3 Fallos
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div style="padding: 15px;">
+                            ${!myTurn ? renderOpponentTopicsFixed(myBank) : `
+                                <div style="text-align: center; padding: 40px 20px; color: #6b7280;">
+                                    <div style="font-size: 2rem; margin-bottom: 10px;">🤔</div>
+                                    <p style="margin: 0; font-size: 14px;">Seleccionando pregunta...</p>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Botones de debug y utilidades -->
+                <div style="text-align: center; margin-top: 15px;">
+                    <button onclick="debugQuestionBanks()" class="btn btn-secondary" style="padding: 8px 16px; margin: 0 5px; font-size: 12px;">
+                        🔍 Debug Bancos
+                    </button>
+                    <button onclick="debugCurrentQuestion()" class="btn btn-info" style="padding: 8px 16px; margin: 0 5px; font-size: 12px;">
+                        📋 Debug Pregunta
+                    </button>
+                </div>
+                
+                <!-- Botón salir -->
+                <div style="text-align: center; margin-top: 15px;">
+                    <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 12px 24px;">
+                        🚪 Salir del Duelo
+                    </button>
+                </div>
+            </div>
+        `;
     }
 
-    // FUNCIÓN de utilidad para desarrolladores
-    window.multiplayerDebug = function() {
-        console.log('🎮 MULTIPLAYER DEBUG INFO:');
-        console.log('Current State:', multiplayerState);
-        console.log('Question Banks:', {
-            mine: getMyQuestionBank(),
-            opponent: getOpponentQuestionBank()
-        });
-        console.log('Who can answer?', whoCanAnswer());
-        console.log('Current question debug:', debugCurrentQuestion());
-        
-        return {
-            state: multiplayerState,
-            myBank: getMyQuestionBank(),
-            opponentBank: getOpponentQuestionBank(),
-            whoCanAnswer: whoCanAnswer(),
-            currentQuestion: debugCurrentQuestion()
-        };
-    };
-
-    // MEJORAR renderCurrentQuestion para mejor feedback visual
-    const originalRenderCurrentQuestion = renderCurrentQuestion;
-    function renderCurrentQuestion(question, canAnswer) {
+    // FUNCIÓN CORREGIDA para renderizar la pregunta actual
+    function renderCurrentQuestionFixed(question, canAnswer) {
         if (!question) {
             return `
                 <div style="text-align: center; color: #9ca3af;">
@@ -10893,7 +11087,6 @@ Este paso implementa la selección y envío de preguntas entre jugadores
             `;
         }
         
-        const questionInfo = whoCanAnswer();
         const isMyQuestion = (question.sentBy === 'host') === multiplayerState.isHost;
         
         return `
@@ -10945,31 +11138,56 @@ Este paso implementa la selección y envío de preguntas entre jugadores
                         <span style="color: #92400e; font-size: 13px; font-weight: 500;">⏳ Esperando respuesta del oponente</span>
                     </div>
                 `}
-                
-                <!-- Debug info (solo en desarrollo) -->
-                <div style="text-align: center; margin-top: 15px;">
-                    <button onclick="debugCurrentQuestion()" style="background: none; border: 1px solid #d1d5db; color: #6b7280; font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
-                        🔍 Debug Info
-                    </button>
-                </div>
             </div>
         `;
     }
 
-    console.log('✅ PASO 4 completado - Sistema de selección de preguntas implementado');
-    console.log('🎮 Funcionalidades añadidas:');
-    console.log('   - selectQuestionFromOpponent() completamente funcional');
-    console.log('   - Envío automático de preguntas a Firebase');
-    console.log('   - Detección en tiempo real de nuevas preguntas');
-    console.log('   - Colapso automático de temas después de seleccionar');
-    console.log('   - Sistema de notificaciones para nuevas preguntas');
-    console.log('   - Funciones de debug: debugCurrentQuestion(), multiplayerDebug()');
-    console.log('   - Función de utilidad: clearCurrentQuestion()');
-    console.log('   - Mejor feedback visual en renderCurrentQuestion()');
-    console.log('📋 Listo para PASO 5: Sistema de Respuestas y Verificación');
-</script> 
+    // ACTUALIZAR updateLocalStateFromRoom para detectar nuevas preguntas
+    const originalUpdateLocalStateFromRoomStep4 = updateLocalStateFromRoom;
+    updateLocalStateFromRoom = function(roomData) {
+        // Llamar función original del paso anterior
+        originalUpdateLocalStateFromRoomStep4(roomData);
+        
+        // Verificar si hay nueva pregunta
+        checkForNewQuestion(roomData);
+        
+        // Actualizar datos de la pregunta actual
+        if (roomData?.gameData?.currentQuestionData) {
+            multiplayerState.currentQuestionData = roomData.gameData.currentQuestionData;
+        }
+    };
+
+    // FUNCIÓN de utilidad para desarrolladores
+    window.multiplayerDebug = function() {
+        console.log('🎮 MULTIPLAYER DEBUG INFO:');
+        console.log('Current State:', multiplayerState);
+        console.log('Question Banks:', {
+            mine: getMyQuestionBank(),
+            opponent: getOpponentQuestionBankWithDebug()
+        });
+        console.log('Current question debug:', debugCurrentQuestion());
+        
+        return {
+            state: multiplayerState,
+            myBank: getMyQuestionBank(),
+            opponentBank: getOpponentQuestionBankWithDebug(),
+            currentQuestion: debugCurrentQuestion()
+        };
+    };
+
+    console.log('✅ PASO 4 CORREGIDO completado - Sistema de selección de preguntas implementado');
+    console.log('🎮 Correcciones aplicadas:');
+    console.log('   - renderOpponentTopicsFixed() con mejor debug');
+    console.log('   - getOpponentQuestionBankWithDebug() con logs detallados');
+    console.log('   - debugQuestionBanks() mejorado');
+    console.log('   - renderDuelInterfaceFixed() usando funciones corregidas');
+    console.log('   - Botones de debug añadidos a la interfaz');
+    console.log('   - Mejor manejo de casos sin temas');
+    console.log('📋 Usar debugQuestionBanks() en consola para diagnósticos');
+</script>
 </body>
 </html>
+
 
 
 
