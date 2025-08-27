@@ -11766,8 +11766,236 @@ console.log('   1. Ejecutar kickGuest()');
 console.log('   2. Compartir código con invitado');
 console.log('   3. Que el invitado refresque página y se una de nuevo');
 </script>
+    <!-- SOLUCIÓN DIRECTA: FORZAR AMBOS BANCOS -->
+<script>
+console.log('💪 SOLUCIÓN DIRECTA: Forzando sincronización de ambos bancos...');
+
+// FUNCIÓN PARA FORZAR AMBOS BANCOS CON DATOS REALES
+window.forceFixBothBanks = function() {
+    if (!multiplayerState.currentRoom || !database) {
+        console.error('No hay sala activa');
+        return;
+    }
+    
+    console.log('🔥 FORZANDO REPARACIÓN DIRECTA...');
+    
+    // Obtener preguntas verificadas del usuario actual
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    console.log('Preguntas verificadas encontradas:', verifiedQuestions.length);
+    
+    if (verifiedQuestions.length < 5) {
+        showMessage('Error: Necesitas al menos 5 preguntas verificadas', 'error');
+        return;
+    }
+    
+    // Organizar banco del usuario actual
+    const myBank = {};
+    
+    state.topics.forEach(topic => {
+        const topicQuestions = verifiedQuestions.filter(q => q.topicId === topic.id);
+        if (topicQuestions.length > 0) {
+            const cleanTopicId = topic.id.toString().replace(/[.#$\/\[\]]/g, '_');
+            myBank[cleanTopicId] = {
+                id: topic.id,
+                name: topic.name,
+                questions: topicQuestions.map(q => ({
+                    id: q.id,
+                    firebaseKey: q.id.toString().replace(/[.#$\/\[\]]/g, '_'),
+                    question: q.question,
+                    options: q.options,
+                    correctAnswer: q.correctAnswer,
+                    topicId: q.topicId
+                }))
+            };
+        }
+    });
+    
+    console.log('Mi banco organizado:', myBank);
+    
+    // Datos de usuario completos
+    const myUserData = {
+        username: state.currentUser.username,
+        name: state.currentUser.name,
+        questions: verifiedQuestions.length,
+        ready: true
+    };
+    
+    // Preparar actualizaciones
+    const updates = {};
+    
+    if (multiplayerState.isHost) {
+        console.log('Actualizando datos del HOST...');
+        updates['host'] = myUserData;
+        updates['questionBanks/host'] = myBank;
+    } else {
+        console.log('Actualizando datos del GUEST...');
+        updates['guest'] = myUserData;
+        updates['questionBanks/guest'] = myBank;
+    }
+    
+    updates['lastActivity'] = firebase.database.ServerValue.TIMESTAMP;
+    
+    console.log('Actualizaciones a enviar:', updates);
+    
+    // Actualizar en Firebase
+    database.ref('rooms/' + multiplayerState.currentRoom).update(updates)
+        .then(() => {
+            console.log('✅ Datos actualizados en Firebase');
+            showMessage('Datos actualizados - recargando...', 'success');
+            
+            // Esperar y recargar
+            setTimeout(() => {
+                database.ref('rooms/' + multiplayerState.currentRoom).once('value')
+                    .then((snapshot) => {
+                        const roomData = snapshot.val();
+                        console.log('Datos recargados:', roomData);
+                        
+                        // Forzar sincronización local
+                        if (roomData.questionBanks) {
+                            multiplayerState.hostQuestionBank = roomData.questionBanks.host || {};
+                            multiplayerState.guestQuestionBank = roomData.questionBanks.guest || {};
+                            multiplayerState.currentRoomData = roomData;
+                            
+                            // Actualizar oponente
+                            if (multiplayerState.isHost) {
+                                multiplayerState.opponent = roomData.guest;
+                            } else {
+                                multiplayerState.opponent = roomData.host;
+                            }
+                            
+                            console.log('Estado local actualizado:');
+                            console.log('- Host bank:', Object.keys(multiplayerState.hostQuestionBank));
+                            console.log('- Guest bank:', Object.keys(multiplayerState.guestQuestionBank));
+                            
+                            // Verificar que getOpponentQuestionBank funcione
+                            const opponentBank = getOpponentQuestionBank();
+                            console.log('- Banco oponente:', Object.keys(opponentBank));
+                            
+                            if (Object.keys(opponentBank).length > 0) {
+                                showMessage('¡Bancos sincronizados correctamente!', 'success');
+                            } else {
+                                showMessage('Aún hay problemas con el banco del oponente', 'error');
+                            }
+                            
+                            render();
+                        }
+                    });
+            }, 1500);
+        })
+        .catch((error) => {
+            console.error('Error actualizando datos:', error);
+            showMessage('Error: ' + error.message, 'error');
+        });
+};
+
+// FUNCIÓN DE TEST RÁPIDO
+window.testBanksNow = function() {
+    console.log('=== TEST RÁPIDO DE BANCOS ===');
+    console.log('Room:', multiplayerState.currentRoom);
+    console.log('IsHost:', multiplayerState.isHost);
+    
+    const myBank = getMyQuestionBank();
+    const opponentBank = getOpponentQuestionBank();
+    
+    console.log('Mi banco keys:', Object.keys(myBank));
+    console.log('Banco oponente keys:', Object.keys(opponentBank));
+    
+    console.log('Mi banco completo:', myBank);
+    console.log('Banco oponente completo:', opponentBank);
+    
+    if (Object.keys(opponentBank).length === 0) {
+        console.log('🚨 EL BANCO DEL OPONENTE ESTÁ VACÍO - EJECUTA forceFixBothBanks()');
+        return false;
+    } else {
+        console.log('✅ Los bancos parecen estar bien');
+        return true;
+    }
+};
+
+// NUEVA renderOpponentTopics QUE SIEMPRE FUNCIONE
+window.renderOpponentTopics = function(questionBank) {
+    console.log('🎨 renderOpponentTopics ejecutándose...');
+    
+    // Si el banco está vacío, intentar obtenerlo de nuevo
+    if (!questionBank || Object.keys(questionBank).length === 0) {
+        console.log('🔄 Banco vacío, obteniendo de nuevo...');
+        questionBank = getOpponentQuestionBank();
+        
+        if (!questionBank || Object.keys(questionBank).length === 0) {
+            console.log('🚨 Banco sigue vacío después de re-obtener');
+            
+            return `
+                <div style="text-align: center; padding: 20px; color: #6b7280;">
+                    <p style="margin: 0 0 10px 0; font-size: 14px; color: #dc2626; font-weight: bold;">Sin temas disponibles</p>
+                    <button onclick="forceFixBothBanks()" style="margin: 5px; padding: 8px 16px; font-size: 12px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        🔥 FORZAR REPARACIÓN
+                    </button>
+                    <button onclick="testBanksNow()" style="margin: 5px; padding: 8px 16px; font-size: 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        🧪 TEST BANCOS
+                    </button>
+                </div>
+            `;
+        }
+    }
+    
+    console.log('✅ Banco válido encontrado:', Object.keys(questionBank));
+    
+    let html = '<div style="font-size: 13px; color: #374151; margin-bottom: 15px; text-align: center; font-weight: 600;">Temas del Oponente:</div>';
+    
+    Object.keys(questionBank).forEach(topicKey => {
+        const topic = questionBank[topicKey];
+        
+        if (topic && topic.questions && Array.isArray(topic.questions) && topic.questions.length > 0) {
+            html += `
+                <div style="margin-bottom: 15px; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden;">
+                    <div style="background: #f9fafb; padding: 10px; border-bottom: 1px solid #d1d5db; cursor: pointer;" onclick="toggleTopicQuestions('${topicKey}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 500; color: #374151; font-size: 13px;">${topic.name}</span>
+                            <span style="background: #e5e7eb; color: #374151; padding: 2px 6px; border-radius: 10px; font-size: 11px;">
+                                ${topic.questions.length}
+                            </span>
+                        </div>
+                    </div>
+                    <div id="questions-${topicKey}" style="display: none; max-height: 200px; overflow-y: auto;">
+                        ${topic.questions.map((question, index) => `
+                            <div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; cursor: pointer; font-size: 12px; line-height: 1.4;" 
+                                 onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey || question.id}')"
+                                 onmouseover="this.style.backgroundColor='#f3f4f6'" 
+                                 onmouseout="this.style.backgroundColor='white'">
+                                <strong>P${index + 1}:</strong> ${question.question.substring(0, 80)}${question.question.length > 80 ? '...' : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    return html;
+};
+
+// AUTO-EJECUTAR AL CARGAR
+setTimeout(() => {
+    if (multiplayerState.currentRoom) {
+        console.log('🚀 Auto-test de bancos...');
+        const isWorking = testBanksNow();
+        
+        if (!isWorking) {
+            console.log('🔥 Bancos no funcionan - auto-reparando...');
+            setTimeout(() => {
+                forceFixBothBanks();
+            }, 2000);
+        }
+    }
+}, 1000);
+
+console.log('✅ SOLUCIÓN DIRECTA APLICADA');
+console.log('🔥 Función principal: forceFixBothBanks()');
+console.log('🧪 Función de test: testBanksNow()');
+</script>
 </body>
 </html>
+
 
 
 
