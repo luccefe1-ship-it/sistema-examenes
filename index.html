@@ -10038,17 +10038,22 @@ Este paso integra con el código existente para implementar estados ready
     console.log('   - Mejorada renderRoomInterface con indicadores visuales');
     console.log('   - Detección automática de ambos listos y auto-inicio');
 </script>
-    <!-- 
-PASO 2: SINCRONIZACIÓN DE BANCOS DE PREGUNTAS
-Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
+   <!-- 
+PASO 2 CORREGIDO: SINCRONIZACIÓN DE BANCOS DE PREGUNTAS
+REEMPLAZAR el código del PASO 2 anterior con este código corregido
 -->
 
 <script>
-    // ========== PASO 2: SINCRONIZACIÓN DE BANCOS DE PREGUNTAS ==========
-    console.log('🎮 PASO 2: Implementando sincronización de bancos de preguntas...');
+    // ========== PASO 2 CORREGIDO: SINCRONIZACIÓN DE BANCOS DE PREGUNTAS ==========
+    console.log('🎮 PASO 2 CORREGIDO: Implementando sincronización con IDs válidos...');
 
-    // FUNCIÓN AUXILIAR: Organizar preguntas por temas para Firebase
+    // FUNCIÓN para limpiar IDs para Firebase (quitar caracteres prohibidos)
+    function cleanFirebaseKey(key) {
+        if (!key) return 'invalid-key';
+        return key.toString().replace(/[.#$\/\[\]]/g, '_');
+    }
+
+    // FUNCIÓN AUXILIAR: Organizar preguntas por temas para Firebase (CORREGIDA)
     function organizeQuestionsForFirebase(questions, topics) {
         const organized = {};
         
@@ -10056,11 +10061,13 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
         topics.forEach(topic => {
             const topicQuestions = questions.filter(q => q.topicId === topic.id);
             if (topicQuestions.length > 0) {
-                organized[topic.id] = {
-                    id: topic.id,
+                const cleanTopicId = cleanFirebaseKey(topic.id);
+                organized[cleanTopicId] = {
+                    id: topic.id, // ID original para referencia
                     name: topic.name,
                     questions: topicQuestions.map(q => ({
-                        id: q.id,
+                        id: q.id, // ID original
+                        firebaseKey: cleanFirebaseKey(q.id), // ID limpio para Firebase
                         question: q.question,
                         options: q.options,
                         correctAnswer: q.correctAnswer,
@@ -10078,6 +10085,7 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
                 name: 'Sin tema asignado',
                 questions: questionsWithoutTopic.map(q => ({
                     id: q.id,
+                    firebaseKey: cleanFirebaseKey(q.id),
                     question: q.question,
                     options: q.options,
                     correctAnswer: q.correctAnswer,
@@ -10089,7 +10097,7 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
         return organized;
     }
 
-    // REEMPLAZAR función createMultiplayerRoom para incluir banco del anfitrión
+    // REEMPLAZAR función createMultiplayerRoom CORREGIDA
     window.createMultiplayerRoom = function() {
         if (!multiplayerEnabled) {
             showMessage('Error: Sistema multijugador no disponible', 'error');
@@ -10101,7 +10109,6 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
             return;
         }
 
-        // Verificar que el usuario tenga al menos 5 preguntas verificadas
         const verifiedQuestions = state.questions.filter(q => q.isVerified);
         if (verifiedQuestions.length < 5) {
             showMessage('Necesitas al menos 5 preguntas verificadas para crear una sala', 'error');
@@ -10110,12 +10117,11 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
 
         const roomCode = generateRoomCode();
         
-        // Organizar preguntas del anfitrión por temas
+        // Organizar preguntas del anfitrión por temas (con IDs limpios)
         const hostQuestionBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
         
-        console.log('📚 Banco del anfitrión organizado:', hostQuestionBank);
+        console.log('📚 Banco del anfitrión organizado (IDs limpios):', hostQuestionBank);
         
-        // ESTRUCTURA ACTUALIZADA con banco de preguntas del anfitrión
         const roomData = {
             code: roomCode,
             host: {
@@ -10128,17 +10134,16 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
             hostReady: false,
             guestReady: false,
             status: 'waiting',
-            // NUEVOS CAMPOS: Bancos de preguntas
             questionBanks: {
                 host: hostQuestionBank,
-                guest: null // Se llenará cuando el invitado se una
+                guest: null
             },
             gameData: {
                 currentQuestion: 0,
                 currentTurn: 'host',
                 hostFailures: 0,
                 guestFailures: 0,
-                currentQuestionData: null, // Pregunta actual siendo respondida
+                currentQuestionData: null,
                 hostAnswers: {},
                 guestAnswers: {},
                 winner: null
@@ -10147,32 +10152,27 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
             lastActivity: firebase.database.ServerValue.TIMESTAMP
         };
 
-        // Crear sala en Firebase
         database.ref('rooms/' + roomCode).set(roomData)
             .then(() => {
-                console.log('✅ Sala creada con banco de preguntas:', roomCode);
+                console.log('✅ Sala creada correctamente con IDs válidos:', roomCode);
                 
-                // Actualizar estado local
                 multiplayerState.currentRoom = roomCode;
                 multiplayerState.isHost = true;
                 multiplayerState.roomCode = roomCode;
                 multiplayerState.gameState = 'waiting';
                 
-                // Escuchar cambios en la sala
                 listenToRoom(roomCode);
-                
-                // Re-renderizar
                 render();
                 
                 showMessage(`Sala creada con código: ${roomCode}`, 'success');
             })
             .catch((error) => {
                 console.error('❌ Error creando sala:', error);
-                showMessage('Error al crear la sala. Inténtalo de nuevo.', 'error');
+                showMessage('Error al crear la sala: ' + error.message, 'error');
             });
     };
 
-    // REEMPLAZAR función joinMultiplayerRoom para incluir banco del invitado
+    // REEMPLAZAR función joinMultiplayerRoom CORREGIDA
     window.joinMultiplayerRoom = function() {
         if (!multiplayerEnabled) {
             showMessage('Error: Sistema multijugador no disponible', 'error');
@@ -10184,7 +10184,6 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
             return;
         }
 
-        // Verificar que el usuario tenga al menos 5 preguntas verificadas
         const verifiedQuestions = state.questions.filter(q => q.isVerified);
         if (verifiedQuestions.length < 5) {
             showMessage('Necesitas al menos 5 preguntas verificadas para unirte a una sala', 'error');
@@ -10199,12 +10198,11 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
 
         const upperRoomCode = roomCode.toUpperCase();
         
-        // Organizar preguntas del invitado por temas
+        // Organizar preguntas del invitado por temas (con IDs limpios)
         const guestQuestionBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
         
-        console.log('📚 Banco del invitado organizado:', guestQuestionBank);
+        console.log('📚 Banco del invitado organizado (IDs limpios):', guestQuestionBank);
         
-        // Verificar que la sala existe y está disponible
         database.ref('rooms/' + upperRoomCode).once('value')
             .then((snapshot) => {
                 if (!snapshot.exists()) {
@@ -10229,7 +10227,6 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
                     return;
                 }
 
-                // Datos del invitado CON su banco de preguntas
                 const guestData = {
                     username: state.currentUser.username,
                     name: state.currentUser.name,
@@ -10237,7 +10234,6 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
                     ready: false
                 };
 
-                // Actualizar sala con invitado Y su banco de preguntas
                 const updates = {
                     guest: guestData,
                     'questionBanks/guest': guestQuestionBank,
@@ -10247,40 +10243,34 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
                 return database.ref('rooms/' + upperRoomCode).update(updates);
             })
             .then(() => {
-                console.log('✅ Unido a sala con banco de preguntas:', upperRoomCode);
+                console.log('✅ Unido a sala correctamente con IDs válidos:', upperRoomCode);
                 
-                // Actualizar estado local
                 multiplayerState.currentRoom = upperRoomCode;
                 multiplayerState.isHost = false;
                 multiplayerState.roomCode = upperRoomCode;
                 multiplayerState.gameState = 'waiting';
                 
-                // Escuchar cambios en la sala
                 listenToRoom(upperRoomCode);
-                
-                // Re-renderizar
                 render();
                 
                 showMessage(`Te has unido a la sala: ${upperRoomCode}`, 'success');
             })
             .catch((error) => {
                 console.error('❌ Error uniéndose a sala:', error);
-                showMessage('Error al unirse a la sala', 'error');
+                showMessage('Error al unirse a la sala: ' + error.message, 'error');
             });
     };
 
     // EXTENDER updateLocalStateFromRoom para manejar bancos de preguntas
     const originalUpdateLocalStateFromRoomStep2 = updateLocalStateFromRoom;
     updateLocalStateFromRoom = function(roomData) {
-        // Llamar función original
         originalUpdateLocalStateFromRoomStep2(roomData);
         
-        // Procesar bancos de preguntas si existen
         if (roomData.questionBanks) {
             multiplayerState.hostQuestionBank = roomData.questionBanks.host || {};
             multiplayerState.guestQuestionBank = roomData.questionBanks.guest || {};
             
-            console.log('📚 Bancos de preguntas actualizados:', {
+            console.log('📚 Bancos de preguntas sincronizados correctamente:', {
                 hostTopics: Object.keys(multiplayerState.hostQuestionBank).length,
                 guestTopics: Object.keys(multiplayerState.guestQuestionBank).length
             });
@@ -10296,7 +10286,7 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
         }
     }
 
-    // FUNCIÓN para obtener mi banco de preguntas
+    // FUNCIÓN para obtener mi banco de preguntas  
     function getMyQuestionBank() {
         if (multiplayerState.isHost) {
             return multiplayerState.hostQuestionBank || {};
@@ -10305,27 +10295,26 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
         }
     }
 
-    // FUNCIÓN para seleccionar pregunta del oponente
-    function selectQuestionFromOpponent(topicId, questionId) {
+    // FUNCIÓN para seleccionar pregunta del oponente (PREPARADA)
+    function selectQuestionFromOpponent(topicKey, questionFirebaseKey) {
         const opponentBank = getOpponentQuestionBank();
         
-        if (!opponentBank[topicId] || !opponentBank[topicId].questions) {
-            console.error('❌ Tema no encontrado:', topicId);
+        if (!opponentBank[topicKey] || !opponentBank[topicKey].questions) {
+            console.error('❌ Tema no encontrado:', topicKey);
             showMessage('Error: Tema no encontrado', 'error');
             return;
         }
         
-        const question = opponentBank[topicId].questions.find(q => q.id === questionId);
+        const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionFirebaseKey);
         
         if (!question) {
-            console.error('❌ Pregunta no encontrada:', questionId);
+            console.error('❌ Pregunta no encontrada:', questionFirebaseKey);
             showMessage('Error: Pregunta no encontrada', 'error');
             return;
         }
         
         console.log('🎯 Enviando pregunta al oponente:', question);
         
-        // Enviar pregunta a Firebase para que la vea el oponente
         database.ref('rooms/' + multiplayerState.currentRoom).update({
             'gameData/currentQuestionData': question,
             'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
@@ -10335,30 +10324,40 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
         showMessage('Pregunta enviada al oponente', 'success');
     }
 
-    // FUNCIÓN de prueba para mostrar bancos en consola
+    // FUNCIÓN de prueba mejorada
     window.debugQuestionBanks = function() {
-        console.log('🔍 DEBUG - Bancos de preguntas:');
+        console.log('🔍 DEBUG - Bancos de preguntas (IDs corregidos):');
         console.log('Mi banco:', getMyQuestionBank());
         console.log('Banco del oponente:', getOpponentQuestionBank());
-        console.log('Estado multiplayer:', multiplayerState);
+        
+        // Mostrar estadísticas
+        const myBank = getMyQuestionBank();
+        const opponentBank = getOpponentQuestionBank();
+        
+        console.log('📊 Estadísticas:');
+        console.log(`- Mis temas: ${Object.keys(myBank).length}`);
+        console.log(`- Temas del oponente: ${Object.keys(opponentBank).length}`);
+        
+        Object.keys(opponentBank).forEach(topicKey => {
+            const topic = opponentBank[topicKey];
+            console.log(`- ${topic.name}: ${topic.questions.length} preguntas`);
+        });
     };
 
-    // ACTUALIZAR renderRoomInterface para mostrar información de bancos (solo para debug)
+    // ACTUALIZAR renderRoomInterface con mensaje mejorado
     const originalRenderRoomInterface = renderRoomInterface;
     renderRoomInterface = function() {
         const originalHTML = originalRenderRoomInterface();
         
-        // Si el juego está en estado 'playing', mostrar información adicional
         if (multiplayerState.gameState === 'playing') {
             const opponentBank = getOpponentQuestionBank();
             const opponentTopicsCount = Object.keys(opponentBank).length;
             
-            // Reemplazar el mensaje de "La interfaz de juego se cargará próximamente"
             const updatedHTML = originalHTML.replace(
                 'La interfaz de juego se cargará próximamente...',
-                `Bancos sincronizados correctamente. 
-                Tienes acceso a ${opponentTopicsCount} tema${opponentTopicsCount === 1 ? '' : 's'} del oponente.
-                <br><small>Usa debugQuestionBanks() en consola para ver detalles.</small>`
+                `✅ Bancos sincronizados correctamente.<br>
+                Tienes acceso a ${opponentTopicsCount} tema${opponentTopicsCount === 1 ? '' : 's'} del oponente.<br>
+                <small style="color: #059669;">Usa debugQuestionBanks() en consola para detalles.</small>`
             );
             
             return updatedHTML;
@@ -10367,18 +10366,13 @@ Este paso sincroniza los bancos de preguntas de ambos jugadores en Firebase
         return originalHTML;
     };
 
-    console.log('✅ PASO 2 completado - Sincronización de bancos de preguntas implementada');
-    console.log('🎮 Funcionalidades añadidas:');
-    console.log('   - Organización automática de preguntas por temas');
-    console.log('   - Sincronización del banco del anfitrión al crear sala');
-    console.log('   - Sincronización del banco del invitado al unirse');
-    console.log('   - Funciones para acceder a bancos del oponente y propios');
-    console.log('   - Función selectQuestionFromOpponent() preparada');
-    console.log('   - Función debugQuestionBanks() para testing');
-    console.log('   - Estado local actualizado con ambos bancos');
+    console.log('✅ PASO 2 CORREGIDO completado - IDs válidos para Firebase');
+    console.log('🔧 Corrección aplicada: cleanFirebaseKey() para caracteres prohibidos');
+    console.log('📚 Sincronización de bancos funcionando correctamente');
 </script>
 </body>
 </html>
+
 
 
 
