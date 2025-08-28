@@ -13074,16 +13074,16 @@ console.log(' - cleanRoom(roomCode): Limpiar datos residuales de una sala');
 console.log(' - diagnoseRoom(roomCode): Diagnosticar estado completo de una sala');
 console.log(' - Validación mejorada que permite re-unión del mismo usuario');
 </script>
-// PARCHE EQUILIBRADO: SIN SCROLL PERO ESTÉTICO
-// Reemplaza el parche anterior por este
+
+    
 
 <script>
-console.log('Aplicando parche equilibrado y estético...');
+console.log('Aplicando parche equilibrado con franjas iguales...');
 
-const originalRenderDuelInterfaceEquilibrado = window.renderDuelInterface;
+const originalRenderDuelInterfaceEquilibradoIgual = window.renderDuelInterface;
 
 window.renderDuelInterface = function() {
-    let html = originalRenderDuelInterfaceEquilibrado.call(this);
+    let html = originalRenderDuelInterfaceEquilibradoIgual.call(this);
     
     // CAMBIO 1: Contenedor principal optimizado (sin padding excesivo)
     html = html.replace(
@@ -13134,28 +13134,28 @@ window.renderDuelInterface = function() {
         '<!-- Layout de 3 franjas --><div style="display: grid; grid-template-columns: 280px 1fr 280px; gap: 12px; flex: 1; height: 0; min-height: 0; align-items: start;">'
     );
     
-    // CAMBIO 5: Franjas laterales estéticas con scroll interno
+    // CAMBIO 5: Franjas laterales estéticas con ALTURA FIJA IGUAL
     html = html.replace(
         /background: linear-gradient\(135deg, #22c55e, #16a34a\); color: white; padding: [^;]+; border-radius: [^;]+; box-shadow: [^;]+;/,
-        'background: linear-gradient(135deg, #22c55e, #16a34a); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.1); height: 100%; overflow-y: auto;'
+        'background: linear-gradient(135deg, #22c55e, #16a34a); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.1); height: calc(100vh - 250px); overflow-y: auto;'
     );
     
-    // Ajustar específicamente la franja del oponente (naranja)
+    // Ajustar específicamente la franja del oponente (naranja) con LA MISMA ALTURA
     html = html.replace(
         /background: linear-gradient\(135deg, #f59e0b, #d97706\); color: white; padding: [^;]+; border-radius: [^;]+; box-shadow: [^;]+;/,
-        'background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.1); height: 100%; overflow-y: auto;'
+        'background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.1); height: calc(100vh - 250px); overflow-y: auto;'
     );
     
-    // CAMBIO 6: Franja central estética
+    // CAMBIO 6: Franja central estética con LA MISMA ALTURA
     html = html.replace(
         /background: white; border: [^;]+; border-radius: [^;]+; padding: [^;]+; box-shadow: [^;]+; display: flex; align-items: center; justify-content: center; [^;]+;/,
-        'background: white; border: 2px solid #e5e7eb; border-radius: 16px; padding: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; height: 100%;'
+        'background: white; border: 2px solid #e5e7eb; border-radius: 16px; padding: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; height: calc(100vh - 250px);'
     );
     
-    // CAMBIO 7: Mantener botones pero más compactos
+    // CAMBIO 7: Botones SEPARADOS y fuera de las franjas
     html = html.replace(
         /<!-- Botones de control -->([\s\S]*?)<\/div>/,
-        '<!-- Botones de control --><div style="text-align: center; margin-top: 8px; display: flex; justify-content: center; gap: 8px; flex-shrink: 0;"><button onclick="leaveRoom()" class="btn btn-danger" style="padding: 6px 12px; font-size: 13px;">🚪 Salir del Duelo</button><button onclick="forceResync()" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">🔄 Resync Agresivo</button></div>'
+        '<!-- Botones de control --><div style="text-align: center; margin-top: 10px; display: flex; justify-content: center; gap: 10px; flex-shrink: 0; padding: 8px;"><button onclick="leaveRoom()" class="btn btn-danger" style="padding: 8px 16px; font-size: 13px;">🚪 Salir del Duelo</button><button onclick="forceResync()" class="btn btn-secondary" style="padding: 8px 16px; font-size: 13px;">🔄 Resync Agresivo</button></div>'
     );
     
     // CAMBIO 8: Ajustar fuentes para que sean legibles pero no enormes
@@ -13172,44 +13172,11 @@ window.renderDuelInterface = function() {
     return html;
 };
 
-console.log('Parche equilibrado aplicado - estético y sin scroll');
-</script>
-// PARCHE MINI: IGUALAR ALTURA DE FRANJAS
-// Añadir AL FINAL del archivo, después del parche anterior
-
-<script>
-console.log('Aplicando parche mini - igualar franjas...');
-
-// Interceptar solo para ajustar alturas
-const originalRenderDuelInterfaceAltura = window.renderDuelInterface;
-
-window.renderDuelInterface = function() {
-    let html = originalRenderDuelInterfaceAltura.call(this);
-    
-    // Asegurar que todas las franjas tengan exactamente la misma altura
-    html = html.replace(
-        /background: linear-gradient\(135deg, #22c55e, #16a34a\); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba\(0,0,0,0\.1\); height: 100%; overflow-y: auto;/,
-        'background: linear-gradient(135deg, #22c55e, #16a34a); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.1); height: calc(100vh - 200px); overflow-y: auto;'
-    );
-    
-    html = html.replace(
-        /background: linear-gradient\(135deg, #f59e0b, #d97706\); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba\(0,0,0,0\.1\); height: 100%; overflow-y: auto;/,
-        'background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.1); height: calc(100vh - 200px); overflow-y: auto;'
-    );
-    
-    // También igualar la franja central
-    html = html.replace(
-        /background: white; border: 2px solid #e5e7eb; border-radius: 16px; padding: 20px; box-shadow: 0 6px 20px rgba\(0,0,0,0\.08\); display: flex; align-items: center; justify-content: center; height: 100%;/,
-        'background: white; border: 2px solid #e5e7eb; border-radius: 16px; padding: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; height: calc(100vh - 200px);'
-    );
-    
-    return html;
-};
-
-console.log('Parche mini aplicado - franjas igualadas');
+console.log('Parche equilibrado aplicado - estético, sin scroll y franjas iguales');
 </script>
 </body>
 </html>
+
 
 
 
