@@ -10924,8 +10924,186 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
     console.log('   - Ambos jugadores ven los temas del otro');
     console.log('   - Solo pueden seleccionar del oponente cuando es su turno');
 </script>
+    // ========== PARCHE CRÍTICO: CORRECCIÓN SINCRONIZACIÓN BANCOS MULTIJUGADOR ==========
+// Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+
+<script>
+    console.log('🔧 APLICANDO PARCHE CRÍTICO: Sincronización de bancos multijugador...');
+
+    // REEMPLAZAR completamente la función updateLocalStateFromRoom
+    window.updateLocalStateFromRoom = function(roomData) {
+        console.log('🔄 Actualizando estado local desde sala:', roomData);
+        
+        const previousState = multiplayerState.gameState;
+        
+        // Actualizar estado básico
+        multiplayerState.gameState = roomData.status;
+        
+        if (multiplayerState.isHost) {
+            multiplayerState.opponent = roomData.guest;
+        } else {
+            multiplayerState.opponent = roomData.host;
+        }
+        
+        // CRÍTICO: Sincronización mejorada de bancos de preguntas
+        if (roomData.questionBanks) {
+            console.log('📚 Datos de bancos recibidos:', {
+                hostBank: roomData.questionBanks.host ? Object.keys(roomData.questionBanks.host).length : 0,
+                guestBank: roomData.questionBanks.guest ? Object.keys(roomData.questionBanks.guest).length : 0,
+                soyAnfitrion: multiplayerState.isHost
+            });
+            
+            // Asignar bancos con validación
+            multiplayerState.hostQuestionBank = roomData.questionBanks.host || {};
+            multiplayerState.guestQuestionBank = roomData.questionBanks.guest || {};
+            
+            // Debug específico para cada usuario
+            if (multiplayerState.isHost) {
+                console.log('👑 SOY ANFITRIÓN - Mi banco:', Object.keys(multiplayerState.hostQuestionBank));
+                console.log('👤 Banco del invitado:', Object.keys(multiplayerState.guestQuestionBank));
+            } else {
+                console.log('👤 SOY INVITADO - Banco del anfitrión:', Object.keys(multiplayerState.hostQuestionBank));
+                console.log('👑 Mi banco:', Object.keys(multiplayerState.guestQuestionBank));
+            }
+        }
+        
+        // Actualizar datos del juego si existen
+        if (roomData.gameData) {
+            const gameData = roomData.gameData;
+            
+            multiplayerState.myTurn = (gameData.currentTurn === 'host') === multiplayerState.isHost;
+            multiplayerState.myFailures = multiplayerState.isHost ? gameData.hostFailures : gameData.guestFailures;
+            multiplayerState.opponentFailures = multiplayerState.isHost ? gameData.guestFailures : gameData.hostFailures;
+            
+            console.log('🎮 Estado de juego actualizado:', {
+                myTurn: multiplayerState.myTurn,
+                myFailures: multiplayerState.myFailures,
+                opponentFailures: multiplayerState.opponentFailures,
+                currentQuestion: gameData.currentQuestionData ? 'Hay pregunta' : 'Sin pregunta'
+            });
+        }
+        
+        // Guardar datos completos para acceso en render
+        multiplayerState.currentRoomData = roomData;
+        
+        // Verificar transiciones de estado
+        if (previousState === 'waiting' && roomData.status === 'waiting') {
+            checkBothReady(roomData);
+        } else if (previousState === 'waiting' && roomData.status === 'ready') {
+            console.log('🎯 Estado cambió a READY - preparando inicio del juego...');
+            showMessage('¡Ambos jugadores listos! Iniciando duelo en 3 segundos...', 'success');
+            
+            setTimeout(() => {
+                if (multiplayerState.isHost && multiplayerState.gameState === 'ready') {
+                    startGame();
+                }
+            }, 3000);
+        } else if (previousState !== 'playing' && roomData.status === 'playing') {
+            console.log('🚀 ¡JUEGO INICIADO!');
+            showMessage('¡El duelo ha comenzado!', 'success');
+        }
+    };
+
+    // REEMPLAZAR las funciones de acceso a bancos para mayor robustez
+    window.getMyQuestionBank = function() {
+        const myBank = multiplayerState.isHost ? 
+            multiplayerState.hostQuestionBank : 
+            multiplayerState.guestQuestionBank;
+            
+        console.log('📋 Obteniendo MI banco:', {
+            soyAnfitrion: multiplayerState.isHost,
+            temas: Object.keys(myBank || {}).length,
+            banco: myBank
+        });
+        
+        return myBank || {};
+    };
+
+    window.getOpponentQuestionBank = function() {
+        const opponentBank = multiplayerState.isHost ? 
+            multiplayerState.guestQuestionBank : 
+            multiplayerState.hostQuestionBank;
+            
+        console.log('📋 Obteniendo banco del OPONENTE:', {
+            soyAnfitrion: multiplayerState.isHost,
+            temas: Object.keys(opponentBank || {}).length,
+            banco: opponentBank
+        });
+        
+        return opponentBank || {};
+    };
+
+    // FUNCIÓN DE DIAGNÓSTICO MEJORADA
+    window.debugMultiplayerSync = function() {
+        console.log('🔍 DIAGNÓSTICO COMPLETO DE SINCRONIZACIÓN:');
+        console.log('='.repeat(50));
+        
+        console.log('Estado actual:', {
+            sala: multiplayerState.currentRoom,
+            soyAnfitrion: multiplayerState.isHost,
+            miNombre: state.currentUser?.name,
+            oponente: multiplayerState.opponent?.name,
+            estadoJuego: multiplayerState.gameState
+        });
+        
+        console.log('Bancos en memoria:', {
+            hostBank: Object.keys(multiplayerState.hostQuestionBank || {}).length,
+            guestBank: Object.keys(multiplayerState.guestQuestionBank || {}).length
+        });
+        
+        console.log('Mis datos locales:', {
+            misPreguntas: state.questions.length,
+            misTemas: state.topics.length,
+            preguntasVerificadas: state.questions.filter(q => q.isVerified).length
+        });
+        
+        const myBank = getMyQuestionBank();
+        const oppBank = getOpponentQuestionBank();
+        
+        console.log('Acceso a bancos:', {
+            miBanco: Object.keys(myBank).length,
+            bancoOponente: Object.keys(oppBank).length
+        });
+        
+        console.log('Detalles de mi banco:', myBank);
+        console.log('Detalles del banco oponente:', oppBank);
+        
+        // Verificar datos en Firebase
+        if (multiplayerState.currentRoom && database) {
+            database.ref('rooms/' + multiplayerState.currentRoom + '/questionBanks').once('value')
+                .then(snapshot => {
+                    const firebaseData = snapshot.val();
+                    console.log('Datos en Firebase:', firebaseData);
+                })
+                .catch(error => {
+                    console.error('Error accediendo Firebase:', error);
+                });
+        }
+    };
+
+    // FORZAR actualización de datos si ya estamos en una sala
+    if (multiplayerState.currentRoom && database) {
+        console.log('🔄 Forzando actualización de datos de la sala actual...');
+        
+        database.ref('rooms/' + multiplayerState.currentRoom).once('value')
+            .then(snapshot => {
+                if (snapshot.exists()) {
+                    const roomData = snapshot.val();
+                    console.log('📡 Datos actualizados de Firebase:', roomData);
+                    updateLocalStateFromRoom(roomData);
+                    render();
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error actualizando datos:', error);
+            });
+    }
+
+    console.log('✅ PARCHE CRÍTICO aplicado - Ejecuta debugMultiplayerSync() para diagnóstico');
+</script>
 </body>
 </html>
+
 
 
 
