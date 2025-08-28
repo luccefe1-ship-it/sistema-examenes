@@ -13166,90 +13166,98 @@ console.log('   - "¡TURNO DE RESPONDER!" cuando puedes hacer clic');
 console.log('   - "ESPERANDO RESPUESTA" cuando no puedes hacer clic');
 </script>
 
-// BORRA EL PARCHE ANTERIOR SI LO TIENES
-
 <script>
-console.log('🔧 Aplicando parche simple sin scroll...');
+console.log('Aplicando parche final para subir franjas...');
 
-// INTERCEPTAR la función renderDuelInterface de forma simple
-const originalRenderDuelInterfaceSimple = window.renderDuelInterface;
+// INTERCEPTAR renderDuelInterface
+const originalRenderDuelInterfaceFinal = window.renderDuelInterface;
 
 window.renderDuelInterface = function() {
-    let html = originalRenderDuelInterfaceSimple.call(this);
+    let html = originalRenderDuelInterfaceFinal.call(this);
     
-    // 1. REDUCIR PADDING DEL CONTENEDOR PRINCIPAL
+    // CAMBIO 1: Contenedor principal sin padding y altura fija
     html = html.replace(
-        /padding: 15px; min-height: calc\(100vh - 150px\); display: flex; flex-direction: column;/,
-        'padding: 5px; height: calc(100vh - 120px); display: flex; flex-direction: column;'
+        /<div style="max-width: 1400px; margin: 0 auto; padding: [^;]+; [^"]*">/,
+        '<div style="max-width: 1200px; margin: 0 auto; padding: 0; height: calc(100vh - 60px); display: flex; flex-direction: column;">'
     );
     
-    // 2. REDUCIR HEADER DEL DUELO
+    // CAMBIO 2: Header compacto
     html = html.replace(
-        /margin-bottom: 15px; background: linear-gradient\(135deg, #dc2626, #7f1d1d\); color: white; padding: 15px; border-radius: 12px; flex-shrink: 0;/,
-        'margin-bottom: 8px; background: linear-gradient(135deg, #dc2626, #7f1d1d); color: white; padding: 8px; border-radius: 8px; flex-shrink: 0;'
+        /<!-- Header del duelo -->\s*<div style="[^"]*">/,
+        '<!-- Header del duelo --><div style="text-align: center; margin: 0; background: linear-gradient(135deg, #dc2626, #7f1d1d); color: white; padding: 6px; border-radius: 6px; flex-shrink: 0;">'
     );
     
-    // 3. REDUCIR PANEL DE TURNOS
+    // CAMBIO 3: Reducir fuentes del header
     html = html.replace(
-        /padding: 12px; margin-bottom: 15px; flex-shrink: 0;/,
-        'padding: 6px; margin-bottom: 8px; flex-shrink: 0;'
+        /font-size: 2rem;/,
+        'font-size: 1.1rem;'
+    );
+    html = html.replace(
+        /font-size: 1\.8rem;/,
+        'font-size: 0.95rem;'
     );
     
-    // 4. GRID MÁS COMPACTO
+    // CAMBIO 4: Panel de turnos súper compacto
     html = html.replace(
-        /display: grid; grid-template-columns: 300px 1fr 300px; gap: 15px; align-items: start; flex: 1; min-height: 0;/,
-        'display: grid; grid-template-columns: 280px 1fr 280px; gap: 8px; align-items: start; flex: 1; min-height: 0; max-height: calc(100vh - 200px);'
+        /<!-- Panel de turnos simple -->\s*<div style="[^"]*">/,
+        '<!-- Panel de turnos simple --><div style="background: linear-gradient(135deg, #f8fafc, #e2e8f0); padding: 4px; margin: 4px 0; border-radius: 6px; flex-shrink: 0;">'
     );
     
-    // 5. FRANJAS LATERALES MÁS COMPACTAS
+    // CAMBIO 5: Grid de franjas más compacto y posicionado arriba
     html = html.replace(
-        /padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba\(0,0,0,0\.1\); max-height: 500px; overflow-y: auto;/g,
-        'padding: 8px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-height: calc(100vh - 220px); overflow-y: auto;'
+        /<!-- Layout de 3 franjas -->\s*<div style="[^"]*">/,
+        '<!-- Layout de 3 franjas --><div style="display: grid; grid-template-columns: 260px 1fr 260px; gap: 6px; align-items: start; flex: 1; height: calc(100vh - 150px); margin: 0;">'
     );
     
-    // 6. FRANJA CENTRAL MÁS COMPACTA
+    // CAMBIO 6: Franjas laterales con altura fija
     html = html.replace(
-        /padding: 20px; box-shadow: 0 4px 15px rgba\(0,0,0,0\.08\); display: flex; align-items: center; justify-content: center; min-height: 300px; max-height: 500px;/,
-        'padding: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; min-height: 200px; max-height: calc(100vh - 220px);'
+        /padding: 20px; border-radius: 16px; box-shadow: 0 8px 25px rgba\(0,0,0,0\.1\);/g,
+        'padding: 6px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); height: calc(100vh - 160px); overflow-y: auto;'
     );
     
-    // 7. BOTONES MÁS PEQUEÑOS Y COMPACTOS
+    // CAMBIO 7: Franja central con altura fija
     html = html.replace(
-        /margin-top: 15px; display: flex; justify-content: center; gap: 10px; flex-shrink: 0;/,
-        'margin-top: 5px; display: flex; justify-content: center; gap: 5px; flex-shrink: 0;'
+        /padding: 25px; box-shadow: 0 8px 25px rgba\(0,0,0,0\.08\); display: flex; align-items: center; justify-content: center; min-height: 400px;/,
+        'padding: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; height: calc(100vh - 160px);'
     );
     
+    // CAMBIO 8: Botones compactos
     html = html.replace(
-        /padding: 8px 15px; font-size: 14px;/g,
-        'padding: 4px 8px; font-size: 12px;'
+        /margin-top: 30px; display: flex; justify-content: center; gap: 15px;/,
+        'margin-top: 4px; display: flex; justify-content: center; gap: 4px; flex-shrink: 0;'
+    );
+    html = html.replace(
+        /padding: 12px 25px; font-size: 16px;/g,
+        'padding: 3px 8px; font-size: 11px;'
     );
     
-    // 8. REDUCIR TAMAÑOS DE FUENTE EN HEADER
+    // CAMBIO 9: Reducir tamaños de fuente en las franjas
     html = html.replace(
-        /font-size: 1\.5rem;/,
-        'font-size: 1.2rem;'
+        /font-size: 2rem;/g,
+        'font-size: 1.5rem;'
     );
-    
     html = html.replace(
-        /font-size: 1\.2rem;/,
-        'font-size: 1rem;'
+        /font-size: 18px;/g,
+        'font-size: 14px;'
+    );
+    html = html.replace(
+        /font-size: 16px;/g,
+        'font-size: 13px;'
+    );
+    html = html.replace(
+        /font-size: 14px;/g,
+        'font-size: 11px;'
     );
     
     return html;
 };
 
-console.log('✅ Parche simple aplicado correctamente');
-console.log('📐 Cambios aplicados:');
-console.log('   - Padding reducido en todos los elementos');
-console.log('   - Header más pequeño');
-console.log('   - Panel de turnos compacto');
-console.log('   - Grid optimizado con columnas de 280px');
-console.log('   - Altura máxima controlada en todas las franjas');
-console.log('   - Botones más pequeños');
+console.log('Parche aplicado - las franjas deberían estar arriba ahora');
 </script>
 
 </body>
 </html>
+
 
 
 
