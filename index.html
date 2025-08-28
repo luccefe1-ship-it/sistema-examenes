@@ -13167,151 +13167,364 @@ console.log('🎯 Mensajes simplificados:');
 console.log('   - "¡TURNO DE RESPONDER!" cuando puedes hacer clic');
 console.log('   - "ESPERANDO RESPUESTA" cuando no puedes hacer clic');
 </script>
-
-    
+<!-- PARCHE COMPLETO: TEXTO PEGADO + PROCESAMIENTO + ASIGNACIÓN -->
 <script>
-// ====== PARCHE PARA HACER EDITABLE EL PANEL "📝 SUBIR TEXTO" ======
+// ====== PARCHE FUNCIONAL COMPLETO PARA TEXTO PEGADO ======
 
-// Función principal que hace editable el textarea del panel "Subir Texto"
-function makeSubirTextoEditable() {
-    // Buscar el textarea de la interfaz de "Subir Texto" por varios métodos
-    const possibleTextareas = [
-        // Por ID si existe
-        document.getElementById('cleanedText'),
-        // Por clase y contexto
-        ...Array.from(document.querySelectorAll('.textarea')),
-        // Por estructura (buscar textarea dentro de columnas)
-        ...Array.from(document.querySelectorAll('.column textarea')),
-        // Buscar por cualquier textarea con readonly
-        ...Array.from(document.querySelectorAll('textarea[readonly]'))
-    ];
-    
-    // Encontrar el textarea correcto (el del panel central "Subir Texto")
-    let targetTextarea = null;
-    
-    for (let textarea of possibleTextareas) {
-        if (textarea && textarea.parentElement) {
-            const parentText = textarea.parentElement.innerHTML;
-            // Buscar indicadores de que es el panel correcto
-            if (parentText.includes('📝') || 
-                parentText.includes('Subir Texto') || 
-                parentText.includes('Texto Transcrito') ||
-                textarea.placeholder && textarea.placeholder.includes('transcrito')) {
-                targetTextarea = textarea;
-                break;
-            }
-        }
-    }
-    
-    // Si no encontramos el textarea específico, usar el primero con readonly
-    if (!targetTextarea) {
-        targetTextarea = document.querySelector('textarea[readonly]');
-    }
-    
-    if (targetTextarea && !targetTextarea.hasAttribute('data-editable-ready')) {
-        // Marcar como procesado para evitar duplicados
-        targetTextarea.setAttribute('data-editable-ready', 'true');
+console.log('🎯 Iniciando parche completo de texto pegado...');
+
+// PASO 1: Hacer editable el textarea y detectar texto pegado
+function setupEditableTextarea() {
+    const textarea = document.getElementById('cleanedText');
+    if (textarea && !textarea.hasAttribute('data-paste-ready')) {
+        textarea.setAttribute('data-paste-ready', 'true');
         
-        // Añadir evento de clic
-        targetTextarea.addEventListener('click', function() {
-            // Quitar readonly permanentemente
+        // Hacer editable al hacer clic
+        textarea.addEventListener('click', function() {
             this.removeAttribute('readonly');
-            
-            // Cambiar apariencia visual
             this.style.backgroundColor = '#ffffff';
             this.style.border = '2px solid #3b82f6';
-            this.style.borderRadius = '8px';
             this.style.cursor = 'text';
-            this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-            
-            // Cambiar placeholder para indicar que es editable
-            this.placeholder = "✏️ Área editable: Pega aquí texto de otras plataformas o visualiza texto transcrito";
-            
-            // Enfocar el textarea
+            this.placeholder = "✏️ Pega aquí texto de otra plataforma o visualiza texto transcrito";
             this.focus();
             
-            console.log('✅ Textarea del panel "Subir Texto" activado para edición');
+            console.log('✅ Textarea activado para edición');
         });
         
-        // Detectar cuando se pega texto
-        targetTextarea.addEventListener('paste', function(e) {
+        // Detectar texto pegado
+        textarea.addEventListener('paste', function(e) {
             setTimeout(() => {
-                console.log('📋 Texto pegado detectado:', this.value.length, 'caracteres');
-                
-                // Cambiar el estilo para indicar que tiene contenido pegado
-                this.style.backgroundColor = '#f0f9ff';
-                this.style.borderColor = '#10b981';
-                
-                // Opcional: Añadir indicador visual de texto pegado
-                const indicator = this.parentElement.querySelector('.paste-indicator');
-                if (!indicator) {
-                    const pasteIndicator = document.createElement('div');
-                    pasteIndicator.className = 'paste-indicator';
-                    pasteIndicator.innerHTML = '📋 Texto pegado - Listo para procesar';
-                    pasteIndicator.style.cssText = `
-                        margin-top: 10px; 
-                        padding: 8px 12px; 
-                        background: #dcfce7; 
-                        border: 1px solid #10b981; 
-                        border-radius: 6px; 
-                        font-size: 12px; 
-                        color: #065f46; 
-                        text-align: center;
-                    `;
-                    this.parentElement.appendChild(pasteIndicator);
+                const pastedText = this.value;
+                if (pastedText.trim()) {
+                    // Marcar que hay texto pegado
+                    state.transcribedText = pastedText; // Simular texto transcrito
+                    
+                    // Mostrar indicador
+                    showPasteIndicator();
+                    
+                    console.log('📋 Texto pegado detectado:', pastedText.length, 'caracteres');
+                    console.log('🔄 Texto asignado a state.transcribedText para procesamiento');
                 }
-                
-                // El texto pegado ya está en this.value y listo para usar
             }, 100);
         });
         
-        // Detectar cuando se escribe manualmente
-        targetTextarea.addEventListener('input', function() {
-            if (this.value.length > 0) {
-                this.style.backgroundColor = '#f8fafc';
-                this.style.borderColor = '#6366f1';
-            } else {
-                this.style.backgroundColor = '#ffffff';
-                this.style.borderColor = '#3b82f6';
-            }
-        });
-        
-        console.log('✅ Panel "📝 Subir Texto" configurado como editable');
+        console.log('✅ Textarea configurado para texto pegado');
         return true;
     }
-    
     return false;
 }
 
-// Ejecutar la función al cargar la página
-function initializeEditableTextarea() {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(makeSubirTextoEditable, 100);
+// PASO 2: Mostrar indicador de texto pegado
+function showPasteIndicator() {
+    const textarea = document.getElementById('cleanedText');
+    if (!textarea) return;
+    
+    // Eliminar indicador anterior si existe
+    const oldIndicator = textarea.parentElement.querySelector('.paste-indicator');
+    if (oldIndicator) oldIndicator.remove();
+    
+    // Crear nuevo indicador
+    const indicator = document.createElement('div');
+    indicator.className = 'paste-indicator';
+    indicator.innerHTML = '📋 Texto pegado - Listo para procesar';
+    indicator.style.cssText = `
+        margin-top: 10px; 
+        padding: 10px; 
+        background: #dcfce7; 
+        border: 2px solid #10b981; 
+        border-radius: 8px; 
+        font-size: 13px; 
+        color: #065f46; 
+        text-align: center;
+        font-weight: 600;
+        animation: fadeIn 0.5s ease-in-out;
+    `;
+    
+    textarea.parentElement.appendChild(indicator);
+}
+
+// PASO 3: Interceptar la función transcribeImages para manejar texto pegado
+function interceptTranscribeFunction() {
+    // Guardar función original
+    if (typeof window.originalTranscribeImages === 'undefined') {
+        window.originalTranscribeImages = window.transcribeImages;
+    }
+    
+    // Reemplazar con nueva función que maneja texto pegado
+    window.transcribeImages = async function() {
+        if (!state.apiKey) {
+            showMessage('Configura tu API key primero', 'error');
+            return;
+        }
+        
+        const textarea = document.getElementById('cleanedText');
+        const hasPastedText = textarea && textarea.value.trim() && !textarea.hasAttribute('readonly');
+        
+        if (hasPastedText) {
+            // PROCESAR TEXTO PEGADO
+            console.log('🔄 Procesando texto pegado...');
+            showMessage('Procesando texto pegado...', 'success');
+            
+            // Asignar texto pegado como si fuera transcrito
+            state.transcribedText = textarea.value.trim();
+            
+            // Procesar directamente con cleanText
+            await cleanTextFromPasted();
+            
+        } else if (state.selectedImages.length > 0) {
+            // PROCESAR IMÁGENES NORMALMENTE
+            console.log('🔄 Procesando imágenes...');
+            await window.originalTranscribeImages();
+            
+        } else {
+            showMessage('Pega texto en el área o selecciona imágenes', 'error');
+        }
+    };
+    
+    console.log('✅ Función transcribeImages interceptada');
+}
+
+// PASO 4: Función para procesar texto pegado (adapta cleanText existente)
+async function cleanTextFromPasted() {
+    if (!state.transcribedText) {
+        showMessage('No hay texto para procesar', 'error');
+        return;
+    }
+    
+    if (!state.apiKey) {
+        showMessage('Configura tu API key primero', 'error');
+        return;
+    }
+    
+    render(); // Mostrar indicador de procesamiento
+    
+    try {
+        const response = await fetch("/api/anthropic", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-api-key": state.apiKey,
+            },
+            body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 4000,
+                messages: [{
+                    role: "user",
+                    content: `Convierte este texto pegado de otra plataforma en formato de preguntas para banco de preguntas:
+
+TEXTO PEGADO:
+${state.transcribedText}
+
+INSTRUCCIONES CRÍTICAS:
+- Si el texto ya contiene preguntas y respuestas, extráelas y organízalas
+- Si hay opciones marcadas como correctas (con *, ✓, checkmarks, o palabras como "correcta"), márcalas con **negritas**
+- Si no hay preguntas, genera preguntas de múltiple opción basadas en el contenido
+- Numera las preguntas secuencialmente
+- Elimina información irrelevante o repetitiva
+
+FORMATO DE SALIDA ESTRICTO:
+PREGUNTA: [texto de la pregunta]
+OPCION_A: [opción a normal]
+OPCION_B: **[opción b si es correcta]**
+OPCION_C: [opción c normal] 
+OPCION_D: [opción d normal]
+
+IMPORTANTE: Marca con **negritas** las opciones correctas identificadas en el texto original.`
+                }]
+            })
         });
-    } else {
-        setTimeout(makeSubirTextoEditable, 100);
+
+        if (!response.ok) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        state.cleanedText = data.content[0].text;
+        
+        // Limpiar indicador de texto pegado
+        const indicator = document.querySelector('.paste-indicator');
+        if (indicator) indicator.remove();
+        
+        render();
+        showMessage('¡Texto procesado y listo para añadir al banco!', 'success');
+        
+        console.log('✅ Texto pegado procesado exitosamente');
+        
+    } catch (error) {
+        render();
+        showMessage(`Error en el procesamiento: ${error.message}`, 'error');
     }
 }
 
-// Inicializar
-initializeEditableTextarea();
+// PASO 5: Asegurar que addToQuestions funcione correctamente
+function interceptAddToQuestions() {
+    if (typeof window.originalAddToQuestions === 'undefined') {
+        window.originalAddToQuestions = window.addToQuestions;
+    }
+    
+    window.addToQuestions = function() {
+        if (!state.cleanedText) {
+            showMessage('Primero procesa el texto', 'error');
+            return;
+        }
+        
+        if (!state.selectedTopicForNewQuestions) {
+            showMessage('Selecciona un tema primero', 'error');
+            return;
+        }
+        
+        try {
+            const newQuestions = parseCleanedText(state.cleanedText);
+            if (newQuestions.length === 0) {
+                showMessage('No se pudieron extraer preguntas del texto procesado', 'error');
+                return;
+            }
+            
+            // Asignar tema a todas las preguntas
+            newQuestions.forEach(question => {
+                question.topicId = state.selectedTopicForNewQuestions;
+                question.id = Date.now() + Math.random();
+                question.createdAt = new Date().toISOString();
+                question.isVerified = true;
+            });
+            
+            // Añadir al banco
+            state.questions.push(...newQuestions);
+            localStorage.setItem('questions', JSON.stringify(state.questions));
+            
+            const topicName = getTopicName(state.selectedTopicForNewQuestions);
+            showMessage(`¡${newQuestions.length} preguntas añadidas al tema "${topicName}"!`, 'success');
+            
+            // Limpiar todo
+            state.selectedImages = [];
+            state.transcribedText = '';
+            state.cleanedText = '';
+            state.selectedTopicForNewQuestions = null;
+            
+            // Limpiar textarea
+            const textarea = document.getElementById('cleanedText');
+            if (textarea) {
+                textarea.value = '';
+                textarea.setAttribute('readonly', 'true');
+                textarea.style.backgroundColor = '#f9fafb';
+                textarea.style.border = '1px solid #d1d5db';
+                textarea.placeholder = "El texto procesado aparecerá aquí...";
+            }
+            
+            render();
+            console.log('✅ Preguntas añadidas al banco exitosamente');
+            
+        } catch (error) {
+            showMessage(`Error al procesar preguntas: ${error.message}`, 'error');
+            console.error('❌ Error en addToQuestions:', error);
+        }
+    };
+    
+    console.log('✅ Función addToQuestions interceptada');
+}
 
-// Observador para detectar cambios en el DOM y reaplica la funcionalidad
-const observer = new MutationObserver(() => {
-    makeSubirTextoEditable();
-});
+// PASO 6: Función auxiliar para parsear texto limpio (usa la existente o crea nueva)
+function parseCleanedText(text) {
+    const questions = [];
+    const sections = text.split(/PREGUNTA:/i).filter(section => section.trim());
+    
+    sections.forEach((section, index) => {
+        const lines = section.trim().split('\n').filter(line => line.trim());
+        if (lines.length === 0) return;
+        
+        const questionText = lines[0].trim();
+        const options = [];
+        let correctAnswer = 0;
+        
+        // Procesar opciones
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.match(/^OPCION_[A-D]:/i)) {
+                const optionText = line.replace(/^OPCION_[A-D]:\s*/i, '').trim();
+                
+                // Detectar opción correcta (con negritas)
+                if (optionText.includes('**')) {
+                    const cleanText = optionText.replace(/\*\*/g, '');
+                    options.push(cleanText);
+                    correctAnswer = options.length - 1;
+                } else {
+                    options.push(optionText);
+                }
+            }
+        }
+        
+        // Solo añadir si tiene pregunta y al menos 2 opciones
+        if (questionText && options.length >= 2) {
+            questions.push({
+                question: questionText,
+                options: options,
+                correctAnswer: correctAnswer,
+                id: Date.now() + Math.random() + index,
+                createdAt: new Date().toISOString(),
+                isVerified: true
+            });
+        }
+    });
+    
+    return questions;
+}
 
-observer.observe(document.body, {
-    childList: true,
-    subtree: true
-});
+// PASO 7: Inicialización automática
+function initializePastedTextFunctionality() {
+    // Configurar observador para detectar cambios en el DOM
+    const observer = new MutationObserver(() => {
+        setupEditableTextarea();
+    });
+    
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+    
+    // Configurar inmediatamente si está disponible
+    setTimeout(() => {
+        setupEditableTextarea();
+        interceptTranscribeFunction();
+        interceptAddToQuestions();
+        
+        console.log('✅ Sistema de texto pegado completamente configurado');
+    }, 500);
+}
 
-console.log('🎯 Parche "Área Editable" activado para el panel "📝 Subir Texto"');
+// Inicializar automáticamente
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializePastedTextFunctionality);
+} else {
+    initializePastedTextFunctionality();
+}
+
+// PASO 8: CSS para animación del indicador
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .paste-indicator {
+        animation: fadeIn 0.5s ease-in-out;
+    }
+`;
+document.head.appendChild(style);
+
+console.log('🎯 Parche completo de texto pegado aplicado exitosamente');
+console.log('📋 Funcionalidades añadidas:');
+console.log('   ✅ Área editable con un clic');
+console.log('   ✅ Detección automática de texto pegado');
+console.log('   ✅ Procesamiento de texto con IA');
+console.log('   ✅ Asignación a temas existente');
+console.log('   ✅ Añadir al banco de preguntas');
+console.log('   ✅ Limpieza automática después del procesamiento');
 
 </script>
 </body>
 </html>
+
 
 
 
