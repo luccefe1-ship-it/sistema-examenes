@@ -12995,8 +12995,213 @@ console.log(' - cleanRoom(roomCode): Limpiar datos residuales de una sala');
 console.log(' - diagnoseRoom(roomCode): Diagnosticar estado completo de una sala');
 console.log(' - Validación mejorada que permite re-unión del mismo usuario');
 </script>
+    <!-- 
+PARCHE PARA OCULTAR ELEMENTOS DE DESARROLLADOR
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche oculta la navegación superior y las herramientas de diagnóstico
+-->
+
+<script>
+// ========== PARCHE: OCULTAR ELEMENTOS DE DESARROLLADOR ==========
+console.log('🔧 Aplicando parche para ocultar elementos de desarrollador...');
+
+// PASO 1: Modificar la función render principal para omitir navegación
+const originalRender = window.render;
+window.render = function() {
+    updateUserInfo();
+    
+    // Solo renderizar contenido multijugador, sin navegación
+    if (multiplayerState.currentRoom) {
+        if (multiplayerState.gameState === 'playing') {
+            document.getElementById('content').innerHTML = renderDuelInterface();
+        } else {
+            document.getElementById('content').innerHTML = renderRoomInterface();
+        }
+    } else {
+        document.getElementById('content').innerHTML = renderMultiplayerTabClean();
+    }
+};
+
+// PASO 2: Crear versión limpia del tab multijugador (sin herramientas de diagnóstico)
+function renderMultiplayerTabClean() {
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    const hasEnoughQuestions = verifiedQuestions.length >= 5;
+    
+    return `
+        <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                    <span>⚔️</span> Duelo de Preguntas
+                </h1>
+                <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                    Compite con otro usuario - El primero en fallar 3 preguntas pierde
+                </p>
+            </div>
+            
+            ${!hasEnoughQuestions ? `
+                <div style="background: #fef2f2; color: #7f1d1d; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444; margin-bottom: 25px; text-align: center;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Necesitas al menos 5 preguntas para jugar. 
+                    <br>Actualmente tienes: ${verifiedQuestions.length}
+                </div>
+            ` : ''}
+            
+            <div style="display: grid; gap: 20px; max-width: 600px; margin: 0 auto;">
+                <button onclick="createMultiplayerRoom()" class="btn btn-primary" 
+                        style="padding: 20px; font-size: 18px; border-radius: 12px; ${!hasEnoughQuestions ? 'opacity: 0.6; cursor: not-allowed;' : ''}"
+                        ${!hasEnoughQuestions ? 'disabled' : ''}>
+                    🏠 Crear Sala
+                </button>
+                
+                <button onclick="joinMultiplayerRoom()" class="btn btn-success" 
+                        style="padding: 20px; font-size: 18px; border-radius: 12px; ${!hasEnoughQuestions ? 'opacity: 0.6; cursor: not-allowed;' : ''}"
+                        ${!hasEnoughQuestions ? 'disabled' : ''}>
+                    🚪 Unirse a Sala
+                </button>
+                
+                <div style="text-align: center; margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
+                    <p style="color: #1e40af; margin: 0; font-size: 14px;">
+                        <strong>Estado:</strong> ${multiplayerEnabled ? '✅ Conectado' : '❌ Desconectado'}
+                    </p>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 12px;">
+                        Preguntas verificadas: ${verifiedQuestions.length}
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// PASO 3: Ocultar navegación superior con CSS
+const hideNavStyle = document.createElement('style');
+hideNavStyle.textContent = `
+    /* Ocultar navegación de pestañas completamente */
+    nav, .nav, .nav-tabs, .nav-pills, 
+    .navbar, .tab-navigation, 
+    [role="tablist"], .tabs-container {
+        display: none !important;
+    }
+    
+    /* Ocultar botones de navegación específicos */
+    .nav-link, .tab-button, .tab-link {
+        display: none !important;
+    }
+    
+    /* Ocultar herramientas de diagnóstico */
+    .diagnostic-tools, .dev-tools, 
+    [data-tool="diagnostic"], [data-tool="debug"],
+    .btn:contains("Diagnosticar"), .btn:contains("Limpiar") {
+        display: none !important;
+    }
+    
+    /* Asegurar que solo se vea el contenido principal */
+    .main-content, #content {
+        display: block !important;
+    }
+`;
+document.head.appendChild(hideNavStyle);
+
+// PASO 4: Forzar que siempre esté en modo multijugador
+state.currentTab = 'multiplayer';
+
+// PASO 5: Deshabilitar funciones de navegación entre pestañas
+window.switchTab = function(tabName) {
+    console.log('🚫 Navegación de pestañas deshabilitada para cliente final');
+    // No hacer nada, mantener en multijugador
+    return false;
+};
+
+// Deshabilitar cualquier función que cambie pestañas
+const tabFunctions = [
+    'goToUpload', 'goToQuestions', 'goToTest', 
+    'goToResults', 'goToSummary', 'goToMemoryCards'
+];
+
+tabFunctions.forEach(funcName => {
+    if (window[funcName]) {
+        window[funcName] = function() {
+            console.log(`🚫 Función ${funcName} deshabilitada para cliente final`);
+            showMessage('Esta función no está disponible en el modo de juego', 'info');
+            return false;
+        };
+    }
+});
+
+// PASO 6: Limpiar cualquier elemento de diagnóstico existente en el DOM
+function hideExistingDevElements() {
+    // Ocultar elementos por clase o ID común de desarrollo
+    const devSelectors = [
+        '.diagnostic-tools',
+        '.dev-tools', 
+        '[id*="diagnostic"]',
+        '[id*="debug"]',
+        '[class*="diagnostic"]',
+        '[class*="debug"]',
+        'button[onclick*="diagnose"]',
+        'button[onclick*="clean"]',
+        'button[onclick*="debug"]'
+    ];
+    
+    devSelectors.forEach(selector => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(el => {
+            el.style.display = 'none';
+        });
+    });
+    
+    // Ocultar navegación específica si existe
+    const navElements = document.querySelectorAll('nav, .nav-tabs, .navbar, .tab-navigation');
+    navElements.forEach(el => {
+        el.style.display = 'none';
+    });
+}
+
+// Ejecutar limpieza al cargar y cada vez que se renderice
+hideExistingDevElements();
+const originalRenderMultiplayer = window.renderMultiplayerTab;
+if (originalRenderMultiplayer) {
+    window.renderMultiplayerTab = function() {
+        const result = renderMultiplayerTabClean();
+        setTimeout(hideExistingDevElements, 100); // Limpiar después del render
+        return result;
+    };
+}
+
+// PASO 7: Interceptar y limpiar cualquier contenido HTML que incluya herramientas de desarrollo
+const originalInnerHTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+Object.defineProperty(Element.prototype, 'innerHTML', {
+    set: function(html) {
+        // Limpiar herramientas de diagnóstico del HTML antes de insertarlo
+        let cleanHtml = html;
+        if (typeof html === 'string') {
+            // Remover secciones de herramientas de diagnóstico
+            cleanHtml = html.replace(/<div[^>]*diagnostic[^>]*>[\s\S]*?<\/div>/gi, '');
+            cleanHtml = cleanHtml.replace(/<div[^>]*dev-tools[^>]*>[\s\S]*?<\/div>/gi, '');
+            cleanHtml = cleanHtml.replace(/🔧 Herramientas de Diagnóstico[\s\S]*?<\/div>/gi, '');
+            
+            // Remover botones específicos de diagnóstico
+            cleanHtml = cleanHtml.replace(/<button[^>]*diagnose[^>]*>[\s\S]*?<\/button>/gi, '');
+            cleanHtml = cleanHtml.replace(/<button[^>]*clean[^>]*>[\s\S]*?<\/button>/gi, '');
+        }
+        originalInnerHTML.set.call(this, cleanHtml);
+    },
+    get: originalInnerHTML.get
+});
+
+console.log('✅ Parche aplicado correctamente');
+console.log('🎮 Elementos ocultos:');
+console.log('   - Navegación superior (pestañas)');
+console.log('   - Herramientas de diagnóstico');
+console.log('   - Botones de desarrollador');
+console.log('   - Funciones de depuración');
+console.log('🔒 Modo cliente final activado - Solo funcionalidad de duelo');
+
+// Re-renderizar con la configuración limpia
+render();
+</script>
 </body>
 </html>
+
 
 
 
