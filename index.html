@@ -11098,8 +11098,175 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
 
     console.log('✅ PARCHE CRÍTICO aplicado - Ejecuta debugMultiplayerSync() para diagnóstico');
 </script>
+    // ========== PARCHE ESPECÍFICO: CORRECCIÓN RENDERIZADO TEMAS OPONENTE ==========
+// Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+
+<script>
+    console.log('🎯 APLICANDO PARCHE ESPECÍFICO: Corrección renderizado de temas...');
+
+    // REEMPLAZAR completamente la función renderOpponentTopics
+    function renderOpponentTopics(questionBank, canSelect) {
+        console.log('🎨 Renderizando temas del oponente:', {
+            banco: questionBank,
+            puedeSeleccionar: canSelect,
+            temasDisponibles: questionBank ? Object.keys(questionBank).length : 0
+        });
+
+        // VALIDACIÓN MEJORADA
+        if (!questionBank) {
+            console.warn('❌ questionBank es null o undefined');
+            return `
+                <div style="text-align: center; padding: 20px; color: #ef4444;">
+                    <p style="margin: 0; font-size: 14px; font-weight: 600;">ERROR: Banco null</p>
+                    <p style="margin: 5px 0 0 0; font-size: 12px;">questionBank es null o undefined</p>
+                </div>
+            `;
+        }
+
+        const topicKeys = Object.keys(questionBank);
+        
+        if (topicKeys.length === 0) {
+            console.warn('❌ questionBank está vacío');
+            return `
+                <div style="text-align: center; padding: 20px; color: #f59e0b;">
+                    <p style="margin: 0; font-size: 14px; font-weight: 600;">Banco vacío</p>
+                    <p style="margin: 5px 0 0 0; font-size: 12px;">El oponente no tiene temas organizados</p>
+                </div>
+            `;
+        }
+        
+        console.log('✅ Renderizando temas válidos:', topicKeys);
+        
+        let html = `<div style="font-size: 13px; color: #374151; margin-bottom: 15px; text-align: center; font-weight: 600; background: #fef3c7; padding: 8px; border-radius: 6px;">Temas del Oponente (${topicKeys.length})</div>`;
+        
+        // Procesar cada tema
+        topicKeys.forEach(topicKey => {
+            const topic = questionBank[topicKey];
+            console.log(`🔍 Procesando tema ${topicKey}:`, topic);
+            
+            if (!topic) {
+                console.warn(`❌ Tema ${topicKey} es null`);
+                return;
+            }
+
+            if (!topic.questions || !Array.isArray(topic.questions)) {
+                console.warn(`❌ Tema ${topicKey} no tiene questions válidas:`, topic.questions);
+                return;
+            }
+
+            if (topic.questions.length === 0) {
+                console.warn(`❌ Tema ${topicKey} tiene 0 preguntas`);
+                return;
+            }
+            
+            console.log(`✅ Tema ${topicKey} válido: ${topic.questions.length} preguntas`);
+            
+            html += `
+                <div style="margin-bottom: 12px; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; ${canSelect ? 'box-shadow: 0 2px 4px rgba(0,0,0,0.1);' : ''}">
+                    <div style="background: linear-gradient(135deg, ${canSelect ? '#f59e0b' : '#6b7280'}, ${canSelect ? '#d97706' : '#4b5563'}); color: white; padding: 10px; cursor: pointer;" onclick="toggleTopicQuestions('opp-${topicKey}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 600; font-size: 12px;">📁 ${topic.name || 'Tema sin nombre'}</span>
+                            <span style="background: rgba(255,255,255,0.3); color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px;">
+                                ${topic.questions.length}
+                            </span>
+                        </div>
+                    </div>
+                    <div id="questions-opp-${topicKey}" style="display: none; max-height: 150px; overflow-y: auto; background: #fafafa;">
+            `;
+            
+            // Procesar preguntas del tema
+            topic.questions.forEach((question, index) => {
+                if (!question) {
+                    console.warn(`❌ Pregunta ${index} del tema ${topicKey} es null`);
+                    return;
+                }
+                
+                const questionText = question.question || 'Pregunta sin texto';
+                const firebaseKey = question.firebaseKey || question.id || `q-${index}`;
+                
+                html += `
+                    <div style="padding: 8px 10px; border-bottom: 1px solid #e5e7eb; font-size: 11px; line-height: 1.3; ${canSelect ? 'cursor: pointer; transition: all 0.2s;' : 'color: #9ca3af;'}" 
+                         ${canSelect ? `onclick="selectQuestionFromOpponent('${topicKey}', '${firebaseKey}')" onmouseover="this.style.backgroundColor='#fef3c7'; this.style.borderLeft='3px solid #f59e0b';" onmouseout="this.style.backgroundColor='#fafafa'; this.style.borderLeft='none';"` : ''}>
+                        <div style="display: flex; align-items: flex-start; gap: 6px;">
+                            <span style="background: ${canSelect ? '#fef3c7' : '#f3f4f6'}; color: ${canSelect ? '#92400e' : '#6b7280'}; padding: 1px 4px; border-radius: 8px; font-size: 9px; font-weight: 600; flex-shrink: 0;">P${index + 1}</span>
+                            <span style="flex: 1;">${questionText.substring(0, 50)}${questionText.length > 50 ? '...' : ''}</span>
+                            ${canSelect ? '<span style="color: #f59e0b; font-size: 9px;">👆 Click</span>' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+        
+        console.log('🎨 HTML generado para temas del oponente (longitud):', html.length);
+        return html;
+    }
+
+    // FORZAR re-renderizado si estamos en modo de juego
+    if (multiplayerState && multiplayerState.gameState === 'playing') {
+        console.log('🔄 Forzando re-render del duelo...');
+        setTimeout(() => {
+            render();
+        }, 500);
+    }
+
+    // FUNCIÓN de diagnóstico simplificada (evita problemas de consola)
+    window.quickDebug = function() {
+        const oppBank = getOpponentQuestionBank();
+        const myBank = getMyQuestionBank();
+        
+        console.log('🔍 DEBUG RÁPIDO:');
+        console.log('Mi banco:', Object.keys(myBank).length, 'temas');
+        console.log('Banco oponente:', Object.keys(oppBank).length, 'temas');
+        console.log('Datos del oponente:', oppBank);
+        
+        return {
+            miBanco: Object.keys(myBank).length,
+            bancoOponente: Object.keys(oppBank).length,
+            datosOponente: oppBank
+        };
+    };
+
+    // VERIFICACIÓN AUTOMÁTICA cada 3 segundos cuando esté en duelo
+    if (multiplayerState && multiplayerState.gameState === 'playing') {
+        const checkInterval = setInterval(() => {
+            if (multiplayerState.gameState !== 'playing') {
+                clearInterval(checkInterval);
+                return;
+            }
+            
+            const oppBank = getOpponentQuestionBank();
+            const oppBankSize = Object.keys(oppBank).length;
+            
+            console.log(`🔄 Check automático: Oponente tiene ${oppBankSize} temas`);
+            
+            if (oppBankSize > 0) {
+                console.log('✅ Datos del oponente disponibles');
+            } else {
+                console.log('❌ Sin datos del oponente - forzando actualización...');
+                if (multiplayerState.currentRoom && database) {
+                    database.ref('rooms/' + multiplayerState.currentRoom).once('value')
+                        .then(snapshot => {
+                            if (snapshot.exists()) {
+                                updateLocalStateFromRoom(snapshot.val());
+                                render();
+                            }
+                        });
+                }
+            }
+        }, 3000);
+    }
+
+    console.log('✅ PARCHE ESPECÍFICO aplicado');
+    console.log('🔧 Usa quickDebug() en la consola para diagnóstico');
+</script>
 </body>
 </html>
+
 
 
 
