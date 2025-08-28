@@ -13340,9 +13340,311 @@ console.log('   - Franjas con scroll interno únicamente');
 console.log('   - Botón de salir integrado');
 console.log('   - SIN scroll vertical garantizado');
 </script>
+<!-- 
+PARCHE: ÁREA DE TEXTO TRANSCRITO EDITABLE
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche convierte la ventana de texto transcrito en un área editable donde se puede pegar texto
+-->
 
+<script>
+    // ========== PARCHE: TEXTO TRANSCRITO EDITABLE ==========
+    console.log('📝 Implementando área de texto editable...');
+    
+    // Estado adicional para el manejo de texto editable
+    let editableTextState = {
+        isPastedText: false,
+        originalTranscribedText: '',
+        hasBeenEdited: false
+    };
+    
+    // FUNCIÓN para manejar cuando se hace clic en el área de texto
+    window.enableTextEditing = function() {
+        const textArea = document.getElementById('transcribedText');
+        if (!textArea) return;
+        
+        // Cambiar a modo editable
+        textArea.removeAttribute('readonly');
+        textArea.focus();
+        
+        // Agregar placeholder explicativo si está vacío
+        if (!textArea.value.trim()) {
+            textArea.placeholder = 'Haz clic aquí y pega tu texto de examen para convertirlo en preguntas... \n\nTambién puedes subir imágenes para transcribir automáticamente.';
+        }
+        
+        // Mostrar mensaje informativo
+        showMessage('💡 Ahora puedes pegar texto directamente. Usa Ctrl+V para pegar', 'success');
+        
+        // Actualizar estado
+        editableTextState.hasBeenEdited = true;
+        render();
+    };
+    
+    // FUNCIÓN para detectar si el texto fue pegado manualmente
+    window.handleTextInput = function(textarea) {
+        if (!textarea) return;
+        
+        const currentText = textarea.value;
+        
+        // Si hay texto y no coincide con el transcrito, es texto pegado
+        if (currentText.trim() && currentText !== state.transcribedText) {
+            editableTextState.isPastedText = true;
+            editableTextState.hasBeenEdited = true;
+            
+            // Actualizar el texto transcrito con el texto pegado
+            state.transcribedText = currentText;
+            
+            // Limpiar texto procesado para forzar nuevo procesamiento
+            state.cleanedText = '';
+            
+            render();
+        }
+    };
+    
+    // FUNCIÓN para procesar texto (transcrito o pegado)
+    window.processTextContent = function() {
+        const textArea = document.getElementById('transcribedText');
+        const currentText = textArea ? textArea.value.trim() : '';
+        
+        if (!currentText) {
+            showMessage('❌ No hay texto para procesar. Sube imágenes o pega texto primero.', 'error');
+            return;
+        }
+        
+        // Actualizar el estado con el texto actual
+        state.transcribedText = currentText;
+        
+        // Determinar si es texto pegado
+        editableTextState.isPastedText = !editableTextState.originalTranscribedText || 
+                                       currentText !== editableTextState.originalTranscribedText;
+        
+        // Llamar a la función de limpieza existente
+        cleanText();
+    };
+    
+    // REEMPLAZAR la función renderUploadTab para incluir el área editable
+    const originalRenderUploadTab = renderUploadTab;
+    renderUploadTab = function() {
+        const unresolvedFailed = getUnresolvedFailedQuestions();
+        
+        return `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <div>
+                    <h2 style="color: #1f2937; margin: 0;">📤 Subir Imágenes para Crear Test</h2>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Selecciona hasta 10 imágenes para transcribir y generar preguntas</p>
+                </div>
+                <div style="display: flex; gap: 10px;" id="cross-navigation">
+                    <button onclick="goToSummaries()" class="btn btn-info">
+                        📊 Resúmenes
+                    </button>
+                    <button onclick="backToMainMenu()" class="btn btn-secondary">
+                        🏠 Menú
+                    </button>
+                </div>
+            </div>
+            
+            <div class="three-column">
+                <div class="column">
+                    <h3 style="margin-bottom: 15px;">📤 Subir Imágenes</h3>
+                    <div class="upload-area" onclick="document.getElementById('imageInput').click()">
+                        <div>📷 Seleccionar imágenes</div>
+                        <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">Hasta 10 imágenes</div>
+                        <div style="margin-top: 10px; color: #4f46e5; font-weight: 500;">
+                            ${state.selectedImages.length}/10 archivos
+                        </div>
+                    </div>
+                    <input type="file" id="imageInput" style="display: none;" accept="image/*" multiple>
+                    
+                    ${state.selectedImages.length > 0 ? `
+                        <div style="margin-top: 15px;">
+                            <h4 style="margin-bottom: 10px; color: #374151;">Imágenes seleccionadas:</h4>
+                            <div style="max-height: 200px; overflow-y: auto; border: 1px solid #d1d5db; border-radius: 6px; padding: 10px;">
+                                ${state.selectedImages.map((file, index) => `
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; margin: 4px 0; background: #f9fafb; border-radius: 4px; font-size: 13px;">
+                                        <span style="color: #374151; font-weight: 500;">${file.name}</span>
+                                        <button onclick="removeImage(${index})" style="color: #dc2626; background: none; border: none; cursor: pointer; font-weight: bold;">✕</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <button onclick="transcribeImages()" class="btn btn-primary" style="width: 100%; margin-top: 15px; padding: 15px; font-size: 16px; font-weight: 600;" ${state.selectedImages.length === 0 ? 'disabled' : ''}>
+                        🤖 1. Transcribir Imágenes
+                    </button>
+                    
+                    ${(state.transcribedText && !editableTextState.isPastedText) ? `
+                        <div style="margin-top: 15px; padding: 15px; background: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px;">
+                            <h4 style="color: #166534; margin-bottom: 10px;">✅ Transcripción completada</h4>
+                            <p style="margin: 0; font-size: 13px; color: #16a34a;">
+                                Texto extraído de ${state.selectedImages.length} imagen${state.selectedImages.length === 1 ? '' : 'es'}. 
+                                Ahora procesa el texto para generar preguntas.
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <div class="column">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0;">📝 Texto Transcrito / Pegado</h3>
+                        ${state.transcribedText ? `
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                ${editableTextState.isPastedText ? `
+                                    <span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">
+                                        📋 TEXTO PEGADO
+                                    </span>
+                                ` : `
+                                    <span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">
+                                        🤖 TRANSCRITO
+                                    </span>
+                                `}
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <textarea 
+                        id="transcribedText" 
+                        class="textarea" 
+                        placeholder="El texto aparecerá aquí cuando transcribas imágenes...
+
+🔄 NUEVA FUNCIONALIDAD: 
+• Haz CLIC aquí para pegar texto directamente
+• Puedes copiar exámenes de otras plataformas 
+• El texto pegado se procesará igual que el transcrito
+• Usa Ctrl+V para pegar contenido"
+                        onclick="enableTextEditing()"
+                        onpaste="setTimeout(() => handleTextInput(this), 100)"
+                        oninput="handleTextInput(this)"
+                        ${!editableTextState.hasBeenEdited ? 'readonly' : ''}
+                        style="cursor: pointer; ${!editableTextState.hasBeenEdited ? 'background: #f8fafc;' : 'background: white;'}"
+                    >${state.transcribedText}</textarea>
+                    
+                    <button onclick="processTextContent()" class="btn btn-primary" style="width: 100%; margin-top: 15px; padding: 15px; font-size: 16px; font-weight: 600;" ${!state.transcribedText ? 'disabled' : ''}>
+                        ${state.transcribedText && !state.cleanedText ? '🔄 2. Procesar Texto' : '🤖 2. Procesar Texto'}
+                    </button>
+                    
+                    ${editableTextState.isPastedText ? `
+                        <div style="margin-top: 15px; padding: 15px; background: #eff6ff; border: 2px solid #3b82f6; border-radius: 8px;">
+                            <h4 style="color: #1e40af; margin-bottom: 10px;">📋 Texto Pegado Detectado</h4>
+                            <p style="margin: 0; font-size: 13px; color: #1d4ed8;">
+                                Perfecto! Has pegado texto de examen. Haz clic en "Procesar Texto" para convertirlo en preguntas.
+                            </p>
+                        </div>
+                    ` : ''}
+                    
+                    ${(state.transcribedText && !state.cleanedText) ? `
+                        <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; text-align: center;">
+                            <span style="color: #92400e;">🔄 Procesando texto automáticamente...</span>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <div class="column">
+                    <h3 style="margin-bottom: 15px;">🔍 Texto Procesado</h3>
+                    <textarea id="cleanedText" class="textarea" placeholder="El texto procesado aparecerá aquí..." readonly>${state.cleanedText}</textarea>
+                    
+                    <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px;">
+                        <h4 style="color: #92400e; margin-bottom: 10px;">🏷️ Gestión de Temas</h4>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                            <button onclick="createTopic()" class="btn btn-info" style="width: 100%; padding: 8px; font-size: 13px;">
+                                🆕 Crear Tema
+                            </button>
+                            
+                            <div style="position: relative;">
+                                <select id="topic-selector" onchange="updateSelectedTopic()" style="width: 100%; padding: 8px; border: none; background: #f59e0b; color: white; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;" ${state.topics.length === 0 ? 'disabled' : ''}>
+                                    <option value="">🏷️ Seleccionar Tema</option>
+                                    ${state.topics.map(topic => `
+                                        <option value="${topic.id}" ${state.selectedTopicForNewQuestions === topic.id ? 'selected' : ''}>
+                                            ${topic.name} (${getTopicQuestionCount(topic.id)})
+                                        </option>
+                                    `).join('')}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        ${state.topics.length === 0 ? `
+                            <div style="text-align: center; padding: 10px; background: #fdf2f8; border: 1px solid #ec4899; border-radius: 6px; margin-bottom: 10px;">
+                                <span style="color: #be185d; font-size: 12px;">⚠️ Crea un tema primero</span>
+                            </div>
+                        ` : ''}
+                        
+                        <button onclick="addQuestionsToBank()" class="btn btn-success" style="width: 100%; padding: 12px; font-size: 14px; font-weight: 600;" ${!state.cleanedText || !state.selectedTopicForNewQuestions ? 'disabled' : ''}>
+                            ${getAddToBankButtonText()}
+                        </button>
+                    </div>
+                    
+                    ${state.cleanedText ? `
+                        <div style="margin-top: 15px; padding: 15px; background: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px;">
+                            <h4 style="color: #166534; margin-bottom: 10px;">✅ Texto procesado correctamente</h4>
+                            <p style="margin: 0; font-size: 13px; color: #16a34a;">
+                                Las preguntas están listas. Selecciona un tema y haz clic en "Añadir al Banco" para guardarlas.
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+
+            ${unresolvedFailed.length > 0 ? `
+                <div style="background: #fef2f2; border: 2px solid #ef4444; border-radius: 12px; padding: 20px; margin-top: 30px;">
+                    <h3 style="color: #dc2626; margin-bottom: 15px;">🔄 Test de Repaso Disponible</h3>
+                    <p style="color: #991b1b; margin-bottom: 15px;">
+                        Tienes <strong>${unresolvedFailed.length} pregunta${unresolvedFailed.length === 1 ? '' : 's'}</strong> fallada${unresolvedFailed.length === 1 ? '' : 's'} esperando repaso.
+                    </p>
+                    <button onclick="startFailedQuestionsTest()" class="btn btn-danger" style="padding: 12px 24px; font-size: 16px; font-weight: 600;">
+                        🎯 Iniciar Test de Repaso (${unresolvedFailed.length} pregunta${unresolvedFailed.length === 1 ? '' : 's'})
+                    </button>
+                </div>
+            ` : ''}
+        `;
+    };
+    
+    // ACTUALIZAR la función transcribeImages para guardar el texto original
+    const originalTranscribeImages = transcribeImages;
+    transcribeImages = async function() {
+        // Llamar a la función original
+        await originalTranscribeImages();
+        
+        // Guardar el texto transcrito original para comparación
+        if (state.transcribedText) {
+            editableTextState.originalTranscribedText = state.transcribedText;
+            editableTextState.isPastedText = false;
+        }
+    };
+    
+    // EVENTOS para mejorar la experiencia del usuario
+    document.addEventListener('DOMContentLoaded', function() {
+        // Event listener para detectar pegado con Ctrl+V
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'v') {
+                const activeElement = document.activeElement;
+                if (activeElement && activeElement.id === 'transcribedText') {
+                    setTimeout(() => {
+                        handleTextInput(activeElement);
+                        showMessage('📋 Texto pegado detectado. Haz clic en "Procesar Texto" para continuar.', 'success');
+                    }, 100);
+                }
+            }
+        });
+    });
+    
+    console.log('✅ Área de texto editable implementada correctamente');
+    console.log('🔧 Funcionalidades añadidas:');
+    console.log('   - Área de texto clickeable y editable');
+    console.log('   - Detección automática de texto pegado vs transcrito');  
+    console.log('   - Indicadores visuales para distinguir el origen del texto');
+    console.log('   - Procesamiento unificado para ambos tipos de texto');
+    console.log('   - Mantenimiento del flujo de asignación a temas');
+    
+    // Forzar re-renderizado para aplicar cambios
+    setTimeout(() => {
+        if (state.currentUser && typeof window.render === 'function') {
+            render();
+        }
+    }, 200);
+</script>
 </body>
 </html>
+
 
 
 
