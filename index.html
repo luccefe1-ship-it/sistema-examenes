@@ -13076,124 +13076,45 @@ console.log(' - diagnoseRoom(roomCode): Diagnosticar estado completo de una sala
 console.log(' - Validación mejorada que permite re-unión del mismo usuario');
 </script>
 
-
+<!-- PARCHE SIMPLE QUE FUNCIONA: MODIFICAR FUNCIÓN EXISTENTE -->
 <script>
-console.log('🔧 Aplicando parche de mensajes simples...');
+// ====== PARCHE SIMPLE USANDO FUNCIONES EXISTENTES ======
 
-// INTERCEPTAR la función renderDuelInterface para cambiar solo los mensajes
-const originalRenderDuelInterface = window.renderDuelInterface;
+console.log('🎯 Aplicando parche simple que funciona...');
 
-window.renderDuelInterface = function() {
-    // Obtener el HTML original
-    let html = originalRenderDuelInterface.call(this);
-    
-    // Detectar el estado actual
-    const gameData = multiplayerState.currentRoomData?.gameData;
-    const currentQuestion = gameData?.currentQuestionData;
-    const waitingForAnswer = gameData?.waitingForAnswer;
-    const showingResult = gameData?.showingResult;
-    const myTurn = multiplayerState.myTurn;
-    
-    // Determinar si el usuario actual puede responder
-    const canAnswer = currentQuestion && !myTurn && !showingResult && waitingForAnswer;
-    
-    // Mensajes simplificados
-    let newMessage = '';
-    
-    if (showingResult && gameData?.currentResponse) {
-        // Mantener los mensajes de resultado como estaban
-        const isCorrect = gameData.currentResponse.isCorrect;
-        const resultIcon = isCorrect ? '✅' : '❌';
-        const resultText = isCorrect ? 'RESPUESTA CORRECTA' : 'RESPUESTA INCORRECTA';
-        newMessage = `
-            <div style="display: inline-block; background: ${isCorrect ? '#10b981' : '#ef4444'}; color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">${resultIcon} ${resultText}</div>
-                <div style="font-size: 14px; opacity: 0.9;">Cambiando turno en unos segundos...</div>
-            </div>
-        `;
-    } else if (canAnswer) {
-        // El usuario PUEDE hacer clic para responder
-        newMessage = `
-            <div style="display: inline-block; background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">🎯 ¡TURNO DE RESPONDER!</div>
-                <div style="font-size: 14px; opacity: 0.9;">Haz clic en una opción de la pregunta</div>
-            </div>
-        `;
-    } else if (currentQuestion && waitingForAnswer) {
-        // Hay pregunta activa pero este usuario no puede responder (está esperando)
-        newMessage = `
-            <div style="display: inline-block; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">⏳ ESPERANDO RESPUESTA</div>
-                <div style="font-size: 14px; opacity: 0.9;">Tu oponente está respondiendo</div>
-            </div>
-        `;
-    } else if (myTurn) {
-        // Es mi turno para seleccionar pregunta
-        newMessage = `
-            <div style="display: inline-block; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">🎯 ES TU TURNO</div>
-                <div style="font-size: 14px; opacity: 0.9;">Selecciona una pregunta del panel derecho</div>
-            </div>
-        `;
-    } else {
-        // Turno del oponente para seleccionar pregunta
-        newMessage = `
-            <div style="display: inline-block; background: linear-gradient(135deg, #6b7280, #4b5563); color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">⏳ TURNO DEL OPONENTE</div>
-                <div style="font-size: 14px; opacity: 0.9;">Está seleccionando una pregunta</div>
-            </div>
-        `;
-    }
-    
-    // Buscar y reemplazar el panel de turnos completo
-    const panelRegex = /<!-- Panel de turnos simple -->([\s\S]*?)(?=<\/div>\s*(?:<\/div>)?\s*<!-- Layout de 3 franjas -->)/;
-    
-    const newPanel = `<!-- Panel de turnos simple -->
-<div style="background: linear-gradient(135deg, #f8fafc, #e2e8f0); padding: 20px; margin-bottom: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
-    <div style="text-align: center;">
-        ${newMessage}
-    </div>
-</div>
-
-        `;
-    
-    html = html.replace(panelRegex, newPanel);
-    
-    return html;
-};
-
-console.log('✅ Parche de mensajes simples aplicado correctamente');
-console.log('🎯 Mensajes simplificados:');
-console.log('   - "¡TURNO DE RESPONDER!" cuando puedes hacer clic');
-console.log('   - "ESPERANDO RESPUESTA" cuando no puedes hacer clic');
-</script>
-
-<script>
-
-console.log('🎯 Aplicando parche corregido para texto pegado...');
-
-// PASO 1: Hacer editable el textarea cuando se hace clic
-function makeTextareaClickable() {
+// PASO 1: Hacer editable el textarea al hacer clic
+function makeTextareaEditable() {
     const textarea = document.getElementById('cleanedText');
-    if (textarea && !textarea.hasAttribute('data-editable')) {
-        textarea.setAttribute('data-editable', 'true');
+    if (textarea && !textarea.hasAttribute('data-clickable')) {
+        textarea.setAttribute('data-clickable', 'true');
         
-        // Hacer editable al hacer clic
+        // Al hacer clic, se vuelve editable
         textarea.addEventListener('click', function() {
-            this.removeAttribute('readonly');
-            this.style.backgroundColor = '#ffffff';
-            this.style.border = '2px solid #3b82f6';
-            this.style.cursor = 'text';
-            this.placeholder = "✏️ Pega aquí texto de otra plataforma o visualiza texto transcrito";
-            this.focus();
-            console.log('✅ Textarea activado para edición');
+            if (this.hasAttribute('readonly')) {
+                this.removeAttribute('readonly');
+                this.style.backgroundColor = '#ffffff';
+                this.style.border = '2px solid #3b82f6';
+                this.style.cursor = 'text';
+                this.placeholder = "✏️ Pega texto de otra plataforma aquí";
+                this.focus();
+                console.log('✅ Textarea activado para edición');
+            }
         });
         
         // Detectar texto pegado
         textarea.addEventListener('paste', function() {
             setTimeout(() => {
                 if (this.value.trim()) {
-                    showPasteIndicator();
+                    // Mostrar mensaje de texto pegado
+                    const existingMsg = this.parentElement.querySelector('.paste-message');
+                    if (existingMsg) existingMsg.remove();
+                    
+                    const msg = document.createElement('div');
+                    msg.className = 'paste-message';
+                    msg.innerHTML = '📋 Texto pegado - Ahora haz clic en "Transcribir y Procesar"';
+                    msg.style.cssText = 'margin-top:8px;padding:8px;background:#dcfce7;border:1px solid #10b981;border-radius:6px;font-size:12px;color:#065f46;text-align:center;';
+                    this.parentElement.appendChild(msg);
+                    
                     console.log('📋 Texto pegado detectado');
                 }
             }, 100);
@@ -13201,135 +13122,57 @@ function makeTextareaClickable() {
     }
 }
 
-// PASO 2: Mostrar indicador de texto pegado
-function showPasteIndicator() {
-    const textarea = document.getElementById('cleanedText');
-    if (!textarea) return;
-    
-    // Eliminar indicador anterior
-    const oldIndicator = textarea.parentElement.querySelector('.paste-indicator');
-    if (oldIndicator) oldIndicator.remove();
-    
-    // Crear indicador
-    const indicator = document.createElement('div');
-    indicator.className = 'paste-indicator';
-    indicator.innerHTML = '📋 Texto pegado - Listo para procesar con "Transcribir y Procesar"';
-    indicator.style.cssText = `
-        margin-top: 10px; 
-        padding: 10px; 
-        background: #dcfce7; 
-        border: 2px solid #10b981; 
-        border-radius: 8px; 
-        font-size: 13px; 
-        color: #065f46; 
-        text-align: center;
-        font-weight: 600;
-    `;
-    
-    textarea.parentElement.appendChild(indicator);
-}
-
-// PASO 3: Guardar la función original transcribeImages
-if (typeof window.originalTranscribeImages === 'undefined') {
+// PASO 2: Guardar la función original
+if (!window.originalTranscribeImages) {
     window.originalTranscribeImages = window.transcribeImages;
 }
 
-// PASO 4: Reemplazar la función transcribeImages para manejar texto pegado
+// PASO 3: Reemplazar la función transcribeImages
 window.transcribeImages = async function() {
     if (!state.apiKey) {
         showMessage('Configura tu API key primero', 'error');
         return;
     }
 
-    // Verificar si hay texto pegado en el textarea
     const textarea = document.getElementById('cleanedText');
     const hasPastedText = textarea && textarea.value.trim() && !textarea.hasAttribute('readonly');
-    
+
     if (hasPastedText) {
         // ===== PROCESAR TEXTO PEGADO =====
         console.log('🔄 Procesando texto pegado...');
         showMessage('Procesando texto pegado...', 'success');
         
+        // Limpiar mensaje de texto pegado
+        const pasteMsg = textarea.parentElement.querySelector('.paste-message');
+        if (pasteMsg) pasteMsg.remove();
+
         try {
-            // 1. Poner el texto pegado en state.transcribedText (simula transcripción)
+            // Simular que es texto transcrito (ESTO ES CLAVE)
             state.transcribedText = textarea.value.trim();
-            console.log('📝 Texto asignado a state.transcribedText:', state.transcribedText.length, 'caracteres');
             
-            // 2. Procesar directamente con la IA (adaptando cleanText())
-            render(); // Mostrar indicador de procesamiento
-            showMessage('🔄 Procesando texto con IA...', 'success');
+            // Usar la función cleanText() que ya existe
+            showMessage('🔄 Procesando texto...', 'success');
+            await cleanText();
             
-            const response = await fetch("/api/anthropic", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": state.apiKey,
-                },
-                body: JSON.stringify({
-                    model: "claude-sonnet-4-20250514",
-                    max_tokens: 4000,
-                    messages: [{
-                        role: "user",
-                        content: `Convierte este texto pegado desde otra plataforma en formato de preguntas para banco de preguntas:
-
-TEXTO A PROCESAR:
-${state.transcribedText}
-
-INSTRUCCIONES CRÍTICAS:
-- Si el texto ya contiene preguntas y opciones, extráelas y organízalas
-- Si hay respuestas marcadas como correctas (con *, ✓, checkmarks, "correcta", etc.), márcalas con **negritas**
-- Si no hay preguntas claras, genera preguntas de múltiple opción basadas en el contenido
-- Detecta palabras clave y conceptos importantes para crear preguntas
-- Busca datos, fechas, nombres, procesos que puedan convertirse en preguntas
-
-FORMATO DE SALIDA ESTRICTO:
-PREGUNTA: [texto de la pregunta]
-OPCION_A: [opción a normal]
-OPCION_B: **[opción b si es correcta]**
-OPCION_C: [opción c normal]
-OPCION_D: [opción d normal]
-
-IMPORTANTE: Marca con **negritas** las opciones correctas. Si no hay respuestas marcadas en el texto original, determina cuál es la correcta basándote en el contenido.`
-                    }]
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Error ${response.status}: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            state.cleanedText = data.content[0].text;
-            
-            // Limpiar indicador de texto pegado
-            const indicator = textarea.parentElement.querySelector('.paste-indicator');
-            if (indicator) indicator.remove();
-            
-            render();
-            showMessage('¡Texto procesado y listo para asignar al banco!', 'success');
-            
-            console.log('✅ Texto pegado procesado exitosamente');
-            console.log('📄 Resultado en state.cleanedText:', state.cleanedText.length, 'caracteres');
+            console.log('✅ Texto procesado correctamente');
             
         } catch (error) {
-            showMessage(`Error procesando texto pegado: ${error.message}`, 'error');
-            console.error('❌ Error:', error);
+            console.error('❌ Error procesando texto:', error);
+            showMessage(`Error: ${error.message}`, 'error');
         }
         
     } else if (state.selectedImages.length > 0) {
-        // ===== PROCESAR IMÁGENES (FUNCIONALIDAD ORIGINAL) =====
-        console.log('🔄 Procesando imágenes...');
+        // ===== USAR FUNCIÓN ORIGINAL PARA IMÁGENES =====
         await window.originalTranscribeImages();
         
     } else {
-        // ===== ERROR: NO HAY NI TEXTO NI IMÁGENES =====
-        showMessage('Pega texto en el área o selecciona imágenes', 'error');
+        showMessage('Pega texto en el área editable o selecciona imágenes', 'error');
     }
 };
 
-// PASO 5: Configurar observador para aplicar el parche cuando el DOM cambie
+// PASO 4: Configurar observador para DOM dinámico
 const observer = new MutationObserver(() => {
-    makeTextareaClickable();
+    makeTextareaEditable();
 });
 
 observer.observe(document.body, {
@@ -13337,51 +13180,31 @@ observer.observe(document.body, {
     subtree: true
 });
 
-// PASO 6: Aplicar inmediatamente si el DOM está listo
-function initializePatch() {
+// PASO 5: Inicializar inmediatamente
+function initPatch() {
     setTimeout(() => {
-        makeTextareaClickable();
-        console.log('✅ Parche corregido aplicado: transcribeImages ahora maneja texto pegado');
-    }, 500);
+        makeTextareaEditable();
+        console.log('✅ Parche aplicado correctamente');
+    }, 200);
 }
 
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializePatch);
+    document.addEventListener('DOMContentLoaded', initPatch);
 } else {
-    initializePatch();
+    initPatch();
 }
 
-// PASO 7: Añadir CSS para el indicador
-const style = document.createElement('style');
-style.textContent = `
-    .paste-indicator {
-        animation: slideIn 0.3s ease-out;
-    }
-    
-    @keyframes slideIn {
-        from {
-            opacity: 0;
-            transform: translateY(-10px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-`;
-document.head.appendChild(style);
-
-console.log('🎯 Parche corregido aplicado exitosamente');
-console.log('📝 FUNCIONAMIENTO CORREGIDO:');
-console.log('   1. Haz clic en "Texto Transcrito" → Se vuelve editable');
-console.log('   2. Pega tu texto → Aparece indicador "Texto pegado"');
-console.log('   3. Clic en "Transcribir y Procesar" → IA procesa el texto pegado directamente');
-console.log('   4. Crear/Seleccionar tema → Gestión normal de temas');
-console.log('   5. Clic en "Asignar a tema" → Se añade al banco de preguntas');
+console.log('🎯 Parche simple completado');
+console.log('📝 FLUJO:');
+console.log('  1. Clic en textarea → Se vuelve editable');
+console.log('  2. Pegar texto → Mensaje de confirmación');
+console.log('  3. "Transcribir y Procesar" → Usa cleanText() existente');
+console.log('  4. "Asignar a tema" → Usa addToQuestions() existente');
 
 </script>
 </body>
 </html>
+
 
 
 
