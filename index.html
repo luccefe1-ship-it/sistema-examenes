@@ -12707,8 +12707,297 @@ console.log(' - forceReadAllBanksFromFirebase(): Leer todos los bancos');
 console.log(' - forceResync(): Resincronización completa');
 console.log(' - Polling automático cada 10 segundos');
 </script>
+    <!--
+CORRECCIÓN RÁPIDA: Error "Sala está llena" 
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Esta corrección arregla la validación de sala llena
+-->
+<script>
+// ========== CORRECCIÓN: VALIDACIÓN DE SALA MEJORADA ==========
+console.log('🔧 Aplicando corrección para error "Sala está llena"...');
+
+// REEMPLAZAR joinMultiplayerRoom con validación mejorada
+window.joinMultiplayerRoom = function() {
+    console.log('🚪 UNIÓN MEJORADA iniciada...');
+    
+    if (!multiplayerEnabled) {
+        showMessage('Error: Sistema multijugador no disponible', 'error');
+        return;
+    }
+    
+    if (!state.currentUser) {
+        showMessage('Debes estar logueado para unirte a una sala', 'error');
+        return;
+    }
+    
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    if (verifiedQuestions.length < 5) {
+        showMessage('Necesitas al menos 5 preguntas verificadas para unirte a una sala', 'error');
+        return;
+    }
+    
+    const roomCode = prompt('Ingresa el código de la sala (6 caracteres):');
+    if (!roomCode || roomCode.length !== 6) {
+        showMessage('Código de sala inválido', 'error');
+        return;
+    }
+    
+    const upperRoomCode = roomCode.toUpperCase();
+    
+    showMessage('Verificando sala...', 'info');
+    
+    // VALIDACIÓN MEJORADA - menos restrictiva
+    database.ref('rooms/' + upperRoomCode).once('value')
+        .then((snapshot) => {
+            if (!snapshot.exists()) {
+                throw new Error('La sala no existe');
+            }
+            
+            const roomData = snapshot.val();
+            console.log('📡 Datos de la sala encontrada:', roomData);
+            
+            // Validaciones más flexibles
+            if (roomData.status === 'finished') {
+                throw new Error('La sala ya terminó');
+            }
+            
+            if (roomData.host.username === state.currentUser.username) {
+                throw new Error('No puedes unirte a tu propia sala');
+            }
+            
+            // VALIDACIÓN MEJORADA - permitir re-unión si es el mismo usuario
+            if (roomData.guest && roomData.guest.username !== state.currentUser.username) {
+                throw new Error('La sala ya tiene otro jugador');
+            }
+            
+            console.log('✅ Sala válida para unión, procediendo...');
+            
+            // PASO 2: Preparar datos del invitado (SIEMPRE actualizar)
+            const guestData = {
+                username: state.currentUser.username,
+                name: state.currentUser.name,
+                questions: verifiedQuestions.length,
+                ready: false
+            };
+            
+            // PASO 3: ACTUALIZAR INVITADO (permitir sobreescribir)
+            const updates = {
+                guest: guestData,
+                guestReady: false, // Resetear estado ready
+                status: roomData.status === 'ready' ? 'waiting' : roomData.status, // Si estaba ready, volver a waiting
+                lastActivity: firebase.database.ServerValue.TIMESTAMP
+            };
+            
+            return database.ref('rooms/' + upperRoomCode).update(updates);
+        })
+        .then(() => {
+            console.log('✅ Información del invitado actualizada, configurando estado local...');
+            
+            // Actualizar estado local
+            multiplayerState.currentRoom = upperRoomCode;
+            multiplayerState.isHost = false;
+            multiplayerState.roomCode = upperRoomCode;
+            multiplayerState.gameState = 'waiting';
+            
+            // Configurar listener básico para la sala
+            listenToRoom(upperRoomCode);
+            
+            render();
+            showMessage(`Te has unido a la sala: ${upperRoomCode}`, 'success');
+            
+            // PASO 4: ESCRIBIR BANCO DEL INVITADO DE FORMA AGRESIVA
+            console.log('💾 ESCRIBIENDO BANCO DEL INVITADO...');
+            return forceWriteBankToFirebase(false); // false = invitado
+        })
+        .then(() => {
+            console.log('✅ Banco del invitado escrito correctamente');
+            showMessage('Banco de preguntas sincronizado correctamente', 'success');
+            
+            // Verificar lectura inmediata
+            setTimeout(() => {
+                forceReadAllBanksFromFirebase()
+                    .then(() => {
+                        console.log('✅ Verificación post-unión completada');
+                        showMessage('Sincronización completa exitosa', 'success');
+                    })
+                    .catch(error => {
+                        console.warn('⚠️ Error en verificación post-unión:', error);
+                    });
+            }, 3000);
+        })
+        .catch((error) => {
+            console.error('❌ Error en unión mejorada:', error);
+            showMessage('Error: ' + error.message, 'error');
+        });
+};
+
+// FUNCIÓN AUXILIAR para limpiar sala (por si hay datos residuales)
+window.cleanRoom = function(roomCode) {
+    if (!roomCode) {
+        roomCode = prompt('Código de sala a limpiar:');
+        if (!roomCode) return;
+    }
+    
+    const upperRoomCode = roomCode.toUpperCase();
+    
+    if (confirm(`¿Limpiar datos residuales de la sala ${upperRoomCode}?`)) {
+        database.ref('rooms/' + upperRoomCode).once('value')
+            .then(snapshot => {
+                if (!snapshot.exists()) {
+                    alert('La sala no existe');
+                    return;
+                }
+                
+                const roomData = snapshot.val();
+                console.log('🧹 Limpiando datos residuales:', roomData);
+                
+                // Solo limpiar si el usuario actual es el host o guest
+                const userCanClean = 
+                    roomData.host?.username === state.currentUser.username ||
+                    roomData.guest?.username === state.currentUser.username;
+                
+                if (!userCanClean) {
+                    alert('No tienes permisos para limpiar esta sala');
+                    return;
+                }
+                
+                // Limpiar invitado si soy el invitado, o toda la sala si soy el host
+                if (roomData.host?.username === state.currentUser.username) {
+                    // Soy el host - eliminar toda la sala
+                    return database.ref('rooms/' + upperRoomCode).remove();
+                } else {
+                    // Soy el invitado - solo limpiar datos del invitado
+                    const cleanUpdates = {
+                        guest: null,
+                        guestReady: false,
+                        'questionBanks/guest': null,
+                        status: 'waiting',
+                        lastActivity: firebase.database.ServerValue.TIMESTAMP
+                    };
+                    return database.ref('rooms/' + upperRoomCode).update(cleanUpdates);
+                }
+            })
+            .then(() => {
+                alert('Sala limpiada correctamente');
+                console.log('✅ Sala limpiada');
+                
+                // Resetear estado local si estábamos en esa sala
+                if (multiplayerState.roomCode === upperRoomCode) {
+                    multiplayerState.currentRoom = null;
+                    multiplayerState.roomCode = null;
+                    multiplayerState.gameState = null;
+                    multiplayerState.isHost = false;
+                    multiplayerState.opponent = null;
+                    render();
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error limpiando sala:', error);
+                alert('Error limpiando sala: ' + error.message);
+            });
+    }
+};
+
+// FUNCIÓN DE DIAGNÓSTICO mejorada
+window.diagnoseRoom = function(roomCode) {
+    if (!roomCode) {
+        roomCode = multiplayerState.roomCode || prompt('Código de sala a diagnosticar:');
+        if (!roomCode) return;
+    }
+    
+    const upperRoomCode = roomCode.toUpperCase();
+    
+    database.ref('rooms/' + upperRoomCode).once('value')
+        .then(snapshot => {
+            if (!snapshot.exists()) {
+                alert('❌ La sala no existe en Firebase');
+                return;
+            }
+            
+            const roomData = snapshot.val();
+            console.log('🔍 DIAGNÓSTICO COMPLETO DE LA SALA:', roomData);
+            
+            const diagnosis = `🔍 DIAGNÓSTICO DE SALA ${upperRoomCode}:
+
+📊 ESTADO GENERAL:
+- Status: ${roomData.status || 'undefined'}
+- Creada: ${roomData.createdAt ? new Date(roomData.createdAt).toLocaleString() : 'Unknown'}
+- Última actividad: ${roomData.lastActivity ? new Date(roomData.lastActivity).toLocaleString() : 'Unknown'}
+
+👑 ANFITRIÓN:
+- Usuario: ${roomData.host?.username || 'undefined'}
+- Nombre: ${roomData.host?.name || 'undefined'}  
+- Preguntas: ${roomData.host?.questions || 0}
+- Ready: ${roomData.hostReady || false}
+
+👤 INVITADO:
+- Usuario: ${roomData.guest?.username || 'null'}
+- Nombre: ${roomData.guest?.name || 'null'}
+- Preguntas: ${roomData.guest?.questions || 0}
+- Ready: ${roomData.guestReady || false}
+
+📚 BANCOS DE PREGUNTAS:
+- Banco Host: ${roomData.questionBanks?.host ? Object.keys(roomData.questionBanks.host).length + ' temas' : 'null'}
+- Banco Guest: ${roomData.questionBanks?.guest ? Object.keys(roomData.questionBanks.guest).length + ' temas' : 'null'}
+
+🎮 DATOS DE JUEGO:
+- Turno actual: ${roomData.gameData?.currentTurn || 'undefined'}
+- Pregunta actual: ${roomData.gameData?.currentQuestionData ? 'Sí' : 'No'}
+
+🔧 ESTADO LOCAL:
+- Mi usuario: ${state.currentUser?.username || 'undefined'}
+- Mi rol: ${multiplayerState.isHost ? 'Host' : 'Guest'}
+- En sala: ${multiplayerState.roomCode || 'null'}`;
+
+            alert(diagnosis);
+        })
+        .catch(error => {
+            console.error('❌ Error en diagnóstico:', error);
+            alert('Error en diagnóstico: ' + error.message);
+        });
+};
+
+// AGREGAR botones de utilidad al panel de multijugador
+const originalRenderMultiplayerTab = window.renderMultiplayerTab || function() { return '<p>Multijugador no disponible</p>'; };
+
+window.renderMultiplayerTab = function() {
+    const originalContent = originalRenderMultiplayerTab();
+    
+    // Si ya estamos en una sala, no agregar los botones adicionales
+    if (multiplayerState.currentRoom) {
+        return originalContent;
+    }
+    
+    // Agregar botones de utilidad
+    const utilityButtons = `
+        <div style="margin-top: 30px; padding: 20px; background: #f8fafc; border-radius: 12px; border: 2px solid #e2e8f0;">
+            <h3 style="margin: 0 0 15px 0; color: #374151;">🔧 Herramientas de Diagnóstico</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <button onclick="diagnoseRoom()" class="btn btn-info" style="padding: 12px;">
+                    🔍 Diagnosticar Sala
+                </button>
+                <button onclick="cleanRoom()" class="btn btn-warning" style="padding: 12px;">
+                    🧹 Limpiar Sala
+                </button>
+            </div>
+            <p style="margin: 15px 0 0 0; font-size: 12px; color: #6b7280; text-align: center;">
+                Usa estas herramientas si tienes problemas con salas "llenas" o datos residuales
+            </p>
+        </div>
+    `;
+    
+    return originalContent + utilityButtons;
+};
+
+console.log('✅ Corrección "Sala está llena" aplicada correctamente');
+console.log('🛠️ Nuevas funciones disponibles:');
+console.log(' - cleanRoom(roomCode): Limpiar datos residuales de una sala');
+console.log(' - diagnoseRoom(roomCode): Diagnosticar estado completo de una sala');
+console.log(' - Validación mejorada que permite re-unión del mismo usuario');
+</script>
 </body>
 </html>
+
 
 
 
