@@ -13166,138 +13166,91 @@ console.log('   - "¡TURNO DE RESPONDER!" cuando puedes hacer clic');
 console.log('   - "ESPERANDO RESPUESTA" cuando no puedes hacer clic');
 </script>
 
-<script>
-console.log('🔧 Aplicando parche de layout responsive...');
+// BORRA EL PARCHE ANTERIOR SI LO TIENES
 
-// INTERCEPTAR la función renderDuelInterface para ajustar el layout
-const originalRenderDuelInterfaceLayout = window.renderDuelInterface;
+<script>
+console.log('🔧 Aplicando parche simple sin scroll...');
+
+// INTERCEPTAR la función renderDuelInterface de forma simple
+const originalRenderDuelInterfaceSimple = window.renderDuelInterface;
 
 window.renderDuelInterface = function() {
-    // Obtener el HTML original
-    let html = originalRenderDuelInterfaceLayout.call(this);
+    let html = originalRenderDuelInterfaceSimple.call(this);
     
-    // Ajustar el contenedor principal para mejor distribución
+    // 1. REDUCIR PADDING DEL CONTENEDOR PRINCIPAL
     html = html.replace(
-        /<div style="max-width: 1400px; margin: 0 auto; padding: 20px; min-height: calc\(100vh - 200px\);">/,
-        `<div style="max-width: 1400px; margin: 0 auto; padding: 15px; min-height: calc(100vh - 150px); display: flex; flex-direction: column;">`
+        /padding: 15px; min-height: calc\(100vh - 150px\); display: flex; flex-direction: column;/,
+        'padding: 5px; height: calc(100vh - 120px); display: flex; flex-direction: column;'
     );
     
-    // Ajustar el header para que sea más compacto
+    // 2. REDUCIR HEADER DEL DUELO
     html = html.replace(
-        /<!-- Header del duelo -->([\s\S]*?)<\/div>/,
-        `<!-- Header del duelo -->
-        <div style="text-align: center; margin-bottom: 15px; background: linear-gradient(135deg, #dc2626, #7f1d1d); color: white; padding: 15px; border-radius: 12px; flex-shrink: 0;">
-            <h1 style="margin: 0 0 5px 0; font-size: 1.5rem; font-weight: 800;">⚔️ Duelo de Preguntas</h1>
-            <div style="font-size: 1.2rem; font-weight: bold; letter-spacing: 1px; margin: 3px 0;">
-                ${multiplayerState.roomCode}
-            </div>
-            <p style="margin: 0; opacity: 0.9; font-size: 12px;">
-                ${multiplayerState.myTurn ? 'Tu turno: Selecciona una pregunta del oponente' : 'Esperando respuesta del oponente'}
-            </p>
-        </div>`
+        /margin-bottom: 15px; background: linear-gradient\(135deg, #dc2626, #7f1d1d\); color: white; padding: 15px; border-radius: 12px; flex-shrink: 0;/,
+        'margin-bottom: 8px; background: linear-gradient(135deg, #dc2626, #7f1d1d); color: white; padding: 8px; border-radius: 8px; flex-shrink: 0;'
     );
     
-    // Ajustar el panel de turnos para que sea más compacto
+    // 3. REDUCIR PANEL DE TURNOS
     html = html.replace(
-        /<!-- Panel de turnos simple -->([\s\S]*?)<\/div>\s*<\/div>/,
-        function(match) {
-            return match.replace(
-                /padding: 20px; margin-bottom: 20px;/,
-                'padding: 12px; margin-bottom: 15px; flex-shrink: 0;'
-            );
-        }
+        /padding: 12px; margin-bottom: 15px; flex-shrink: 0;/,
+        'padding: 6px; margin-bottom: 8px; flex-shrink: 0;'
     );
     
-    // Ajustar el layout de 3 franjas para mejor distribución
+    // 4. GRID MÁS COMPACTO
     html = html.replace(
-        /<!-- Layout de 3 franjas -->([\s\S]*?)(?=<!-- Botones de control -->)/,
-        function(match) {
-            return match.replace(
-                /<div style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 25px; align-items: start;">/,
-                `<div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 15px; align-items: start; flex: 1; min-height: 0;">`
-            );
-        }
+        /display: grid; grid-template-columns: 300px 1fr 300px; gap: 15px; align-items: start; flex: 1; min-height: 0;/,
+        'display: grid; grid-template-columns: 280px 1fr 280px; gap: 8px; align-items: start; flex: 1; min-height: 0; max-height: calc(100vh - 200px);'
     );
     
-    // Ajustar las franjas laterales para que sean más compactas y con scroll
+    // 5. FRANJAS LATERALES MÁS COMPACTAS
     html = html.replace(
-        /<!-- FRANJA IZQUIERDA: Información del anfitrión\/invitado -->([\s\S]*?)(?=<!-- FRANJA CENTRAL)/,
-        function(match) {
-            return match.replace(
-                /padding: 20px; border-radius: 16px; box-shadow: 0 8px 25px rgba\(0,0,0,0\.1\);/,
-                'padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-height: 500px; overflow-y: auto;'
-            );
-        }
+        /padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba\(0,0,0,0\.1\); max-height: 500px; overflow-y: auto;/g,
+        'padding: 8px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-height: calc(100vh - 220px); overflow-y: auto;'
+    );
+    
+    // 6. FRANJA CENTRAL MÁS COMPACTA
+    html = html.replace(
+        /padding: 20px; box-shadow: 0 4px 15px rgba\(0,0,0,0\.08\); display: flex; align-items: center; justify-content: center; min-height: 300px; max-height: 500px;/,
+        'padding: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; min-height: 200px; max-height: calc(100vh - 220px);'
+    );
+    
+    // 7. BOTONES MÁS PEQUEÑOS Y COMPACTOS
+    html = html.replace(
+        /margin-top: 15px; display: flex; justify-content: center; gap: 10px; flex-shrink: 0;/,
+        'margin-top: 5px; display: flex; justify-content: center; gap: 5px; flex-shrink: 0;'
     );
     
     html = html.replace(
-        /<!-- FRANJA DERECHA: Información del oponente -->([\s\S]*?)(?=<\/div>\s*<\/div>)/,
-        function(match) {
-            return match.replace(
-                /padding: 20px; border-radius: 16px; box-shadow: 0 8px 25px rgba\(0,0,0,0\.1\);/,
-                'padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-height: 500px; overflow-y: auto;'
-            );
-        }
+        /padding: 8px 15px; font-size: 14px;/g,
+        'padding: 4px 8px; font-size: 12px;'
     );
     
-    // Ajustar la franja central para mejor proporción
+    // 8. REDUCIR TAMAÑOS DE FUENTE EN HEADER
     html = html.replace(
-        /<!-- FRANJA CENTRAL: Pregunta actual -->([\s\S]*?)(?=<!-- FRANJA DERECHA)/,
-        function(match) {
-            return match.replace(
-                /padding: 25px; box-shadow: 0 8px 25px rgba\(0,0,0,0\.08\); display: flex; align-items: center; justify-content: center; min-height: 400px;/,
-                'padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; min-height: 300px; max-height: 500px;'
-            );
-        }
+        /font-size: 1\.5rem;/,
+        'font-size: 1.2rem;'
     );
     
-    // Hacer los botones de control más compactos
     html = html.replace(
-        /<!-- Botones de control -->([\s\S]*?)(?=<\/div>\s*<\/div>\s*`)/,
-        `<!-- Botones de control -->
-        <div style="text-align: center; margin-top: 15px; display: flex; justify-content: center; gap: 10px; flex-shrink: 0;">
-            <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 8px 15px; font-size: 14px;">
-                🚪 Salir del Duelo
-            </button>
-            <button onclick="forceResync()" class="btn btn-secondary" style="padding: 8px 15px; font-size: 14px;">
-                🔄 Resync Agresivo
-            </button>
-            <button onclick="diagnoseRoom()" class="btn btn-info" style="padding: 8px 15px; font-size: 14px;">
-                🔍 Leer Firebase
-            </button>
-        </div>`
-    );
-    
-    // Añadir CSS para mejorar la responsividad
-    html = html.replace(
-        /<div style="max-width: 1400px;/,
-        `<style>
-            @media (max-height: 800px) {
-                .duel-container { min-height: calc(100vh - 100px) !important; }
-                .duel-header { padding: 10px !important; margin-bottom: 10px !important; }
-                .duel-panel { padding: 8px !important; margin-bottom: 10px !important; }
-                .duel-grid { gap: 10px !important; }
-                .duel-side-panel { max-height: 400px !important; }
-                .duel-center-panel { min-height: 250px !important; max-height: 400px !important; }
-            }
-        </style>
-        <div style="max-width: 1400px;`
+        /font-size: 1\.2rem;/,
+        'font-size: 1rem;'
     );
     
     return html;
 };
 
-console.log('✅ Parche de layout responsive aplicado correctamente');
-console.log('📐 Mejoras aplicadas:');
-console.log('   - Header más compacto');
-console.log('   - Panel de turnos reducido');
-console.log('   - Franjas laterales con scroll (máx 500px)');
-console.log('   - Franja central optimizada');
-console.log('   - Botones de control más pequeños');
-console.log('   - Layout responsive para pantallas pequeñas');
-</script> 
+console.log('✅ Parche simple aplicado correctamente');
+console.log('📐 Cambios aplicados:');
+console.log('   - Padding reducido en todos los elementos');
+console.log('   - Header más pequeño');
+console.log('   - Panel de turnos compacto');
+console.log('   - Grid optimizado con columnas de 280px');
+console.log('   - Altura máxima controlada en todas las franjas');
+console.log('   - Botones más pequeños');
+</script>
+
 </body>
 </html>
+
 
 
 
