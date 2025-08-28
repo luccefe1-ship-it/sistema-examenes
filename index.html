@@ -13167,11 +13167,10 @@ console.log('🎯 Mensajes simplificados:');
 console.log('   - "¡TURNO DE RESPONDER!" cuando puedes hacer clic');
 console.log('   - "ESPERANDO RESPUESTA" cuando no puedes hacer clic');
 </script>
-<!-- PARCHE: MODIFICAR FUNCIÓN TRANSCRIBEIMAGES PARA TEXTO PEGADO -->
-<script>
-// ====== PARCHE PARA MODIFICAR LA FUNCIÓN TRANSCRIBEIMAGES EXISTENTE ======
 
-console.log('🎯 Aplicando parche para texto pegado...');
+<script>
+
+console.log('🎯 Aplicando parche corregido para texto pegado...');
 
 // PASO 1: Hacer editable el textarea cuando se hace clic
 function makeTextareaClickable() {
@@ -13254,19 +13253,63 @@ window.transcribeImages = async function() {
         try {
             // 1. Poner el texto pegado en state.transcribedText (simula transcripción)
             state.transcribedText = textarea.value.trim();
+            console.log('📝 Texto asignado a state.transcribedText:', state.transcribedText.length, 'caracteres');
             
-            // 2. Procesar automáticamente con cleanText (igual que las imágenes)
+            // 2. Procesar directamente con la IA (adaptando cleanText())
             render(); // Mostrar indicador de procesamiento
-            showMessage('🔄 Procesando texto...', 'success');
+            showMessage('🔄 Procesando texto con IA...', 'success');
             
-            // Llamar a cleanText automáticamente
-            await cleanText();
+            const response = await fetch("/api/anthropic", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": state.apiKey,
+                },
+                body: JSON.stringify({
+                    model: "claude-sonnet-4-20250514",
+                    max_tokens: 4000,
+                    messages: [{
+                        role: "user",
+                        content: `Convierte este texto pegado desde otra plataforma en formato de preguntas para banco de preguntas:
+
+TEXTO A PROCESAR:
+${state.transcribedText}
+
+INSTRUCCIONES CRÍTICAS:
+- Si el texto ya contiene preguntas y opciones, extráelas y organízalas
+- Si hay respuestas marcadas como correctas (con *, ✓, checkmarks, "correcta", etc.), márcalas con **negritas**
+- Si no hay preguntas claras, genera preguntas de múltiple opción basadas en el contenido
+- Detecta palabras clave y conceptos importantes para crear preguntas
+- Busca datos, fechas, nombres, procesos que puedan convertirse en preguntas
+
+FORMATO DE SALIDA ESTRICTO:
+PREGUNTA: [texto de la pregunta]
+OPCION_A: [opción a normal]
+OPCION_B: **[opción b si es correcta]**
+OPCION_C: [opción c normal]
+OPCION_D: [opción d normal]
+
+IMPORTANTE: Marca con **negritas** las opciones correctas. Si no hay respuestas marcadas en el texto original, determina cuál es la correcta basándote en el contenido.`
+                    }]
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            state.cleanedText = data.content[0].text;
             
             // Limpiar indicador de texto pegado
             const indicator = textarea.parentElement.querySelector('.paste-indicator');
             if (indicator) indicator.remove();
             
+            render();
+            showMessage('¡Texto procesado y listo para asignar al banco!', 'success');
+            
             console.log('✅ Texto pegado procesado exitosamente');
+            console.log('📄 Resultado en state.cleanedText:', state.cleanedText.length, 'caracteres');
             
         } catch (error) {
             showMessage(`Error procesando texto pegado: ${error.message}`, 'error');
@@ -13298,7 +13341,7 @@ observer.observe(document.body, {
 function initializePatch() {
     setTimeout(() => {
         makeTextareaClickable();
-        console.log('✅ Parche aplicado: transcribeImages ahora maneja texto pegado');
+        console.log('✅ Parche corregido aplicado: transcribeImages ahora maneja texto pegado');
     }, 500);
 }
 
@@ -13328,17 +13371,18 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-console.log('🎯 Parche completo aplicado exitosamente');
-console.log('📝 FUNCIONAMIENTO:');
+console.log('🎯 Parche corregido aplicado exitosamente');
+console.log('📝 FUNCIONAMIENTO CORREGIDO:');
 console.log('   1. Haz clic en "Texto Transcrito" → Se vuelve editable');
 console.log('   2. Pega tu texto → Aparece indicador "Texto pegado"');
-console.log('   3. Clic en "Transcribir y Procesar" → IA procesa el texto pegado');
+console.log('   3. Clic en "Transcribir y Procesar" → IA procesa el texto pegado directamente');
 console.log('   4. Crear/Seleccionar tema → Gestión normal de temas');
 console.log('   5. Clic en "Asignar a tema" → Se añade al banco de preguntas');
 
 </script>
 </body>
 </html>
+
 
 
 
