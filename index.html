@@ -13074,83 +13074,88 @@ console.log(' - cleanRoom(roomCode): Limpiar datos residuales de una sala');
 console.log(' - diagnoseRoom(roomCode): Diagnosticar estado completo de una sala');
 console.log(' - Validación mejorada que permite re-unión del mismo usuario');
 </script>
-
-// PARCHE: MENSAJES SIMPLES PARA PANEL DE TURNOS
-// Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+// PARCHE: MENSAJES SIMPLES CON ESTÉTICA COMPACTA
+// Reemplaza el parche anterior por este
 
 <script>
-console.log('🔧 Aplicando parche de mensajes simples...');
+console.log('Aplicando parche de mensajes con estética compacta...');
 
-// INTERCEPTAR la función renderDuelInterface para cambiar solo los mensajes
-const originalRenderDuelInterface = window.renderDuelInterface;
+const originalRenderDuelInterfaceCompacto = window.renderDuelInterface;
 
 window.renderDuelInterface = function() {
-    // Obtener el HTML original
-    let html = originalRenderDuelInterface.call(this);
+    let html = originalRenderDuelInterfaceCompacto.call(this);
     
-    // Detectar el estado actual
+    // CAMBIO 1: Contenedor principal compacto (inspirado en PASO 7)
+    html = html.replace(
+        /<div style="max-width: 1400px; margin: 0 auto; padding: [^;]+; [^"]*">/,
+        '<div style="max-width: 1300px; margin: 0 auto; padding: 8px; height: calc(100vh - 80px); display: flex; flex-direction: column; overflow: hidden;">'
+    );
+    
+    // CAMBIO 2: Header compacto (reducir padding y margin)
+    html = html.replace(
+        /<!-- Header del duelo -->\s*<div style="[^"]*">/,
+        '<!-- Header del duelo --><div style="text-align: center; margin-bottom: 10px; background: linear-gradient(135deg, #dc2626, #7f1d1d); color: white; padding: 15px; border-radius: 12px; flex-shrink: 0;">'
+    );
+    
+    // CAMBIO 3: Detectar estados para mensajes (manteniendo la lógica original)
     const gameData = multiplayerState.currentRoomData?.gameData;
     const currentQuestion = gameData?.currentQuestionData;
     const waitingForAnswer = gameData?.waitingForAnswer;
     const showingResult = gameData?.showingResult;
     const myTurn = multiplayerState.myTurn;
+    const opponent = multiplayerState.opponent;
     
     // Determinar si el usuario actual puede responder
     const canAnswer = currentQuestion && !myTurn && !showingResult && waitingForAnswer;
     
-    // Mensajes simplificados
+    // CAMBIO 4: Mensajes simplificados con estilos más compactos
     let newMessage = '';
     
     if (showingResult && gameData?.currentResponse) {
-        // Mantener los mensajes de resultado como estaban
         const isCorrect = gameData.currentResponse.isCorrect;
         const resultIcon = isCorrect ? '✅' : '❌';
         const resultText = isCorrect ? 'RESPUESTA CORRECTA' : 'RESPUESTA INCORRECTA';
         newMessage = `
-            <div style="display: inline-block; background: ${isCorrect ? '#10b981' : '#ef4444'}; color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">${resultIcon} ${resultText}</div>
-                <div style="font-size: 14px; opacity: 0.9;">Cambiando turno en unos segundos...</div>
+            <div style="display: inline-block; background: ${isCorrect ? '#10b981' : '#ef4444'}; color: white; padding: 10px 20px; border-radius: 10px; box-shadow: 0 3px 10px rgba(0,0,0,0.2);">
+                <div style="font-size: 15px; font-weight: bold; margin-bottom: 5px;">${resultIcon} ${resultText}</div>
+                <div style="font-size: 12px; opacity: 0.9;">Cambiando turno en unos segundos...</div>
             </div>
         `;
     } else if (canAnswer) {
-        // El usuario PUEDE hacer clic para responder
         newMessage = `
-            <div style="display: inline-block; background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">🎯 ¡TURNO DE RESPONDER!</div>
-                <div style="font-size: 14px; opacity: 0.9;">Haz clic en una opción de la pregunta</div>
+            <div style="display: inline-block; background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 10px 20px; border-radius: 10px; box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);">
+                <div style="font-size: 15px; font-weight: bold; margin-bottom: 5px;">🎯 ¡TURNO DE RESPONDER!</div>
+                <div style="font-size: 12px; opacity: 0.9;">Haz clic en una opción de la pregunta</div>
             </div>
         `;
     } else if (currentQuestion && waitingForAnswer) {
-        // Hay pregunta activa pero este usuario no puede responder (está esperando)
         newMessage = `
-            <div style="display: inline-block; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">⏳ ESPERANDO RESPUESTA</div>
-                <div style="font-size: 14px; opacity: 0.9;">Tu oponente está respondiendo</div>
+            <div style="display: inline-block; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 10px 20px; border-radius: 10px; box-shadow: 0 3px 10px rgba(245, 158, 11, 0.3);">
+                <div style="font-size: 15px; font-weight: bold; margin-bottom: 5px;">⏳ ESPERANDO RESPUESTA</div>
+                <div style="font-size: 12px; opacity: 0.9;">Tu oponente está respondiendo</div>
             </div>
         `;
     } else if (myTurn) {
-        // Es mi turno para seleccionar pregunta
         newMessage = `
-            <div style="display: inline-block; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">🎯 ES TU TURNO</div>
-                <div style="font-size: 14px; opacity: 0.9;">Selecciona una pregunta del panel derecho</div>
+            <div style="display: inline-block; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; padding: 10px 20px; border-radius: 10px; box-shadow: 0 3px 10px rgba(99, 102, 241, 0.3);">
+                <div style="font-size: 15px; font-weight: bold; margin-bottom: 5px;">🎯 ES TU TURNO</div>
+                <div style="font-size: 12px; opacity: 0.9;">Selecciona una pregunta del panel derecho</div>
             </div>
         `;
     } else {
-        // Turno del oponente para seleccionar pregunta
         newMessage = `
-            <div style="display: inline-block; background: linear-gradient(135deg, #6b7280, #4b5563); color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">⏳ TURNO DEL OPONENTE</div>
-                <div style="font-size: 14px; opacity: 0.9;">Está seleccionando una pregunta</div>
+            <div style="display: inline-block; background: linear-gradient(135deg, #6b7280, #4b5563); color: white; padding: 10px 20px; border-radius: 10px; box-shadow: 0 3px 10px rgba(107, 114, 128, 0.3);">
+                <div style="font-size: 15px; font-weight: bold; margin-bottom: 5px;">⏳ TURNO DEL OPONENTE</div>
+                <div style="font-size: 12px; opacity: 0.9;">Está seleccionando una pregunta</div>
             </div>
         `;
     }
     
-    // Buscar y reemplazar el panel de turnos completo
+    // CAMBIO 5: Panel de turnos compacto (reducir padding y margin significativamente)
     const panelRegex = /<!-- Panel de turnos simple -->([\s\S]*?)(?=<\/div>\s*(?:<\/div>)?\s*<!-- Layout de 3 franjas -->)/;
     
     const newPanel = `<!-- Panel de turnos simple -->
-<div style="background: linear-gradient(135deg, #f8fafc, #e2e8f0); padding: 20px; margin-bottom: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
+<div style="background: linear-gradient(135deg, #f8fafc, #e2e8f0); padding: 8px; margin-bottom: 8px; border-radius: 10px; border: 2px solid #e2e8f0; flex-shrink: 0;">
     <div style="text-align: center;">
         ${newMessage}
     </div>
@@ -13160,16 +13165,44 @@ window.renderDuelInterface = function() {
     
     html = html.replace(panelRegex, newPanel);
     
+    // CAMBIO 6: Grid más compacto (inspirado en PASO 7)
+    html = html.replace(
+        /<!-- Layout de 3 franjas -->\s*<div style="[^"]*">/,
+        '<!-- Layout de 3 franjas --><div style="display: grid; grid-template-columns: 280px 1fr 280px; gap: 12px; flex: 1; height: 0; min-height: 0; align-items: start;">'
+    );
+    
+    // CAMBIO 7: Franjas con altura fija igual
+    html = html.replace(
+        /background: linear-gradient\(135deg, #22c55e, #16a34a\); color: white; padding: [^;]+; border-radius: [^;]+; box-shadow: [^;]+;/,
+        'background: linear-gradient(135deg, #22c55e, #16a34a); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.1); height: calc(100vh - 200px); overflow-y: auto;'
+    );
+    
+    html = html.replace(
+        /background: linear-gradient\(135deg, #f59e0b, #d97706\); color: white; padding: [^;]+; border-radius: [^;]+; box-shadow: [^;]+;/,
+        'background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.1); height: calc(100vh - 200px); overflow-y: auto;'
+    );
+    
+    // CAMBIO 8: Franja central con la misma altura
+    html = html.replace(
+        /background: white; border: [^;]+; border-radius: [^;]+; padding: [^;]+; box-shadow: [^;]+; display: flex; align-items: center; justify-content: center; [^;]+;/,
+        'background: white; border: 2px solid #e5e7eb; border-radius: 16px; padding: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; height: calc(100vh - 200px);'
+    );
+    
+    // CAMBIO 9: Botones separados de las franjas
+    html = html.replace(
+        /<!-- Botones de control -->([\s\S]*?)<\/div>/,
+        '<!-- Botones de control --><div style="text-align: center; margin-top: 8px; display: flex; justify-content: center; gap: 8px; flex-shrink: 0; padding: 5px;"><button onclick="leaveRoom()" class="btn btn-danger" style="padding: 8px 16px; font-size: 13px;">🚪 Salir del Duelo</button><button onclick="forceResync()" class="btn btn-secondary" style="padding: 8px 16px; font-size: 13px;">🔄 Resync Agresivo</button></div>'
+    );
+    
     return html;
 };
 
-console.log('✅ Parche de mensajes simples aplicado correctamente');
-console.log('🎯 Mensajes simplificados:');
-console.log('   - "¡TURNO DE RESPONDER!" cuando puedes hacer clic');
-console.log('   - "ESPERANDO RESPUESTA" cuando no puedes hacer clic');
+console.log('Parche de mensajes con estética compacta aplicado');
 </script>
+
 </body>
 </html>
+
 
 
 
