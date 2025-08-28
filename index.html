@@ -13076,58 +13076,67 @@ console.log(' - diagnoseRoom(roomCode): Diagnosticar estado completo de una sala
 console.log(' - Validación mejorada que permite re-unión del mismo usuario');
 </script>
 
-<!-- PARCHE SIMPLE QUE FUNCIONA: MODIFICAR FUNCIÓN EXISTENTE -->
+<!-- PARCHE FINAL QUE SÍ FUNCIONA: COPIANDO CÓDIGO EXACTO -->
 <script>
-// ====== PARCHE SIMPLE USANDO FUNCIONES EXISTENTES ======
+// ====== PARCHE FINAL: COPIANDO EL CÓDIGO EXACTO QUE YA FUNCIONA ======
 
-console.log('🎯 Aplicando parche simple que funciona...');
+console.log('🎯 Aplicando parche final que SÍ funciona...');
 
-// PASO 1: Hacer editable el textarea al hacer clic
-function makeTextareaEditable() {
+// PASO 1: Hacer textarea editable al hacer clic
+function makeTextareaClickable() {
     const textarea = document.getElementById('cleanedText');
-    if (textarea && !textarea.hasAttribute('data-clickable')) {
-        textarea.setAttribute('data-clickable', 'true');
+    if (textarea && !textarea.hasAttribute('data-enabled')) {
+        textarea.setAttribute('data-enabled', 'true');
         
-        // Al hacer clic, se vuelve editable
         textarea.addEventListener('click', function() {
-            if (this.hasAttribute('readonly')) {
-                this.removeAttribute('readonly');
-                this.style.backgroundColor = '#ffffff';
-                this.style.border = '2px solid #3b82f6';
-                this.style.cursor = 'text';
-                this.placeholder = "✏️ Pega texto de otra plataforma aquí";
-                this.focus();
-                console.log('✅ Textarea activado para edición');
-            }
+            this.removeAttribute('readonly');
+            this.style.backgroundColor = '#ffffff';
+            this.style.border = '2px solid #3b82f6';
+            this.style.cursor = 'text';
+            this.placeholder = "✏️ Pega aquí texto de otra plataforma";
+            this.focus();
         });
         
-        // Detectar texto pegado
         textarea.addEventListener('paste', function() {
             setTimeout(() => {
                 if (this.value.trim()) {
-                    // Mostrar mensaje de texto pegado
-                    const existingMsg = this.parentElement.querySelector('.paste-message');
-                    if (existingMsg) existingMsg.remove();
-                    
-                    const msg = document.createElement('div');
-                    msg.className = 'paste-message';
-                    msg.innerHTML = '📋 Texto pegado - Ahora haz clic en "Transcribir y Procesar"';
-                    msg.style.cssText = 'margin-top:8px;padding:8px;background:#dcfce7;border:1px solid #10b981;border-radius:6px;font-size:12px;color:#065f46;text-align:center;';
-                    this.parentElement.appendChild(msg);
-                    
-                    console.log('📋 Texto pegado detectado');
+                    showPastedTextMessage();
                 }
             }, 100);
         });
     }
 }
 
-// PASO 2: Guardar la función original
+// PASO 2: Mostrar mensaje de texto pegado
+function showPastedTextMessage() {
+    const textarea = document.getElementById('cleanedText');
+    if (!textarea) return;
+    
+    const existing = textarea.parentElement.querySelector('.pasted-msg');
+    if (existing) existing.remove();
+    
+    const msg = document.createElement('div');
+    msg.className = 'pasted-msg';
+    msg.innerHTML = '📋 Texto pegado - Usa "Transcribir y Procesar" para convertirlo';
+    msg.style.cssText = `
+        margin-top: 8px; 
+        padding: 8px 12px; 
+        background: #dcfce7; 
+        border: 1px solid #10b981; 
+        border-radius: 6px; 
+        font-size: 12px; 
+        color: #065f46; 
+        text-align: center;
+    `;
+    textarea.parentElement.appendChild(msg);
+}
+
+// PASO 3: Guardar función original si existe
 if (!window.originalTranscribeImages) {
     window.originalTranscribeImages = window.transcribeImages;
 }
 
-// PASO 3: Reemplazar la función transcribeImages
+// PASO 4: Reemplazar transcribeImages con lógica completa
 window.transcribeImages = async function() {
     if (!state.apiKey) {
         showMessage('Configura tu API key primero', 'error');
@@ -13139,40 +13148,90 @@ window.transcribeImages = async function() {
 
     if (hasPastedText) {
         // ===== PROCESAR TEXTO PEGADO =====
-        console.log('🔄 Procesando texto pegado...');
+        console.log('🔄 Iniciando procesamiento de texto pegado...');
         showMessage('Procesando texto pegado...', 'success');
         
-        // Limpiar mensaje de texto pegado
-        const pasteMsg = textarea.parentElement.querySelector('.paste-message');
-        if (pasteMsg) pasteMsg.remove();
+        // Limpiar mensaje
+        const msg = textarea.parentElement.querySelector('.pasted-msg');
+        if (msg) msg.remove();
 
         try {
-            // Simular que es texto transcrito (ESTO ES CLAVE)
+            // PASO 1: Simular transcripción (poner texto en state.transcribedText)
             state.transcribedText = textarea.value.trim();
+            console.log('📝 Texto asignado a state.transcribedText');
+
+            // PASO 2: Procesar con IA (COPIANDO CÓDIGO EXACTO DE CLEANTEXT)
+            render(); // Mostrar indicador de procesamiento
+            showMessage('🔄 Procesando texto con IA...', 'success');
+
+            const response = await fetch("/api/anthropic", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": state.apiKey,
+                },
+                body: JSON.stringify({
+                    model: "claude-sonnet-4-20250514",
+                    max_tokens: 4000,
+                    messages: [{
+                        role: "user",
+                        content: `Convierte este texto pegado en formato de preguntas para banco de preguntas:
+
+TEXTO A PROCESAR:
+${state.transcribedText}
+
+INSTRUCCIONES CRÍTICAS:
+- Si el texto contiene preguntas y opciones, extráelas y organízalas
+- Si hay respuestas marcadas como correctas (con *, ✓, "correcta", etc.), márcalas con **negritas**
+- Si no hay preguntas, genera preguntas de opción múltiple basadas en el contenido
+- Busca conceptos clave, datos, fechas, procesos para crear preguntas
+
+FORMATO DE SALIDA OBLIGATORIO:
+PREGUNTA: [texto de la pregunta]
+OPCION_A: [opción a]
+OPCION_B: **[opción b si es correcta]**
+OPCION_C: [opción c]
+OPCION_D: [opción d]
+
+IMPORTANTE: Marca con **negritas** las opciones correctas.`
+                    }]
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
             
-            // Usar la función cleanText() que ya existe
-            showMessage('🔄 Procesando texto...', 'success');
-            await cleanText();
+            // PASO 3: Guardar resultado procesado
+            state.cleanedText = data.content[0].text;
             
-            console.log('✅ Texto procesado correctamente');
+            console.log('✅ IA procesó el texto correctamente');
+            console.log('📄 Resultado guardado en state.cleanedText');
             
+            render();
+            showMessage('¡Texto procesado y listo para asignar al banco!', 'success');
+
         } catch (error) {
-            console.error('❌ Error procesando texto:', error);
+            console.error('❌ Error procesando texto pegado:', error);
             showMessage(`Error: ${error.message}`, 'error');
         }
-        
+
     } else if (state.selectedImages.length > 0) {
         // ===== USAR FUNCIÓN ORIGINAL PARA IMÁGENES =====
+        console.log('🔄 Procesando imágenes con función original...');
         await window.originalTranscribeImages();
-        
+
     } else {
+        // ===== ERROR: NO HAY NADA QUE PROCESAR =====
         showMessage('Pega texto en el área editable o selecciona imágenes', 'error');
     }
 };
 
-// PASO 4: Configurar observador para DOM dinámico
+// PASO 5: Aplicar automáticamente
 const observer = new MutationObserver(() => {
-    makeTextareaEditable();
+    makeTextareaClickable();
 });
 
 observer.observe(document.body, {
@@ -13180,30 +13239,24 @@ observer.observe(document.body, {
     subtree: true
 });
 
-// PASO 5: Inicializar inmediatamente
-function initPatch() {
-    setTimeout(() => {
-        makeTextareaEditable();
-        console.log('✅ Parche aplicado correctamente');
-    }, 200);
-}
+// Aplicar inmediatamente
+setTimeout(() => {
+    makeTextareaClickable();
+    console.log('✅ Parche final aplicado correctamente');
+}, 300);
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initPatch);
-} else {
-    initPatch();
-}
-
-console.log('🎯 Parche simple completado');
-console.log('📝 FLUJO:');
-console.log('  1. Clic en textarea → Se vuelve editable');
-console.log('  2. Pegar texto → Mensaje de confirmación');
-console.log('  3. "Transcribir y Procesar" → Usa cleanText() existente');
-console.log('  4. "Asignar a tema" → Usa addToQuestions() existente');
+console.log('🎯 PARCHE FINAL COMPLETADO');
+console.log('📋 FLUJO CORRECTO:');
+console.log('  1. Clic en textarea → Editable');
+console.log('  2. Pegar texto → Mensaje confirmación');  
+console.log('  3. "Transcribir y Procesar" → IA procesa directamente');
+console.log('  4. state.cleanedText listo → Asignar tema');
+console.log('  5. "Asignar a tema" → Al banco');
 
 </script>
 </body>
 </html>
+
 
 
 
