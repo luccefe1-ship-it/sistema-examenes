@@ -12387,7 +12387,7 @@ function renderDuelInterface() {
                 ${multiplayerState.roomCode}
             </div>
             <p style="margin: 0; opacity: 0.9; font-size: 14px;">
-                ${myTurn ? 'Tu turno: Selecciona una pregunta del oponente' : 'Turno del oponente: Espera su pregunta'}
+                ${myTurn ? 'Tu turno: Selecciona una pregunta del oponente' : 'Esperando respuesta del oponente'}
             </p>
         </div>
 
@@ -12650,9 +12650,11 @@ function selectQuestionFromOpponent(topicKey, questionFirebaseKey) {
         question: question.question.substring(0, 50) + '...'
     });
 
+    // CAMBIO CLAVE: No cambiar el turno, solo poner la pregunta y marcar que está esperando respuesta
     database.ref('rooms/' + multiplayerState.currentRoom).update({
         'gameData/currentQuestionData': question,
-        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
+        'gameData/waitingForAnswer': true, // Nuevo campo para indicar que se espera respuesta
+        'gameData/questionAsker': multiplayerState.isHost ? 'host' : 'guest', // Quien hizo la pregunta
         lastActivity: firebase.database.ServerValue.TIMESTAMP
     }).then(() => {
         showMessage(`✅ Pregunta enviada: ${question.question.substring(0, 40)}...`, 'success');
@@ -12940,6 +12942,7 @@ console.log(' - Validación mejorada que permite re-unión del mismo usuario');
   
 </body>
 </html>
+
 
 
 
