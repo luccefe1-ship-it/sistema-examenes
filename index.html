@@ -13642,8 +13642,230 @@ Este parche convierte la ventana de texto transcrito en un área editable donde 
         }
     }, 200);
 </script>
+    <!-- 
+CORRECCIÓN: FUNCIÓN FALTANTE getAddToBankButtonText
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Esta corrección define la función que estaba causando el error
+-->
+
+<script>
+    // ========== CORRECCIÓN: FUNCIÓN FALTANTE ==========
+    console.log('🔧 Definiendo función faltante getAddToBankButtonText...');
+    
+    // FUNCIÓN que faltaba para el botón de añadir al banco
+    window.getAddToBankButtonText = function() {
+        if (!state.selectedTopicForNewQuestions) {
+            return '✅ 2. Añadir al Banco';
+        } else {
+            const topicName = getTopicName(state.selectedTopicForNewQuestions);
+            return `✅ 2. Asignar a "${topicName}"`;
+        }
+    };
+    
+    // FUNCIÓN auxiliar para obtener el nombre del tema
+    window.getTopicName = function(topicId) {
+        if (!topicId) return 'Sin tema';
+        
+        const topic = state.topics.find(t => t.id == topicId || t.id === topicId);
+        return topic ? topic.name : `Tema ${topicId}`;
+    };
+    
+    // FUNCIÓN para obtener conteo de preguntas por tema
+    window.getTopicQuestionCount = function(topicId) {
+        if (!topicId) return 0;
+        
+        return state.questions.filter(q => 
+            q.topicId && (q.topicId == topicId || q.topicId === topicId)
+        ).length;
+    };
+    
+    // FUNCIÓN para actualizar el tema seleccionado
+    window.updateSelectedTopic = function() {
+        const selector = document.getElementById('topic-selector');
+        if (selector && selector.value) {
+            const selectedValue = selector.value;
+            const selectedTopic = state.topics.find(t => t.id == selectedValue);
+            if (selectedTopic) {
+                state.selectedTopicForNewQuestions = selectedTopic.id;
+                showMessage(`Tema "${selectedTopic.name}" seleccionado`, 'success');
+            } else {
+                state.selectedTopicForNewQuestions = selectedValue;
+            }
+        } else {
+            state.selectedTopicForNewQuestions = null;
+        }
+        render();
+    };
+    
+    // FUNCIÓN para crear nuevo tema
+    window.createTopic = function() {
+        const name = prompt('Nombre del nuevo tema:');
+        if (name && name.trim()) {
+            const trimmedName = name.trim();
+            
+            // Verificar si ya existe un tema con ese nombre
+            const existingTopic = state.topics.find(t => 
+                t.name.toLowerCase() === trimmedName.toLowerCase()
+            );
+            
+            if (existingTopic) {
+                showMessage('Ya existe un tema con ese nombre', 'error');
+                return;
+            }
+            
+            // Crear nuevo tema
+            const newTopic = {
+                id: Date.now().toString(),
+                name: trimmedName,
+                createdAt: new Date().toISOString()
+            };
+            
+            state.topics.push(newTopic);
+            localStorage.setItem('topics', JSON.stringify(state.topics));
+            
+            // Seleccionar automáticamente el nuevo tema
+            state.selectedTopicForNewQuestions = newTopic.id;
+            
+            render();
+            showMessage(`Tema "${trimmedName}" creado exitosamente`, 'success');
+        }
+    };
+    
+    // FUNCIÓN para añadir preguntas al banco
+    window.addQuestionsToBank = function() {
+        if (!state.cleanedText) {
+            showMessage('❌ Primero procesa el texto para generar preguntas', 'error');
+            return;
+        }
+        
+        if (!state.selectedTopicForNewQuestions) {
+            showMessage('❌ Selecciona un tema primero', 'error');
+            return;
+        }
+        
+        try {
+            // Convertir texto procesado en preguntas
+            const questions = parseQuestionsFromText(state.cleanedText);
+            
+            if (questions.length === 0) {
+                showMessage('❌ No se encontraron preguntas válidas en el texto', 'error');
+                return;
+            }
+            
+            // Añadir preguntas al banco
+            const topicName = getTopicName(state.selectedTopicForNewQuestions);
+            let addedCount = 0;
+            
+            questions.forEach(questionData => {
+                const newQuestion = {
+                    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                    question: questionData.question,
+                    options: questionData.options,
+                    correct: questionData.correct,
+                    topicId: state.selectedTopicForNewQuestions,
+                    createdAt: new Date().toISOString(),
+                    isVerified: false // Las preguntas nuevas requieren verificación
+                };
+                
+                state.questions.push(newQuestion);
+                addedCount++;
+            });
+            
+            // Guardar en localStorage
+            localStorage.setItem('questions', JSON.stringify(state.questions));
+            
+            // Limpiar el área de texto procesado
+            state.cleanedText = '';
+            state.transcribedText = '';
+            
+            // Resetear el estado de texto editable
+            editableTextState.isPastedText = false;
+            editableTextState.hasBeenEdited = false;
+            editableTextState.originalTranscribedText = '';
+            
+            render();
+            showMessage(`✅ ${addedCount} pregunta${addedCount === 1 ? '' : 's'} añadida${addedCount === 1 ? '' : 's'} al tema "${topicName}"`, 'success');
+            
+        } catch (error) {
+            console.error('Error procesando preguntas:', error);
+            showMessage('❌ Error al procesar las preguntas: ' + error.message, 'error');
+        }
+    };
+    
+    // FUNCIÓN auxiliar para parsear preguntas del texto procesado
+    function parseQuestionsFromText(text) {
+        const questions = [];
+        const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+        
+        let currentQuestion = null;
+        let currentOptions = [];
+        
+        for (let line of lines) {
+            if (line.startsWith('PREGUNTA:')) {
+                // Si hay una pregunta anterior, guardarla
+                if (currentQuestion && currentOptions.length >= 2) {
+                    questions.push({
+                        question: currentQuestion,
+                        options: currentOptions.map(opt => opt.text),
+                        correct: findCorrectOption(currentOptions)
+                    });
+                }
+                
+                // Nueva pregunta
+                currentQuestion = line.replace('PREGUNTA:', '').trim();
+                currentOptions = [];
+                
+            } else if (line.match(/^OPCION_[A-Z]:/)) {
+                const optionText = line.replace(/^OPCION_[A-Z]:/, '').trim();
+                const isCorrect = optionText.includes('**') && optionText.includes('**');
+                const cleanText = optionText.replace(/\*\*/g, '');
+                
+                currentOptions.push({
+                    text: cleanText,
+                    isCorrect: isCorrect
+                });
+            }
+        }
+        
+        // Añadir la última pregunta si existe
+        if (currentQuestion && currentOptions.length >= 2) {
+            questions.push({
+                question: currentQuestion,
+                options: currentOptions.map(opt => opt.text),
+                correct: findCorrectOption(currentOptions)
+            });
+        }
+        
+        return questions;
+    }
+    
+    // FUNCIÓN para encontrar la opción correcta
+    function findCorrectOption(options) {
+        const correctIndex = options.findIndex(opt => opt.isCorrect);
+        return correctIndex !== -1 ? correctIndex : 0; // Por defecto la primera si no hay marcada
+    }
+    
+    console.log('✅ Funciones faltantes definidas correctamente');
+    console.log('🔧 Funciones añadidas:');
+    console.log('   - getAddToBankButtonText()');
+    console.log('   - getTopicName()');
+    console.log('   - getTopicQuestionCount()');
+    console.log('   - updateSelectedTopic()');
+    console.log('   - createTopic()');
+    console.log('   - addQuestionsToBank()');
+    console.log('   - parseQuestionsFromText()');
+    console.log('   - findCorrectOption()');
+    
+    // Forzar re-renderizado para que se apliquen los cambios
+    setTimeout(() => {
+        if (state.currentUser && typeof window.render === 'function') {
+            render();
+        }
+    }, 100);
+</script>
 </body>
 </html>
+
 
 
 
