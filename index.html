@@ -10644,14 +10644,14 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
     console.log('   - Función toggleTopicQuestions() para expandir/contraer');
     console.log('   - Función answerCurrentQuestion() preparada para siguiente paso');
 </script>
-    // CORRECCIÓN: Mostrar temas del oponente en cada franja
+   // NUEVA ESTRUCTURA DE DUELO: YO (IZQUIERDA) - CENTRO - OPONENTE (DERECHA)
 // Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 
 <script>
-    // ========== CORRECCIÓN: VISUALIZAR TEMAS DEL OPONENTE CORRECTO ==========
-    console.log('🔧 CORRIGIENDO visualización de temas del oponente...');
+    // ========== NUEVA ESTRUCTURA: YO-CENTRO-OPONENTE ==========
+    console.log('🔧 Implementando nueva estructura de duelo...');
 
-    // REEMPLAZAR la función renderDuelInterface con lógica corregida
+    // REEMPLAZAR función renderDuelInterface con nueva lógica
     function renderDuelInterface() {
         const isHost = multiplayerState.isHost;
         const opponent = multiplayerState.opponent;
@@ -10659,14 +10659,14 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
         const myFailures = multiplayerState.myFailures || 0;
         const opponentFailures = multiplayerState.opponentFailures || 0;
         
-        // CORRECCIÓN: Obtener bancos de preguntas correctos
-        const myBank = getMyQuestionBank();           // Mi banco de preguntas
-        const opponentBank = getOpponentQuestionBank(); // Banco del oponente
+        // Obtener bancos de preguntas
+        const myBank = getMyQuestionBank();
+        const opponentBank = getOpponentQuestionBank();
         
-        // Datos de la pregunta actual si existe
+        // Datos de la pregunta actual
         const currentQuestion = multiplayerState.currentRoomData?.gameData?.currentQuestionData || null;
         
-        console.log('📊 VISUALIZACIÓN CORREGIDA:', {
+        console.log('📊 NUEVA VISUALIZACIÓN:', {
             soyAnfitrion: isHost,
             miTurno: myTurn,
             misTemasDisponibles: Object.keys(myBank).length,
@@ -10683,34 +10683,27 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
                         ${multiplayerState.roomCode}
                     </div>
                     <p style="margin: 0; opacity: 0.9; font-size: 14px;">
-                        ${myTurn ? 'Tu turno: Selecciona una pregunta DEL OPONENTE' : 'Turno del oponente: Espera tu respuesta'}
+                        ${myTurn ? 'Tu turno: Selecciona una pregunta de la franja DERECHA' : 'Turno del oponente: Puede seleccionar de tu franja IZQUIERDA'}
                     </p>
                 </div>
                 
-                <!-- Interfaz de 3 franjas CORREGIDA -->
+                <!-- Layout de 3 franjas: YO - CENTRO - OPONENTE -->
                 <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 20px; min-height: 500px;">
                     
-                    <!-- FRANJA IZQUIERDA: Anfitrión -->
-                    <div style="background: ${isHost ? (myTurn ? '#f0f9ff' : '#f8fafc') : '#f8fafc'}; border: 2px solid ${isHost ? (myTurn ? '#0ea5e9' : '#e2e8f0') : '#e2e8f0'}; border-radius: 12px; overflow-y: auto; max-height: 600px;">
-                        <div style="padding: 15px; border-bottom: 2px solid ${isHost ? (myTurn ? '#0ea5e9' : '#e2e8f0') : '#e2e8f0'}; background: ${isHost ? (myTurn ? '#0ea5e9' : '#6b7280') : '#6b7280'}; color: white; text-align: center;">
-                            <h3 style="margin: 0; font-size: 16px;">👑 ANFITRIÓN</h3>
-                            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${isHost ? state.currentUser.name : (opponent?.name || 'Anfitrión')}</p>
+                    <!-- FRANJA IZQUIERDA: SIEMPRE YO -->
+                    <div style="background: ${myTurn ? '#f0f9ff' : '#f8fafc'}; border: 2px solid ${myTurn ? '#0ea5e9' : '#e2e8f0'}; border-radius: 12px; overflow-y: auto; max-height: 600px;">
+                        <div style="padding: 15px; border-bottom: 2px solid ${myTurn ? '#0ea5e9' : '#e2e8f0'}; background: ${myTurn ? '#0ea5e9' : '#6b7280'}; color: white; text-align: center;">
+                            <h3 style="margin: 0; font-size: 16px;">${isHost ? '👑' : '👤'} YO</h3>
+                            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${state.currentUser.name}</p>
                             <div style="margin-top: 8px;">
                                 <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; font-size: 12px;">
-                                    ❌ ${isHost ? myFailures : opponentFailures}/3 Fallos
+                                    ❌ ${myFailures}/3 Fallos
                                 </span>
                             </div>
                         </div>
                         
                         <div style="padding: 15px;">
-                            ${isHost ? 
-                                // Si soy anfitrión, mostrar temas del INVITADO cuando sea mi turno
-                                (myTurn ? renderOpponentTopicsForSelection(opponentBank, 'Temas del Invitado') : 
-                                 renderWaitingState('Esperando tu turno')) :
-                                // Si soy invitado, mostrar temas del ANFITRIÓN cuando NO sea mi turno (cuando el anfitrión deba elegir)
-                                (!myTurn ? renderOpponentTopicsForSelection(opponentBank, 'Tus Temas') : 
-                                 renderWaitingState('Seleccionando pregunta...'))
-                            }
+                            ${renderMyTopics(myBank)}
                         </div>
                     </div>
                     
@@ -10726,34 +10719,27 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
                                     <div style="font-size: 4rem; margin-bottom: 20px;">🎯</div>
                                     <h3 style="color: #6b7280; margin: 0 0 10px 0;">Esperando pregunta</h3>
                                     <p style="margin: 0; font-size: 14px;">
-                                        ${myTurn ? 'Selecciona una pregunta del banco del oponente' : 'Tu oponente está seleccionando una pregunta'}
+                                        ${myTurn ? 'Selecciona una pregunta de la franja del oponente (derecha)' : 'Tu oponente está seleccionando de tu franja (izquierda)'}
                                     </p>
                                 </div>
                             `}
                         </div>
                     </div>
                     
-                    <!-- FRANJA DERECHA: Invitado -->
-                    <div style="background: ${!isHost ? (myTurn ? '#fef3c7' : '#f8fafc') : '#f8fafc'}; border: 2px solid ${!isHost ? (myTurn ? '#f59e0b' : '#e2e8f0') : '#e2e8f0'}; border-radius: 12px; overflow-y: auto; max-height: 600px;">
-                        <div style="padding: 15px; border-bottom: 2px solid ${!isHost ? (myTurn ? '#f59e0b' : '#e2e8f0') : '#e2e8f0'}; background: ${!isHost ? (myTurn ? '#f59e0b' : '#6b7280') : '#6b7280'}; color: white; text-align: center;">
-                            <h3 style="margin: 0; font-size: 16px;">👤 INVITADO</h3>
-                            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${!isHost ? state.currentUser.name : (opponent?.name || 'Invitado')}</p>
+                    <!-- FRANJA DERECHA: SIEMPRE OPONENTE -->
+                    <div style="background: ${!myTurn ? '#fef3c7' : '#f8fafc'}; border: 2px solid ${!myTurn ? '#f59e0b' : '#e2e8f0'}; border-radius: 12px; overflow-y: auto; max-height: 600px;">
+                        <div style="padding: 15px; border-bottom: 2px solid ${!myTurn ? '#f59e0b' : '#e2e8f0'}; background: ${!myTurn ? '#f59e0b' : '#6b7280'}; color: white; text-align: center;">
+                            <h3 style="margin: 0; font-size: 16px;">${!isHost ? '👑' : '👤'} OPONENTE</h3>
+                            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${opponent ? opponent.name : 'Sin oponente'}</p>
                             <div style="margin-top: 8px;">
                                 <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; font-size: 12px;">
-                                    ❌ ${!isHost ? myFailures : opponentFailures}/3 Fallos
+                                    ❌ ${opponentFailures}/3 Fallos
                                 </span>
                             </div>
                         </div>
                         
                         <div style="padding: 15px;">
-                            ${!isHost ? 
-                                // Si soy invitado, mostrar temas del ANFITRIÓN cuando sea mi turno
-                                (myTurn ? renderOpponentTopicsForSelection(opponentBank, 'Temas del Anfitrión') : 
-                                 renderWaitingState('Esperando tu turno')) :
-                                // Si soy anfitrión, mostrar temas del INVITADO cuando NO sea mi turno (cuando el invitado deba elegir)
-                                (!myTurn ? renderOpponentTopicsForSelection(opponentBank, 'Tus Temas') : 
-                                 renderWaitingState('Seleccionando pregunta...'))
-                            }
+                            ${renderOpponentTopics(opponentBank, myTurn)}
                         </div>
                     </div>
                 </div>
@@ -10765,7 +10751,7 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
                     </button>
                 </div>
                 
-                <!-- Panel de debug (temporal) -->
+                <!-- Panel de debug -->
                 <div style="position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 8px; font-size: 11px; max-width: 200px;">
                     <strong>DEBUG:</strong><br>
                     Soy: ${isHost ? 'Anfitrión' : 'Invitado'}<br>
@@ -10777,41 +10763,38 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
         `;
     }
 
-    // NUEVA función para renderizar temas del oponente para selección
-    function renderOpponentTopicsForSelection(questionBank, title) {
+    // FUNCIÓN para renderizar MIS temas (franja izquierda)
+    function renderMyTopics(questionBank) {
         if (!questionBank || Object.keys(questionBank).length === 0) {
             return `
                 <div style="text-align: center; padding: 20px; color: #6b7280;">
                     <p style="margin: 0; font-size: 14px; color: #ef4444;">Sin temas disponibles</p>
-                    <p style="margin: 5px 0 0 0; font-size: 12px;">El oponente no tiene preguntas verificadas</p>
+                    <p style="margin: 5px 0 0 0; font-size: 12px;">No tienes preguntas verificadas</p>
                 </div>
             `;
         }
         
-        let html = `<div style="font-size: 13px; color: #374151; margin-bottom: 15px; text-align: center; font-weight: 600; background: #f0f9ff; padding: 8px; border-radius: 6px;">${title} (${Object.keys(questionBank).length})</div>`;
+        let html = `<div style="font-size: 13px; color: #374151; margin-bottom: 15px; text-align: center; font-weight: 600; background: #e0f2fe; padding: 8px; border-radius: 6px;">Mis Temas (${Object.keys(questionBank).length})</div>`;
         
         Object.keys(questionBank).forEach(topicKey => {
             const topic = questionBank[topicKey];
             if (topic.questions && topic.questions.length > 0) {
                 html += `
-                    <div style="margin-bottom: 15px; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                        <div style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 12px; cursor: pointer;" onclick="toggleTopicQuestions('${topicKey}')">
+                    <div style="margin-bottom: 12px; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden;">
+                        <div style="background: linear-gradient(135deg, #0ea5e9, #0284c7); color: white; padding: 10px; cursor: pointer;" onclick="toggleTopicQuestions('my-${topicKey}')">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-weight: 600; font-size: 13px;">📁 ${topic.name}</span>
-                                <span style="background: rgba(255,255,255,0.2); color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px;">
-                                    ${topic.questions.length} pregunta${topic.questions.length === 1 ? '' : 's'}
+                                <span style="font-weight: 600; font-size: 12px;">📁 ${topic.name}</span>
+                                <span style="background: rgba(255,255,255,0.3); color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px;">
+                                    ${topic.questions.length}
                                 </span>
                             </div>
                         </div>
-                        <div id="questions-${topicKey}" style="display: none; max-height: 200px; overflow-y: auto; background: #fafafa;">
+                        <div id="questions-my-${topicKey}" style="display: none; max-height: 150px; overflow-y: auto; background: #fafafa;">
                             ${topic.questions.map((question, index) => `
-                                <div style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; cursor: pointer; font-size: 12px; line-height: 1.4; transition: all 0.2s;" 
-                                     onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey}')"
-                                     onmouseover="this.style.backgroundColor='#e0f2fe'; this.style.borderLeftColor='#0ea5e9'; this.style.borderLeftWidth='4px';" 
-                                     onmouseout="this.style.backgroundColor='#fafafa'; this.style.borderLeft='none';">
-                                    <div style="display: flex; align-items: flex-start; gap: 8px;">
-                                        <span style="background: #e0f2fe; color: #0c4a6e; padding: 2px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; flex-shrink: 0;">P${index + 1}</span>
-                                        <span style="flex: 1;">${question.question.substring(0, 60)}${question.question.length > 60 ? '...' : ''}</span>
+                                <div style="padding: 8px 10px; border-bottom: 1px solid #e5e7eb; font-size: 11px; line-height: 1.3; color: #6b7280;">
+                                    <div style="display: flex; align-items: flex-start; gap: 6px;">
+                                        <span style="background: #e0f2fe; color: #0c4a6e; padding: 1px 4px; border-radius: 8px; font-size: 9px; font-weight: 600; flex-shrink: 0;">P${index + 1}</span>
+                                        <span style="flex: 1;">${question.question.substring(0, 50)}${question.question.length > 50 ? '...' : ''}</span>
                                     </div>
                                 </div>
                             `).join('')}
@@ -10824,18 +10807,61 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
         return html;
     }
 
-    // NUEVA función para estados de espera
-    function renderWaitingState(message) {
-        return `
-            <div style="text-align: center; padding: 40px 20px; color: #6b7280;">
-                <div style="font-size: 2rem; margin-bottom: 10px;">⏳</div>
-                <p style="margin: 0; font-size: 14px;">${message}</p>
-            </div>
-        `;
+    // FUNCIÓN para renderizar temas del OPONENTE (franja derecha)
+    function renderOpponentTopics(questionBank, canSelect) {
+        if (!questionBank || Object.keys(questionBank).length === 0) {
+            return `
+                <div style="text-align: center; padding: 20px; color: #6b7280;">
+                    <p style="margin: 0; font-size: 14px; color: #ef4444;">Sin temas disponibles</p>
+                    <p style="margin: 5px 0 0 0; font-size: 12px;">El oponente no tiene preguntas verificadas</p>
+                </div>
+            `;
+        }
+        
+        let html = `<div style="font-size: 13px; color: #374151; margin-bottom: 15px; text-align: center; font-weight: 600; background: #fef3c7; padding: 8px; border-radius: 6px;">Temas del Oponente (${Object.keys(questionBank).length})</div>`;
+        
+        Object.keys(questionBank).forEach(topicKey => {
+            const topic = questionBank[topicKey];
+            if (topic.questions && topic.questions.length > 0) {
+                html += `
+                    <div style="margin-bottom: 12px; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; ${canSelect ? 'box-shadow: 0 2px 4px rgba(0,0,0,0.1);' : ''}">
+                        <div style="background: linear-gradient(135deg, ${canSelect ? '#f59e0b' : '#6b7280'}, ${canSelect ? '#d97706' : '#4b5563'}); color: white; padding: 10px; cursor: pointer;" onclick="toggleTopicQuestions('opp-${topicKey}')">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-weight: 600; font-size: 12px;">📁 ${topic.name}</span>
+                                <span style="background: rgba(255,255,255,0.3); color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px;">
+                                    ${topic.questions.length}
+                                </span>
+                            </div>
+                        </div>
+                        <div id="questions-opp-${topicKey}" style="display: none; max-height: 150px; overflow-y: auto; background: #fafafa;">
+                            ${topic.questions.map((question, index) => `
+                                <div style="padding: 8px 10px; border-bottom: 1px solid #e5e7eb; font-size: 11px; line-height: 1.3; ${canSelect ? 'cursor: pointer; transition: all 0.2s;' : 'color: #9ca3af;'}" 
+                                     ${canSelect ? `onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey}')" onmouseover="this.style.backgroundColor='#fef3c7'; this.style.borderLeft='3px solid #f59e0b';" onmouseout="this.style.backgroundColor='#fafafa'; this.style.borderLeft='none';"` : ''}>
+                                    <div style="display: flex; align-items: flex-start; gap: 6px;">
+                                        <span style="background: ${canSelect ? '#fef3c7' : '#f3f4f6'}; color: ${canSelect ? '#92400e' : '#6b7280'}; padding: 1px 4px; border-radius: 8px; font-size: 9px; font-weight: 600; flex-shrink: 0;">P${index + 1}</span>
+                                        <span style="flex: 1;">${question.question.substring(0, 50)}${question.question.length > 50 ? '...' : ''}</span>
+                                        ${canSelect ? '<span style="color: #f59e0b; font-size: 9px;">👆 Click</span>' : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        
+        return html;
     }
 
-    // MEJORAR función selectQuestionFromOpponent con mejor feedback
-    const originalSelectQuestion = window.selectQuestionFromOpponent;
+    // FUNCIÓN para alternar visualización de preguntas (mejorada para evitar conflictos)
+    function toggleTopicQuestions(topicKey) {
+        const questionsDiv = document.getElementById(`questions-${topicKey}`);
+        if (questionsDiv) {
+            questionsDiv.style.display = questionsDiv.style.display === 'none' ? 'block' : 'none';
+        }
+    }
+
+    // FUNCIÓN para seleccionar pregunta del oponente (mejorada con validaciones)
     window.selectQuestionFromOpponent = function(topicKey, questionFirebaseKey) {
         console.log('🎯 SELECCIONANDO pregunta del oponente:', {
             tema: topicKey,
@@ -10845,6 +10871,11 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
 
         if (!multiplayerState.myTurn) {
             showMessage('¡No es tu turno!', 'error');
+            return;
+        }
+
+        if (!multiplayerState.currentRoom) {
+            showMessage('Error: No hay sala activa', 'error');
             return;
         }
 
@@ -10864,7 +10895,7 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
             return;
         }
         
-        console.log('📤 Enviando pregunta seleccionada:', {
+        console.log('📤 Enviando pregunta seleccionada del oponente:', {
             pregunta: question.question.substring(0, 50) + '...',
             opciones: question.options.length,
             respuestaCorrecta: question.correctAnswer
@@ -10876,25 +10907,26 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
             lastActivity: firebase.database.ServerValue.TIMESTAMP
         })
         .then(() => {
-            console.log('✅ Pregunta enviada correctamente al Firebase');
+            console.log('✅ Pregunta enviada correctamente');
             showMessage(`Pregunta enviada: "${question.question.substring(0, 30)}..."`, 'success');
         })
         .catch((error) => {
             console.error('❌ Error enviando pregunta:', error);
-            showMessage('Error al enviar la pregunta', 'error');
+            showMessage('Error al enviar la pregunta: ' + error.message, 'error');
         });
     };
 
-    console.log('✅ CORRECCIÓN completada - Visualización de temas del oponente');
-    console.log('🎯 Ahora cada jugador ve correctamente los temas de su contrincante');
-    console.log('📋 Lógica implementada:');
-    console.log('   - Anfitrión ve temas del Invitado cuando es su turno');
-    console.log('   - Invitado ve temas del Anfitrión cuando es su turno');
-    console.log('   - Franjas muestran estado de espera cuando no es el turno');
-    console.log('   - Panel debug temporal en esquina inferior derecha');
+    console.log('✅ NUEVA ESTRUCTURA implementada correctamente');
+    console.log('📋 Lógica:');
+    console.log('   - Izquierda: Siempre mis temas (solo visualización)');
+    console.log('   - Centro: Pregunta actual para responder');
+    console.log('   - Derecha: Temas del oponente (seleccionables cuando es mi turno)');
+    console.log('   - Ambos jugadores ven los temas del otro');
+    console.log('   - Solo pueden seleccionar del oponente cuando es su turno');
 </script>
 </body>
 </html>
+
 
 
 
