@@ -11438,8 +11438,133 @@ if (multiplayerState && multiplayerState.inRoom) {
 
 console.log('✅ Parche con botones aplicado. Botones aparecerán en esquina superior derecha.');
 </script>
+
+<script>
+console.log('🚨 APLICANDO PARCHE: Subida forzada temas del invitado...');
+
+// REEMPLAZAR la función joinRoom completamente
+const originalJoinRoom = window.joinRoom;
+window.joinRoom = function(roomId, callback) {
+    console.log('🔄 [PATCH] Entrando a sala como INVITADO:', roomId);
+    
+    // Leer MIS temas ANTES de entrar
+    const myBank = JSON.parse(localStorage.getItem('questionBank') || '{}');
+    const myTopicCount = Object.keys(myBank).length;
+    
+    console.log('📚 [PATCH] Mis temas detectados antes de entrar:', myTopicCount);
+    
+    // Entrar a la sala usando la función original
+    originalJoinRoom(roomId, function(success, data) {
+        if (success) {
+            console.log('✅ [PATCH] Conectado a sala, subiendo MIS temas...');
+            
+            // FORZAR subida de mis temas como GUEST
+            const updates = {
+                [`questionBanks/guest`]: myBank,
+                [`players/guest`]: {
+                    name: currentUser,
+                    connected: true,
+                    ready: false
+                }
+            };
+            
+            database.ref(`rooms/${roomId}`).update(updates)
+                .then(() => {
+                    console.log('🎯 [PATCH] Temas del invitado subidos correctamente:', myTopicCount);
+                    
+                    // Actualizar estado local
+                    multiplayerState.guestQuestionBank = myBank;
+                    
+                    // Re-renderizar después de subir
+                    setTimeout(() => {
+                        if (typeof renderDuelInterface === 'function') {
+                            renderDuelInterface();
+                        }
+                    }, 500);
+                })
+                .catch(error => {
+                    console.error('❌ [PATCH] Error subiendo temas del invitado:', error);
+                });
+        }
+        
+        // Ejecutar callback original
+        if (callback) callback(success, data);
+    });
+};
+
+// Función para FORZAR subida manual de temas del invitado
+function subirTemasInvitado() {
+    if (multiplayerState.isHost) {
+        return "❌ Eres anfitrión, no invitado";
+    }
+    
+    if (!multiplayerState.currentRoomId) {
+        return "❌ No estás en una sala";
+    }
+    
+    const myBank = JSON.parse(localStorage.getItem('questionBank') || '{}');
+    const topicCount = Object.keys(myBank).length;
+    
+    console.log('🔄 Forzando subida manual de temas del invitado:', topicCount);
+    
+    const updates = {
+        [`questionBanks/guest`]: myBank
+    };
+    
+    database.ref(`rooms/${multiplayerState.currentRoomId}`).update(updates)
+        .then(() => {
+            console.log('✅ Temas del invitado subidos manualmente');
+            multiplayerState.guestQuestionBank = myBank;
+            
+            // Re-renderizar
+            if (typeof renderDuelInterface === 'function') {
+                renderDuelInterface();
+            }
+            
+            return `✅ ${topicCount} temas subidos`;
+        })
+        .catch(error => {
+            console.error('❌ Error en subida manual:', error);
+            return `❌ Error: ${error.message}`;
+        });
+}
+
+// Añadir botón específico para subir temas de invitado
+function addGuestUploadButton() {
+    const debugPanel = document.getElementById('debug-panel');
+    if (debugPanel && !multiplayerState.isHost) {
+        const uploadBtn = document.createElement('button');
+        uploadBtn.innerHTML = '⬆️ Subir Mis Temas';
+        uploadBtn.style.cssText = 'margin: 2px; padding: 5px 8px; font-size: 11px; background: #00aa00; color: white; border: none; border-radius: 3px;';
+        uploadBtn.onclick = () => {
+            const result = subirTemasInvitado();
+            const debugInfo = document.getElementById('debug-info');
+            if (debugInfo) {
+                debugInfo.innerHTML = result || 'Subiendo temas...';
+            }
+        };
+        
+        const firstButton = debugPanel.querySelector('button');
+        if (firstButton) {
+            firstButton.parentNode.insertBefore(uploadBtn, firstButton);
+        }
+    }
+}
+
+// Auto-ejecutar si ya estás en una sala como invitado
+setTimeout(() => {
+    if (multiplayerState.inRoom && !multiplayerState.isHost) {
+        console.log('🚀 [PATCH] Auto-subiendo temas del invitado...');
+        subirTemasInvitado();
+        addGuestUploadButton();
+    }
+}, 2000);
+
+console.log('✅ [PATCH] Parche de subida del invitado aplicado.');
+</script>
 </body>
 </html>
+
 
 
 
