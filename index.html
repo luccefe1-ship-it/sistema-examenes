@@ -11263,8 +11263,184 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
     console.log('✅ PARCHE ESPECÍFICO aplicado');
     console.log('🔧 Usa quickDebug() en la consola para diagnóstico');
 </script>
+    <!-- ========== PARCHE CON BOTONES DE DIAGNÓSTICO ========== -->
+<!-- Copiar y pegar AL FINAL del archivo HTML, justo antes de </body> -->
+
+<script>
+console.log('🔧 APLICANDO PARCHE CON BOTONES DE DIAGNÓSTICO...');
+
+// Función para crear botones de debug en la interfaz
+function createDebugButtons() {
+    // Verificar si ya existen los botones
+    if (document.getElementById('debug-panel')) {
+        return;
+    }
+    
+    const debugPanel = document.createElement('div');
+    debugPanel.id = 'debug-panel';
+    debugPanel.style.cssText = `
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: #ff4444;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        z-index: 9999;
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        max-width: 300px;
+    `;
+    
+    debugPanel.innerHTML = `
+        <div style="font-weight: bold; margin-bottom: 10px;">🔧 DEBUG MULTIJUGADOR</div>
+        <div id="debug-info" style="margin-bottom: 10px; font-size: 11px;"></div>
+        <button onclick="diagnosticarBancos()" style="margin: 2px; padding: 5px 8px; font-size: 11px;">📊 Diagnosticar</button>
+        <button onclick="sincronizarBancos()" style="margin: 2px; padding: 5px 8px; font-size: 11px;">🔄 Sincronizar</button>
+        <button onclick="repararSistema()" style="margin: 2px; padding: 5px 8px; font-size: 11px;">🚨 Reparar</button>
+        <button onclick="cerrarDebug()" style="margin: 2px; padding: 5px 8px; font-size: 11px;">❌ Cerrar</button>
+    `;
+    
+    document.body.appendChild(debugPanel);
+}
+
+// Función de diagnóstico (reemplaza a la consola)
+function diagnosticarBancos() {
+    const debugInfo = document.getElementById('debug-info');
+    
+    try {
+        const realBank = JSON.parse(localStorage.getItem('questionBank') || '{}');
+        const realTopics = Object.keys(realBank).length;
+        
+        const multiBank = multiplayerState.isHost ? 
+            multiplayerState.hostQuestionBank : 
+            multiplayerState.guestQuestionBank;
+        const multiTopics = Object.keys(multiBank || {}).length;
+        
+        debugInfo.innerHTML = `
+            <strong>DIAGNÓSTICO:</strong><br>
+            📚 Temas reales: ${realTopics}<br>
+            🎮 Temas multijugador: ${multiTopics}<br>
+            👤 Rol: ${multiplayerState.isHost ? 'Anfitrión' : 'Invitado'}<br>
+            🏠 En sala: ${multiplayerState.inRoom ? 'SÍ' : 'NO'}<br>
+            ${realTopics > 0 && multiTopics === 0 ? '<span style="color: yellow;">⚠️ DESINCRONIZADO</span>' : ''}
+        `;
+    } catch (e) {
+        debugInfo.innerHTML = `<span style="color: #ffcccc;">❌ Error: ${e.message}</span>`;
+    }
+}
+
+// Función de sincronización forzada
+function sincronizarBancos() {
+    const debugInfo = document.getElementById('debug-info');
+    
+    try {
+        // Leer banco real de localStorage
+        const realBank = JSON.parse(localStorage.getItem('questionBank') || '{}');
+        const topicCount = Object.keys(realBank).length;
+        
+        if (topicCount === 0) {
+            debugInfo.innerHTML = `<span style="color: #ffcccc;">❌ No hay temas en localStorage</span>`;
+            return;
+        }
+        
+        // Sincronizar con estado multijugador
+        if (multiplayerState.isHost) {
+            multiplayerState.hostQuestionBank = realBank;
+        } else {
+            multiplayerState.guestQuestionBank = realBank;
+        }
+        
+        // Actualizar Firebase si estamos en sala
+        if (multiplayerState.currentRoomId) {
+            const updates = {};
+            const bankKey = multiplayerState.isHost ? 'questionBanks/host' : 'questionBanks/guest';
+            updates[bankKey] = realBank;
+            
+            database.ref(`rooms/${multiplayerState.currentRoomId}`).update(updates)
+                .then(() => {
+                    debugInfo.innerHTML = `<span style="color: #ccffcc;">✅ Sincronizado: ${topicCount} temas</span>`;
+                    // Re-renderizar interfaz
+                    if (typeof renderDuelInterface === 'function') {
+                        renderDuelInterface();
+                    }
+                })
+                .catch(e => {
+                    debugInfo.innerHTML = `<span style="color: #ffcccc;">❌ Error Firebase: ${e.message}</span>`;
+                });
+        } else {
+            debugInfo.innerHTML = `<span style="color: #ccffcc;">✅ Sincronizado localmente: ${topicCount} temas</span>`;
+        }
+        
+    } catch (e) {
+        debugInfo.innerHTML = `<span style="color: #ffcccc;">❌ Error sincronización: ${e.message}</span>`;
+    }
+}
+
+// Función de reparación completa
+function repararSistema() {
+    const debugInfo = document.getElementById('debug-info');
+    
+    try {
+        // Paso 1: Leer datos reales
+        const realBank = JSON.parse(localStorage.getItem('questionBank') || '{}');
+        
+        // Paso 2: Reemplazar función getMyQuestionBank
+        window.getMyQuestionBank = function() {
+            const stored = JSON.parse(localStorage.getItem('questionBank') || '{}');
+            if (multiplayerState.isHost) {
+                multiplayerState.hostQuestionBank = stored;
+                return multiplayerState.hostQuestionBank;
+            } else {
+                multiplayerState.guestQuestionBank = stored;
+                return multiplayerState.guestQuestionBank;
+            }
+        };
+        
+        // Paso 3: Forzar actualización
+        sincronizarBancos();
+        
+        // Paso 4: Re-renderizar después de un momento
+        setTimeout(() => {
+            if (typeof renderDuelInterface === 'function') {
+                renderDuelInterface();
+            }
+            debugInfo.innerHTML = `<span style="color: #ccffcc;">🔧 Sistema reparado y re-renderizado</span>`;
+        }, 1000);
+        
+    } catch (e) {
+        debugInfo.innerHTML = `<span style="color: #ffcccc;">❌ Error reparación: ${e.message}</span>`;
+    }
+}
+
+function cerrarDebug() {
+    const panel = document.getElementById('debug-panel');
+    if (panel) {
+        panel.remove();
+    }
+}
+
+// Auto-crear botones cuando se entra en modo multijugador
+const originalRenderDuelInterface = window.renderDuelInterface;
+if (originalRenderDuelInterface) {
+    window.renderDuelInterface = function(...args) {
+        const result = originalRenderDuelInterface.apply(this, args);
+        createDebugButtons();
+        return result;
+    };
+}
+
+// Crear botones inmediatamente si ya estamos en multijugador
+if (multiplayerState && multiplayerState.inRoom) {
+    createDebugButtons();
+}
+
+console.log('✅ Parche con botones aplicado. Botones aparecerán en esquina superior derecha.');
+</script>
 </body>
 </html>
+
 
 
 
