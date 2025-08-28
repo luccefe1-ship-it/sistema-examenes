@@ -13076,8 +13076,6 @@ console.log(' - diagnoseRoom(roomCode): Diagnosticar estado completo de una sala
 console.log(' - Validación mejorada que permite re-unión del mismo usuario');
 </script>
 
-// PARCHE: MENSAJES SIMPLES PARA PANEL DE TURNOS
-// Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 
 <script>
 console.log('🔧 Aplicando parche de mensajes simples...');
@@ -13169,8 +13167,59 @@ console.log('🎯 Mensajes simplificados:');
 console.log('   - "¡TURNO DE RESPONDER!" cuando puedes hacer clic');
 console.log('   - "ESPERANDO RESPUESTA" cuando no puedes hacer clic');
 </script>
+    <!-- PARCHE SIMPLE: ÁREA EDITABLE SIN TOCAR NADA MÁS -->
+<script>
+// ====== PARCHE ULTRA SIMPLE PARA HACER EDITABLE EL TEXTAREA ======
+
+// Función que hace el textarea editable al hacer clic
+function makeTextareaEditable() {
+    // Esperar a que el DOM esté listo
+    setTimeout(() => {
+        const textarea = document.getElementById('cleanedText');
+        if (textarea) {
+            // Añadir evento de clic
+            textarea.addEventListener('click', function() {
+                // Quitar readonly
+                this.removeAttribute('readonly');
+                // Cambiar apariencia visual
+                this.style.backgroundColor = '#ffffff';
+                this.style.border = '2px solid #3b82f6';
+                this.style.cursor = 'text';
+                // Añadir placeholder para texto pegado
+                if (!this.value) {
+                    this.placeholder = "Haz clic aquí para pegar texto de otras plataformas o ver texto transcrito...";
+                }
+                // Enfocar el textarea
+                this.focus();
+            });
+            
+            // Detectar cuando se pega texto
+            textarea.addEventListener('paste', function() {
+                setTimeout(() => {
+                    console.log('Texto pegado detectado en el área');
+                    // Aquí el texto pegado ya estará disponible en this.value
+                }, 100);
+            });
+            
+            console.log('✅ Textarea de texto transcrito ahora es editable con un clic');
+        }
+    }, 500); // Esperar medio segundo para que el DOM esté listo
+}
+
+// Ejecutar cuando se carga la página
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', makeTextareaEditable);
+} else {
+    makeTextareaEditable();
+}
+
+// También ejecutar cada vez que se actualiza la página (para cuando cambia el contenido)
+setInterval(makeTextareaEditable, 2000);
+
+</script>
 </body>
 </html>
+
 
 
 
