@@ -13167,17 +13167,17 @@ console.log('🎯 Mensajes simplificados:');
 console.log('   - "¡TURNO DE RESPONDER!" cuando puedes hacer clic');
 console.log('   - "ESPERANDO RESPUESTA" cuando no puedes hacer clic');
 </script>
-<!-- PARCHE COMPLETO: TEXTO PEGADO + PROCESAMIENTO + ASIGNACIÓN -->
+<!-- PARCHE: MODIFICAR FUNCIÓN TRANSCRIBEIMAGES PARA TEXTO PEGADO -->
 <script>
-// ====== PARCHE FUNCIONAL COMPLETO PARA TEXTO PEGADO ======
+// ====== PARCHE PARA MODIFICAR LA FUNCIÓN TRANSCRIBEIMAGES EXISTENTE ======
 
-console.log('🎯 Iniciando parche completo de texto pegado...');
+console.log('🎯 Aplicando parche para texto pegado...');
 
-// PASO 1: Hacer editable el textarea y detectar texto pegado
-function setupEditableTextarea() {
+// PASO 1: Hacer editable el textarea cuando se hace clic
+function makeTextareaClickable() {
     const textarea = document.getElementById('cleanedText');
-    if (textarea && !textarea.hasAttribute('data-paste-ready')) {
-        textarea.setAttribute('data-paste-ready', 'true');
+    if (textarea && !textarea.hasAttribute('data-editable')) {
+        textarea.setAttribute('data-editable', 'true');
         
         // Hacer editable al hacer clic
         textarea.addEventListener('click', function() {
@@ -13187,31 +13187,19 @@ function setupEditableTextarea() {
             this.style.cursor = 'text';
             this.placeholder = "✏️ Pega aquí texto de otra plataforma o visualiza texto transcrito";
             this.focus();
-            
             console.log('✅ Textarea activado para edición');
         });
         
         // Detectar texto pegado
-        textarea.addEventListener('paste', function(e) {
+        textarea.addEventListener('paste', function() {
             setTimeout(() => {
-                const pastedText = this.value;
-                if (pastedText.trim()) {
-                    // Marcar que hay texto pegado
-                    state.transcribedText = pastedText; // Simular texto transcrito
-                    
-                    // Mostrar indicador
+                if (this.value.trim()) {
                     showPasteIndicator();
-                    
-                    console.log('📋 Texto pegado detectado:', pastedText.length, 'caracteres');
-                    console.log('🔄 Texto asignado a state.transcribedText para procesamiento');
+                    console.log('📋 Texto pegado detectado');
                 }
             }, 100);
         });
-        
-        console.log('✅ Textarea configurado para texto pegado');
-        return true;
     }
-    return false;
 }
 
 // PASO 2: Mostrar indicador de texto pegado
@@ -13219,14 +13207,14 @@ function showPasteIndicator() {
     const textarea = document.getElementById('cleanedText');
     if (!textarea) return;
     
-    // Eliminar indicador anterior si existe
+    // Eliminar indicador anterior
     const oldIndicator = textarea.parentElement.querySelector('.paste-indicator');
     if (oldIndicator) oldIndicator.remove();
     
-    // Crear nuevo indicador
+    // Crear indicador
     const indicator = document.createElement('div');
     indicator.className = 'paste-indicator';
-    indicator.innerHTML = '📋 Texto pegado - Listo para procesar';
+    indicator.innerHTML = '📋 Texto pegado - Listo para procesar con "Transcribir y Procesar"';
     indicator.style.cssText = `
         margin-top: 10px; 
         padding: 10px; 
@@ -13237,293 +13225,121 @@ function showPasteIndicator() {
         color: #065f46; 
         text-align: center;
         font-weight: 600;
-        animation: fadeIn 0.5s ease-in-out;
     `;
     
     textarea.parentElement.appendChild(indicator);
 }
 
-// PASO 3: Interceptar la función transcribeImages para manejar texto pegado
-function interceptTranscribeFunction() {
-    // Guardar función original
-    if (typeof window.originalTranscribeImages === 'undefined') {
-        window.originalTranscribeImages = window.transcribeImages;
-    }
-    
-    // Reemplazar con nueva función que maneja texto pegado
-    window.transcribeImages = async function() {
-        if (!state.apiKey) {
-            showMessage('Configura tu API key primero', 'error');
-            return;
-        }
-        
-        const textarea = document.getElementById('cleanedText');
-        const hasPastedText = textarea && textarea.value.trim() && !textarea.hasAttribute('readonly');
-        
-        if (hasPastedText) {
-            // PROCESAR TEXTO PEGADO
-            console.log('🔄 Procesando texto pegado...');
-            showMessage('Procesando texto pegado...', 'success');
-            
-            // Asignar texto pegado como si fuera transcrito
-            state.transcribedText = textarea.value.trim();
-            
-            // Procesar directamente con cleanText
-            await cleanTextFromPasted();
-            
-        } else if (state.selectedImages.length > 0) {
-            // PROCESAR IMÁGENES NORMALMENTE
-            console.log('🔄 Procesando imágenes...');
-            await window.originalTranscribeImages();
-            
-        } else {
-            showMessage('Pega texto en el área o selecciona imágenes', 'error');
-        }
-    };
-    
-    console.log('✅ Función transcribeImages interceptada');
+// PASO 3: Guardar la función original transcribeImages
+if (typeof window.originalTranscribeImages === 'undefined') {
+    window.originalTranscribeImages = window.transcribeImages;
 }
 
-// PASO 4: Función para procesar texto pegado (adapta cleanText existente)
-async function cleanTextFromPasted() {
-    if (!state.transcribedText) {
-        showMessage('No hay texto para procesar', 'error');
-        return;
-    }
-    
+// PASO 4: Reemplazar la función transcribeImages para manejar texto pegado
+window.transcribeImages = async function() {
     if (!state.apiKey) {
         showMessage('Configura tu API key primero', 'error');
         return;
     }
+
+    // Verificar si hay texto pegado en el textarea
+    const textarea = document.getElementById('cleanedText');
+    const hasPastedText = textarea && textarea.value.trim() && !textarea.hasAttribute('readonly');
     
-    render(); // Mostrar indicador de procesamiento
-    
-    try {
-        const response = await fetch("/api/anthropic", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "x-api-key": state.apiKey,
-            },
-            body: JSON.stringify({
-                model: "claude-sonnet-4-20250514",
-                max_tokens: 4000,
-                messages: [{
-                    role: "user",
-                    content: `Convierte este texto pegado de otra plataforma en formato de preguntas para banco de preguntas:
-
-TEXTO PEGADO:
-${state.transcribedText}
-
-INSTRUCCIONES CRÍTICAS:
-- Si el texto ya contiene preguntas y respuestas, extráelas y organízalas
-- Si hay opciones marcadas como correctas (con *, ✓, checkmarks, o palabras como "correcta"), márcalas con **negritas**
-- Si no hay preguntas, genera preguntas de múltiple opción basadas en el contenido
-- Numera las preguntas secuencialmente
-- Elimina información irrelevante o repetitiva
-
-FORMATO DE SALIDA ESTRICTO:
-PREGUNTA: [texto de la pregunta]
-OPCION_A: [opción a normal]
-OPCION_B: **[opción b si es correcta]**
-OPCION_C: [opción c normal] 
-OPCION_D: [opción d normal]
-
-IMPORTANTE: Marca con **negritas** las opciones correctas identificadas en el texto original.`
-                }]
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`Error ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        state.cleanedText = data.content[0].text;
-        
-        // Limpiar indicador de texto pegado
-        const indicator = document.querySelector('.paste-indicator');
-        if (indicator) indicator.remove();
-        
-        render();
-        showMessage('¡Texto procesado y listo para añadir al banco!', 'success');
-        
-        console.log('✅ Texto pegado procesado exitosamente');
-        
-    } catch (error) {
-        render();
-        showMessage(`Error en el procesamiento: ${error.message}`, 'error');
-    }
-}
-
-// PASO 5: Asegurar que addToQuestions funcione correctamente
-function interceptAddToQuestions() {
-    if (typeof window.originalAddToQuestions === 'undefined') {
-        window.originalAddToQuestions = window.addToQuestions;
-    }
-    
-    window.addToQuestions = function() {
-        if (!state.cleanedText) {
-            showMessage('Primero procesa el texto', 'error');
-            return;
-        }
-        
-        if (!state.selectedTopicForNewQuestions) {
-            showMessage('Selecciona un tema primero', 'error');
-            return;
-        }
+    if (hasPastedText) {
+        // ===== PROCESAR TEXTO PEGADO =====
+        console.log('🔄 Procesando texto pegado...');
+        showMessage('Procesando texto pegado...', 'success');
         
         try {
-            const newQuestions = parseCleanedText(state.cleanedText);
-            if (newQuestions.length === 0) {
-                showMessage('No se pudieron extraer preguntas del texto procesado', 'error');
-                return;
-            }
+            // 1. Poner el texto pegado en state.transcribedText (simula transcripción)
+            state.transcribedText = textarea.value.trim();
             
-            // Asignar tema a todas las preguntas
-            newQuestions.forEach(question => {
-                question.topicId = state.selectedTopicForNewQuestions;
-                question.id = Date.now() + Math.random();
-                question.createdAt = new Date().toISOString();
-                question.isVerified = true;
-            });
+            // 2. Procesar automáticamente con cleanText (igual que las imágenes)
+            render(); // Mostrar indicador de procesamiento
+            showMessage('🔄 Procesando texto...', 'success');
             
-            // Añadir al banco
-            state.questions.push(...newQuestions);
-            localStorage.setItem('questions', JSON.stringify(state.questions));
+            // Llamar a cleanText automáticamente
+            await cleanText();
             
-            const topicName = getTopicName(state.selectedTopicForNewQuestions);
-            showMessage(`¡${newQuestions.length} preguntas añadidas al tema "${topicName}"!`, 'success');
+            // Limpiar indicador de texto pegado
+            const indicator = textarea.parentElement.querySelector('.paste-indicator');
+            if (indicator) indicator.remove();
             
-            // Limpiar todo
-            state.selectedImages = [];
-            state.transcribedText = '';
-            state.cleanedText = '';
-            state.selectedTopicForNewQuestions = null;
-            
-            // Limpiar textarea
-            const textarea = document.getElementById('cleanedText');
-            if (textarea) {
-                textarea.value = '';
-                textarea.setAttribute('readonly', 'true');
-                textarea.style.backgroundColor = '#f9fafb';
-                textarea.style.border = '1px solid #d1d5db';
-                textarea.placeholder = "El texto procesado aparecerá aquí...";
-            }
-            
-            render();
-            console.log('✅ Preguntas añadidas al banco exitosamente');
+            console.log('✅ Texto pegado procesado exitosamente');
             
         } catch (error) {
-            showMessage(`Error al procesar preguntas: ${error.message}`, 'error');
-            console.error('❌ Error en addToQuestions:', error);
+            showMessage(`Error procesando texto pegado: ${error.message}`, 'error');
+            console.error('❌ Error:', error);
         }
-    };
-    
-    console.log('✅ Función addToQuestions interceptada');
-}
+        
+    } else if (state.selectedImages.length > 0) {
+        // ===== PROCESAR IMÁGENES (FUNCIONALIDAD ORIGINAL) =====
+        console.log('🔄 Procesando imágenes...');
+        await window.originalTranscribeImages();
+        
+    } else {
+        // ===== ERROR: NO HAY NI TEXTO NI IMÁGENES =====
+        showMessage('Pega texto en el área o selecciona imágenes', 'error');
+    }
+};
 
-// PASO 6: Función auxiliar para parsear texto limpio (usa la existente o crea nueva)
-function parseCleanedText(text) {
-    const questions = [];
-    const sections = text.split(/PREGUNTA:/i).filter(section => section.trim());
-    
-    sections.forEach((section, index) => {
-        const lines = section.trim().split('\n').filter(line => line.trim());
-        if (lines.length === 0) return;
-        
-        const questionText = lines[0].trim();
-        const options = [];
-        let correctAnswer = 0;
-        
-        // Procesar opciones
-        for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (line.match(/^OPCION_[A-D]:/i)) {
-                const optionText = line.replace(/^OPCION_[A-D]:\s*/i, '').trim();
-                
-                // Detectar opción correcta (con negritas)
-                if (optionText.includes('**')) {
-                    const cleanText = optionText.replace(/\*\*/g, '');
-                    options.push(cleanText);
-                    correctAnswer = options.length - 1;
-                } else {
-                    options.push(optionText);
-                }
-            }
-        }
-        
-        // Solo añadir si tiene pregunta y al menos 2 opciones
-        if (questionText && options.length >= 2) {
-            questions.push({
-                question: questionText,
-                options: options,
-                correctAnswer: correctAnswer,
-                id: Date.now() + Math.random() + index,
-                createdAt: new Date().toISOString(),
-                isVerified: true
-            });
-        }
-    });
-    
-    return questions;
-}
+// PASO 5: Configurar observador para aplicar el parche cuando el DOM cambie
+const observer = new MutationObserver(() => {
+    makeTextareaClickable();
+});
 
-// PASO 7: Inicialización automática
-function initializePastedTextFunctionality() {
-    // Configurar observador para detectar cambios en el DOM
-    const observer = new MutationObserver(() => {
-        setupEditableTextarea();
-    });
-    
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-    
-    // Configurar inmediatamente si está disponible
+observer.observe(document.body, {
+    childList: true,
+    subtree: true
+});
+
+// PASO 6: Aplicar inmediatamente si el DOM está listo
+function initializePatch() {
     setTimeout(() => {
-        setupEditableTextarea();
-        interceptTranscribeFunction();
-        interceptAddToQuestions();
-        
-        console.log('✅ Sistema de texto pegado completamente configurado');
+        makeTextareaClickable();
+        console.log('✅ Parche aplicado: transcribeImages ahora maneja texto pegado');
     }, 500);
 }
 
-// Inicializar automáticamente
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializePastedTextFunctionality);
+    document.addEventListener('DOMContentLoaded', initializePatch);
 } else {
-    initializePastedTextFunctionality();
+    initializePatch();
 }
 
-// PASO 8: CSS para animación del indicador
+// PASO 7: Añadir CSS para el indicador
 const style = document.createElement('style');
 style.textContent = `
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-10px); }
-        to { opacity: 1; transform: translateY(0); }
+    .paste-indicator {
+        animation: slideIn 0.3s ease-out;
     }
     
-    .paste-indicator {
-        animation: fadeIn 0.5s ease-in-out;
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 `;
 document.head.appendChild(style);
 
-console.log('🎯 Parche completo de texto pegado aplicado exitosamente');
-console.log('📋 Funcionalidades añadidas:');
-console.log('   ✅ Área editable con un clic');
-console.log('   ✅ Detección automática de texto pegado');
-console.log('   ✅ Procesamiento de texto con IA');
-console.log('   ✅ Asignación a temas existente');
-console.log('   ✅ Añadir al banco de preguntas');
-console.log('   ✅ Limpieza automática después del procesamiento');
+console.log('🎯 Parche completo aplicado exitosamente');
+console.log('📝 FUNCIONAMIENTO:');
+console.log('   1. Haz clic en "Texto Transcrito" → Se vuelve editable');
+console.log('   2. Pega tu texto → Aparece indicador "Texto pegado"');
+console.log('   3. Clic en "Transcribir y Procesar" → IA procesa el texto pegado');
+console.log('   4. Crear/Seleccionar tema → Gestión normal de temas');
+console.log('   5. Clic en "Asignar a tema" → Se añade al banco de preguntas');
 
 </script>
 </body>
 </html>
+
 
 
 
