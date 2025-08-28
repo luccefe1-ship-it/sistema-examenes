@@ -13167,58 +13167,152 @@ console.log('🎯 Mensajes simplificados:');
 console.log('   - "¡TURNO DE RESPONDER!" cuando puedes hacer clic');
 console.log('   - "ESPERANDO RESPUESTA" cuando no puedes hacer clic');
 </script>
-    <!-- PARCHE SIMPLE: ÁREA EDITABLE SIN TOCAR NADA MÁS -->
+
+    
 <script>
-// ====== PARCHE ULTRA SIMPLE PARA HACER EDITABLE EL TEXTAREA ======
+// ====== PARCHE PARA HACER EDITABLE EL PANEL "📝 SUBIR TEXTO" ======
 
-// Función que hace el textarea editable al hacer clic
-function makeTextareaEditable() {
-    // Esperar a que el DOM esté listo
-    setTimeout(() => {
-        const textarea = document.getElementById('cleanedText');
-        if (textarea) {
-            // Añadir evento de clic
-            textarea.addEventListener('click', function() {
-                // Quitar readonly
-                this.removeAttribute('readonly');
-                // Cambiar apariencia visual
-                this.style.backgroundColor = '#ffffff';
-                this.style.border = '2px solid #3b82f6';
-                this.style.cursor = 'text';
-                // Añadir placeholder para texto pegado
-                if (!this.value) {
-                    this.placeholder = "Haz clic aquí para pegar texto de otras plataformas o ver texto transcrito...";
-                }
-                // Enfocar el textarea
-                this.focus();
-            });
-            
-            // Detectar cuando se pega texto
-            textarea.addEventListener('paste', function() {
-                setTimeout(() => {
-                    console.log('Texto pegado detectado en el área');
-                    // Aquí el texto pegado ya estará disponible en this.value
-                }, 100);
-            });
-            
-            console.log('✅ Textarea de texto transcrito ahora es editable con un clic');
+// Función principal que hace editable el textarea del panel "Subir Texto"
+function makeSubirTextoEditable() {
+    // Buscar el textarea de la interfaz de "Subir Texto" por varios métodos
+    const possibleTextareas = [
+        // Por ID si existe
+        document.getElementById('cleanedText'),
+        // Por clase y contexto
+        ...Array.from(document.querySelectorAll('.textarea')),
+        // Por estructura (buscar textarea dentro de columnas)
+        ...Array.from(document.querySelectorAll('.column textarea')),
+        // Buscar por cualquier textarea con readonly
+        ...Array.from(document.querySelectorAll('textarea[readonly]'))
+    ];
+    
+    // Encontrar el textarea correcto (el del panel central "Subir Texto")
+    let targetTextarea = null;
+    
+    for (let textarea of possibleTextareas) {
+        if (textarea && textarea.parentElement) {
+            const parentText = textarea.parentElement.innerHTML;
+            // Buscar indicadores de que es el panel correcto
+            if (parentText.includes('📝') || 
+                parentText.includes('Subir Texto') || 
+                parentText.includes('Texto Transcrito') ||
+                textarea.placeholder && textarea.placeholder.includes('transcrito')) {
+                targetTextarea = textarea;
+                break;
+            }
         }
-    }, 500); // Esperar medio segundo para que el DOM esté listo
+    }
+    
+    // Si no encontramos el textarea específico, usar el primero con readonly
+    if (!targetTextarea) {
+        targetTextarea = document.querySelector('textarea[readonly]');
+    }
+    
+    if (targetTextarea && !targetTextarea.hasAttribute('data-editable-ready')) {
+        // Marcar como procesado para evitar duplicados
+        targetTextarea.setAttribute('data-editable-ready', 'true');
+        
+        // Añadir evento de clic
+        targetTextarea.addEventListener('click', function() {
+            // Quitar readonly permanentemente
+            this.removeAttribute('readonly');
+            
+            // Cambiar apariencia visual
+            this.style.backgroundColor = '#ffffff';
+            this.style.border = '2px solid #3b82f6';
+            this.style.borderRadius = '8px';
+            this.style.cursor = 'text';
+            this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+            
+            // Cambiar placeholder para indicar que es editable
+            this.placeholder = "✏️ Área editable: Pega aquí texto de otras plataformas o visualiza texto transcrito";
+            
+            // Enfocar el textarea
+            this.focus();
+            
+            console.log('✅ Textarea del panel "Subir Texto" activado para edición');
+        });
+        
+        // Detectar cuando se pega texto
+        targetTextarea.addEventListener('paste', function(e) {
+            setTimeout(() => {
+                console.log('📋 Texto pegado detectado:', this.value.length, 'caracteres');
+                
+                // Cambiar el estilo para indicar que tiene contenido pegado
+                this.style.backgroundColor = '#f0f9ff';
+                this.style.borderColor = '#10b981';
+                
+                // Opcional: Añadir indicador visual de texto pegado
+                const indicator = this.parentElement.querySelector('.paste-indicator');
+                if (!indicator) {
+                    const pasteIndicator = document.createElement('div');
+                    pasteIndicator.className = 'paste-indicator';
+                    pasteIndicator.innerHTML = '📋 Texto pegado - Listo para procesar';
+                    pasteIndicator.style.cssText = `
+                        margin-top: 10px; 
+                        padding: 8px 12px; 
+                        background: #dcfce7; 
+                        border: 1px solid #10b981; 
+                        border-radius: 6px; 
+                        font-size: 12px; 
+                        color: #065f46; 
+                        text-align: center;
+                    `;
+                    this.parentElement.appendChild(pasteIndicator);
+                }
+                
+                // El texto pegado ya está en this.value y listo para usar
+            }, 100);
+        });
+        
+        // Detectar cuando se escribe manualmente
+        targetTextarea.addEventListener('input', function() {
+            if (this.value.length > 0) {
+                this.style.backgroundColor = '#f8fafc';
+                this.style.borderColor = '#6366f1';
+            } else {
+                this.style.backgroundColor = '#ffffff';
+                this.style.borderColor = '#3b82f6';
+            }
+        });
+        
+        console.log('✅ Panel "📝 Subir Texto" configurado como editable');
+        return true;
+    }
+    
+    return false;
 }
 
-// Ejecutar cuando se carga la página
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', makeTextareaEditable);
-} else {
-    makeTextareaEditable();
+// Ejecutar la función al cargar la página
+function initializeEditableTextarea() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(makeSubirTextoEditable, 100);
+        });
+    } else {
+        setTimeout(makeSubirTextoEditable, 100);
+    }
 }
 
-// También ejecutar cada vez que se actualiza la página (para cuando cambia el contenido)
-setInterval(makeTextareaEditable, 2000);
+// Inicializar
+initializeEditableTextarea();
+
+// Observador para detectar cambios en el DOM y reaplica la funcionalidad
+const observer = new MutationObserver(() => {
+    makeSubirTextoEditable();
+});
+
+observer.observe(document.body, {
+    childList: true,
+    subtree: true
+});
+
+console.log('🎯 Parche "Área Editable" activado para el panel "📝 Subir Texto"');
 
 </script>
 </body>
 </html>
+
 
 
 
