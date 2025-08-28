@@ -10944,8 +10944,430 @@ console.log(' - Selección mejorada con indicadores visuales');
 console.log(' - Función toggleTopicQuestions mejorada con prefijos');
 console.log(' - Función selectQuestionFromOpponent mejorada con validaciones');
 </script>
+    <!--
+CORRECCIÓN OBLIGATORIA: FORZAR VISUALIZACIÓN DE TEMAS DEL INVITADO
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Esta corrección OBLIGA a que se vean los temas tanto del anfitrión como del invitado
+-->
+<script>
+// ========== CORRECCIÓN OBLIGATORIA - TEMAS DEL INVITADO ==========
+console.log('🔧 FORZANDO visualización de temas del invitado...');
+
+// PASO 1: FUNCIÓN MEJORADA para obtener MI banco de preguntas (CON FALLBACK OBLIGATORIO)
+function getMyQuestionBank() {
+    let myBank;
+    
+    if (multiplayerState.isHost) {
+        myBank = multiplayerState.hostQuestionBank || {};
+    } else {
+        myBank = multiplayerState.guestQuestionBank || {};
+    }
+    
+    // FALLBACK OBLIGATORIO: Si no hay banco, crearlo desde mis preguntas locales
+    if (!myBank || Object.keys(myBank).length === 0) {
+        console.warn('⚠️ Mi banco está vacío, creando desde preguntas locales...');
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        myBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+        
+        // Guardar en el estado local inmediatamente
+        if (multiplayerState.isHost) {
+            multiplayerState.hostQuestionBank = myBank;
+        } else {
+            multiplayerState.guestQuestionBank = myBank;
+        }
+        
+        console.log('✅ Banco reconstruido:', {
+            topics: Object.keys(myBank).length,
+            questions: Object.values(myBank).reduce((total, topic) => total + (topic.questions ? topic.questions.length : 0), 0)
+        });
+    }
+    
+    return myBank;
+}
+
+// PASO 2: FUNCIÓN MEJORADA para obtener banco del oponente (CON VALIDACIÓN)
+function getOpponentQuestionBank() {
+    let opponentBank;
+    
+    if (multiplayerState.isHost) {
+        opponentBank = multiplayerState.guestQuestionBank || {};
+    } else {
+        opponentBank = multiplayerState.hostQuestionBank || {};
+    }
+    
+    console.log('🔍 Banco del oponente:', {
+        topics: Object.keys(opponentBank).length,
+        isEmpty: Object.keys(opponentBank).length === 0
+    });
+    
+    return opponentBank;
+}
+
+// PASO 3: FUNCIÓN OBLIGATORIA para sincronizar banco del invitado en Firebase
+function forceSyncGuestBank() {
+    if (!multiplayerState.isHost && multiplayerState.currentRoom) {
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        if (verifiedQuestions.length > 0) {
+            const guestBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+            
+            console.log('🔄 FORZANDO sincronización del banco del invitado:', guestBank);
+            
+            // Actualizar Firebase OBLIGATORIAMENTE
+            database.ref('rooms/' + multiplayerState.currentRoom + '/questionBanks/guest').set(guestBank)
+                .then(() => {
+                    console.log('✅ Banco del invitado sincronizado en Firebase');
+                    multiplayerState.guestQuestionBank = guestBank;
+                    render(); // Re-renderizar para mostrar cambios
+                })
+                .catch(error => {
+                    console.error('❌ Error sincronizando banco del invitado:', error);
+                });
+        }
+    }
+}
+
+// PASO 4: REEMPLAZAR renderDuelInterface con VERIFICACIÓN OBLIGATORIA
+function renderDuelInterface() {
+    const isHost = multiplayerState.isHost;
+    const opponent = multiplayerState.opponent;
+    const myTurn = multiplayerState.myTurn;
+    const myFailures = multiplayerState.myFailures || 0;
+    const opponentFailures = multiplayerState.opponentFailures || 0;
+
+    // OBTENER BANCOS CON VERIFICACIÓN OBLIGATORIA
+    let myBank = getMyQuestionBank();
+    let opponentBank = getOpponentQuestionBank();
+    
+    // VERIFICACIÓN CRÍTICA: Si el invitado no tiene temas, forzar sincronización
+    if (!isHost && (!myBank || Object.keys(myBank).length === 0)) {
+        console.warn('⚠️ INVITADO SIN TEMAS - Forzando sincronización...');
+        forceSyncGuestBank();
+        // Crear banco temporal mientras se sincroniza
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        myBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+    }
+    
+    // Datos de la pregunta actual si existe
+    const currentQuestion = multiplayerState.currentRoomData?.gameData?.currentQuestionData || null;
+
+    console.log('🎮 ESTADO VERIFICADO del duelo:', {
+        isHost,
+        myTurn,
+        myBankTopics: Object.keys(myBank).length,
+        opponentBankTopics: Object.keys(opponentBank).length,
+        myBankData: myBank
+    });
+
+    return `
+    <div style="max-width: 1400px; margin: 0 auto; padding: 20px; min-height: calc(100vh - 200px);">
+        <!-- Header del duelo -->
+        <div style="text-align: center; margin-bottom: 25px; background: linear-gradient(135deg, #dc2626, #7f1d1d); color: white; padding: 20px; border-radius: 16px;">
+            <h1 style="margin: 0 0 10px 0; font-size: 2rem; font-weight: 800;">⚔️ Duelo de Preguntas</h1>
+            <div style="font-size: 1.8rem; font-weight: bold; letter-spacing: 2px; margin: 5px 0;">
+                ${multiplayerState.roomCode}
+            </div>
+            <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                ${myTurn ? 'Tu turno: Selecciona una pregunta del oponente' : 'Turno del oponente: Espera su respuesta'}
+            </p>
+        </div>
+
+        <!-- DEBUG INFO (temporal) -->
+        <div style="background: #f3f4f6; padding: 10px; margin-bottom: 20px; border-radius: 8px; font-size: 12px;">
+            <strong>DEBUG:</strong> 
+            Mi banco: ${Object.keys(myBank).length} temas | 
+            Banco oponente: ${Object.keys(opponentBank).length} temas | 
+            Rol: ${isHost ? 'Anfitrión' : 'Invitado'}
+        </div>
+
+        <!-- Interfaz de 3 franjas CORREGIDA -->
+        <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 20px; min-height: 500px;">
+            
+            <!-- FRANJA IZQUIERDA: SIEMPRE EL USUARIO ACTUAL + SUS TEMAS -->
+            <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; overflow-y: auto; max-height: 600px;">
+                <div style="padding: 15px; border-bottom: 2px solid #22c55e; background: #22c55e; color: white; text-align: center;">
+                    <h3 style="margin: 0; font-size: 16px;">${isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</h3>
+                    <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${state.currentUser.name} (TÚ)</p>
+                    <div style="margin-top: 8px;">
+                        <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; font-size: 12px;">
+                            ❌ ${myFailures}/3 Fallos
+                        </span>
+                    </div>
+                </div>
+                <div style="padding: 15px;">
+                    <div style="font-size: 13px; color: #16a34a; margin-bottom: 15px; text-align: center; font-weight: 600;">
+                        Mis Temas: (${Object.keys(myBank).length})
+                    </div>
+                    ${renderMyTopics(myBank)}
+                </div>
+            </div>
+
+            <!-- FRANJA CENTRAL: Pregunta actual -->
+            <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; display: flex; flex-direction: column;">
+                <div style="padding: 20px; border-bottom: 2px solid #e2e8f0; background: linear-gradient(135deg, #f8fafc, #e2e8f0); text-align: center;">
+                    <h3 style="margin: 0; color: #374151; font-size: 18px;">📋 Pregunta Actual</h3>
+                </div>
+                <div style="flex: 1; padding: 25px; display: flex; align-items: center; justify-content: center;">
+                    ${currentQuestion ? renderCurrentQuestion(currentQuestion, !myTurn) : `
+                        <div style="text-align: center; color: #9ca3af;">
+                            <div style="font-size: 4rem; margin-bottom: 20px;">🎯</div>
+                            <h3 style="color: #6b7280; margin: 0 0 10px 0;">Esperando pregunta</h3>
+                            <p style="margin: 0; font-size: 14px;">
+                                ${myTurn ? 'Selecciona una pregunta de los temas del oponente (panel derecho)' : 'Tu oponente está seleccionando una pregunta'}
+                            </p>
+                        </div>
+                    `}
+                </div>
+            </div>
+
+            <!-- FRANJA DERECHA: SIEMPRE EL OPONENTE + SUS TEMAS -->
+            <div style="background: ${myTurn ? '#fef3c7' : '#f8fafc'}; border: 2px solid ${myTurn ? '#f59e0b' : '#e2e8f0'}; border-radius: 12px; overflow-y: auto; max-height: 600px;">
+                <div style="padding: 15px; border-bottom: 2px solid ${myTurn ? '#f59e0b' : '#e2e8f0'}; background: ${myTurn ? '#f59e0b' : '#6b7280'}; color: white; text-align: center;">
+                    <h3 style="margin: 0; font-size: 16px;">${!isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</h3>
+                    <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${opponent ? opponent.name : 'Oponente'}</p>
+                    <div style="margin-top: 8px;">
+                        <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; font-size: 12px;">
+                            ❌ ${opponentFailures}/3 Fallos
+                        </span>
+                    </div>
+                </div>
+                <div style="padding: 15px;">
+                    <div style="font-size: 13px; color: ${myTurn ? '#92400e' : '#6b7280'}; margin-bottom: 15px; text-align: center; font-weight: 600;">
+                        ${myTurn ? 'Selecciona una pregunta:' : 'Temas del oponente:'} (${Object.keys(opponentBank).length})
+                    </div>
+                    ${renderOpponentTopicsForSelection(opponentBank, myTurn)}
+                </div>
+            </div>
+        </div>
+
+        <!-- Botón salir -->
+        <div style="text-align: center; margin-top: 25px;">
+            <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 12px 24px;">
+                🚪 Salir del Duelo
+            </button>
+            <!-- Botón debug temporal -->
+            <button onclick="debugBanks()" class="btn btn-info" style="padding: 8px 16px; margin-left: 10px;">
+                🔍 Debug Bancos
+            </button>
+        </div>
+    </div>
+    `;
+}
+
+// PASO 5: FUNCIÓN renderMyTopics MEJORADA (con fallback obligatorio)
+function renderMyTopics(questionBank) {
+    // Si no hay banco, intentar crear desde preguntas locales
+    if (!questionBank || Object.keys(questionBank).length === 0) {
+        console.warn('⚠️ renderMyTopics: Banco vacío, intentando reconstruir...');
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        
+        if (verifiedQuestions.length === 0) {
+            return `
+                <div style="text-align: center; padding: 20px; color: #dc2626;">
+                    <p style="margin: 0; font-size: 14px;"><strong>⚠️ Sin preguntas verificadas</strong></p>
+                    <p style="margin: 5px 0 0 0; font-size: 12px;">Ve a "Preguntas" y verifica algunas</p>
+                </div>
+            `;
+        }
+        
+        questionBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+        
+        // Forzar sincronización si soy invitado
+        if (!multiplayerState.isHost) {
+            forceSyncGuestBank();
+        }
+    }
+
+    let html = '';
+    Object.keys(questionBank).forEach(topicKey => {
+        const topic = questionBank[topicKey];
+        if (topic.questions && topic.questions.length > 0) {
+            html += `
+                <div style="margin-bottom: 15px; border: 1px solid #16a34a; border-radius: 8px; overflow: hidden; background: rgba(22, 163, 74, 0.05);">
+                    <div style="background: #dcfce7; padding: 10px; border-bottom: 1px solid #16a34a; cursor: pointer;" onclick="toggleTopicQuestions('my-${topicKey}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 500; color: #15803d; font-size: 13px;">${topic.name}</span>
+                            <span style="background: #16a34a; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px;">
+                                ${topic.questions.length}
+                            </span>
+                        </div>
+                    </div>
+                    <div id="my-questions-${topicKey}" style="display: none; max-height: 200px; overflow-y: auto;">
+                        ${topic.questions.map((question, index) => `
+                            <div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; font-size: 12px; line-height: 1.4; color: #374151;">
+                                <strong style="color: #16a34a;">P${index + 1}:</strong> ${question.question.substring(0, 60)}...
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    return html || `
+        <div style="text-align: center; padding: 20px; color: #dc2626;">
+            <p style="margin: 0; font-size: 14px;"><strong>⚠️ ERROR: Sin temas</strong></p>
+            <button onclick="forceSyncGuestBank()" style="margin-top: 10px; padding: 5px 10px; background: #dc2626; color: white; border: none; border-radius: 4px;">
+                🔄 Forzar Sincronización
+            </button>
+        </div>
+    `;
+}
+
+// PASO 6: FUNCIÓN renderOpponentTopicsForSelection MEJORADA
+function renderOpponentTopicsForSelection(questionBank, canSelect) {
+    if (!questionBank || Object.keys(questionBank).length === 0) {
+        return `
+            <div style="text-align: center; padding: 20px; color: #6b7280;">
+                <p style="margin: 0; font-size: 14px;">⏳ Esperando temas del oponente...</p>
+            </div>
+        `;
+    }
+
+    let html = '';
+    Object.keys(questionBank).forEach(topicKey => {
+        const topic = questionBank[topicKey];
+        if (topic.questions && topic.questions.length > 0) {
+            html += `
+                <div style="margin-bottom: 15px; border: 1px solid ${canSelect ? '#f59e0b' : '#d1d5db'}; border-radius: 8px; overflow: hidden; ${canSelect ? 'box-shadow: 0 2px 4px rgba(245,158,11,0.2);' : ''}">
+                    <div style="background: ${canSelect ? '#fef3c7' : '#f9fafb'}; padding: 10px; border-bottom: 1px solid ${canSelect ? '#f59e0b' : '#d1d5db'}; cursor: pointer;" onclick="toggleTopicQuestions('opponent-${topicKey}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 500; color: ${canSelect ? '#92400e' : '#374151'}; font-size: 13px;">${topic.name}</span>
+                            <span style="background: ${canSelect ? '#f59e0b' : '#e5e7eb'}; color: ${canSelect ? 'white' : '#374151'}; padding: 2px 6px; border-radius: 10px; font-size: 11px;">
+                                ${topic.questions.length}
+                            </span>
+                        </div>
+                    </div>
+                    <div id="opponent-questions-${topicKey}" style="display: none; max-height: 200px; overflow-y: auto;">
+                        ${topic.questions.map((question, index) => `
+                            <div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; ${canSelect ? 'cursor: pointer;' : ''} font-size: 12px; line-height: 1.4; ${canSelect ? 'transition: background-color 0.2s;' : ''}"
+                                 ${canSelect ? `onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey}')" 
+                                               onmouseover="this.style.backgroundColor='${canSelect ? '#fef3c7' : 'inherit'}'"
+                                               onmouseout="this.style.backgroundColor='transparent'"` : ''}>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong style="color: ${canSelect ? '#92400e' : '#6b7280'};">P${index + 1}:</strong> 
+                                        <span style="color: ${canSelect ? '#374151' : '#6b7280'};">${question.question.substring(0, 50)}...</span>
+                                    </div>
+                                    ${canSelect ? `<span style="color: #f59e0b; font-size: 10px;">📌 Clic para seleccionar</span>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    if (!html) {
+        return `
+            <div style="text-align: center; padding: 20px; color: #6b7280;">
+                <p style="margin: 0; font-size: 14px;">Sin preguntas disponibles</p>
+            </div>
+        `;
+    }
+
+    return html;
+}
+
+// PASO 7: FUNCIÓN DEBUG para verificar bancos
+window.debugBanks = function() {
+    console.log('🔍 DEBUG COMPLETO - Bancos de preguntas:');
+    console.log('State completo:', multiplayerState);
+    console.log('Mi banco:', getMyQuestionBank());
+    console.log('Banco oponente:', getOpponentQuestionBank());
+    console.log('Preguntas locales verificadas:', state.questions.filter(q => q.isVerified));
+    console.log('Temas locales:', state.topics);
+    
+    // Mostrar en alerta para el usuario
+    const myBank = getMyQuestionBank();
+    const opponentBank = getOpponentQuestionBank();
+    alert(`DEBUG BANCOS:
+Mi banco: ${Object.keys(myBank).length} temas
+Banco oponente: ${Object.keys(opponentBank).length} temas
+Rol: ${multiplayerState.isHost ? 'Anfitrión' : 'Invitado'}
+Preguntas locales: ${state.questions.filter(q => q.isVerified).length}
+Ver consola para detalles completos`);
+};
+
+// PASO 8: FUNCIONES DE TOGGLE Y SELECCIÓN (mantenidas del código anterior)
+function toggleTopicQuestions(fullTopicKey) {
+    let questionsId;
+    
+    if (fullTopicKey.startsWith('my-')) {
+        const topicKey = fullTopicKey.replace('my-', '');
+        questionsId = `my-questions-${topicKey}`;
+    } else if (fullTopicKey.startsWith('opponent-')) {
+        const topicKey = fullTopicKey.replace('opponent-', '');
+        questionsId = `opponent-questions-${topicKey}`;
+    } else {
+        questionsId = `questions-${fullTopicKey}`;
+    }
+    
+    const questionsDiv = document.getElementById(questionsId);
+    if (questionsDiv) {
+        questionsDiv.style.display = questionsDiv.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function selectQuestionFromOpponent(topicKey, questionFirebaseKey) {
+    if (!multiplayerState.myTurn) {
+        showMessage('No es tu turno para seleccionar preguntas', 'warning');
+        return;
+    }
+
+    const opponentBank = getOpponentQuestionBank();
+    if (!opponentBank[topicKey] || !opponentBank[topicKey].questions) {
+        console.error('❌ Tema no encontrado:', topicKey);
+        showMessage('Error: Tema no encontrado', 'error');
+        return;
+    }
+
+    const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionFirebaseKey);
+    if (!question) {
+        console.error('❌ Pregunta no encontrada:', questionFirebaseKey);
+        showMessage('Error: Pregunta no encontrada', 'error');
+        return;
+    }
+
+    console.log('🎯 Enviando pregunta al oponente:', {
+        topic: opponentBank[topicKey].name,
+        question: question.question.substring(0, 50) + '...'
+    });
+
+    database.ref('rooms/' + multiplayerState.currentRoom).update({
+        'gameData/currentQuestionData': question,
+        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
+        lastActivity: firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+        showMessage(`Pregunta enviada: ${question.question.substring(0, 30)}...`, 'success');
+    }).catch(error => {
+        console.error('❌ Error enviando pregunta:', error);
+        showMessage('Error al enviar la pregunta', 'error');
+    });
+}
+
+// REEMPLAZAR FUNCIONES GLOBALES
+window.getMyQuestionBank = getMyQuestionBank;
+window.getOpponentQuestionBank = getOpponentQuestionBank;
+window.toggleTopicQuestions = toggleTopicQuestions;
+window.selectQuestionFromOpponent = selectQuestionFromOpponent;
+window.forceSyncGuestBank = forceSyncGuestBank;
+
+// PASO 9: FORZAR SINCRONIZACIÓN AL CARGAR
+setTimeout(() => {
+    if (multiplayerState.gameState === 'playing' && !multiplayerState.isHost) {
+        forceSyncGuestBank();
+    }
+}, 2000);
+
+console.log('✅ CORRECCIÓN OBLIGATORIA aplicada - Los temas del invitado DEBEN aparecer');
+console.log('🛠️ Funciones debug disponibles:');
+console.log(' - debugBanks(): Ver estado completo de bancos');
+console.log(' - forceSyncGuestBank(): Forzar sincronización del invitado');
+</script>
 </body>
 </html>
+
 
 
 
