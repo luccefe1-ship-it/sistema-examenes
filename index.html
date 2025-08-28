@@ -12391,49 +12391,22 @@ function renderDuelInterface() {
             </p>
         </div>
 
-        <!-- PANEL DE ESTADO AGRESIVO -->
-        <div style="background: linear-gradient(135deg, #1e1b4b, #312e81); color: white; padding: 20px; margin-bottom: 20px; border-radius: 16px; border: 3px solid #4c1d95;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <div style="font-weight: bold; color: #c7d2fe; font-size: 16px;">💀 ESTADO AGRESIVO DE SINCRONIZACIÓN</div>
-                <div>
-                    <button onclick="forceResync()" style="padding: 8px 16px; background: #7c3aed; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-right: 10px;">
-                        🔄 RESYNC AGRESIVO
-                    </button>
-                    <button onclick="forceWriteBankToFirebase(${isHost})" style="padding: 8px 16px; background: #dc2626; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
-                        💾 ESCRIBIR MI BANCO
-                    </button>
-                </div>
+       <!-- Panel de turnos simple -->
+<div style="background: linear-gradient(135deg, #f8fafc, #e2e8f0); padding: 20px; margin-bottom: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
+    <div style="text-align: center;">
+        ${myTurn ? `
+            <div style="display: inline-block; background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">🎯 ES TU TURNO</div>
+                <div style="font-size: 14px; opacity: 0.9;">Selecciona una pregunta del panel derecho para ${opponent ? opponent.name : 'tu oponente'}</div>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; font-size: 14px;">
-                <div style="text-align: center; padding: 15px; background: rgba(34, 197, 94, 0.2); border-radius: 12px; border: 2px solid #22c55e;">
-                    <div style="color: #22c55e; font-weight: bold; text-transform: uppercase;">MIS TEMAS</div>
-                    <div style="font-size: 28px; margin: 10px 0; font-weight: bold;">${Object.keys(myBank).length}</div>
-                    <div style="color: #a1a1aa;">${isHost ? 'Anfitrión' : 'Invitado'} (${state.currentUser.name})</div>
-                    <div style="margin-top: 8px; font-size: 12px; color: ${Object.keys(myBank).length > 0 ? '#22c55e' : '#ef4444'};">
-                        ${Object.keys(myBank).length > 0 ? '✅ OK' : '❌ SIN TEMAS'}
-                    </div>
-                </div>
-                <div style="text-align: center; padding: 15px; background: rgba(245, 158, 11, 0.2); border-radius: 12px; border: 2px solid #f59e0b;">
-                    <div style="color: #f59e0b; font-weight: bold; text-transform: uppercase;">OPONENTE</div>
-                    <div style="font-size: 20px; margin: 10px 0; font-weight: bold;">${opponent ? opponent.name : 'undefined'}</div>
-                    <div style="color: #a1a1aa;">${opponent ? (!isHost ? 'Anfitrión' : 'Invitado') : 'Desconocido'}</div>
-                    <div style="margin-top: 8px; font-size: 12px; color: ${opponent ? '#f59e0b' : '#ef4444'};">
-                        ${opponent ? '✅ CONECTADO' : '❌ DESCONOCIDO'}
-                    </div>
-                </div>
-                <div style="text-align: center; padding: 15px; background: rgba(239, 68, 68, 0.2); border-radius: 12px; border: 2px solid #ef4444;">
-                    <div style="color: #ef4444; font-weight: bold; text-transform: uppercase;">SUS TEMAS</div>
-                    <div style="font-size: 28px; margin: 10px 0; font-weight: bold;">${Object.keys(opponentBank).length}</div>
-                    <div style="color: #a1a1aa;">Banco del oponente</div>
-                    <div style="margin-top: 8px; font-size: 12px; color: ${Object.keys(opponentBank).length > 0 ? '#22c55e' : '#ef4444'}; font-weight: bold;">
-                        ${Object.keys(opponentBank).length > 0 ? '✅ SINCRONIZADO' : '❌ SIN SYNC'}
-                    </div>
-                </div>
+        ` : `
+            <div style="display: inline-block; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 15px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">⏳ TURNO DEL OPONENTE</div>
+                <div style="font-size: 14px; opacity: 0.9;">${opponent ? opponent.name : 'Tu oponente'} está seleccionando una pregunta para ti</div>
             </div>
-            <div style="text-align: center; margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; font-size: 12px; color: #a1a1aa;">
-                💀 Polling agresivo activo • Firebase directo • Sin listeners complejos
-            </div>
-        </div>
+        `}
+    </div>
+</div>
 
         <!-- Interfaz de 3 franjas -->
         <div style="display: grid; grid-template-columns: 350px 1fr 350px; gap: 20px; min-height: 500px;">
@@ -12967,6 +12940,7 @@ console.log(' - Validación mejorada que permite re-unión del mismo usuario');
   
 </body>
 </html>
+
 
 
 
