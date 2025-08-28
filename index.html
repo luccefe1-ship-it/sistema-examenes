@@ -10644,8 +10644,309 @@ Este paso crea la interfaz de 3 franjas para el duelo de preguntas
     console.log('   - Función toggleTopicQuestions() para expandir/contraer');
     console.log('   - Función answerCurrentQuestion() preparada para siguiente paso');
 </script>
+<!--
+CORRECCIÓN COMPLETA: MODO DESARROLLADOR - INTERFAZ DE DUELO
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Esta corrección arregla la visualización de temas y la lógica de franjas
+-->
+<script>
+// ========== CORRECCIÓN COMPLETA - INTERFAZ DE DUELO ==========
+console.log('🔧 Aplicando corrección completa del modo desarrollador...');
+
+// PASO 1: REEMPLAZAR renderDuelInterface completamente
+function renderDuelInterface() {
+    const isHost = multiplayerState.isHost;
+    const opponent = multiplayerState.opponent;
+    const myTurn = multiplayerState.myTurn;
+    const myFailures = multiplayerState.myFailures || 0;
+    const opponentFailures = multiplayerState.opponentFailures || 0;
+
+    // Obtener bancos de preguntas
+    const opponentBank = getOpponentQuestionBank();
+    const myBank = getMyQuestionBank();
+
+    // Datos de la pregunta actual si existe
+    const currentQuestion = multiplayerState.currentRoomData?.gameData?.currentQuestionData || null;
+
+    console.log('🎮 Estado del duelo:', {
+        isHost,
+        myTurn,
+        myBankTopics: Object.keys(myBank).length,
+        opponentBankTopics: Object.keys(opponentBank).length
+    });
+
+    return `
+    <div style="max-width: 1400px; margin: 0 auto; padding: 20px; min-height: calc(100vh - 200px);">
+        <!-- Header del duelo -->
+        <div style="text-align: center; margin-bottom: 25px; background: linear-gradient(135deg, #dc2626, #7f1d1d); color: white; padding: 20px; border-radius: 16px;">
+            <h1 style="margin: 0 0 10px 0; font-size: 2rem; font-weight: 800;">⚔️ Duelo de Preguntas</h1>
+            <div style="font-size: 1.8rem; font-weight: bold; letter-spacing: 2px; margin: 5px 0;">
+                ${multiplayerState.roomCode}
+            </div>
+            <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                ${myTurn ? 'Tu turno: Selecciona una pregunta del oponente' : 'Turno del oponente: Espera su respuesta'}
+            </p>
+        </div>
+
+        <!-- Interfaz de 3 franjas CORREGIDA -->
+        <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 20px; min-height: 500px;">
+            
+            <!-- FRANJA IZQUIERDA: SIEMPRE EL USUARIO ACTUAL + SUS TEMAS -->
+            <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; overflow-y: auto; max-height: 600px;">
+                <div style="padding: 15px; border-bottom: 2px solid #22c55e; background: #22c55e; color: white; text-align: center;">
+                    <h3 style="margin: 0; font-size: 16px;">${isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</h3>
+                    <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${state.currentUser.name} (TÚ)</p>
+                    <div style="margin-top: 8px;">
+                        <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; font-size: 12px;">
+                            ❌ ${myFailures}/3 Fallos
+                        </span>
+                    </div>
+                </div>
+                <div style="padding: 15px;">
+                    <div style="font-size: 13px; color: #16a34a; margin-bottom: 15px; text-align: center; font-weight: 600;">
+                        Mis Temas:
+                    </div>
+                    ${renderMyTopics(myBank)}
+                </div>
+            </div>
+
+            <!-- FRANJA CENTRAL: Pregunta actual -->
+            <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; display: flex; flex-direction: column;">
+                <div style="padding: 20px; border-bottom: 2px solid #e2e8f0; background: linear-gradient(135deg, #f8fafc, #e2e8f0); text-align: center;">
+                    <h3 style="margin: 0; color: #374151; font-size: 18px;">📋 Pregunta Actual</h3>
+                </div>
+                <div style="flex: 1; padding: 25px; display: flex; align-items: center; justify-content: center;">
+                    ${currentQuestion ? renderCurrentQuestion(currentQuestion, !myTurn) : `
+                        <div style="text-align: center; color: #9ca3af;">
+                            <div style="font-size: 4rem; margin-bottom: 20px;">🎯</div>
+                            <h3 style="color: #6b7280; margin: 0 0 10px 0;">Esperando pregunta</h3>
+                            <p style="margin: 0; font-size: 14px;">
+                                ${myTurn ? 'Selecciona una pregunta de los temas del oponente (panel derecho)' : 'Tu oponente está seleccionando una pregunta'}
+                            </p>
+                        </div>
+                    `}
+                </div>
+            </div>
+
+            <!-- FRANJA DERECHA: SIEMPRE EL OPONENTE + SUS TEMAS -->
+            <div style="background: ${myTurn ? '#fef3c7' : '#f8fafc'}; border: 2px solid ${myTurn ? '#f59e0b' : '#e2e8f0'}; border-radius: 12px; overflow-y: auto; max-height: 600px;">
+                <div style="padding: 15px; border-bottom: 2px solid ${myTurn ? '#f59e0b' : '#e2e8f0'}; background: ${myTurn ? '#f59e0b' : '#6b7280'}; color: white; text-align: center;">
+                    <h3 style="margin: 0; font-size: 16px;">${!isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</h3>
+                    <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${opponent ? opponent.name : 'Oponente'}</p>
+                    <div style="margin-top: 8px;">
+                        <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; font-size: 12px;">
+                            ❌ ${opponentFailures}/3 Fallos
+                        </span>
+                    </div>
+                </div>
+                <div style="padding: 15px;">
+                    <div style="font-size: 13px; color: ${myTurn ? '#92400e' : '#6b7280'}; margin-bottom: 15px; text-align: center; font-weight: 600;">
+                        ${myTurn ? 'Selecciona una pregunta:' : 'Temas del oponente:'}
+                    </div>
+                    ${renderOpponentTopicsForSelection(opponentBank, myTurn)}
+                </div>
+            </div>
+        </div>
+
+        <!-- Botón salir -->
+        <div style="text-align: center; margin-top: 25px;">
+            <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 12px 24px;">
+                🚪 Salir del Duelo
+            </button>
+        </div>
+    </div>
+    `;
+}
+
+// PASO 2: NUEVA FUNCIÓN para renderizar MIS temas (solo visualización)
+function renderMyTopics(questionBank) {
+    if (!questionBank || Object.keys(questionBank).length === 0) {
+        return `
+            <div style="text-align: center; padding: 20px; color: #6b7280;">
+                <p style="margin: 0; font-size: 14px;">Sin temas disponibles</p>
+            </div>
+        `;
+    }
+
+    let html = '';
+    Object.keys(questionBank).forEach(topicKey => {
+        const topic = questionBank[topicKey];
+        if (topic.questions && topic.questions.length > 0) {
+            html += `
+                <div style="margin-bottom: 15px; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden;">
+                    <div style="background: #f9fafb; padding: 10px; border-bottom: 1px solid #d1d5db; cursor: pointer;" onclick="toggleTopicQuestions('my-${topicKey}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 500; color: #374151; font-size: 13px;">${topic.name}</span>
+                            <span style="background: #16a34a; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px;">
+                                ${topic.questions.length}
+                            </span>
+                        </div>
+                    </div>
+                    <div id="my-questions-${topicKey}" style="display: none; max-height: 200px; overflow-y: auto;">
+                        ${topic.questions.map((question, index) => `
+                            <div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; font-size: 12px; line-height: 1.4; color: #6b7280;">
+                                <strong>P${index + 1}:</strong> ${question.question.substring(0, 60)}...
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    return html || `
+        <div style="text-align: center; padding: 20px; color: #6b7280;">
+            <p style="margin: 0; font-size: 14px;">Sin preguntas en tus temas</p>
+        </div>
+    `;
+}
+
+// PASO 3: FUNCIÓN MEJORADA para renderizar temas del oponente (con selección)
+function renderOpponentTopicsForSelection(questionBank, canSelect) {
+    if (!questionBank || Object.keys(questionBank).length === 0) {
+        return `
+            <div style="text-align: center; padding: 20px; color: #6b7280;">
+                <p style="margin: 0; font-size: 14px;">Sin temas disponibles</p>
+            </div>
+        `;
+    }
+
+    let html = '';
+    Object.keys(questionBank).forEach(topicKey => {
+        const topic = questionBank[topicKey];
+        if (topic.questions && topic.questions.length > 0) {
+            html += `
+                <div style="margin-bottom: 15px; border: 1px solid ${canSelect ? '#f59e0b' : '#d1d5db'}; border-radius: 8px; overflow: hidden; ${canSelect ? 'box-shadow: 0 2px 4px rgba(245,158,11,0.2);' : ''}">
+                    <div style="background: ${canSelect ? '#fef3c7' : '#f9fafb'}; padding: 10px; border-bottom: 1px solid ${canSelect ? '#f59e0b' : '#d1d5db'}; cursor: pointer;" onclick="toggleTopicQuestions('opponent-${topicKey}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 500; color: ${canSelect ? '#92400e' : '#374151'}; font-size: 13px;">${topic.name}</span>
+                            <span style="background: ${canSelect ? '#f59e0b' : '#e5e7eb'}; color: ${canSelect ? 'white' : '#374151'}; padding: 2px 6px; border-radius: 10px; font-size: 11px;">
+                                ${topic.questions.length}
+                            </span>
+                        </div>
+                    </div>
+                    <div id="opponent-questions-${topicKey}" style="display: none; max-height: 200px; overflow-y: auto;">
+                        ${topic.questions.map((question, index) => `
+                            <div style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; ${canSelect ? 'cursor: pointer;' : ''} font-size: 12px; line-height: 1.4; ${canSelect ? 'transition: background-color 0.2s;' : ''}"
+                                 ${canSelect ? `onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey}')" 
+                                               onmouseover="this.style.backgroundColor='${canSelect ? '#fef3c7' : 'inherit'}'"
+                                               onmouseout="this.style.backgroundColor='transparent'"` : ''}>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong style="color: ${canSelect ? '#92400e' : '#6b7280'};">P${index + 1}:</strong> 
+                                        <span style="color: ${canSelect ? '#374151' : '#6b7280'};">${question.question.substring(0, 50)}...</span>
+                                    </div>
+                                    ${canSelect ? `<span style="color: #f59e0b; font-size: 10px;">📌 Clic para seleccionar</span>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    if (!html) {
+        return `
+            <div style="text-align: center; padding: 20px; color: #6b7280;">
+                <p style="margin: 0; font-size: 14px;">Sin preguntas en los temas del oponente</p>
+            </div>
+        `;
+    }
+
+    return html;
+}
+
+// PASO 4: ACTUALIZAR función toggleTopicQuestions para manejar prefijos
+const originalToggleTopicQuestions = window.toggleTopicQuestions || function(topicKey) {
+    const questionsDiv = document.getElementById(`questions-${topicKey}`);
+    if (questionsDiv) {
+        questionsDiv.style.display = questionsDiv.style.display === 'none' ? 'block' : 'none';
+    }
+};
+
+function toggleTopicQuestions(fullTopicKey) {
+    // Detectar si es "my-" o "opponent-" y manejar acordemente
+    let questionsId;
+    
+    if (fullTopicKey.startsWith('my-')) {
+        const topicKey = fullTopicKey.replace('my-', '');
+        questionsId = `my-questions-${topicKey}`;
+    } else if (fullTopicKey.startsWith('opponent-')) {
+        const topicKey = fullTopicKey.replace('opponent-', '');
+        questionsId = `opponent-questions-${topicKey}`;
+    } else {
+        // Fallback al comportamiento original
+        questionsId = `questions-${fullTopicKey}`;
+    }
+    
+    const questionsDiv = document.getElementById(questionsId);
+    if (questionsDiv) {
+        questionsDiv.style.display = questionsDiv.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+// Reemplazar la función global
+window.toggleTopicQuestions = toggleTopicQuestions;
+
+// PASO 5: MEJORAR función de selección de pregunta
+const originalSelectQuestionFromOpponent = window.selectQuestionFromOpponent || function(topicKey, questionFirebaseKey) {
+    console.log('Función selectQuestionFromOpponent no implementada');
+};
+
+function selectQuestionFromOpponent(topicKey, questionFirebaseKey) {
+    if (!multiplayerState.myTurn) {
+        showMessage('No es tu turno para seleccionar preguntas', 'warning');
+        return;
+    }
+
+    const opponentBank = getOpponentQuestionBank();
+    if (!opponentBank[topicKey] || !opponentBank[topicKey].questions) {
+        console.error('❌ Tema no encontrado:', topicKey);
+        showMessage('Error: Tema no encontrado', 'error');
+        return;
+    }
+
+    const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionFirebaseKey);
+    if (!question) {
+        console.error('❌ Pregunta no encontrada:', questionFirebaseKey);
+        showMessage('Error: Pregunta no encontrada', 'error');
+        return;
+    }
+
+    console.log('🎯 Enviando pregunta al oponente:', {
+        topic: opponentBank[topicKey].name,
+        question: question.question.substring(0, 50) + '...'
+    });
+
+    // Actualizar Firebase con la pregunta seleccionada
+    database.ref('rooms/' + multiplayerState.currentRoom).update({
+        'gameData/currentQuestionData': question,
+        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
+        lastActivity: firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+        showMessage(`Pregunta enviada: ${question.question.substring(0, 30)}...`, 'success');
+    }).catch(error => {
+        console.error('❌ Error enviando pregunta:', error);
+        showMessage('Error al enviar la pregunta', 'error');
+    });
+}
+
+// Reemplazar la función global
+window.selectQuestionFromOpponent = selectQuestionFromOpponent;
+
+console.log('✅ CORRECCIÓN COMPLETA aplicada correctamente');
+console.log('🎮 Nuevas características:');
+console.log(' - Franja izquierda: Siempre el usuario actual + sus temas');
+console.log(' - Franja derecha: Siempre el oponente + sus temas (seleccionables en tu turno)');
+console.log(' - Visualización correcta de todos los temas (host y guest)');
+console.log(' - Selección mejorada con indicadores visuales');
+console.log(' - Función toggleTopicQuestions mejorada con prefijos');
+console.log(' - Función selectQuestionFromOpponent mejorada con validaciones');
+</script>
 </body>
 </html>
+
 
 
 
