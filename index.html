@@ -13166,8 +13166,187 @@ console.log('🎯 Mensajes simplificados:');
 console.log('   - "¡TURNO DE RESPONDER!" cuando puedes hacer clic');
 console.log('   - "ESPERANDO RESPUESTA" cuando no puedes hacer clic');
 </script>
+
+    
+    <script>
+console.log('🔧 Aplicando parche para eliminar scroll de las franjas...');
+
+// INTERCEPTAR la función renderDuelInterface para optimizar el espacio vertical
+const originalRenderDuelInterface = window.renderDuelInterface;
+
+window.renderDuelInterface = function() {
+    const isHost = multiplayerState.isHost;
+    const opponent = multiplayerState.opponent;
+    const myTurn = multiplayerState.myTurn;
+    const myFailures = multiplayerState.myFailures || 0;
+    const opponentFailures = multiplayerState.opponentFailures || 0;
+    
+    // Obtener bancos de preguntas
+    const opponentBank = getOpponentQuestionBank();
+    let myBank = getMyQuestionBank();
+    
+    // Si myBank está vacío, usar preguntas verificadas locales mientras se sincroniza
+    if (Object.keys(myBank).length === 0 && state.questions) {
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        myBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+    }
+    
+    // Datos de la pregunta actual si existe
+    const currentQuestion = multiplayerState.currentRoomData?.gameData?.currentQuestionData || null;
+    const gameData = multiplayerState.currentRoomData?.gameData;
+    const waitingForAnswer = gameData?.waitingForAnswer;
+    const showingResult = gameData?.showingResult;
+    
+    // Determinar si el usuario actual puede responder
+    const canAnswer = currentQuestion && !myTurn && !showingResult && waitingForAnswer;
+    
+    // Mensajes simplificados para el panel de turnos
+    let turnMessage = '';
+    
+    if (showingResult && gameData?.currentResponse) {
+        // Mantener los mensajes de resultado como estaban
+        const isCorrect = gameData.currentResponse.isCorrect;
+        const resultIcon = isCorrect ? '✅' : '❌';
+        const resultText = isCorrect ? 'RESPUESTA CORRECTA' : 'RESPUESTA INCORRECTA';
+        turnMessage = `
+            <div style="display: inline-block; background: ${isCorrect ? '#10b981' : '#ef4444'}; color: white; padding: 10px 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 4px;">${resultIcon} ${resultText}</div>
+                <div style="font-size: 12px; opacity: 0.9;">Cambiando turno en unos segundos...</div>
+            </div>
+        `;
+    } else if (canAnswer) {
+        // El usuario PUEDE hacer clic para responder
+        turnMessage = `
+            <div style="display: inline-block; background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 10px 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);">
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 4px;">🎯 ¡TURNO DE RESPONDER!</div>
+                <div style="font-size: 12px; opacity: 0.9;">Haz clic en una opción de la pregunta</div>
+            </div>
+        `;
+    } else if (currentQuestion && waitingForAnswer) {
+        // Hay pregunta activa pero este usuario no puede responder (está esperando)
+        turnMessage = `
+            <div style="display: inline-block; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 10px 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);">
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 4px;">⏳ ESPERANDO RESPUESTA</div>
+                <div style="font-size: 12px; opacity: 0.9;">Tu oponente está respondiendo</div>
+            </div>
+        `;
+    } else if (myTurn) {
+        // Es mi turno para seleccionar pregunta
+        turnMessage = `
+            <div style="display: inline-block; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; padding: 10px 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);">
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 4px;">🎯 ES TU TURNO</div>
+                <div style="font-size: 12px; opacity: 0.9;">Selecciona una pregunta del panel derecho</div>
+            </div>
+        `;
+    } else {
+        // Turno del oponente para seleccionar pregunta
+        turnMessage = `
+            <div style="display: inline-block; background: linear-gradient(135deg, #6b7280, #4b5563); color: white; padding: 10px 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);">
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 4px;">⏳ TURNO DEL OPONENTE</div>
+                <div style="font-size: 12px; opacity: 0.9;">Está seleccionando una pregunta</div>
+            </div>
+        `;
+    }
+
+    return `
+    <!-- LAYOUT OPTIMIZADO SIN SCROLL -->
+    <div style="max-width: 1400px; margin: 0 auto; padding: 10px; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box;">
+        
+        <!-- Header del duelo COMPACTO -->
+        <div style="text-align: center; margin-bottom: 10px; background: linear-gradient(135deg, #dc2626, #7f1d1d); color: white; padding: 15px; border-radius: 12px; flex-shrink: 0;">
+            <h1 style="margin: 0 0 5px 0; font-size: 1.6rem; font-weight: 800;">⚔️ Duelo de Preguntas</h1>
+            <div style="font-size: 1.4rem; font-weight: bold; letter-spacing: 2px; margin: 2px 0;">
+                ${multiplayerState.roomCode}
+            </div>
+        </div>
+
+        <!-- Panel de turnos COMPACTO -->
+        <div style="background: linear-gradient(135deg, #f8fafc, #e2e8f0); padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; flex-shrink: 0;">
+            ${turnMessage}
+        </div>
+
+        <!-- Layout de 3 franjas - USA ESPACIO RESTANTE -->
+        <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 15px; flex: 1; min-height: 0;">
+            
+            <!-- FRANJA IZQUIERDA: SIEMPRE EL USUARIO ACTUAL + SUS TEMAS -->
+            <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; overflow-y: auto; display: flex; flex-direction: column;">
+                <div style="padding: 12px; border-bottom: 2px solid #22c55e; background: #22c55e; color: white; text-align: center; flex-shrink: 0;">
+                    <h3 style="margin: 0; font-size: 15px;">${isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.9;">${state.currentUser.name} (Tú)</p>
+                    <div style="margin-top: 6px;">
+                        <span style="background: rgba(255,255,255,0.2); padding: 3px 6px; border-radius: 8px; font-size: 11px;">
+                            ❌ ${myFailures}/3 Fallos
+                        </span>
+                    </div>
+                </div>
+                <div style="padding: 12px; flex: 1; overflow-y: auto;">
+                    <div style="font-size: 12px; color: #16a34a; margin-bottom: 10px; text-align: center; font-weight: 600;">
+                        Mis Temas:
+                    </div>
+                    ${renderMyTopics(myBank)}
+                </div>
+            </div>
+
+            <!-- FRANJA CENTRAL: Pregunta actual -->
+            <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; display: flex; flex-direction: column;">
+                <div style="padding: 15px; border-bottom: 2px solid #e2e8f0; background: linear-gradient(135deg, #f8fafc, #e2e8f0); text-align: center; flex-shrink: 0;">
+                    <h3 style="margin: 0; color: #374151; font-size: 16px;">📋 Pregunta Actual</h3>
+                </div>
+                <div style="flex: 1; padding: 20px; display: flex; align-items: center; justify-content: center; overflow-y: auto;">
+                    ${currentQuestion ? renderCurrentQuestion(currentQuestion, !myTurn) : `
+                        <div style="text-align: center; color: #9ca3af;">
+                            <div style="font-size: 3rem; margin-bottom: 15px;">🎯</div>
+                            <h3 style="color: #6b7280; margin: 0 0 8px 0;">Esperando pregunta</h3>
+                            <p style="margin: 0; font-size: 13px;">
+                                ${myTurn ? 'Selecciona una pregunta de los temas del oponente (panel derecho)' : 'Tu oponente está seleccionando una pregunta'}
+                            </p>
+                        </div>
+                    `}
+                </div>
+            </div>
+
+            <!-- FRANJA DERECHA: SIEMPRE EL OPONENTE + SUS TEMAS -->
+            <div style="background: ${myTurn ? '#fff7ed' : '#f8fafc'}; border: 2px solid ${myTurn ? '#f97316' : '#6b7280'}; border-radius: 12px; display: flex; flex-direction: column;">
+                <div style="padding: 12px; border-bottom: 2px solid ${myTurn ? '#f97316' : '#6b7280'}; background: ${myTurn ? '#f97316' : '#6b7280'}; color: white; text-align: center; flex-shrink: 0;">
+                    <h3 style="margin: 0; font-size: 15px;">${!isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.9;">${opponent ? opponent.name : 'Esperando...'}</p>
+                    <div style="margin-top: 6px;">
+                        <span style="background: rgba(255,255,255,0.2); padding: 3px 6px; border-radius: 8px; font-size: 11px;">
+                            ❌ ${opponentFailures}/3 Fallos
+                        </span>
+                    </div>
+                </div>
+                <div style="padding: 12px; flex: 1; overflow-y: auto;">
+                    ${myTurn ? `
+                        <div style="font-size: 12px; color: #ea580c; margin-bottom: 10px; text-align: center; font-weight: 600;">
+                            Temas del oponente:
+                        </div>
+                        ${renderOpponentTopics(opponentBank)}
+                    ` : `
+                        <div style="text-align: center; padding: 30px 15px; color: #6b7280;">
+                            <div style="font-size: 1.5rem; margin-bottom: 8px;">⏳</div>
+                            <p style="margin: 0; font-size: 12px;">Esperando tu turno</p>
+                        </div>
+                    `}
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+};
+
+console.log('✅ Parche de scroll eliminado aplicado correctamente');
+console.log('🎯 Optimizaciones aplicadas:');
+console.log('   - Header compacto: reducido de 25px a 10px padding');
+console.log('   - Panel de turnos más pequeño: 12px padding');
+console.log('   - Layout de franjas usa flex: 1 para aprovechar espacio restante');
+console.log('   - Información de debug eliminada');
+console.log('   - Alturas optimizadas para viewport completo');
+console.log('   - Sin scroll vertical necesario');
+</script>
 </body>
 </html>
+
 
 
 
