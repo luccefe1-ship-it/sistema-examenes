@@ -13174,9 +13174,43 @@ window.renderDuelInterface = function() {
 
 console.log('Parche equilibrado aplicado - estético y sin scroll');
 </script>
+// PARCHE MINI: IGUALAR ALTURA DE FRANJAS
+// Añadir AL FINAL del archivo, después del parche anterior
 
+<script>
+console.log('Aplicando parche mini - igualar franjas...');
+
+// Interceptar solo para ajustar alturas
+const originalRenderDuelInterfaceAltura = window.renderDuelInterface;
+
+window.renderDuelInterface = function() {
+    let html = originalRenderDuelInterfaceAltura.call(this);
+    
+    // Asegurar que todas las franjas tengan exactamente la misma altura
+    html = html.replace(
+        /background: linear-gradient\(135deg, #22c55e, #16a34a\); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba\(0,0,0,0\.1\); height: 100%; overflow-y: auto;/,
+        'background: linear-gradient(135deg, #22c55e, #16a34a); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.1); height: calc(100vh - 200px); overflow-y: auto;'
+    );
+    
+    html = html.replace(
+        /background: linear-gradient\(135deg, #f59e0b, #d97706\); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba\(0,0,0,0\.1\); height: 100%; overflow-y: auto;/,
+        'background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 15px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.1); height: calc(100vh - 200px); overflow-y: auto;'
+    );
+    
+    // También igualar la franja central
+    html = html.replace(
+        /background: white; border: 2px solid #e5e7eb; border-radius: 16px; padding: 20px; box-shadow: 0 6px 20px rgba\(0,0,0,0\.08\); display: flex; align-items: center; justify-content: center; height: 100%;/,
+        'background: white; border: 2px solid #e5e7eb; border-radius: 16px; padding: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; height: calc(100vh - 200px);'
+    );
+    
+    return html;
+};
+
+console.log('Parche mini aplicado - franjas igualadas');
+</script>
 </body>
 </html>
+
 
 
 
