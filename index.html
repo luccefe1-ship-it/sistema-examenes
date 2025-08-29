@@ -14771,217 +14771,212 @@ console.log('   - Confirmación antes de eliminar');
 console.log('   - Compatible con código existente');
 </script>
     <script>
-// ========== PARCHE: SINCRONIZACIÓN DROPDOWN TEMAS CON BANCO ==========
-console.log('🔄 Aplicando parche de sincronización temas-banco...');
+// ========== DIAGNÓSTICO Y CORRECCIÓN CREATETOPIC ==========
+console.log('🔧 Aplicando diagnóstico y corrección de createTopic...');
 
-// FUNCIÓN PRINCIPAL: Sincronizar temas con preguntas existentes
-function syncTopicsWithQuestions() {
-    if (!state.topics || !state.questions) return;
+// PASO 1: VERIFICAR QUE LA FUNCIÓN EXISTE
+console.log('📋 Estado inicial:');
+console.log('- createTopic existe?', typeof window.createTopic);
+console.log('- state.topics:', state.topics ? state.topics.length : 'undefined');
+console.log('- render existe?', typeof window.render);
+
+// PASO 2: FUNCIÓN createTopic CORREGIDA Y ROBUSTA
+window.createTopic = function() {
+    console.log('🎯 Ejecutando createTopic...');
     
-    // Obtener IDs de temas que tienen preguntas asociadas
-    const topicsWithQuestions = new Set();
-    state.questions.forEach(question => {
-        if (question.topicId) {
-            topicsWithQuestions.add(question.topicId.toString());
-        }
-    });
-    
-    // Filtrar solo los temas que tienen preguntas
-    const syncedTopics = state.topics.filter(topic => 
-        topicsWithQuestions.has(topic.id.toString())
-    );
-    
-    // Solo actualizar si hay cambios
-    if (syncedTopics.length !== state.topics.length) {
-        const removedTopics = state.topics.length - syncedTopics.length;
-        console.log(`🧹 Sincronización: Eliminados ${removedTopics} tema(s) huérfano(s)`);
+    try {
+        // Solicitar nombre del tema
+        const name = prompt('Nombre del nuevo tema:');
         
-        state.topics = syncedTopics;
-        
-        // Limpiar selección si el tema seleccionado ya no existe
-        if (state.selectedTopicForNewQuestions) {
-            const stillExists = syncedTopics.find(t => 
-                t.id.toString() === state.selectedTopicForNewQuestions.toString()
-            );
-            if (!stillExists) {
-                state.selectedTopicForNewQuestions = null;
-                console.log('🎯 Limpiada selección de tema inexistente');
-            }
+        if (!name) {
+            console.log('❌ Cancelado - No se proporcionó nombre');
+            return;
         }
         
-        // Guardar cambios
-        localStorage.setItem('topics', JSON.stringify(state.topics));
-        
-        return true; // Indica que hubo cambios
-    }
-    
-    return false; // No hubo cambios
-}
-
-// INTERCEPTAR funciones que modifican el banco de preguntas
-const originalFunctions = {
-    clearAllQuestions: window.clearAllQuestions,
-    deleteQuestion: window.deleteQuestion,
-    addToQuestions: window.addToQuestions,
-    render: window.render
-};
-
-// 1. INTERCEPTAR clearAllQuestions (limpiar banco completo)
-if (originalFunctions.clearAllQuestions) {
-    window.clearAllQuestions = function() {
-        console.log('🧹 Interceptando clearAllQuestions...');
-        
-        // Ejecutar función original
-        const result = originalFunctions.clearAllQuestions.apply(this, arguments);
-        
-        // Sincronizar temas después de limpiar
-        syncTopicsWithQuestions();
-        
-        // Re-renderizar para actualizar dropdown
-        if (window.render) {
-            window.render();
+        if (name.trim().length === 0) {
+            alert('El nombre no puede estar vacío');
+            console.log('❌ Nombre vacío');
+            return;
         }
         
-        console.log('✅ Temas sincronizados después de limpiar banco');
-        return result;
-    };
-}
-
-// 2. INTERCEPTAR deleteQuestion (eliminar pregunta individual)
-if (originalFunctions.deleteQuestion) {
-    window.deleteQuestion = function() {
-        console.log('🗑️ Interceptando deleteQuestion...');
+        // Verificar que state.topics existe
+        if (!state.topics) {
+            console.log('⚠️ state.topics no existe, inicializando...');
+            state.topics = [];
+        }
         
-        // Ejecutar función original
-        const result = originalFunctions.deleteQuestion.apply(this, arguments);
+        // Verificar si ya existe un tema con ese nombre
+        const existingTopic = state.topics.find(t => t.name.toLowerCase() === name.trim().toLowerCase());
+        if (existingTopic) {
+            alert('Ya existe un tema con ese nombre');
+            console.log('❌ Tema duplicado:', name);
+            return;
+        }
         
-        // Sincronizar temas después de eliminar pregunta
-        setTimeout(() => {
-            const hasChanges = syncTopicsWithQuestions();
-            if (hasChanges && window.render) {
-                window.render();
-            }
-        }, 100); // Pequeño delay para asegurar que la pregunta se eliminó
+        // Generar ID único
+        const newId = Date.now();
         
-        return result;
-    };
-}
-
-// 3. INTERCEPTAR addToQuestions (agregar preguntas)
-if (originalFunctions.addToQuestions) {
-    window.addToQuestions = function() {
-        // Ejecutar función original
-        const result = originalFunctions.addToQuestions.apply(this, arguments);
+        // Crear nuevo tema
+        const newTopic = {
+            id: newId,
+            name: name.trim(),
+            createdAt: new Date().toISOString()
+        };
         
-        // No es necesario sincronizar al agregar, pero sí re-renderizar
-        setTimeout(() => {
-            if (window.render) {
-                window.render();
-            }
-        }, 50);
+        console.log('✅ Creando tema:', newTopic);
         
-        return result;
-    };
-}
-
-// 4. MEJORAR la función render para incluir sincronización automática
-if (originalFunctions.render) {
-    window.render = function() {
-        // Sincronizar antes de renderizar (silenciosamente)
-        syncTopicsWithQuestions();
+        // Agregar al array de temas
+        state.topics.push(newTopic);
         
-        // Ejecutar render original
-        return originalFunctions.render.apply(this, arguments);
-    };
-}
-
-// 5. FUNCIÓN DE UTILIDAD: Limpiar temas huérfanos manualmente
-window.cleanupOrphanTopics = function() {
-    console.log('🧹 Limpiando temas huérfanos manualmente...');
-    const hasChanges = syncTopicsWithQuestions();
-    
-    if (hasChanges) {
-        if (window.render) window.render();
-        showMessage('✅ Temas huérfanos eliminados', 'success');
-    } else {
-        showMessage('ℹ️ No hay temas huérfanos para limpiar', 'info');
+        // Guardar en localStorage
+        try {
+            localStorage.setItem('topics', JSON.stringify(state.topics));
+            console.log('💾 Guardado en localStorage exitoso');
+        } catch (error) {
+            console.error('❌ Error guardando en localStorage:', error);
+        }
+        
+        // Seleccionar automáticamente el nuevo tema
+        state.selectedTopicForNewQuestions = newId;
+        console.log('🎯 Tema seleccionado automáticamente:', newId);
+        
+        // Re-renderizar
+        if (typeof window.render === 'function') {
+            console.log('🔄 Ejecutando render...');
+            render();
+        } else {
+            console.error('❌ Función render no existe');
+        }
+        
+        // Mostrar mensaje de éxito
+        if (typeof showMessage === 'function') {
+            showMessage(`Tema "${name}" creado exitosamente`, 'success');
+        }
+        
+        console.log('✅ Tema creado exitosamente');
+        console.log('📊 Total de temas ahora:', state.topics.length);
+        
+    } catch (error) {
+        console.error('❌ Error en createTopic:', error);
+        alert('Error al crear el tema: ' + error.message);
     }
 };
 
-// 6. SINCRONIZACIÓN INICIAL al cargar la página
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        console.log('🚀 Ejecutando sincronización inicial...');
-        syncTopicsWithQuestions();
-        if (window.render) window.render();
-    }, 500);
-});
-
-// 7. INTERCEPTAR cambios de usuario (si existe sistema multiusuario)
-if (window.UserDataManager && window.UserDataManager.loadCurrentUserData) {
-    const originalLoadUserData = window.UserDataManager.loadCurrentUserData;
+// PASO 3: VERIFICAR Y CORREGIR updateSelectedTopic
+window.updateSelectedTopic = function() {
+    console.log('🔄 Ejecutando updateSelectedTopic...');
     
-    window.UserDataManager.loadCurrentUserData = function(username) {
-        const result = originalLoadUserData.apply(this, arguments);
+    try {
+        const selector = document.getElementById('topic-selector');
+        console.log('📋 Selector encontrado:', !!selector);
         
-        // Sincronizar después de cargar datos de usuario
-        setTimeout(() => {
-            syncTopicsWithQuestions();
-            if (window.render) window.render();
-        }, 100);
+        if (!selector) {
+            console.error('❌ No se encontró el selector topic-selector');
+            return;
+        }
         
-        return result;
-    };
-}
+        console.log('🎯 Valor seleccionado:', selector.value);
+        
+        if (selector.value) {
+            const selectedValue = selector.value;
+            const selectedTopic = state.topics.find(t => t.id == selectedValue);
+            
+            if (selectedTopic) {
+                state.selectedTopicForNewQuestions = selectedTopic.id;
+                console.log('✅ Tema seleccionado:', selectedTopic.name);
+                
+                if (typeof showMessage === 'function') {
+                    showMessage(`Tema "${selectedTopic.name}" seleccionado`, 'success');
+                }
+            } else {
+                state.selectedTopicForNewQuestions = selectedValue;
+                console.log('⚠️ Tema no encontrado, usando valor directo:', selectedValue);
+            }
+        } else {
+            state.selectedTopicForNewQuestions = null;
+            console.log('🚫 Ningún tema seleccionado');
+        }
+        
+        // Re-renderizar
+        if (typeof window.render === 'function') {
+            render();
+        }
+        
+    } catch (error) {
+        console.error('❌ Error en updateSelectedTopic:', error);
+    }
+};
 
-// 8. FUNCIÓN DIAGNÓSTICA para debugging
-window.diagnosticTopicsSync = function() {
-    console.log('🔍 DIAGNÓSTICO DE SINCRONIZACIÓN:');
-    console.log('📊 Estado actual:');
-    console.log('  - Total temas:', state.topics.length);
-    console.log('  - Total preguntas:', state.questions.length);
+// PASO 4: FUNCIÓN DE DIAGNÓSTICO COMPLETO
+window.debugTopicSystem = function() {
+    console.log('🔍 DIAGNÓSTICO COMPLETO DEL SISTEMA DE TEMAS:');
+    console.log('==========================================');
     
-    // Analizar temas con/sin preguntas
-    const topicsWithQuestions = state.topics.filter(topic => {
-        return state.questions.some(q => q.topicId && q.topicId.toString() === topic.id.toString());
-    });
+    // Estado general
+    console.log('📊 Estado general:');
+    console.log('  - state definido:', typeof state);
+    console.log('  - state.topics:', state.topics ? state.topics.length + ' temas' : 'undefined');
+    console.log('  - selectedTopicForNewQuestions:', state.selectedTopicForNewQuestions);
     
-    const orphanTopics = state.topics.filter(topic => {
-        return !state.questions.some(q => q.topicId && q.topicId.toString() === topic.id.toString());
-    });
+    // Funciones
+    console.log('🔧 Funciones disponibles:');
+    console.log('  - createTopic:', typeof window.createTopic);
+    console.log('  - updateSelectedTopic:', typeof window.updateSelectedTopic);
+    console.log('  - render:', typeof window.render);
+    console.log('  - showMessage:', typeof window.showMessage);
     
-    console.log('  - Temas con preguntas:', topicsWithQuestions.length);
-    console.log('  - Temas huérfanos:', orphanTopics.length);
+    // DOM
+    console.log('🌐 Elementos DOM:');
+    const createBtn = document.querySelector('button[onclick="createTopic()"]');
+    const selector = document.getElementById('topic-selector');
+    console.log('  - Botón crear tema:', !!createBtn);
+    console.log('  - Selector tema:', !!selector);
     
-    if (orphanTopics.length > 0) {
-        console.log('🏷️ Temas huérfanos encontrados:');
-        orphanTopics.forEach(topic => {
-            console.log(`  - "${topic.name}" (ID: ${topic.id})`);
+    if (selector) {
+        console.log('  - Opciones en selector:', selector.options.length);
+        console.log('  - Selector habilitado:', !selector.disabled);
+        console.log('  - Valor actual:', selector.value);
+    }
+    
+    // LocalStorage
+    console.log('💾 LocalStorage:');
+    try {
+        const storedTopics = localStorage.getItem('topics');
+        console.log('  - topics en localStorage:', storedTopics ? 'Sí (' + JSON.parse(storedTopics).length + ')' : 'No');
+    } catch (error) {
+        console.log('  - Error leyendo localStorage:', error.message);
+    }
+    
+    // Lista de temas
+    if (state.topics && state.topics.length > 0) {
+        console.log('📋 Temas actuales:');
+        state.topics.forEach((topic, index) => {
+            console.log(`  ${index + 1}. ${topic.name} (ID: ${topic.id})`);
         });
     }
     
-    // Mostrar temas del selector
-    const selector = document.getElementById('topic-selector');
-    if (selector) {
-        console.log('📋 Opciones en dropdown:', selector.options.length - 1); // -1 por la opción vacía
-    }
-    
-    return {
-        totalTopics: state.topics.length,
-        topicsWithQuestions: topicsWithQuestions.length,
-        orphanTopics: orphanTopics.length,
-        orphanList: orphanTopics
-    };
+    console.log('==========================================');
+    console.log('💡 Para probar: debugTopicSystem() en la consola');
 };
 
-console.log('✅ Parche de sincronización aplicado correctamente');
-console.log('🔧 Funciones añadidas:');
-console.log('   - cleanupOrphanTopics() - Limpiar temas huérfanos manualmente');
-console.log('   - diagnosticTopicsSync() - Diagnóstico completo del estado');
-console.log('🎯 El dropdown ahora se sincroniza automáticamente con el banco');
+// PASO 5: EJECUTAR DIAGNÓSTICO INICIAL
+setTimeout(() => {
+    console.log('🚀 Ejecutando diagnóstico inicial...');
+    debugTopicSystem();
+    
+    // Verificar si el problema persiste
+    console.log('🧪 PRUEBA RÁPIDA:');
+    console.log('Ejecuta createTopic() en la consola para probar manualmente');
+}, 1000);
+
+console.log('✅ Diagnóstico y corrección aplicados');
+console.log('🔧 Funciones de debugging disponibles:');
+console.log('   - debugTopicSystem() - Diagnóstico completo');
+console.log('   - createTopic() - Crear tema manualmente');
         </script>
 </body>
 </html>
+
 
 
 
