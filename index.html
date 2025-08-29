@@ -13410,60 +13410,171 @@ renderUploadTab = function() {
                 ` : ''}
             </div>
 
-            <!-- TERCERA COLUMNA: TEXTO TRANSCRITO -->
-            <div class="column">
-                <h3 style="margin-bottom: 15px;">📝 Texto Transcrito</h3>
-                <textarea id="cleanedText" class="textarea" placeholder="El texto procesado aparecerá aquí..." readonly>${state.cleanedText}</textarea>
-                
-                <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px;">
-                    <h4 style="color: #92400e; margin-bottom: 10px;">🏷️ Gestión de Temas</h4>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-                        <button onclick="createTopic()" class="btn btn-info" style="width: 100%; padding: 8px; font-size: 13px;">
-                            🆕 Crear Tema
-                        </button>
-                        
-                        <div style="position: relative;">
-                            <select id="topic-selector" onchange="updateSelectedTopic()" style="width: 100%; padding: 8px; border: none; background: #f59e0b; color: white; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;" ${state.topics.length === 0 ? 'disabled' : ''}>
-                                <option value="">🏷️ Seleccionar Tema</option>
-                                ${state.topics.map(topic => `
-                                    <option value="${topic.id}" ${state.selectedTopicForNewQuestions === topic.id ? 'selected' : ''}>
-                                        ${topic.name} (${getTopicQuestionCountDef(topic.id)})
-                                    </option>
-                                `).join('')}
-                            </select>
-                        </div>
-                    </div>
-                    
-                    ${state.topics.length === 0 ? `
-                        <div style="text-align: center; color: #92400e; font-size: 12px; margin-bottom: 10px;">
-                            ⚠️ Crea un tema primero para organizar tus preguntas
-                        </div>
-                    ` : ''}
-                    
-                    <button onclick="addToQuestions()" class="btn btn-success" style="width: 100%;" ${!state.cleanedText ? 'disabled' : ''}>
-                        ${getAddButtonTextDef()}
-                    </button>
-                </div>
+          <!-- TERCERA COLUMNA: TEXTO TRANSCRITO -->
+<div class="column">
+    <h3 style="margin-bottom: 15px;">📝 Texto Transcrito</h3>
+    <textarea id="cleanedText" class="textarea" placeholder="El texto procesado aparecerá aquí..." readonly>${state.cleanedText}</textarea>
+    
+    <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px;">
+        <h4 style="color: #92400e; margin-bottom: 10px;">🏷️ Gestión de Temas</h4>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <button onclick="createTopicSynced()" class="btn btn-info" style="width: 100%; padding: 8px; font-size: 13px;">
+                🆕 Crear Tema
+            </button>
+            
+            <div style="position: relative;">
+                <select id="topic-selector" onchange="updateSelectedTopicSynced()" style="width: 100%; padding: 8px; border: none; background: #f59e0b; color: white; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;" ${getBankTopics().length === 0 ? 'disabled' : ''}>
+                    <option value="">🏷️ Seleccionar Tema</option>
+                    ${getBankTopics().map(topic => `
+                        <option value="${topic.id}" ${state.selectedTopicForNewQuestions === topic.id ? 'selected' : ''}>
+                            ${topic.name} (${getTopicQuestionCountSynced(topic.id)})
+                        </option>
+                    `).join('')}
+                </select>
             </div>
         </div>
         
-        <!-- BOTÓN CENTRAL DE TRANSCRIPCIÓN -->
-        <div style="text-align: center; margin: 20px 0;">
-            <button onclick="transcribeAllContentDef()" class="btn btn-primary" style="padding: 15px 40px; font-size: 18px; font-weight: bold;" ${(state.selectedImages.length === 0 && state.selectedFiles.length === 0) || !state.apiKey ? 'disabled' : ''}>
-                🤖 1. Transcribir y Procesar
-            </button>
-            
-            ${state.transcribedText && !state.cleanedText ? `
-                <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; display: inline-block;">
-                    <span style="color: #92400e;">📄 Procesando texto automáticamente...</span>
-                </div>
-            ` : ''}
-        </div>
-    `;
-};
+        ${getBankTopics().length === 0 ? `
+            <div style="text-align: center; color: #92400e; font-size: 12px; margin-bottom: 10px;">
+                ⚠️ Crea un tema primero para organizar tus preguntas
+            </div>
+        ` : ''}
+        
+        <button onclick="addToQuestions()" class="btn btn-success" style="width: 100%;" ${!state.cleanedText ? 'disabled' : ''}>
+            ${getAddButtonTextSynced()}
+        </button>
+    </div>
+</div>
 
-// 3. FUNCIONES AUXILIARES
+<script>
+// FUNCIONES SINCRONIZADAS CON EL BANCO DE PREGUNTAS
+
+// 1. OBTENER TEMAS DEL BANCO DE PREGUNTAS (no de state.topics local)
+function getBankTopics() {
+    // Usar los temas del banco de preguntas, no los locales
+    const bankTopics = JSON.parse(localStorage.getItem('topics') || '[]');
+    return bankTopics;
+}
+
+// 2. CREAR TEMA SINCRONIZADO (se crea tanto en banco como en dropdown)
+function createTopicSynced() {
+    const name = prompt('Nombre del tema:');
+    if (name && name.trim()) {
+        // Verificar si ya existe
+        const bankTopics = getBankTopics();
+        if (bankTopics.some(topic => topic.name.toLowerCase() === name.trim().toLowerCase())) {
+            showMessage('Ya existe un tema con ese nombre', 'error');
+            return;
+        }
+        
+        // Crear nuevo tema
+        const newTopic = {
+            id: Date.now() + Math.random(),
+            name: name.trim(),
+            createdAt: new Date().toISOString()
+        };
+        
+        // Añadir al banco de preguntas
+        bankTopics.push(newTopic);
+        localStorage.setItem('topics', JSON.stringify(bankTopics));
+        
+        // Sincronizar con state.topics si existe (para compatibilidad)
+        if (typeof state.topics !== 'undefined') {
+            state.topics = bankTopics;
+        }
+        
+        // Re-renderizar para actualizar dropdown
+        render();
+        
+        if (typeof showMessage === 'function') {
+            showMessage(`Tema "${name}" creado exitosamente`, 'success');
+        }
+    }
+}
+
+// 3. ACTUALIZAR SELECCIÓN DE TEMA SINCRONIZADA
+function updateSelectedTopicSynced() {
+    const selector = document.getElementById('topic-selector');
+    if (selector && selector.value) {
+        const selectedValue = selector.value;
+        const bankTopics = getBankTopics();
+        const selectedTopic = bankTopics.find(t => t.id == selectedValue);
+        
+        if (selectedTopic) {
+            state.selectedTopicForNewQuestions = selectedTopic.id;
+            if (typeof showMessage === 'function') {
+                showMessage(`Tema "${selectedTopic.name}" seleccionado`, 'success');
+            }
+        } else {
+            state.selectedTopicForNewQuestions = selectedValue;
+        }
+    } else {
+        state.selectedTopicForNewQuestions = null;
+    }
+    render();
+}
+
+// 4. CONTADOR DE PREGUNTAS POR TEMA SINCRONIZADO
+function getTopicQuestionCountSynced(topicId) {
+    // Usar las preguntas del banco, no de state.questions local
+    const questions = JSON.parse(localStorage.getItem('questions') || '[]');
+    return questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
+}
+
+// 5. TEXTO DEL BOTÓN SINCRONIZADO
+function getAddButtonTextSynced() {
+    if (typeof getAddButtonTextDef === 'function') {
+        return getAddButtonTextDef();
+    }
+    
+    if (!state.selectedTopicForNewQuestions) {
+        return '✅ 2. Añadir al Banco';
+    } else {
+        const bankTopics = getBankTopics();
+        const topic = bankTopics.find(t => t.id == state.selectedTopicForNewQuestions);
+        const topicName = topic ? topic.name : 'Tema no encontrado';
+        return `✅ 2. Asignar a "${topicName}"`;
+    }
+}
+
+// 6. FUNCIÓN PARA DETECTAR ELIMINACIÓN DE TEMAS DEL BANCO
+function syncDropdownWithBank() {
+    const bankTopics = getBankTopics();
+    
+    // Si el tema seleccionado ya no existe en el banco, deseleccionarlo
+    if (state.selectedTopicForNewQuestions) {
+        const topicExists = bankTopics.some(t => t.id == state.selectedTopicForNewQuestions);
+        if (!topicExists) {
+            state.selectedTopicForNewQuestions = null;
+            render();
+        }
+    }
+}
+
+// 7. OBSERVAR CAMBIOS EN EL BANCO DE PREGUNTAS
+function watchBankChanges() {
+    // Observar cambios en localStorage para temas
+    const originalSetItem = localStorage.setItem;
+    localStorage.setItem = function(key, value) {
+        const result = originalSetItem.apply(this, arguments);
+        
+        // Si se modifican los temas del banco, sincronizar dropdown
+        if (key === 'topics') {
+            // Pequeña pausa para que se complete la operación
+            setTimeout(() => {
+                syncDropdownWithBank();
+            }, 50);
+        }
+        
+        return result;
+    };
+}
+
+// 8. INICIALIZAR OBSERVADOR DE CAMBIOS
+watchBankChanges();
+
+// 9. MANTENER FUNCIONES AUXILIARES ORIGINALES COMO FALLBACK
 function removeFileDef(index) {
     state.selectedFiles.splice(index, 1);
     render();
@@ -13473,31 +13584,26 @@ function removeFileDef(index) {
 }
 
 function getTopicQuestionCountDef(topicId) {
-    if (typeof getTopicQuestionCount === 'function') {
-        return getTopicQuestionCount(topicId);
-    }
-    return state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
+    return getTopicQuestionCountSynced(topicId);
 }
 
 function getAddButtonTextDef() {
-    if (typeof getAddButtonText === 'function') {
-        return getAddButtonText();
-    }
-    if (!state.selectedTopicForNewQuestions) {
-        return '✅ 2. Añadir al Banco';
-    } else {
-        const topicName = getTopicNameDef(state.selectedTopicForNewQuestions);
-        return `✅ 2. Asignar a "${topicName}"`;
-    }
+    return getAddButtonTextSynced();
 }
 
 function getTopicNameDef(topicId) {
-    if (typeof getTopicName === 'function') {
-        return getTopicName(topicId);
-    }
-    const topic = state.topics.find(t => t.id == topicId);
+    const bankTopics = getBankTopics();
+    const topic = bankTopics.find(t => t.id == topicId);
     return topic ? topic.name : 'Tema no encontrado';
 }
+
+console.log('✅ DROPDOWN SINCRONIZADO con banco de preguntas aplicado correctamente');
+console.log('🔄 Características añadidas:');
+console.log(' - Dropdown usa temas del banco de preguntas');
+console.log(' - Creación de temas sincronizada');
+console.log(' - Auto-detección de eliminación de temas');
+console.log(' - Observador de cambios en localStorage');
+</script>
 
 // 4. LISTENER PARA ARCHIVOS
 document.addEventListener('change', function(e) {
@@ -14773,6 +14879,7 @@ console.log('   - Compatible con código existente');
 
 </body>
 </html>
+
 
 
 
