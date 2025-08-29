@@ -15470,11 +15470,11 @@ window.cancelPhraseEditor = function() {
 
 console.log('✅ PARCHE DE EDITOR DE FRASES CARGADO - Inicializando...');
 </script>
-   
-    <script> tags
-// DESPUÉS del parche del editor de frases
-
-// ========== PARTE 1: RENDERIZADO DE MARKDOWN ==========
+    
+<script>
+// ========== PARCHE: RENDERIZADO DE MARKDOWN ==========
+// Añadir este código AL FINAL del archivo index.html, dentro de <script> tags
+// DESPUÉS del parche anterior del editor de frases
 
 // Función para convertir markdown básico a HTML
 function convertMarkdownToHTML(content) {
@@ -15584,6 +15584,7 @@ function createMarkdownEnhancedRenderer(originalFunction) {
             // Patrón 3: formatSummaryContent o formatSummaryContentAdvanced
             const formatContentPattern = /formatSummaryContent(?:Advanced)?\(summary\.content\)/g;
             html = html.replace(formatContentPattern, `"${markdownProcessed}"`);
+            
         }
         
         return html;
@@ -15656,169 +15657,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 2000);
 });
 
-// ========== PARTE 2: CORRECCIÓN BOTÓN NEGRITA ==========
-
-// Función corregida para alternar negrita en toda la frase
-window.toggleBold = function(phraseId) {
-    const phrase = phraseEditor.phrases.find(p => p.id === phraseId);
-    if (!phrase) return;
-    
-    console.log('🔤 Procesando negrita para frase:', phraseId, 'Estado actual:', phrase.isBold);
-    
-    // Limpiar cualquier formato de negrita existente del texto
-    const cleanText = phrase.text.replace(/\*\*(.*?)\*\*/g, '$1');
-    
-    // Determinar el nuevo estado basándose en el estado actual
-    const newBoldState = !phrase.isBold;
-    
-    // Aplicar el nuevo estado
-    phrase.isBold = newBoldState;
-    phrase.text = cleanText; // Siempre usamos el texto limpio
-    
-    // Log del resultado
-    if (newBoldState) {
-        console.log('✅ Negrita aplicada a toda la frase');
-    } else {
-        console.log('❌ Negrita quitada de toda la frase');
-    }
-    
-    // Re-renderizar
-    render();
-};
-
-// Función mejorada para guardar cambios que maneja mejor la negrita
-window.savePhraseEdits = function() {
-    const summary = summarySystemState.viewingSummary;
-    if (!summary) return;
-    
-    console.log('💾 Guardando cambios del editor de frases...');
-    
-    // Construir nuevo contenido con las frases editadas
-    const activePhrases = phraseEditor.phrases.filter(p => !p.isDeleted);
-    const newContent = activePhrases
-        .map(phrase => {
-            let text = phrase.text;
-            
-            // Limpiar cualquier markdown existente primero
-            text = text.replace(/\*\*(.*?)\*\*/g, '$1');
-            
-            // Aplicar negrita solo si está marcada como negrita
-            if (phrase.isBold) {
-                text = `**${text}**`;
-            }
-            
-            return text;
-        })
-        .join('\n\n');
-    
-    // Actualizar el resumen
-    const summaryIndex = summarySystemState.savedSummaries.findIndex(s => s.id === summary.id);
-    if (summaryIndex !== -1) {
-        summarySystemState.savedSummaries[summaryIndex].content = newContent;
-        summarySystemState.viewingSummary.content = newContent;
+// Función para forzar re-renderizado después de guardar cambios en el editor
+const originalSavePhraseEdits = window.savePhraseEdits;
+if (originalSavePhraseEdits) {
+    window.savePhraseEdits = function() {
+        // Llamar a la función original
+        originalSavePhraseEdits.call(this);
         
-        // Guardar en localStorage
-        localStorage.setItem('savedSummaries', JSON.stringify(summarySystemState.savedSummaries));
-        
-        // Salir del modo edición
-        phraseEditor.isActive = false;
-        render();
-        
-        alert('✅ Cambios guardados correctamente');
-        console.log('💾 Resumen actualizado con', activePhrases.length, 'frases');
-        
-        // Forzar re-renderizado para mostrar markdown
+        // Forzar re-renderizado después de un pequeño delay
         setTimeout(() => {
             console.log('🔄 Forzando re-renderizado para mostrar markdown');
             render();
         }, 100);
-    }
-};
-
-// Función mejorada para iniciar el editor que detecta mejor la negrita existente
-window.startPhraseEditor = function() {
-    if (!phraseEditor.initialized) {
-        alert('⚠️ Editor de frases no inicializado. Espera unos segundos e intenta de nuevo.');
-        return;
-    }
-    
-    const summary = summarySystemState.viewingSummary;
-    if (!summary) {
-        alert('❌ No hay resumen seleccionado');
-        return;
-    }
-    
-    console.log('🚀 Iniciando editor de frases mejorado...');
-    
-    // Guardamos el contenido original
-    phraseEditor.originalContent = summary.content;
-    
-    // Dividimos el contenido en frases/párrafos
-    const rawPhrases = summary.content
-        .split(/\n\s*\n|\. (?=[A-Z])/)
-        .map(text => text.trim())
-        .filter(text => text.length > 0);
-    
-    phraseEditor.phrases = rawPhrases.map((text, index) => {
-        // Detectar si la frase está completamente en negrita
-        const isBoldPattern = /^\*\*(.*)\*\*$/;
-        const isBold = isBoldPattern.test(text.trim());
-        
-        // Obtener el texto limpio (sin markdown)
-        const cleanText = text.replace(/\*\*(.*?)\*\*/g, '$1');
-        
-        return {
-            id: index,
-            text: cleanText,
-            isBold: isBold,
-            isDeleted: false,
-            isEditing: false
-        };
-    });
-    
-    // Activamos el modo edición
-    phraseEditor.isActive = true;
-    
-    // Re-renderizamos
-    render();
-    
-    console.log('✅ Editor de frases iniciado con', phraseEditor.phrases.length, 'frases');
-    console.log('📊 Análisis de negrita:');
-    phraseEditor.phrases.forEach((phrase, i) => {
-        if (phrase.isBold) {
-            console.log(`  Frase ${i+1}: NEGRITA DETECTADA`);
-        }
-    });
-};
-
-// Función mejorada para guardar frase individual que mantiene el estado de negrita
-window.savePhrase = function(phraseId) {
-    const phrase = phraseEditor.phrases.find(p => p.id === phraseId);
-    const textarea = document.getElementById(`phrase-edit-${phraseId}`);
-    
-    if (phrase && textarea) {
-        const newText = textarea.value.trim();
-        if (newText.length === 0) {
-            alert('El texto no puede estar vacío');
-            return;
-        }
-        
-        // Limpiar cualquier markdown del texto ingresado
-        const cleanText = newText.replace(/\*\*(.*?)\*\*/g, '$1');
-        
-        phrase.text = cleanText;
-        phrase.isEditing = false;
-        
-        // Mantener el estado de negrita que tenía
-        // No cambiar phrase.isBold aquí
-        
-        render();
-        
-        console.log('✅ Frase guardada:', phraseId, '- Negrita:', phrase.isBold);
-    }
-};
-
-// ========== FUNCIONES DE UTILIDAD Y DEBUG ==========
+    };
+}
 
 // Función de prueba para verificar que el markdown funciona
 window.testMarkdownRendering = function() {
@@ -15827,39 +15679,16 @@ window.testMarkdownRendering = function() {
     console.log('🎨 Texto procesado:', convertMarkdownToHTML(testContent));
 };
 
-// Función de depuración para verificar estados de negrita
-window.debugPhraseStates = function() {
-    console.log('🔍 ESTADO ACTUAL DE LAS FRASES:');
-    if (phraseEditor.phrases) {
-        phraseEditor.phrases.forEach((phrase, i) => {
-            console.log(`Frase ${i+1}:`, {
-                id: phrase.id,
-                isBold: phrase.isBold,
-                isDeleted: phrase.isDeleted,
-                text: phrase.text.substring(0, 50) + '...'
-            });
-        });
-    } else {
-        console.log('No hay frases en el editor');
-    }
-};
-
-console.log('✅ PARCHE COMBINADO INSTALADO CORRECTAMENTE');
-console.log('🎨 Renderizado de markdown habilitado');
-console.log('🔤 Corrección de negrita aplicada');
-console.log('🧪 Funciones de prueba:');
-console.log('  - testMarkdownRendering(): Prueba conversión markdown');
-console.log('  - debugPhraseStates(): Ver estado de frases');
+console.log('✅ PARCHE DE RENDERIZADO DE MARKDOWN INSTALADO');
+console.log('🧪 Prueba con: testMarkdownRendering()');
 console.log('🎯 Funcionalidades:');
-console.log('  - Convierte **texto** a negrita visual');
-console.log('  - Botón "B" aplica negrita a TODA la frase');
-console.log('  - Limpia texto mixto antes de aplicar formato');
-console.log('  - Detección mejorada de negrita existente');
+console.log('  - Convierte **texto** a negrita');
+console.log('  - Preserva saltos de línea');
+console.log('  - Se integra con el editor de frases');
 console.log('  - Auto-renderiza después de guardar cambios');
-        </script>
+</script>
 </body>
 </html>
-
 
 
 
