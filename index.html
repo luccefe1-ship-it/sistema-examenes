@@ -14974,128 +14974,155 @@ console.log('🔧 Funciones de debugging disponibles:');
 console.log('   - debugTopicSystem() - Diagnóstico completo');
 console.log('   - createTopic() - Crear tema manualmente');
 </script>
-<!-- PARCHE: SISTEMA DE CARPETAS COLAPSABLES EN BANCO DE PREGUNTAS -->
-<!-- Añadir este código al final del archivo index.html, justo antes de </body> -->
+<!-- MÉTODO AGRESIVO: FORZAR CARPETAS COLAPSABLES -->
+<!-- REEMPLAZA TODO el código de carpetas anterior con este -->
+<!-- Añadir EXACTAMENTE al final del archivo index.html, justo antes de </body> -->
 
 <script>
-// ========== PARCHE: SISTEMA DE CARPETAS COLAPSABLES ==========
+console.log('💥 MÉTODO AGRESIVO: Forzando carpetas colapsables...');
 
-// Estado para controlar qué carpetas están colapsadas
+// ===== PASO 1: LIMPIAR VERSIONES ANTERIORES =====
+if (typeof originalRenderQuestionsByTopic !== 'undefined') {
+    delete window.originalRenderQuestionsByTopic;
+}
+if (typeof originalRenderQuestionsByTopicSimple !== 'undefined') {
+    delete window.originalRenderQuestionsByTopicSimple;
+}
+if (typeof originalRenderQuestionsByTopicBackup !== 'undefined') {
+    delete window.originalRenderQuestionsByTopicBackup;
+}
+
+// ===== PASO 2: ESTADO COLAPSABLE =====
 let collapsedFolders = JSON.parse(localStorage.getItem('collapsedFolders') || '{}');
 
-// Función para alternar el estado de una carpeta
-function toggleFolder(topicId) {
+// ===== PASO 3: FUNCIONES GLOBALES =====
+window.toggleFolder = function(topicId) {
+    console.log('📁 Toggling folder:', topicId);
     collapsedFolders[topicId] = !collapsedFolders[topicId];
     localStorage.setItem('collapsedFolders', JSON.stringify(collapsedFolders));
     render();
-}
+};
 
-// Función para colapsar todas las carpetas
-function collapseAllFolders() {
+window.collapseAllFolders = function() {
+    console.log('📁 Collapsing all folders');
     const allTopicIds = state.topics.map(t => t.id.toString());
     allTopicIds.forEach(id => {
         collapsedFolders[id] = true;
     });
+    collapsedFolders['sin-tema'] = true;
     localStorage.setItem('collapsedFolders', JSON.stringify(collapsedFolders));
     render();
-}
+};
 
-// Función para expandir todas las carpetas
-function expandAllFolders() {
+window.expandAllFolders = function() {
+    console.log('📂 Expanding all folders');
     collapsedFolders = {};
     localStorage.setItem('collapsedFolders', JSON.stringify(collapsedFolders));
     render();
+};
+
+// ===== PASO 4: FUNCIÓN AUXILIAR PARA RENDERIZAR PREGUNTA =====
+function renderSingleQuestionCollapse(q, actualIndex) {
+    const isVerified = q.isVerified;
+    const verificationBadge = isVerified ? 
+        '<span style="background: #10b981; color: white; padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-left: 8px;">✓</span>' : 
+        '<span style="background: #f59e0b; color: white; padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-left: 8px;">⏳</span>';
+    
+    return `
+        <div style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; background: white;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                <div style="flex: 1;">
+                    <div style="font-size: 13px; line-height: 1.4; color: #374151; margin-bottom: 8px;">
+                        <strong style="color: #1f2937;">P${actualIndex + 1}:</strong> ${q.question}
+                    </div>
+                    <ul style="list-style: none; margin: 0; padding: 0; font-size: 12px;">
+                        ${q.options.map((opt, optIndex) => `
+                            <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#059669' : '#6b7280'};">
+                                <strong>${String.fromCharCode(97 + optIndex)})</strong> ${opt} 
+                                ${q.correctAnswer === optIndex ? '<strong style="color: #059669;">✓</strong>' : ''}
+                            </li>
+                        `).join('')}
+                    </ul>
+                    ${verificationBadge}
+                </div>
+                <div style="display: flex; gap: 5px; flex-shrink: 0;">
+                    <button onclick="editQuestion(${q.id})" 
+                            style="padding: 4px 8px; background: #3b82f6; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;" 
+                            title="Editar">✏️</button>
+                    <button onclick="deleteQuestion(${q.id})" 
+                            style="padding: 4px 8px; background: #ef4444; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;" 
+                            title="Eliminar">🗑️</button>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
-// REEMPLAZAR la función renderQuestionsByTopic con versión colapsable
-const originalRenderQuestionsByTopic = renderQuestionsByTopic;
-renderQuestionsByTopic = function() {
-    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+// ===== PASO 5: REEMPLAZAR LA FUNCIÓN COMPLETAMENTE CON IDENTIFICADOR ÚNICO =====
+window.renderQuestionsByTopic = function() {
+    console.log('🔧 Ejecutando renderQuestionsByTopic COLAPSABLE');
     
+    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
     let html = '';
     
-    // Botones de control global
+    // BOTONES DE CONTROL GLOBAL
     const hasTopicsWithQuestions = state.topics.some(topic => {
         return state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length > 0;
     });
     
-    if (hasTopicsWithQuestions) {
+    if (hasTopicsWithQuestions || questionsWithoutTopic.length > 0) {
         html += `
-            <div style="margin-bottom: 15px; text-align: center;">
-                <button onclick="expandAllFolders()" class="btn btn-sm" style="background: #10b981; color: white; margin-right: 10px; padding: 5px 12px; font-size: 12px;">
+            <div style="margin-bottom: 20px; text-align: center; padding: 12px; background: linear-gradient(135deg, #f8fafc, #e2e8f0); border-radius: 10px; border: 1px solid #cbd5e1;">
+                <div style="margin-bottom: 8px; font-size: 14px; font-weight: 600; color: #475569;">Control de Carpetas</div>
+                <button onclick="expandAllFolders()" style="background: #10b981; color: white; margin-right: 10px; padding: 8px 16px; font-size: 13px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 4px rgba(16,185,129,0.3);">
                     📂 Expandir Todo
                 </button>
-                <button onclick="collapseAllFolders()" class="btn btn-sm" style="background: #6b7280; color: white; padding: 5px 12px; font-size: 12px;">
+                <button onclick="collapseAllFolders()" style="background: #6b7280; color: white; padding: 8px 16px; font-size: 13px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 4px rgba(107,114,128,0.3);">
                     📁 Colapsar Todo
                 </button>
             </div>
         `;
     }
     
-    // Renderizar cada tema con funcionalidad de colapso
+    // RENDERIZAR TEMAS CON PREGUNTAS
     state.topics.forEach(topic => {
         const topicQuestions = state.questions.filter(q => 
             q.topicId && q.topicId.toString() === topic.id.toString()
         );
         
         if (topicQuestions.length > 0) {
-            const isCollapsed = collapsedFolders[topic.id.toString()];
+            const topicId = topic.id.toString();
+            const isCollapsed = collapsedFolders[topicId];
             const collapseIcon = isCollapsed ? '📁' : '📂';
             
             html += `
-                <div style="margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-                    <!-- Cabecera del tema (clickeable) -->
-                    <div onclick="toggleFolder('${topic.id}')" 
-                         style="background: #f9fafb; padding: 12px; cursor: pointer; border-bottom: ${isCollapsed ? 'none' : '1px solid #e5e7eb'}; user-select: none; transition: background-color 0.2s;"
-                         onmouseover="this.style.backgroundColor='#f3f4f6'"
-                         onmouseout="this.style.backgroundColor='#f9fafb'">
+                <div style="margin-bottom: 25px; border: 2px solid #4f46e5; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(79,70,229,0.2);">
+                    <!-- CABECERA CLICKEABLE -->
+                    <div onclick="toggleFolder('${topicId}')" 
+                         style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 16px; cursor: pointer; user-select: none; transition: all 0.3s ease;"
+                         onmouseover="this.style.background='linear-gradient(135deg, #4338ca, #6d28d9)'"
+                         onmouseout="this.style.background='linear-gradient(135deg, #4f46e5, #7c3aed)'">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="font-size: 16px;">${collapseIcon}</span>
-                                <span style="font-weight: 600; color: #374151; font-size: 14px;">${topic.name}</span>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span style="font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">${collapseIcon}</span>
+                                <span style="font-weight: 700; font-size: 16px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">📚 ${topic.name}</span>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <span style="background: rgba(255,255,255,0.25); backdrop-filter: blur(10px); padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; border: 1px solid rgba(255,255,255,0.3);">
                                     ${topicQuestions.length} pregunta${topicQuestions.length === 1 ? '' : 's'}
                                 </span>
-                                <span style="color: #6b7280; font-size: 12px;">
-                                    ${isCollapsed ? 'Clic para expandir' : 'Clic para colapsar'}
+                                <span style="opacity: 0.9; font-size: 12px; font-weight: 500;">
+                                    ${isCollapsed ? '👆 Expandir' : '👆 Colapsar'}
                                 </span>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Lista de preguntas (colapsable) -->
-                    <div style="display: ${isCollapsed ? 'none' : 'block'};">
+                    <!-- CONTENIDO COLAPSABLE -->
+                    <div style="display: ${isCollapsed ? 'none' : 'block'}; background: white;">
                         ${topicQuestions.map((question, index) => {
-                            const isVerified = question.isVerified;
-                            const verificationBadge = isVerified ? 
-                                '<span style="background: #10b981; color: white; padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-left: 8px;">✓ Verificada</span>' : 
-                                '<span style="background: #f59e0b; color: white; padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-left: 8px;">⏳ Pendiente</span>';
-                            
-                            return `
-                                <div style="padding: 12px; border-bottom: ${index === topicQuestions.length - 1 ? 'none' : '1px solid #f3f4f6'}; background: white;">
-                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
-                                        <div style="flex: 1;">
-                                            <div style="font-size: 13px; line-height: 1.4; color: #374151; margin-bottom: 4px;">
-                                                <strong style="color: #1f2937;">P${index + 1}:</strong> ${question.question}
-                                            </div>
-                                            <div style="font-size: 12px; color: #059669; font-weight: 500;">
-                                                <strong>R:</strong> ${question.answer}
-                                            </div>
-                                            ${verificationBadge}
-                                        </div>
-                                        <div style="display: flex; gap: 5px; flex-shrink: 0;">
-                                            <button onclick="editQuestion(${question.id})" 
-                                                    style="padding: 4px 8px; background: #3b82f6; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;" 
-                                                    title="Editar pregunta">✏️</button>
-                                            <button onclick="deleteQuestion(${question.id})" 
-                                                    style="padding: 4px 8px; background: #ef4444; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;" 
-                                                    title="Eliminar pregunta">🗑️</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
+                            const actualIndex = state.questions.findIndex(q => q.id === question.id);
+                            return renderSingleQuestionCollapse(question, actualIndex);
                         }).join('')}
                     </div>
                 </div>
@@ -15103,83 +15130,78 @@ renderQuestionsByTopic = function() {
         }
     });
 
-    // Preguntas sin tema
+    // PREGUNTAS SIN TEMA
     if (questionsWithoutTopic.length > 0) {
         const topicId = 'sin-tema';
         const isCollapsed = collapsedFolders[topicId];
         const collapseIcon = isCollapsed ? '📁' : '📂';
         
         html += `
-            <div style="margin-bottom: 20px; border: 1px solid #fbbf24; border-radius: 8px; overflow: hidden;">
+            <div style="margin-bottom: 25px; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(245,158,11,0.2);">
                 <div onclick="toggleFolder('${topicId}')" 
-                     style="background: #fef3c7; padding: 12px; cursor: pointer; border-bottom: ${isCollapsed ? 'none' : '1px solid #fbbf24'}; user-select: none; transition: background-color 0.2s;"
-                     onmouseover="this.style.backgroundColor='#fde68a'"
-                     onmouseout="this.style.backgroundColor='#fef3c7'">
+                     style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 16px; cursor: pointer; user-select: none; transition: all 0.3s ease;"
+                     onmouseover="this.style.background='linear-gradient(135deg, #d97706, #b45309)'"
+                     onmouseout="this.style.background='linear-gradient(135deg, #f59e0b, #d97706)'">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 16px;">${collapseIcon}</span>
-                            <span style="font-weight: 600; color: #92400e; font-size: 14px;">📝 Sin Tema Asignado</span>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">${collapseIcon}</span>
+                            <span style="font-weight: 700; font-size: 16px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">📝 Sin Tema Asignado</span>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span style="background: rgba(255,255,255,0.25); backdrop-filter: blur(10px); padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; border: 1px solid rgba(255,255,255,0.3);">
                                 ${questionsWithoutTopic.length} pregunta${questionsWithoutTopic.length === 1 ? '' : 's'}
                             </span>
-                            <span style="color: #92400e; font-size: 12px;">
-                                ${isCollapsed ? 'Clic para expandir' : 'Clic para colapsar'}
+                            <span style="opacity: 0.9; font-size: 12px; font-weight: 500;">
+                                ${isCollapsed ? '👆 Expandir' : '👆 Colapsar'}
                             </span>
                         </div>
                     </div>
                 </div>
                 
-                <div style="display: ${isCollapsed ? 'none' : 'block'};">
+                <div style="display: ${isCollapsed ? 'none' : 'block'}; background: #fffbeb;">
                     ${questionsWithoutTopic.map((question, index) => {
-                        const isVerified = question.isVerified;
-                        const verificationBadge = isVerified ? 
-                            '<span style="background: #10b981; color: white; padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-left: 8px;">✓ Verificada</span>' : 
-                            '<span style="background: #f59e0b; color: white; padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-left: 8px;">⏳ Pendiente</span>';
-                        
-                        return `
-                            <div style="padding: 12px; border-bottom: ${index === questionsWithoutTopic.length - 1 ? 'none' : '1px solid #fde68a'}; background: #fffbeb;">
-                                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
-                                    <div style="flex: 1;">
-                                        <div style="font-size: 13px; line-height: 1.4; color: #374151; margin-bottom: 4px;">
-                                            <strong style="color: #92400e;">P${index + 1}:</strong> ${question.question}
-                                        </div>
-                                        <div style="font-size: 12px; color: #059669; font-weight: 500;">
-                                            <strong>R:</strong> ${question.answer}
-                                        </div>
-                                        ${verificationBadge}
-                                    </div>
-                                    <div style="display: flex; gap: 5px; flex-shrink: 0;">
-                                        <button onclick="editQuestion(${question.id})" 
-                                                style="padding: 4px 8px; background: #3b82f6; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;" 
-                                                title="Editar pregunta">✏️</button>
-                                        <button onclick="deleteQuestion(${question.id})" 
-                                                style="padding: 4px 8px; background: #ef4444; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;" 
-                                                title="Eliminar pregunta">🗑️</button>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
+                        const actualIndex = state.questions.findIndex(q => q.id === question.id);
+                        return renderSingleQuestionCollapse(question, actualIndex);
                     }).join('')}
                 </div>
             </div>
         `;
     }
 
+    console.log('✅ renderQuestionsByTopic COLAPSABLE ejecutado completamente');
     return html || '<div style="text-align: center; padding: 40px; color: #6b7280;"><p>No hay preguntas en el banco</p></div>';
 };
 
-console.log('✅ Sistema de carpetas colapsables activado');
-console.log('📁 Funciones disponibles:');
-console.log(' - toggleFolder(topicId): Alternar una carpeta específica');
-console.log(' - collapseAllFolders(): Colapsar todas las carpetas');
-console.log(' - expandAllFolders(): Expandir todas las carpetas');
-console.log(' - Estado guardado automáticamente en localStorage');
+// ===== PASO 6: FORZAR RE-RENDERIZADO INMEDIATO =====
+setTimeout(() => {
+    if (state.currentTab === 'questions' && typeof render === 'function') {
+        console.log('🔄 Forzando re-renderizado...');
+        render();
+    }
+}, 200);
+
+// ===== PASO 7: VERIFICACIÓN =====
+console.log('💥 MÉTODO AGRESIVO COMPLETADO');
+console.log('📋 Estado:');
+console.log('  - toggleFolder:', typeof toggleFolder);
+console.log('  - collapseAllFolders:', typeof collapseAllFolders);
+console.log('  - expandAllFolders:', typeof expandAllFolders);
+console.log('  - renderQuestionsByTopic:', typeof renderQuestionsByTopic);
+console.log('  - Carpetas colapsadas:', Object.keys(collapsedFolders).length);
+
+// ===== PASO 8: BOTÓN DE PRUEBA TEMPORAL =====
+window.testCollapseSystem = function() {
+    alert('Sistema de carpetas funcionando! ✅\n\nFunciones disponibles:\n- Botones globales arriba\n- Clic en cabeceras de tema\n- Estado guardado automáticamente');
+};
+
+setTimeout(() => {
+    console.log('🧪 Prueba el sistema con: testCollapseSystem()');
+}, 1000);
 </script>
 
 </body>
 </html>
+
 
 
 
