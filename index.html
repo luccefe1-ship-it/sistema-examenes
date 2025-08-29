@@ -15528,7 +15528,7 @@ function initializeMarkdownRenderer() {
     
     console.log('✅ Interceptando función:', functionName);
     
-    // Crear versión mejorada que procese markdown
+    // Crear versión mejorada que procese markdown y modifique la interfaz
     const enhancedRenderer = createMarkdownEnhancedRenderer(renderFunction);
     
     // Reemplazar la función correspondiente
@@ -15543,7 +15543,7 @@ function initializeMarkdownRenderer() {
     console.log('✅ Renderizado de markdown inicializado correctamente');
 }
 
-// Crear función de renderizado mejorada que procese markdown
+// Crear función de renderizado mejorada que procese markdown y modifique interfaz
 function createMarkdownEnhancedRenderer(originalFunction) {
     return function() {
         // Si estamos en modo edición de frases, no modificar nada
@@ -15553,6 +15553,34 @@ function createMarkdownEnhancedRenderer(originalFunction) {
         
         // Llamar a la función original
         let html = originalFunction.call(this);
+        
+        // MODIFICAR LA CABECERA AZUL para añadir el botón "Editar" arriba
+        const headerPattern = /(<div style="background: linear-gradient[^>]*>[\s\S]*?)(<div style="display: flex; justify-content: space-between; align-items: center;">)([\s\S]*?)<\/div>([\s\S]*?<\/div>)/;
+        
+        if (headerPattern.test(html)) {
+            html = html.replace(headerPattern, (match, headerStart, flexDiv, headerContent, headerEnd) => {
+                // Solo añadir si no existe ya
+                if (!headerContent.includes('startPhraseEditor')) {
+                    const editButton = `
+                        <button onclick="startPhraseEditor()" class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; transition: all 0.2s ease;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                            ✏️ Editar
+                        </button>
+                    `;
+                    
+                    // Modificar el contenido de la cabecera para incluir el botón
+                    const modifiedHeaderContent = headerContent.replace(
+                        /(<div style="display: flex; gap: 10px;">)/,
+                        `<div style="display: flex; gap: 10px;">${editButton}`
+                    );
+                    
+                    return headerStart + flexDiv + modifiedHeaderContent + '</div>' + headerEnd;
+                }
+                return match;
+            });
+        }
+        
+        // QUITAR cualquier botón "Editar Frases" del final (si existe)
+        html = html.replace(/(<button[^>]*onclick="startPhraseEditor\(\)"[^>]*>[\s\S]*?<\/button>)/g, '');
         
         // Procesar el contenido para convertir markdown
         const summary = summarySystemState.viewingSummary;
@@ -15588,6 +15616,147 @@ function createMarkdownEnhancedRenderer(originalFunction) {
         }
         
         return html;
+    };
+}
+
+// MODIFICAR la función renderEditablePhrase para quitar el botón de negrita
+const originalRenderEditablePhrase = window.renderEditablePhrase;
+if (typeof renderEditablePhrase === 'function') {
+    window.renderEditablePhrase = function(phrase, index) {
+        if (phrase.isDeleted) return '';
+        
+        const isEditing = phrase.isEditing;
+        const textStyle = phrase.text.includes('**') ? 'font-weight: 500; background: linear-gradient(135deg, #fef3c7, #fde68a); padding: 3px 6px; border-radius: 4px;' : '';
+        
+        return `
+            <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 15px; position: relative;">
+                
+                <!-- Número de frase -->
+                <div style="position: absolute; top: -12px; left: 15px; background: #667eea; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                    Frase ${index + 1}
+                </div>
+                
+                ${isEditing ? `
+                    <!-- Modo de edición -->
+                    <div style="margin-top: 10px;">
+                        <div style="margin-bottom: 10px; font-size: 12px; color: #6b7280;">
+                            💡 <strong>Tip:</strong> Usa **texto** para negrita. Ejemplo: **palabra importante**
+                        </div>
+                        <textarea id="phrase-edit-${phrase.id}" style="width: 100%; min-height: 100px; padding: 12px; border: 2px solid #3b82f6; border-radius: 8px; font-size: 16px; line-height: 1.6; resize: vertical; font-family: inherit;" placeholder="Escribe el texto de la frase... Usa **texto** para negrita">${phrase.text}</textarea>
+                        <div style="margin-top: 10px; display: flex; gap: 10px;">
+                            <button onclick="savePhrase(${phrase.id})" class="btn btn-success" style="padding: 8px 16px; border-radius: 6px;">
+                                ✅ Guardar
+                            </button>
+                            <button onclick="cancelPhrase(${phrase.id})" class="btn btn-secondary" style="padding: 8px 16px; border-radius: 6px;">
+                                ❌ Cancelar
+                            </button>
+                        </div>
+                    </div>
+                ` : `
+                    <!-- Modo de vista -->
+                    <div style="margin-top: 10px; margin-bottom: 15px;">
+                        <p style="margin: 0; line-height: 1.6; font-size: 16px; color: #374151; ${textStyle}">
+                            ${phrase.text}
+                        </p>
+                        ${phrase.text.includes('**') ? `
+                            <div style="margin-top: 8px; font-size: 12px; color: #059669; background: #d1fae5; padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                                📝 Contiene formato markdown
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <!-- Botones de acción SIN BOTÓN DE NEGRITA -->
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button onclick="editPhrase(${phrase.id})" class="btn" style="padding: 6px 12px; background: #3b82f6; color: white; font-size: 12px; border: none; border-radius: 4px; cursor: pointer;">
+                            ✏️ Editar
+                        </button>
+                        <button onclick="deletePhrase(${phrase.id})" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer;">
+                            🗑️
+                        </button>
+                    </div>
+                `}
+            </div>
+        `;
+    };
+}
+
+// MODIFICAR renderPhraseEditMode para actualizar estadísticas
+const originalRenderPhraseEditMode = window.renderPhraseEditMode;
+if (typeof renderPhraseEditMode === 'function') {
+    window.renderPhraseEditMode = function() {
+        const summary = summarySystemState.viewingSummary;
+        if (!summary) return '<div>Error: No hay resumen para editar</div>';
+        
+        const activePhrases = phraseEditor.phrases.filter(p => !p.isDeleted);
+        const deletedPhrases = phraseEditor.phrases.filter(p => p.isDeleted);
+        const markdownPhrases = phraseEditor.phrases.filter(p => p.text.includes('**') && !p.isDeleted);
+        
+        return `
+            <div style="max-width: 1000px; margin: 0 auto;">
+                <!-- Header del editor -->
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px 30px; border-radius: 12px; margin-bottom: 30px; color: white;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h1 style="margin: 0; font-size: 1.8rem;">✏️ EDITANDO FRASES</h1>
+                            <p style="margin: 5px 0 0 0; opacity: 0.9;">${summary.title}</p>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="savePhraseEdits()" class="btn" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 8px 16px; border-radius: 6px;">
+                                💾 Guardar Cambios
+                            </button>
+                            <button onclick="cancelPhraseEditor()" class="btn" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 8px 16px; border-radius: 6px;">
+                                🚫 Cancelar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Estadísticas actualizadas -->
+                    <div style="margin-top: 15px; display: flex; gap: 20px; font-size: 14px; opacity: 0.9;">
+                        <span>📄 ${activePhrases.length} frases activas</span>
+                        <span>🗑️ ${deletedPhrases.length} eliminadas</span>
+                        <span>📝 ${markdownPhrases.length} con negrita markdown</span>
+                    </div>
+                </div>
+                
+                <!-- Ayuda contextual actualizada -->
+                <div style="background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+                    <div style="display: flex; align-items: center; gap: 10px; color: #0c4a6e;">
+                        <span style="font-size: 18px;">💡</span>
+                        <div style="font-size: 14px;">
+                            <strong>Instrucciones:</strong>
+                            ✏️ = Editar texto • 
+                            🗑️ = Eliminar • 
+                            Para negrita usa: **texto** • 
+                            Los cambios se guardan al final
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Lista de frases editables -->
+                <div>
+                    ${phraseEditor.phrases.map((phrase, index) => renderEditablePhrase(phrase, index)).join('')}
+                </div>
+                
+                <!-- Frases eliminadas -->
+                ${deletedPhrases.length > 0 ? `
+                    <div style="margin-top: 40px;">
+                        <h3 style="color: #dc2626; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #fee2e2;">
+                            🗑️ Frases Eliminadas (${deletedPhrases.length})
+                        </h3>
+                        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px;">
+                            ${deletedPhrases.map(phrase => `
+                                <div style="margin-bottom: 15px; padding: 15px; background: white; border-radius: 6px; border-left: 4px solid #dc2626;">
+                                    <p style="margin: 0 0 10px 0; opacity: 0.7; text-decoration: line-through;">${phrase.text}</p>
+                                    <button onclick="restorePhrase(${phrase.id})" class="btn btn-success" style="padding: 6px 12px; font-size: 12px;">
+                                        ↩️ Restaurar
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
     };
 }
 
@@ -15679,16 +15848,17 @@ window.testMarkdownRendering = function() {
     console.log('🎨 Texto procesado:', convertMarkdownToHTML(testContent));
 };
 
-console.log('✅ PARCHE DE RENDERIZADO DE MARKDOWN INSTALADO');
+console.log('✅ PARCHE DE RENDERIZADO DE MARKDOWN MODIFICADO');
+console.log('🎯 Cambios aplicados:');
+console.log('  - ❌ Botón de negrita (B) eliminado');
+console.log('  - ✅ Solo funciona negrita con **texto**');
+console.log('  - ⬆️ Botón "Editar" movido a cabecera azul');
+console.log('  - 📝 Ayuda mejorada sobre markdown');
 console.log('🧪 Prueba con: testMarkdownRendering()');
-console.log('🎯 Funcionalidades:');
-console.log('  - Convierte **texto** a negrita');
-console.log('  - Preserva saltos de línea');
-console.log('  - Se integra con el editor de frases');
-console.log('  - Auto-renderiza después de guardar cambios');
 </script>
 </body>
 </html>
+
 
 
 
