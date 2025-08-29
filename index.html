@@ -14973,9 +14973,216 @@ console.log('✅ Diagnóstico y corrección aplicados');
 console.log('🔧 Funciones de debugging disponibles:');
 console.log('   - debugTopicSystem() - Diagnóstico completo');
 console.log('   - createTopic() - Crear tema manualmente');
-        </script>
+</script>
+
+    <script>
+        // ========== DIAGNÓSTICO Y CORRECCIÓN CREATETOPIC ==========
+console.log('🔧 Aplicando diagnóstico y corrección de createTopic...');
+
+// PASO 1: VERIFICAR QUE LA FUNCIÓN EXISTE
+console.log('📋 Estado inicial:');
+console.log('- createTopic existe?', typeof window.createTopic);
+console.log('- state.topics:', state.topics ? state.topics.length : 'undefined');
+console.log('- render existe?', typeof window.render);
+
+// PASO 2: FUNCIÓN createTopic CORREGIDA Y ROBUSTA
+window.createTopic = function() {
+    console.log('🎯 Ejecutando createTopic...');
+    
+    try {
+        // Solicitar nombre del tema
+        const name = prompt('Nombre del nuevo tema:');
+        
+        if (!name) {
+            console.log('❌ Cancelado - No se proporcionó nombre');
+            return;
+        }
+        
+        if (name.trim().length === 0) {
+            alert('El nombre no puede estar vacío');
+            console.log('❌ Nombre vacío');
+            return;
+        }
+        
+        // Verificar que state.topics existe
+        if (!state.topics) {
+            console.log('⚠️ state.topics no existe, inicializando...');
+            state.topics = [];
+        }
+        
+        // Verificar si ya existe un tema con ese nombre
+        const existingTopic = state.topics.find(t => t.name.toLowerCase() === name.trim().toLowerCase());
+        if (existingTopic) {
+            alert('Ya existe un tema con ese nombre');
+            console.log('❌ Tema duplicado:', name);
+            return;
+        }
+        
+        // Generar ID único
+        const newId = Date.now();
+        
+        // Crear nuevo tema
+        const newTopic = {
+            id: newId,
+            name: name.trim(),
+            createdAt: new Date().toISOString()
+        };
+        
+        console.log('✅ Creando tema:', newTopic);
+        
+        // Agregar al array de temas
+        state.topics.push(newTopic);
+        
+        // Guardar en localStorage
+        try {
+            localStorage.setItem('topics', JSON.stringify(state.topics));
+            console.log('💾 Guardado en localStorage exitoso');
+        } catch (error) {
+            console.error('❌ Error guardando en localStorage:', error);
+        }
+        
+        // Seleccionar automáticamente el nuevo tema
+        state.selectedTopicForNewQuestions = newId;
+        console.log('🎯 Tema seleccionado automáticamente:', newId);
+        
+        // Re-renderizar
+        if (typeof window.render === 'function') {
+            console.log('🔄 Ejecutando render...');
+            render();
+        } else {
+            console.error('❌ Función render no existe');
+        }
+        
+        // Mostrar mensaje de éxito
+        if (typeof showMessage === 'function') {
+            showMessage(`Tema "${name}" creado exitosamente`, 'success');
+        }
+        
+        console.log('✅ Tema creado exitosamente');
+        console.log('📊 Total de temas ahora:', state.topics.length);
+        
+    } catch (error) {
+        console.error('❌ Error en createTopic:', error);
+        alert('Error al crear el tema: ' + error.message);
+    }
+};
+
+// PASO 3: VERIFICAR Y CORREGIR updateSelectedTopic
+window.updateSelectedTopic = function() {
+    console.log('🔄 Ejecutando updateSelectedTopic...');
+    
+    try {
+        const selector = document.getElementById('topic-selector');
+        console.log('📋 Selector encontrado:', !!selector);
+        
+        if (!selector) {
+            console.error('❌ No se encontró el selector topic-selector');
+            return;
+        }
+        
+        console.log('🎯 Valor seleccionado:', selector.value);
+        
+        if (selector.value) {
+            const selectedValue = selector.value;
+            const selectedTopic = state.topics.find(t => t.id == selectedValue);
+            
+            if (selectedTopic) {
+                state.selectedTopicForNewQuestions = selectedTopic.id;
+                console.log('✅ Tema seleccionado:', selectedTopic.name);
+                
+                if (typeof showMessage === 'function') {
+                    showMessage(`Tema "${selectedTopic.name}" seleccionado`, 'success');
+                }
+            } else {
+                state.selectedTopicForNewQuestions = selectedValue;
+                console.log('⚠️ Tema no encontrado, usando valor directo:', selectedValue);
+            }
+        } else {
+            state.selectedTopicForNewQuestions = null;
+            console.log('🚫 Ningún tema seleccionado');
+        }
+        
+        // Re-renderizar
+        if (typeof window.render === 'function') {
+            render();
+        }
+        
+    } catch (error) {
+        console.error('❌ Error en updateSelectedTopic:', error);
+    }
+};
+
+// PASO 4: FUNCIÓN DE DIAGNÓSTICO COMPLETO
+window.debugTopicSystem = function() {
+    console.log('🔍 DIAGNÓSTICO COMPLETO DEL SISTEMA DE TEMAS:');
+    console.log('==========================================');
+    
+    // Estado general
+    console.log('📊 Estado general:');
+    console.log('  - state definido:', typeof state);
+    console.log('  - state.topics:', state.topics ? state.topics.length + ' temas' : 'undefined');
+    console.log('  - selectedTopicForNewQuestions:', state.selectedTopicForNewQuestions);
+    
+    // Funciones
+    console.log('🔧 Funciones disponibles:');
+    console.log('  - createTopic:', typeof window.createTopic);
+    console.log('  - updateSelectedTopic:', typeof window.updateSelectedTopic);
+    console.log('  - render:', typeof window.render);
+    console.log('  - showMessage:', typeof window.showMessage);
+    
+    // DOM
+    console.log('🌐 Elementos DOM:');
+    const createBtn = document.querySelector('button[onclick="createTopic()"]');
+    const selector = document.getElementById('topic-selector');
+    console.log('  - Botón crear tema:', !!createBtn);
+    console.log('  - Selector tema:', !!selector);
+    
+    if (selector) {
+        console.log('  - Opciones en selector:', selector.options.length);
+        console.log('  - Selector habilitado:', !selector.disabled);
+        console.log('  - Valor actual:', selector.value);
+    }
+    
+    // LocalStorage
+    console.log('💾 LocalStorage:');
+    try {
+        const storedTopics = localStorage.getItem('topics');
+        console.log('  - topics en localStorage:', storedTopics ? 'Sí (' + JSON.parse(storedTopics).length + ')' : 'No');
+    } catch (error) {
+        console.log('  - Error leyendo localStorage:', error.message);
+    }
+    
+    // Lista de temas
+    if (state.topics && state.topics.length > 0) {
+        console.log('📋 Temas actuales:');
+        state.topics.forEach((topic, index) => {
+            console.log(`  ${index + 1}. ${topic.name} (ID: ${topic.id})`);
+        });
+    }
+    
+    console.log('==========================================');
+    console.log('💡 Para probar: debugTopicSystem() en la consola');
+};
+
+// PASO 5: EJECUTAR DIAGNÓSTICO INICIAL
+setTimeout(() => {
+    console.log('🚀 Ejecutando diagnóstico inicial...');
+    debugTopicSystem();
+    
+    // Verificar si el problema persiste
+    console.log('🧪 PRUEBA RÁPIDA:');
+    console.log('Ejecuta createTopic() en la consola para probar manualmente');
+}, 1000);
+
+console.log('✅ Diagnóstico y corrección aplicados');
+console.log('🔧 Funciones de debugging disponibles:');
+console.log('   - debugTopicSystem() - Diagnóstico completo');
+console.log('   - createTopic() - Crear tema manualmente');
+</script>
+
 </body>
 </html>
+
 
 
 
