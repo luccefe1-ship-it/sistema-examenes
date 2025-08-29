@@ -15871,8 +15871,80 @@ console.log('  - ⬆️ Botón "Editar" movido a cabecera azul');
 console.log('  - 📝 Ayuda mejorada sobre markdown');
 console.log('🧪 Prueba con: testMarkdownRendering()');
 </script>
+    <script>
+    // ========== PARCHE: BOTÓN EDITAR EN ENCABEZADO ==========
+console.log('🔧 Corrigiendo posición del botón editar en encabezado...');
+
+// Reemplazar TODAS las versiones de renderViewSummary
+function renderViewSummaryFixed() {
+    const summary = summarySystemState.viewingSummary;
+    if (!summary) {
+        summarySystemState.currentView = 'library';
+        return renderSummaryLibrary();
+    }
+    
+    const topicName = summary.topicId ? getSummaryTopicName(summary.topicId) : 'Sin tema';
+    
+    return `
+        <div style="max-width: 1000px; margin: 0 auto;">
+            <!-- Botón volver -->
+            <button onclick="closeSummaryView()" class="btn btn-secondary" style="margin-bottom: 20px;">
+                ← Volver a la Biblioteca
+            </button>
+            
+            <!-- ENCABEZADO CON BOTÓN EDITAR INTEGRADO -->
+            <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 25px 30px; border-radius: 12px 12px 0 0; margin-bottom: 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div style="flex: 1; min-width: 300px;">
+                        <h1 style="color: white; margin: 0 0 10px 0; font-size: 2rem; font-weight: 700;">
+                            ${summary.title}
+                        </h1>
+                        <div style="display: flex; align-items: center; gap: 20px; color: rgba(255,255,255,0.9); font-size: 14px; flex-wrap: wrap;">
+                            <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 20px;">📂 ${topicName}</span>
+                            <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 20px;">📅 ${summary.createdAt}</span>
+                            <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 20px;">📝 ${summary.content.length} caracteres</span>
+                        </div>
+                    </div>
+                    <!-- BOTÓN EDITAR EN EL ENCABEZADO -->
+                    <button onclick="editSummaryFromView()" class="btn" style="background: rgba(255,255,255,0.9); color: #667eea; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s; min-width: 140px;">
+                        ✏️ Editar Título
+                    </button>
+                </div>
+            </div>
+            
+            <!-- CONTENIDO DEL RESUMEN -->
+            <div style="background: white; border: 2px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <div style="prose max-w-none;">
+                    <div style="white-space: pre-wrap; line-height: 1.7; color: #374151; font-size: 16px;">
+                        ${summary.content}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- BOTONES INFERIORES (SIN EDITAR) -->
+            <div style="margin-top: 30px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                <button onclick="copySummaryContentToClipboard('${summary.id}')" class="btn btn-info" style="padding: 12px 24px;">
+                    📋 Copiar Contenido
+                </button>
+                <button onclick="deleteSummaryFromView('${summary.id}')" class="btn btn-danger" style="padding: 12px 24px;">
+                    🗑️ Eliminar Resumen
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Reemplazar TODAS las versiones posibles
+window.renderViewSummary = renderViewSummaryFixed;
+window.renderViewSummaryEnhanced = renderViewSummaryFixed;
+window.renderViewSummaryWithEditor = renderViewSummaryFixed;
+
+console.log('✅ Botón "Editar Título" movido al encabezado correctamente');
+console.log('🎯 El botón ahora está integrado en el encabezado morado junto al título');
+</script>    
 </body>
 </html>
+
 
 
 
