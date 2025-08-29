@@ -13409,8 +13409,7 @@ renderUploadTab = function() {
                     </div>
                 ` : ''}
             </div>
-
-          <!-- TERCERA COLUMNA: TEXTO TRANSCRITO -->
+<!-- TERCERA COLUMNA: TEXTO TRANSCRITO -->
 <div class="column">
     <h3 style="margin-bottom: 15px;">📝 Texto Transcrito</h3>
     <textarea id="cleanedText" class="textarea" placeholder="El texto procesado aparecerá aquí..." readonly>${state.cleanedText}</textarea>
@@ -13446,45 +13445,57 @@ renderUploadTab = function() {
         </button>
     </div>
 </div>
+</div>
+
+<!-- BOTÓN CENTRAL DE TRANSCRIPCIÓN -->
+<div style="text-align: center; margin: 20px 0;">
+    <button onclick="transcribeAllContentDef()" class="btn btn-primary" style="padding: 15px 40px; font-size: 18px; font-weight: bold;" ${(state.selectedImages.length === 0 && state.selectedFiles.length === 0) || !state.apiKey ? 'disabled' : ''}>
+        🤖 1. Transcribir y Procesar
+    </button>
+    
+    ${state.transcribedText && !state.cleanedText ? `
+        <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; display: inline-block;">
+            <span style="color: #92400e;">📄 Procesando texto automáticamente...</span>
+        </div>
+    ` : ''}
+</div>
 
 <script>
-// FUNCIONES SINCRONIZADAS CON EL BANCO DE PREGUNTAS
+// ========== FUNCIONALIDAD COMPLETA DE TRANSCRIPCIÓN + SINCRONIZACIÓN ==========
 
-// 1. OBTENER TEMAS DEL BANCO DE PREGUNTAS (no de state.topics local)
+// INICIALIZAR ESTADO PARA ARCHIVOS SI NO EXISTE
+if (!state.selectedFiles) {
+    state.selectedFiles = [];
+}
+
+// 1. FUNCIONES SINCRONIZADAS CON EL BANCO DE PREGUNTAS
 function getBankTopics() {
-    // Usar los temas del banco de preguntas, no los locales
     const bankTopics = JSON.parse(localStorage.getItem('topics') || '[]');
     return bankTopics;
 }
 
-// 2. CREAR TEMA SINCRONIZADO (se crea tanto en banco como en dropdown)
 function createTopicSynced() {
     const name = prompt('Nombre del tema:');
     if (name && name.trim()) {
-        // Verificar si ya existe
         const bankTopics = getBankTopics();
         if (bankTopics.some(topic => topic.name.toLowerCase() === name.trim().toLowerCase())) {
             showMessage('Ya existe un tema con ese nombre', 'error');
             return;
         }
         
-        // Crear nuevo tema
         const newTopic = {
             id: Date.now() + Math.random(),
             name: name.trim(),
             createdAt: new Date().toISOString()
         };
         
-        // Añadir al banco de preguntas
         bankTopics.push(newTopic);
         localStorage.setItem('topics', JSON.stringify(bankTopics));
         
-        // Sincronizar con state.topics si existe (para compatibilidad)
         if (typeof state.topics !== 'undefined') {
             state.topics = bankTopics;
         }
         
-        // Re-renderizar para actualizar dropdown
         render();
         
         if (typeof showMessage === 'function') {
@@ -13493,7 +13504,6 @@ function createTopicSynced() {
     }
 }
 
-// 3. ACTUALIZAR SELECCIÓN DE TEMA SINCRONIZADA
 function updateSelectedTopicSynced() {
     const selector = document.getElementById('topic-selector');
     if (selector && selector.value) {
@@ -13515,14 +13525,11 @@ function updateSelectedTopicSynced() {
     render();
 }
 
-// 4. CONTADOR DE PREGUNTAS POR TEMA SINCRONIZADO
 function getTopicQuestionCountSynced(topicId) {
-    // Usar las preguntas del banco, no de state.questions local
     const questions = JSON.parse(localStorage.getItem('questions') || '[]');
     return questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
 }
 
-// 5. TEXTO DEL BOTÓN SINCRONIZADO
 function getAddButtonTextSynced() {
     if (typeof getAddButtonTextDef === 'function') {
         return getAddButtonTextDef();
@@ -13538,11 +13545,9 @@ function getAddButtonTextSynced() {
     }
 }
 
-// 6. FUNCIÓN PARA DETECTAR ELIMINACIÓN DE TEMAS DEL BANCO
 function syncDropdownWithBank() {
     const bankTopics = getBankTopics();
     
-    // Si el tema seleccionado ya no existe en el banco, deseleccionarlo
     if (state.selectedTopicForNewQuestions) {
         const topicExists = bankTopics.some(t => t.id == state.selectedTopicForNewQuestions);
         if (!topicExists) {
@@ -13552,16 +13557,12 @@ function syncDropdownWithBank() {
     }
 }
 
-// 7. OBSERVAR CAMBIOS EN EL BANCO DE PREGUNTAS
 function watchBankChanges() {
-    // Observar cambios en localStorage para temas
     const originalSetItem = localStorage.setItem;
     localStorage.setItem = function(key, value) {
         const result = originalSetItem.apply(this, arguments);
         
-        // Si se modifican los temas del banco, sincronizar dropdown
         if (key === 'topics') {
-            // Pequeña pausa para que se complete la operación
             setTimeout(() => {
                 syncDropdownWithBank();
             }, 50);
@@ -13571,10 +13572,310 @@ function watchBankChanges() {
     };
 }
 
-// 8. INICIALIZAR OBSERVADOR DE CAMBIOS
-watchBankChanges();
+// 2. LISTENER PARA ARCHIVOS
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.id === 'fileInputDef') {
+        const files = Array.from(e.target.files);
+        const validFiles = files.filter(file => 
+            file.name.toLowerCase().endsWith('.docx') || 
+            file.name.toLowerCase().endsWith('.txt')
+        );
+        
+        if (validFiles.length > 0) {
+            const maxFiles = 5;
+            const availableSlots = maxFiles - state.selectedFiles.length;
+            const filesToAdd = validFiles.slice(0, availableSlots);
+            
+            state.selectedFiles.push(...filesToAdd);
+            render();
+            
+            if (typeof showMessage === 'function') {
+                showMessage(`${filesToAdd.length} archivo(s) seleccionado(s)`, 'success');
+            }
+        }
+        
+        e.target.value = '';
+    }
+});
 
-// 9. MANTENER FUNCIONES AUXILIARES ORIGINALES COMO FALLBACK
+// 3. FUNCIÓN PRINCIPAL DE TRANSCRIPCIÓN (COMPLETA)
+window.transcribeAllContentDef = async function() {
+    if (!state.apiKey) {
+        if (typeof showMessage === 'function') {
+            showMessage('Configura tu API key primero', 'error');
+        }
+        return;
+    }
+
+    if (state.selectedImages.length === 0 && state.selectedFiles.length === 0) {
+        if (typeof showMessage === 'function') {
+            showMessage('Selecciona al menos una imagen o archivo', 'error');
+        }
+        return;
+    }
+
+    if (typeof showMessage === 'function') {
+        showMessage('Procesando contenido...', 'success');
+    }
+    
+    try {
+        let allTranscriptions = [];
+        
+        // PROCESAR IMÁGENES
+        if (state.selectedImages.length > 0) {
+            if (typeof showMessage === 'function') {
+                showMessage('Transcribiendo imágenes...', 'success');
+            }
+            
+            for (let i = 0; i < state.selectedImages.length; i++) {
+                const file = state.selectedImages[i];
+                const base64 = await fileToBase64Def(file);
+                
+                const messageContent = [
+                    {
+                        type: "image",
+                        source: {
+                            type: "base64",
+                            media_type: file.type,
+                            data: base64
+                        }
+                    },
+                    {
+                        type: "text",
+                        text: `Actúa como un transcriptor de texto para una persona ciega. Analiza esta imagen y extrae todo el texto visible de manera secuencial.
+
+INSTRUCCIONES CRÍTICAS:
+- Solo dicta las palabras que ves, como si estuvieras hablando en voz alta
+- Encuentra las preguntas numeradas y sus opciones de respuesta
+- CONSERVA y DESCRIBE todos los símbolos visuales de respuesta correcta que veas
+- MANTÉN símbolos como: ✓, ✔, checkmarks, asteriscos, viñetas, flechas
+- DESCRIBE elementos visuales importantes: "opción marcada en verde", "con tick", "con check", "respuesta correcta", "marcada"
+- PRESERVA cualquier indicación visual de que una opción es la correcta
+
+IMPORTANTE: NO elimines símbolos de respuesta correcta - los necesitamos para el siguiente paso.
+
+Responde con el texto extraído conservando TODOS los símbolos y marcas visuales.`
+                    }
+                ];
+
+                try {
+                    const response = await fetch("/api/anthropic", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "x-api-key": state.apiKey,
+                        },
+                        body: JSON.stringify({
+                            model: "claude-sonnet-4-20250514",
+                            max_tokens: 4000,
+                            messages: [{
+                                role: "user",
+                                content: messageContent
+                            }]
+                        })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        allTranscriptions.push(`IMAGEN ${i + 1}:\n${data.content[0].text}`);
+                    } else {
+                        allTranscriptions.push(`IMAGEN ${i + 1}:\nERROR: No se pudo procesar (${response.status})`);
+                    }
+                } catch (error) {
+                    allTranscriptions.push(`IMAGEN ${i + 1}:\nERROR: ${error.message}`);
+                }
+            }
+        }
+        
+        // PROCESAR ARCHIVOS
+        if (state.selectedFiles.length > 0) {
+            if (typeof showMessage === 'function') {
+                showMessage('Procesando archivos...', 'success');
+            }
+            
+            for (let i = 0; i < state.selectedFiles.length; i++) {
+                const file = state.selectedFiles[i];
+                let textContent = '';
+                
+                try {
+                    if (file.name.toLowerCase().endsWith('.txt')) {
+                        textContent = await readTextFileDef(file);
+                    } else if (file.name.toLowerCase().endsWith('.docx')) {
+                        textContent = await readDocxFileDef(file);
+                    }
+                    
+                    // PROCESAR CONTENIDO DEL ARCHIVO CON IA
+                    const response = await fetch("/api/anthropic", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "x-api-key": state.apiKey,
+                        },
+                        body: JSON.stringify({
+                            model: "claude-sonnet-4-20250514",
+                            max_tokens: 4000,
+                            messages: [{
+                                role: "user",
+                                content: `Analiza este contenido de archivo y organiza la información de manera estructurada.
+
+INSTRUCCIONES:
+- Si encuentras preguntas de examen, organízalas claramente
+- CONSERVA todos los símbolos y marcas de respuestas correctas
+- Mantén la numeración original de las preguntas
+- Preserva el formato de opciones múltiples si existe
+- NO elimines información importante
+
+CONTENIDO DEL ARCHIVO "${file.name}":
+${textContent}`
+                            }]
+                        })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        allTranscriptions.push(`ARCHIVO: ${file.name}\n${data.content[0].text}`);
+                    } else {
+                        allTranscriptions.push(`ARCHIVO: ${file.name}\nERROR: No se pudo procesar con IA`);
+                    }
+                } catch (error) {
+                    allTranscriptions.push(`ARCHIVO: ${file.name}\nERROR: ${error.message}`);
+                }
+            }
+        }
+        
+        // COMBINAR TRANSCRIPCIONES
+        const combinedText = allTranscriptions.join('\n\n=== SEPARADOR DE CONTENIDO ===\n\n');
+        state.transcribedText = combinedText;
+        render();
+        
+        if (typeof showMessage === 'function') {
+            showMessage('Contenido transcrito. Limpiando y procesando...', 'success');
+        }
+        
+        // LIMPIAR TEXTO AUTOMÁTICAMENTE
+        await cleanTextDef();
+        
+    } catch (error) {
+        console.error('Error completo:', error);
+        if (typeof showMessage === 'function') {
+            showMessage(`Error general: ${error.message}`, 'error');
+        }
+    }
+};
+
+// 4. FUNCIONES DE LECTURA DE ARCHIVOS
+function fileToBase64Def(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+    });
+}
+
+function readTextFileDef(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsText(file, 'UTF-8');
+    });
+}
+
+async function readDocxFileDef(file) {
+    try {
+        if (typeof window.mammoth === 'undefined') {
+            await loadMammothDef();
+        }
+        
+        const arrayBuffer = await readArrayBufferDef(file);
+        const result = await window.mammoth.extractRawText({arrayBuffer: arrayBuffer});
+        return result.value;
+    } catch (error) {
+        return `ERROR: No se pudo leer el archivo DOCX. ${error.message}`;
+    }
+}
+
+function readArrayBufferDef(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+async function loadMammothDef() {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+// 5. FUNCIÓN DE LIMPIEZA AUTOMÁTICA
+async function cleanTextDef() {
+    if (!state.transcribedText) {
+        return;
+    }
+
+    try {
+        const response = await fetch("/api/anthropic", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-api-key": state.apiKey,
+            },
+            body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 4000,
+                messages: [{
+                    role: "user",
+                    content: `Analiza este texto transcrito y extrae ÚNICAMENTE las preguntas de examen con sus opciones y respuestas correctas.
+
+INSTRUCCIONES ESPECÍFICAS:
+- Encuentra todas las preguntas numeradas
+- Identifica las opciones (A, B, C, D o a, b, c, d)
+- CONSERVA las marcas de respuesta correcta (✓, ✔, checkmarks, "correcta", etc.)
+- Numera las preguntas de forma consecutiva (1., 2., 3., etc.)
+- Organiza cada pregunta con este formato:
+  1. [Pregunta]
+  A) [Opción A]
+  B) [Opción B] ✓
+  C) [Opción C]
+  D) [Opción D]
+
+- Si una pregunta no tiene respuesta marcada, indícalo
+- Mantén SOLO el contenido educativo relevante
+- Elimina texto irrelevante o descriptivo
+
+TEXTO TRANSCRITO:
+${state.transcribedText}`
+                }]
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            state.cleanedText = data.content[0].text;
+            render();
+            
+            if (typeof showMessage === 'function') {
+                showMessage('✅ Texto procesado y listo para añadir al banco', 'success');
+            }
+        } else {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+    } catch (error) {
+        if (typeof showMessage === 'function') {
+            showMessage(`Error en limpieza: ${error.message}`, 'error');
+        }
+    }
+}
+
+// 6. FUNCIONES AUXILIARES MANTENER COMPATIBILIDAD
 function removeFileDef(index) {
     state.selectedFiles.splice(index, 1);
     render();
@@ -13597,13 +13898,21 @@ function getTopicNameDef(topicId) {
     return topic ? topic.name : 'Tema no encontrado';
 }
 
-console.log('✅ DROPDOWN SINCRONIZADO con banco de preguntas aplicado correctamente');
-console.log('🔄 Características añadidas:');
-console.log(' - Dropdown usa temas del banco de preguntas');
-console.log(' - Creación de temas sincronizada');
-console.log(' - Auto-detección de eliminación de temas');
-console.log(' - Observador de cambios en localStorage');
+// 7. INICIALIZAR OBSERVADOR DE CAMBIOS
+watchBankChanges();
+
+console.log('✅ FUNCIONALIDAD COMPLETA DE TRANSCRIPCIÓN + SINCRONIZACIÓN aplicada correctamente');
+console.log('🔄 Características completas:');
+console.log(' - ✅ Transcripción de imágenes');
+console.log(' - ✅ Transcripción de archivos .docx y .txt');
+console.log(' - ✅ Dropdown sincronizado con banco de preguntas');
+console.log(' - ✅ Creación de temas sincronizada');
+console.log(' - ✅ Auto-detección de eliminación de temas');
+console.log(' - ✅ Limpieza automática de texto');
+console.log(' - ✅ Observador de cambios en localStorage');
+console.log(' - ✅ Compatibilidad con código existente');
 </script>
+<script>          
 
 // 4. LISTENER PARA ARCHIVOS
 document.addEventListener('change', function(e) {
@@ -14879,6 +15188,7 @@ console.log('   - Compatible con código existente');
 
 </body>
 </html>
+
 
 
 
