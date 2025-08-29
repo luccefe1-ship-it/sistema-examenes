@@ -15872,8 +15872,8 @@ console.log('  - 📝 Ayuda mejorada sobre markdown');
 console.log('🧪 Prueba con: testMarkdownRendering()');
 </script>
     <script>
-    // ========== PARCHE: BOTÓN EDITAR EN ENCABEZADO ==========
-console.log('🔧 Corrigiendo posición del botón editar en encabezado...');
+  // ========== PARCHE: BOTÓN EDITAR TEXTO EN ENCABEZADO ==========
+console.log('🔧 Corrigiendo botón editar texto en encabezado...');
 
 // Reemplazar TODAS las versiones de renderViewSummary
 function renderViewSummaryFixed() {
@@ -15905,9 +15905,9 @@ function renderViewSummaryFixed() {
                             <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 20px;">📝 ${summary.content.length} caracteres</span>
                         </div>
                     </div>
-                    <!-- BOTÓN EDITAR EN EL ENCABEZADO -->
-                    <button onclick="editSummaryFromView()" class="btn" style="background: rgba(255,255,255,0.9); color: #667eea; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s; min-width: 140px;">
-                        ✏️ Editar Título
+                    <!-- BOTÓN EDITAR TEXTO EN EL ENCABEZADO -->
+                    <button onclick="editSummaryFromEncabezado()" class="btn" style="background: rgba(255,255,255,0.9); color: #667eea; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s; min-width: 140px;">
+                        ✏️ Editar Texto
                     </button>
                 </div>
             </div>
@@ -15934,16 +15934,30 @@ function renderViewSummaryFixed() {
     `;
 }
 
+// Función para editar desde el encabezado usando la lógica existente
+function editSummaryFromEncabezado() {
+    const summary = summarySystemState.viewingSummary;
+    if (!summary) return;
+    
+    // Encontrar el índice del resumen en el array
+    const index = summarySystemState.savedSummaries.findIndex(s => s.id === summary.id);
+    if (index !== -1) {
+        // Usar la función editSummary existente que ya maneja la edición completa
+        editSummary(index);
+    }
+}
+
 // Reemplazar TODAS las versiones posibles
 window.renderViewSummary = renderViewSummaryFixed;
 window.renderViewSummaryEnhanced = renderViewSummaryFixed;
 window.renderViewSummaryWithEditor = renderViewSummaryFixed;
 
-console.log('✅ Botón "Editar Título" movido al encabezado correctamente');
-console.log('🎯 El botón ahora está integrado en el encabezado morado junto al título');
-</script>    
+console.log('✅ Botón "Editar Texto" movido al encabezado correctamente');
+console.log('🎯 El botón usa la función editSummary() existente para edición completa');
+</script>        
 </body>
 </html>
+
 
 
 
