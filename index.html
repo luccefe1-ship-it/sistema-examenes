@@ -16012,11 +16012,11 @@ window.renderViewSummaryWithEditor = renderViewSummaryFixed;
 console.log('✅ Botón "Editar Texto" configurado para opciones completas');
 console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>
-<script>    
-// ========== PARCHE INTERFAZ MULTIJUGADOR - COLORES Y LAYOUT ==========
-console.log('🎨 Aplicando parche de colores y layout para interfaz multijugador...');
+<script>
+// ========== PARCHE ESPECÍFICO PARA REEMPLAZAR EL FRAGMENTO ADJUNTADO ==========
+console.log('🎨 SOLUCION RADICAL: Reemplazando el fragmento específico de renderDuelInterface...');
 
-// INTERCEPTAR renderDuelInterface y modificar completamente
+// INTERCEPTAR renderDuelInterface y usar ALTURA FIJA CALCULADA - VERSIÓN MODIFICADA
 const originalRenderDuelInterface = window.renderDuelInterface;
 
 window.renderDuelInterface = function() {
@@ -16042,41 +16042,44 @@ window.renderDuelInterface = function() {
     const showingResult = gameData?.showingResult;
     const canAnswer = currentQuestion && !myTurn && !showingResult && waitingForAnswer;
     
-    // DETERMINAR ESTADO DEL USUARIO
-    const isMyTurnToAsk = myTurn; // Es mi turno para PREGUNTAR
-    const isMyTurnToAnswer = canAnswer; // Es mi turno para RESPONDER
+    // DETERMINAR ESTADO Y COLORES
+    const isMyTurnToAsk = myTurn && !currentQuestion; // Turno para PREGUNTAR
+    const isMyTurnToAnswer = canAnswer; // Turno para RESPONDER
     
     // COLORES SEGÚN ESTADO
-    let headerColor, userPanelColor, statusText;
+    let headerColor, userPanelColor, opponentPanelColor, statusMessage;
     
     if (isMyTurnToAsk) {
         // TURNO PARA PREGUNTAR - VERDE
         headerColor = 'linear-gradient(135deg, #22c55e, #16a34a)';
         userPanelColor = '#22c55e';
-        statusText = 'ES TU TURNO PARA PREGUNTAR';
+        opponentPanelColor = '#dc2626'; // Oponente en rojo (va a responder)
+        statusMessage = 'ES TU TURNO PARA PREGUNTAR';
     } else if (isMyTurnToAnswer) {
         // TURNO PARA RESPONDER - ROJO
         headerColor = 'linear-gradient(135deg, #dc2626, #b91c1c)';
         userPanelColor = '#dc2626';
-        statusText = 'ES TU TURNO PARA RESPONDER';
+        opponentPanelColor = '#22c55e'; // Oponente en verde (preguntó)
+        statusMessage = 'ES TU TURNO PARA RESPONDER';
     } else {
-        // ESPERANDO - GRIS
-        headerColor = 'linear-gradient(135deg, #6b7280, #4b5563)';
-        userPanelColor = '#6b7280';
-        statusText = 'ESPERANDO TURNO DEL OPONENTE';
-    }
-    
-    // COLORES DEL OPONENTE (INVERTIDOS)
-    let opponentPanelColor;
-    if (isMyTurnToAsk) {
-        // Si yo pregunto (verde), el oponente está en rojo (responde)
-        opponentPanelColor = '#dc2626';
-    } else if (isMyTurnToAnswer) {
-        // Si yo respondo (rojo), el oponente está en verde (preguntó)
-        opponentPanelColor = '#22c55e';
-    } else {
-        // Esperando - gris
-        opponentPanelColor = '#6b7280';
+        // OTROS ESTADOS - MANTENER ORIGINAL
+        headerColor = 'linear-gradient(135deg, #dc2626, #7f1d1d)';
+        userPanelColor = '#22c55e';
+        opponentPanelColor = myTurn ? '#f97316' : '#6b7280';
+        
+        // Mensaje de estado original simplificado
+        if (showingResult && gameData?.currentResponse) {
+            const isCorrect = gameData.currentResponse.isCorrect;
+            statusMessage = `${isCorrect ? '✅ CORRECTO' : '❌ INCORRECTO'} - Cambiando turno...`;
+        } else if (canAnswer) {
+            statusMessage = '🎯 ¡TURNO DE RESPONDER! - Haz clic en una opción';
+        } else if (currentQuestion && waitingForAnswer) {
+            statusMessage = '⏳ ESPERANDO RESPUESTA - Tu oponente está respondiendo';
+        } else if (myTurn) {
+            statusMessage = '🎯 ES TU TURNO - Selecciona una pregunta del panel derecho';
+        } else {
+            statusMessage = '⏳ TURNO DEL OPONENTE - Está seleccionando una pregunta';
+        }
     }
 
     return `
@@ -16095,7 +16098,7 @@ window.renderDuelInterface = function() {
         z-index: 1000;
     ">
         
-        <!-- Header modificado con layout izquierda-centro -->
+        <!-- Header modificado con espadas y DUELO a la izquierda -->
         <div style="
             background: ${headerColor}; 
             color: white; 
@@ -16103,44 +16106,34 @@ window.renderDuelInterface = function() {
             border-radius: 12px; 
             margin-bottom: 12px; 
             display: flex; 
+            justify-content: space-between; 
             align-items: center;
-            justify-content: space-between;
             flex-shrink: 0;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
         ">
-            <!-- IZQUIERDA: Espadas y DUELO -->
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <span style="font-size: 2rem;">⚔️</span>
-                <span style="font-size: 2rem; font-weight: bold;">DUELO</span>
-            </div>
-            
-            <!-- CENTRO: Status message -->
-            <div style="flex: 1; text-align: center;">
-                <div style="
-                    font-size: 18px; 
-                    font-weight: 700; 
-                    background: rgba(255,255,255,0.15); 
-                    padding: 10px 20px; 
-                    border-radius: 25px;
-                    display: inline-block;
-                    letter-spacing: 1px;
-                ">
-                    ${statusText}
+            <!-- IZQUIERDA: Espadas y DUELO + Mensaje simplificado -->
+            <div style="flex: 1; display: flex; align-items: center; gap: 20px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 2rem;">⚔️</span>
+                    <span style="font-size: 2rem; font-weight: bold;">DUELO</span>
                 </div>
-            </div>
-            
-            <!-- DERECHA: Código de sala y botón salir -->
-            <div style="display: flex; align-items: center; gap: 15px;">
                 <div style="
-                    background: rgba(255,255,255,0.2); 
+                    font-size: 16px; 
+                    font-weight: 600; 
+                    opacity: 0.95; 
+                    background: rgba(255,255,255,0.1); 
                     padding: 8px 16px; 
-                    border-radius: 8px; 
-                    font-size: 1.4rem; 
-                    font-weight: bold;
-                    letter-spacing: 2px;
+                    border-radius: 20px;
                 ">
-                    ${multiplayerState.roomCode}
+                    ${statusMessage}
                 </div>
+            </div>
+            
+            <!-- DERECHA: Código y botón salir -->
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 8px; font-size: 1.8rem; letter-spacing: 2px;">
+                    ${multiplayerState.roomCode}
+                </span>
                 <button onclick="leaveRoom()" style="
                     background: rgba(255,255,255,0.15); 
                     border: 2px solid rgba(255,255,255,0.3);
@@ -16168,14 +16161,14 @@ window.renderDuelInterface = function() {
             <div style="
                 background: ${isMyTurnToAsk ? 'linear-gradient(135deg, #f0fdf4, #ecfdf5)' : 
                             isMyTurnToAnswer ? 'linear-gradient(135deg, #fef2f2, #fee2e2)' : 
-                            'linear-gradient(135deg, #f8fafc, #f1f5f9)'}; 
+                            'linear-gradient(135deg, #f0fdf4, #ecfdf5)'}; 
                 border: 2px solid ${userPanelColor}; 
                 border-radius: 8px; 
                 display: flex; 
                 flex-direction: column;
                 overflow: hidden;
             ">
-                <!-- Header usuario con colores dinámicos -->
+                <!-- Header usuario -->
                 <div style="
                     padding: 8px 12px; 
                     background: ${userPanelColor}; 
@@ -16248,14 +16241,14 @@ window.renderDuelInterface = function() {
             <div style="
                 background: ${isMyTurnToAsk ? 'linear-gradient(135deg, #fef2f2, #fee2e2)' : 
                             isMyTurnToAnswer ? 'linear-gradient(135deg, #f0fdf4, #ecfdf5)' : 
-                            'linear-gradient(135deg, #f8fafc, #f1f5f9)'}; 
+                            (myTurn ? 'linear-gradient(135deg, #fff7ed, #fed7aa)' : 'linear-gradient(135deg, #f8fafc, #e2e8f0)')}; 
                 border: 2px solid ${opponentPanelColor}; 
                 border-radius: 8px; 
                 display: flex; 
                 flex-direction: column;
                 overflow: hidden;
             ">
-                <!-- Header oponente con colores invertidos -->
+                <!-- Header oponente -->
                 <div style="
                     padding: 8px 12px; 
                     background: ${opponentPanelColor}; 
@@ -16277,7 +16270,7 @@ window.renderDuelInterface = function() {
                     padding: 8px;
                 ">
                     ${myTurn ? `
-                        <div style="font-size: 11px; color: ${opponentPanelColor}; margin-bottom: 8px; text-align: center; font-weight: 600;">
+                        <div style="font-size: 11px; color: ${opponentPanelColor === '#dc2626' ? '#dc2626' : '#ea580c'}; margin-bottom: 8px; text-align: center; font-weight: 600;">
                             Sus Temas (${Object.keys(opponentBank).length}):
                         </div>
                         ${renderOpponentTopics(opponentBank)}
@@ -16294,16 +16287,17 @@ window.renderDuelInterface = function() {
     `;
 };
 
-console.log('✅ Parche de interfaz multijugador aplicado correctamente');
+console.log('✅ PARCHE ESPECÍFICO aplicado - Reemplazo del fragmento original');
 console.log('🎨 Modificaciones aplicadas:');
-console.log('   - ⚔️ DUELO movido a la izquierda del header');
-console.log('   - 🟢 Verde cuando es turno de PREGUNTAR');
-console.log('   - 🔴 Rojo cuando es turno de RESPONDER');
-console.log('   - 🔄 Colores del oponente invertidos');
-console.log('   - 📝 Mensajes simplificados a solo estado de turno');
+console.log('   - ⚔️ DUELO movido a la izquierda en el header');
+console.log('   - 🟢 Verde para turno de PREGUNTAR');
+console.log('   - 🔴 Rojo para turno de RESPONDER'); 
+console.log('   - 🔄 Colores del oponente siempre opuestos');
+console.log('   - 📝 Mensajes simplificados según especificación');
 </script>
 </body>
 </html>
+
 
 
 
