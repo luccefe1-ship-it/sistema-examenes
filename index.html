@@ -15299,25 +15299,21 @@ function renderEditablePhrase(phrase, index) {
     
     const isEditing = phrase.isEditing;
     const textStyle = phrase.isBold ? 'font-weight: bold;' : '';
+    const boldButtonStyle = phrase.isBold ? 
+        'background: #16a34a; color: white;' : 
+        'background: #f3f4f6; color: #374151;';
     
     return `
         <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 15px; position: relative;">
             
-            <!-- Número de frase y botón editar arriba -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <div style="background: #667eea; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
-                    Frase ${index + 1}
-                </div>
-                ${!isEditing ? `
-                <button onclick="editPhrase(${phrase.id})" class="btn" style="padding: 6px 12px; background: #3b82f6; color: white; font-size: 12px; border: none; border-radius: 4px; cursor: pointer;">
-                    ✏️ Editar
-                </button>
-                ` : ''}
+            <!-- Número de frase -->
+            <div style="position: absolute; top: -12px; left: 15px; background: #667eea; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
+                Frase ${index + 1}
             </div>
             
             ${isEditing ? `
                 <!-- Modo de edición -->
-                <div>
+                <div style="margin-top: 10px;">
                     <textarea id="phrase-edit-${phrase.id}" style="width: 100%; min-height: 100px; padding: 12px; border: 2px solid #3b82f6; border-radius: 8px; font-size: 16px; line-height: 1.6; resize: vertical; font-family: inherit;" placeholder="Escribe el texto de la frase...">${phrase.text}</textarea>
                     <div style="margin-top: 10px; display: flex; gap: 10px;">
                         <button onclick="savePhrase(${phrase.id})" class="btn btn-success" style="padding: 8px 16px; border-radius: 6px;">
@@ -15330,16 +15326,22 @@ function renderEditablePhrase(phrase, index) {
                 </div>
             ` : `
                 <!-- Modo de vista -->
-                <div style="margin-bottom: 15px;">
+                <div style="margin-top: 10px; margin-bottom: 15px;">
                     <p style="margin: 0; line-height: 1.6; font-size: 16px; color: #374151; ${textStyle}">
                         ${phrase.text}
                     </p>
                 </div>
                 
-                <!-- Solo botón eliminar abajo -->
+                <!-- Botones de acción -->
                 <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button onclick="editPhrase(${phrase.id})" class="btn" style="padding: 6px 12px; background: #3b82f6; color: white; font-size: 12px; border: none; border-radius: 4px; cursor: pointer;">
+                        ✏️ Editar
+                    </button>
+                    <button onclick="toggleBold(${phrase.id})" class="btn" style="padding: 6px 12px; font-size: 12px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; ${boldButtonStyle}">
+                        B
+                    </button>
                     <button onclick="deletePhrase(${phrase.id})" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer;">
-                        🗑️ Eliminar
+                        🗑️
                     </button>
                 </div>
             `}
@@ -15468,10 +15470,225 @@ window.cancelPhraseEditor = function() {
 
 console.log('✅ PARCHE DE EDITOR DE FRASES CARGADO - Inicializando...');
 </script>
+    
+<script>
+// ========== PARCHE: RENDERIZADO DE MARKDOWN ==========
+// Añadir este código AL FINAL del archivo index.html, dentro de <script> tags
+// DESPUÉS del parche anterior del editor de frases
 
+// Función para convertir markdown básico a HTML
+function convertMarkdownToHTML(content) {
+    if (!content) return content;
+    
+    // Convertir **texto** a negrita con estilos en línea
+    let processed = content.replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: bold; color: #1a202c;">$1</strong>');
+    
+    // Preservar saltos de línea
+    processed = processed.replace(/\n/g, '<br>');
+    
+    return processed;
+}
+
+// Interceptar las funciones que renderizan contenido de resúmenes
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        initializeMarkdownRenderer();
+    }, 1500);
+});
+
+// Backup de inicialización
+setTimeout(function() {
+    if (typeof summarySystemState !== 'undefined') {
+        initializeMarkdownRenderer();
+    }
+}, 3000);
+
+function initializeMarkdownRenderer() {
+    console.log('🎨 Inicializando renderizado de markdown...');
+    
+    // Detectar y interceptar la función de renderizado correcta
+    let renderFunction = null;
+    let functionName = '';
+    
+    if (typeof renderViewSummaryEnhanced === 'function') {
+        renderFunction = renderViewSummaryEnhanced;
+        functionName = 'renderViewSummaryEnhanced';
+    } else if (typeof renderViewSummary === 'function') {
+        renderFunction = renderViewSummary;
+        functionName = 'renderViewSummary';
+    } else if (typeof renderViewSummaryWithEditor === 'function') {
+        renderFunction = renderViewSummaryWithEditor;
+        functionName = 'renderViewSummaryWithEditor';
+    }
+    
+    if (!renderFunction) {
+        console.error('❌ No se encontró función de renderizado para interceptar');
+        return;
+    }
+    
+    console.log('✅ Interceptando función:', functionName);
+    
+    // Crear versión mejorada que procese markdown
+    const enhancedRenderer = createMarkdownEnhancedRenderer(renderFunction);
+    
+    // Reemplazar la función correspondiente
+    if (functionName === 'renderViewSummaryEnhanced') {
+        window.renderViewSummaryEnhanced = enhancedRenderer;
+    } else if (functionName === 'renderViewSummary') {
+        window.renderViewSummary = enhancedRenderer;
+    } else if (functionName === 'renderViewSummaryWithEditor') {
+        window.renderViewSummaryWithEditor = enhancedRenderer;
+    }
+    
+    console.log('✅ Renderizado de markdown inicializado correctamente');
+}
+
+// Crear función de renderizado mejorada que procese markdown
+function createMarkdownEnhancedRenderer(originalFunction) {
+    return function() {
+        // Si estamos en modo edición de frases, no modificar nada
+        if (window.phraseEditor && phraseEditor.isActive) {
+            return originalFunction.call(this);
+        }
+        
+        // Llamar a la función original
+        let html = originalFunction.call(this);
+        
+        // Procesar el contenido para convertir markdown
+        const summary = summarySystemState.viewingSummary;
+        if (summary && summary.content) {
+            // Convertir el markdown del contenido
+            const markdownProcessed = convertMarkdownToHTML(summary.content);
+            
+            // Reemplazar el contenido original con el procesado
+            // Buscar y reemplazar el contenido en diferentes patrones
+            
+            // Patrón 1: white-space: pre-wrap
+            const preWrapPattern = /(<div style="[^"]*white-space:\s*pre-wrap[^"]*">)\s*([^<]*(?:<br>[^<]*)*)\s*(<\/div>)/g;
+            if (preWrapPattern.test(html)) {
+                html = html.replace(preWrapPattern, (match, openTag, content, closeTag) => {
+                    // Solo procesar si el contenido coincide con el resumen
+                    if (content.trim().replace(/<br>/g, '\n') === summary.content.trim()) {
+                        return openTag + markdownProcessed + closeTag;
+                    }
+                    return match;
+                });
+            }
+            
+            // Patrón 2: Contenido directo del resumen
+            const directContentPattern = new RegExp(escapeRegExp(summary.content.substring(0, 100)), 'g');
+            if (directContentPattern.test(html)) {
+                html = html.replace(new RegExp(escapeRegExp(summary.content), 'g'), markdownProcessed);
+            }
+            
+            // Patrón 3: formatSummaryContent o formatSummaryContentAdvanced
+            const formatContentPattern = /formatSummaryContent(?:Advanced)?\(summary\.content\)/g;
+            html = html.replace(formatContentPattern, `"${markdownProcessed}"`);
+            
+        }
+        
+        return html;
+    };
+}
+
+// Función auxiliar para escapar caracteres especiales en regex
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Función mejorada para formatear contenido (reemplazo directo)
+function formatSummaryContentWithMarkdown(content) {
+    if (!content) return '';
+    
+    // Convertir markdown a HTML
+    const processed = convertMarkdownToHTML(content);
+    
+    // Dividir en párrafos y formatear
+    const paragraphs = processed.split('<br><br>').filter(p => p.trim());
+    
+    return paragraphs.map(paragraph => {
+        const trimmed = paragraph.trim();
+        if (!trimmed) return '';
+        
+        // Detectar títulos (líneas que terminan con ":" o son cortas)
+        if (trimmed.endsWith(':') && trimmed.length < 150) {
+            return `<h3 style="color: #1f2937; font-size: 1.2rem; font-weight: 700; margin: 25px 0 15px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">${trimmed}</h3>`;
+        }
+        
+        // Detectar listas
+        if (trimmed.match(/^[•\-\*]\s+/) || trimmed.match(/^\d+\.\s+/)) {
+            return `<div style="margin: 8px 0; padding-left: 20px; border-left: 3px solid #e2e8f0; color: #4b5563;">${trimmed}</div>`;
+        }
+        
+        // Párrafos normales
+        return `<p style="margin: 15px 0; text-align: justify; line-height: 1.7;">${trimmed}</p>`;
+        
+    }).join('');
+}
+
+// Interceptar funciones de formato si existen
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        // Reemplazar formatSummaryContent si existe
+        if (typeof window.formatSummaryContent === 'function') {
+            const originalFormatSummaryContent = window.formatSummaryContent;
+            window.formatSummaryContent = function(content) {
+                const processed = convertMarkdownToHTML(content);
+                return originalFormatSummaryContent(processed);
+            };
+        } else {
+            // Crear la función si no existe
+            window.formatSummaryContent = formatSummaryContentWithMarkdown;
+        }
+        
+        // Reemplazar formatSummaryContentAdvanced si existe
+        if (typeof window.formatSummaryContentAdvanced === 'function') {
+            const originalFormatSummaryContentAdvanced = window.formatSummaryContentAdvanced;
+            window.formatSummaryContentAdvanced = function(content) {
+                const processed = convertMarkdownToHTML(content);
+                return originalFormatSummaryContentAdvanced(processed);
+            };
+        } else {
+            // Crear la función si no existe
+            window.formatSummaryContentAdvanced = formatSummaryContentWithMarkdown;
+        }
+        
+        console.log('✅ Funciones de formato interceptadas para markdown');
+    }, 2000);
+});
+
+// Función para forzar re-renderizado después de guardar cambios en el editor
+const originalSavePhraseEdits = window.savePhraseEdits;
+if (originalSavePhraseEdits) {
+    window.savePhraseEdits = function() {
+        // Llamar a la función original
+        originalSavePhraseEdits.call(this);
+        
+        // Forzar re-renderizado después de un pequeño delay
+        setTimeout(() => {
+            console.log('🔄 Forzando re-renderizado para mostrar markdown');
+            render();
+        }, 100);
+    };
+}
+
+// Función de prueba para verificar que el markdown funciona
+window.testMarkdownRendering = function() {
+    const testContent = "Este es un texto **en negrita** y este es normal.\n\nOtro párrafo con **más texto en negrita**.";
+    console.log('📝 Texto original:', testContent);
+    console.log('🎨 Texto procesado:', convertMarkdownToHTML(testContent));
+};
+
+console.log('✅ PARCHE DE RENDERIZADO DE MARKDOWN INSTALADO');
+console.log('🧪 Prueba con: testMarkdownRendering()');
+console.log('🎯 Funcionalidades:');
+console.log('  - Convierte **texto** a negrita');
+console.log('  - Preserva saltos de línea');
+console.log('  - Se integra con el editor de frases');
+console.log('  - Auto-renderiza después de guardar cambios');
+</script>
 </body>
 </html>
-
 
 
 
