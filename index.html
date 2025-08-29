@@ -14601,92 +14601,269 @@ div[style*="text-align: center; margin: 20px 0"] {
 }
 </style>
 
-<script>
-// ========== PARCHE RESPONSIVE JAVASCRIPT ==========
-console.log('📱 Aplicando parche responsive...');
 
-// FUNCIÓN PARA DETECTAR TAMAÑO DE PANTALLA
-function getScreenSize() {
-    const width = window.innerWidth;
-    if (width <= 480) return 'mobile-small';
-    if (width <= 768) return 'mobile';
-    if (width <= 1024) return 'tablet';
-    return 'desktop';
+<script>
+// ========== PARCHE FINAL: ELIMINAR TEMAS DESDE BANCO ==========
+console.log('🗑️ Aplicando parche final para eliminar temas desde banco...');
+
+// GUARDAR LA FUNCIÓN ORIGINAL renderQuestionsTab
+const originalRenderQuestionsTabFinal = renderQuestionsTab;
+
+// REEMPLAZAR renderQuestionsTab PARA AÑADIR FUNCIONALIDAD DE ELIMINAR
+renderQuestionsTab = function() {
+    const filteredQuestions = getFilteredQuestions();
+    
+    function getQuestionsTitle() {
+        if (state.selectedTopicFilter === 'all') {
+            return 'TODAS LAS PREGUNTAS DEL BANCO';
+        } else {
+            const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
+            if (topic) {
+                return `PREGUNTAS ${topic.name.toUpperCase()}`;
+            } else {
+                return 'PREGUNTAS DEL TEMA SELECCIONADO';
+            }
+        }
+    }
+    
+    // Determinar si se está filtrando por un tema específico
+    const isFilteringByTopic = state.selectedTopicFilter && state.selectedTopicFilter !== 'all';
+    const currentTopic = isFilteringByTopic ? state.topics.find(t => t.id == state.selectedTopicFilter) : null;
+    
+    return `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>${getQuestionsTitle()} (${filteredQuestions.length})</h2>
+            <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
+        </div>
+
+        ${state.topics.length > 0 ? `
+            <div style="margin-bottom: 20px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label style="font-weight: 500;">Filtrar por tema:</label>
+                    <select onchange="filterByTopic(this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #d1d5db;">
+                        <option value="all" ${state.selectedTopicFilter === 'all' ? 'selected' : ''}>Todos los temas (${state.questions.length})</option>
+                        ${state.topics.map(topic => `
+                            <option value="${topic.id}" ${state.selectedTopicFilter == topic.id ? 'selected' : ''}>
+                                ${topic.name} (${getTopicQuestionCountSafe(topic.id)})
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+                
+                ${isFilteringByTopic && currentTopic ? `
+                    <button onclick="deleteCurrentTopic()" class="btn btn-danger" style="background: #dc2626; border-color: #dc2626; padding: 8px 16px; font-size: 14px;">
+                        🗑️ Eliminar Tema "${currentTopic.name}"
+                    </button>
+                ` : ''}
+            </div>
+        ` : ''}
+
+        ${state.topics.length > 0 && state.selectedTopicFilter === 'all' ? 
+            renderQuestionsByTopicSafe(filteredQuestions) : 
+            renderQuestionsFilteredSafe(filteredQuestions)
+        }
+    `;
+};
+
+// FUNCIÓN PRINCIPAL PARA ELIMINAR EL TEMA ACTUAL
+window.deleteCurrentTopic = function() {
+    if (!state.selectedTopicFilter || state.selectedTopicFilter === 'all') {
+        if (typeof showMessage === 'function') {
+            showMessage('No hay tema seleccionado para eliminar', 'error');
+        }
+        return;
+    }
+    
+    // Encontrar el tema actual
+    const topicToDelete = state.topics.find(t => t.id == state.selectedTopicFilter);
+    if (!topicToDelete) {
+        if (typeof showMessage === 'function') {
+            showMessage('Tema no encontrado', 'error');
+        }
+        return;
+    }
+    
+    // Contar preguntas del tema
+    const questionsInTopic = state.questions.filter(q => q.topicId && q.topicId.toString() === topicToDelete.id.toString());
+    const questionCount = questionsInTopic.length;
+    
+    // Confirmación
+    let confirmMessage = `¿Eliminar el tema "${topicToDelete.name}"?`;
+    if (questionCount > 0) {
+        confirmMessage += `\n\nEsto eliminará también ${questionCount} pregunta${questionCount === 1 ? '' : 's'} asociada${questionCount === 1 ? '' : 's'}.`;
+    }
+    confirmMessage += '\n\nEsta acción no se puede deshacer.';
+    
+    if (confirm(confirmMessage)) {
+        // Eliminar tema
+        state.topics = state.topics.filter(t => t.id != topicToDelete.id);
+        
+        // Eliminar preguntas del tema
+        const originalCount = state.questions.length;
+        state.questions = state.questions.filter(q => !q.topicId || q.topicId.toString() !== topicToDelete.id.toString());
+        const deletedQuestions = originalCount - state.questions.length;
+        
+        // Resetear filtro a "Todos los temas"
+        state.selectedTopicFilter = 'all';
+        
+        // Guardar en localStorage
+        localStorage.setItem('topics', JSON.stringify(state.topics));
+        localStorage.setItem('questions', JSON.stringify(state.questions));
+        
+        // Re-renderizar
+        render();
+        
+        // Mensaje de éxito
+        if (typeof showMessage === 'function') {
+            if (deletedQuestions > 0) {
+                showMessage(`Tema "${topicToDelete.name}" eliminado junto con ${deletedQuestions} pregunta${deletedQuestions === 1 ? '' : 's'}`, 'success');
+            } else {
+                showMessage(`Tema "${topicToDelete.name}" eliminado`, 'success');
+            }
+        }
+    }
+};
+
+// FUNCIONES AUXILIARES SEGURAS PARA EVITAR CONFLICTOS
+function getTopicQuestionCountSafe(topicId) {
+    if (typeof getTopicQuestionCount === 'function') {
+        return getTopicQuestionCount(topicId);
+    }
+    return state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
 }
 
-// AJUSTAR ALTURA DE TEXTAREA SEGÚN PANTALLA
-function adjustTextareaHeight() {
-    const textareas = document.querySelectorAll('.textarea');
-    const screenSize = getScreenSize();
+function renderQuestionsByTopicSafe(filteredQuestions) {
+    if (typeof renderQuestionsByTopic === 'function') {
+        return renderQuestionsByTopic();
+    }
     
-    textareas.forEach(textarea => {
-        switch(screenSize) {
-            case 'mobile-small':
-                textarea.style.minHeight = '180px';
-                break;
-            case 'mobile':
-                textarea.style.minHeight = '200px';
-                break;
-            case 'tablet':
-                textarea.style.minHeight = '250px';
-                break;
-            default:
-                textarea.style.minHeight = '300px';
+    // Fallback si la función no existe
+    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+    let html = '';
+    
+    // Mostrar preguntas por cada tema que TENGA preguntas
+    state.topics.forEach(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        if (topicQuestions.length > 0) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📁 ${topic.name}</span>
+                        <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
+                    </h3>
+                    <div style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                        ${topicQuestions.map(q => renderSingleQuestionSafe(q)).join('')}
+                    </div>
+                </div>
+            `;
         }
     });
+    
+    // Preguntas sin tema
+    if (questionsWithoutTopic.length > 0) {
+        html += `
+            <div style="margin-bottom: 30px;">
+                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📂 Sin tema asignado</span>
+                    <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                </h3>
+                <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                    ${questionsWithoutTopic.map(q => renderSingleQuestionSafe(q)).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    return html || '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles</div>';
 }
 
-// LISTENER PARA CAMBIOS DE ORIENTACIÓN/TAMAÑO
-window.addEventListener('resize', function() {
-    setTimeout(() => {
-        adjustTextareaHeight();
-        
-        // Forzar scroll si es necesario
-        if (getScreenSize() !== 'desktop') {
-            document.body.style.overflowY = 'auto';
-            document.documentElement.style.overflowY = 'auto';
-        }
-    }, 100);
-});
-
-// APLICAR AL CARGAR
-document.addEventListener('DOMContentLoaded', function() {
-    adjustTextareaHeight();
-});
-
-// INTERCEPTAR RENDER PARA APLICAR RESPONSIVE
-const originalRenderResponsive = window.render;
-if (originalRenderResponsive) {
-    window.render = function() {
-        originalRenderResponsive.call(this);
-        
-        // Aplicar ajustes después del render
-        setTimeout(() => {
-            adjustTextareaHeight();
-            
-            // Asegurar scroll visible
-            document.body.style.height = 'auto';
-            document.body.style.overflowY = 'auto';
-            
-            const app = document.getElementById('app');
-            if (app) {
-                app.style.height = 'auto';
-                app.style.minHeight = '100vh';
+function renderQuestionsFilteredSafe(filteredQuestions) {
+    if (typeof renderQuestionsFiltered === 'function') {
+        return renderQuestionsFiltered(filteredQuestions);
+    }
+    
+    // Fallback si la función no existe
+    return `
+        <div style="border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
+            ${filteredQuestions.length === 0 ? 
+                '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles</div>' :
+                filteredQuestions.map(q => renderSingleQuestionSafe(q)).join('')
             }
-        }, 50);
+        </div>
+    `;
+}
+
+function renderSingleQuestionSafe(q) {
+    if (typeof renderSingleQuestion === 'function') {
+        const actualIndex = state.questions.findIndex(question => question.id === q.id);
+        return renderSingleQuestion(q, actualIndex);
+    }
+    
+    // Fallback básico si la función no existe
+    const actualIndex = state.questions.findIndex(question => question.id === q.id);
+    const topicName = q.topicId ? getTopicNameSafe(q.topicId) : null;
+    
+    return `
+        <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
+            <div style="flex: 1;">
+                <div style="font-weight: 500; margin-bottom: 8px;">
+                    ${q.question}
+                    ${topicName && state.selectedTopicFilter === 'all' ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px; margin-left: 8px;">${topicName}</span>` : ''}
+                </div>
+                <ul style="list-style: none; margin: 0; padding: 0;">
+                    ${q.options.map((opt, optIndex) => `
+                        <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'};">
+                            ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✓' : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+            <div style="display: flex; gap: 5px; flex-shrink: 0; margin-left: 15px;">
+                <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
+                <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
+            </div>
+        </div>
+    `;
+}
+
+function getTopicNameSafe(topicId) {
+    if (typeof getTopicName === 'function') {
+        return getTopicName(topicId);
+    }
+    const topic = state.topics.find(t => t.id == topicId);
+    return topic ? topic.name : 'Sin tema';
+}
+
+// ASEGURAR QUE filterByTopic FUNCIONE CORRECTAMENTE
+if (typeof filterByTopic === 'undefined') {
+    window.filterByTopic = function(topicId) {
+        state.selectedTopicFilter = topicId;
+        render();
     };
 }
 
-console.log('✅ Parche responsive aplicado correctamente');
-console.log('📱 Funcionalidades añadidas:');
-console.log('   - Diseño responsive completo');
-console.log('   - Adaptación móvil y tablet');
-console.log('   - Scroll habilitado');
-console.log('   - Botones y elementos visibles');
-console.log('   - Touch optimizado para móviles');
+// ASEGURAR QUE getFilteredQuestions EXISTA
+if (typeof getFilteredQuestions === 'undefined') {
+    window.getFilteredQuestions = function() {
+        if (state.selectedTopicFilter === 'all') {
+            return state.questions;
+        }
+        return state.questions.filter(q => q.topicId && q.topicId.toString() === state.selectedTopicFilter.toString());
+    };
+}
+
+console.log('✅ Parche final para eliminar temas aplicado correctamente');
+console.log('🗑️ Funcionalidades añadidas:');
+console.log('   - Botón "Eliminar Tema" en banco de preguntas');
+console.log('   - Aparece solo cuando se filtra por tema específico');
+console.log('   - Elimina tema + todas sus preguntas');
+console.log('   - Confirmación con conteo de preguntas');
+console.log('   - Compatible con todos los parches existentes');
+console.log('   - Funciones auxiliares seguras para evitar conflictos');
 </script>
 </body>
 </html>
+
 
 
 
