@@ -3524,49 +3524,51 @@ Este parche reemplaza el sistema de resúmenes con uno completo e independiente
         `;
     }
     
-    // Función para renderizar la visualización de un resumen específico
-    function renderViewSummary() {
-        const summary = summarySystemState.viewingSummary;
-        const topicName = summary.topicId ? getSummaryTopicName(summary.topicId) : 'Sin tema';
-        
-        return `
-            <div style="max-width: 1000px; margin: 0 auto;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-                    <div>
-                        <button onclick="closeSummaryView()" class="btn btn-secondary" style="margin-bottom: 15px;">
-                            ← Volver a la Biblioteca
-                        </button>
+   // PARCHE: Reemplazar la función renderViewSummary existente
+function renderViewSummary() {
+    const summary = summarySystemState.viewingSummary;
+    const topicName = summary.topicId ? getSummaryTopicName(summary.topicId) : 'Sin tema';
+    
+    return `
+        <div style="max-width: 1000px; margin: 0 auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <div>
+                    <button onclick="closeSummaryView()" class="btn btn-secondary" style="margin-bottom: 15px;">
+                        ← Volver a la Biblioteca
+                    </button>
+                    <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 10px;">
                         <h1 style="color: #1f2937; margin: 0; font-size: 2rem;">${summary.title}</h1>
-                        <div style="margin-top: 10px; display: flex; align-items: center; gap: 20px; color: #6b7280; font-size: 14px;">
-                            <span>📂 ${topicName}</span>
-                            <span>📅 ${summary.createdAt}</span>
-                            <span>📝 ${summary.content.length} caracteres</span>
-                        </div>
+                        <button onclick="editSummaryFromView()" class="btn btn-warning" style="padding: 8px 16px;">
+                            ✏️ Editar Título
+                        </button>
                     </div>
-                </div>
-                
-                <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                    <div style="prose max-w-none;">
-                        <div style="white-space: pre-wrap; line-height: 1.7; color: #374151; font-size: 16px;">
-                            ${summary.content}
-                        </div>
+                    <div style="margin-top: 10px; display: flex; align-items: center; gap: 20px; color: #6b7280; font-size: 14px;">
+                        <span>📂 ${topicName}</span>
+                        <span>📅 ${summary.createdAt}</span>
+                        <span>📝 ${summary.content.length} caracteres</span>
                     </div>
-                </div>
-                
-                <div style="margin-top: 30px; display: flex; justify-content: center; gap: 15px;">
-                    <button onclick="copySummaryContentToClipboard('${summary.id}')" class="btn btn-info" style="padding: 12px 24px;">
-                        📋 Copiar Contenido
-                    </button>
-                    <button onclick="editSummaryFromView()" class="btn btn-warning" style="padding: 12px 24px;">
-                        ✏️ Editar Resumen
-                    </button>
-                    <button onclick="deleteSummaryFromView('${summary.id}')" class="btn btn-danger" style="padding: 12px 24px;">
-                        🗑️ Eliminar Resumen
-                    </button>
                 </div>
             </div>
-        `;
-    }
+            
+            <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <div style="prose max-w-none;">
+                    <div style="white-space: pre-wrap; line-height: 1.7; color: #374151; font-size: 16px;">
+                        ${summary.content}
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 30px; display: flex; justify-content: center; gap: 15px;">
+                <button onclick="copySummaryContentToClipboard('${summary.id}')" class="btn btn-info" style="padding: 12px 24px;">
+                    📋 Copiar Contenido
+                </button>
+                <button onclick="deleteSummaryFromView('${summary.id}')" class="btn btn-danger" style="padding: 12px 24px;">
+                    🗑️ Eliminar Resumen
+                </button>
+            </div>
+        </div>
+    `;
+}
     
     // ========== FUNCIONES DE GESTIÓN ==========
     
@@ -15871,6 +15873,7 @@ console.log('🧪 Prueba con: testMarkdownRendering()');
 </script>
 </body>
 </html>
+
 
 
 
