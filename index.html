@@ -14600,298 +14600,180 @@ div[style*="text-align: center; margin: 20px 0"] {
     }
 }
 </style>
-
-
-<!-- 
-PARCHE: LIMPIAR POR TEMAS
+    <!-- 
+PARCHE SIMPLE: BOTÓN ELIMINAR EN HEADER DE TEMA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche mejora la función "Limpiar Todo" añadiendo opciones por temas
+Este parche añade un botón de eliminar directamente en el header de cada tema
 -->
 
 <script>
-// ========== PARCHE: LIMPIAR POR TEMAS ==========
-console.log('🗑️ Aplicando parche para limpiar por temas...');
+// ========== PARCHE SIMPLE: BOTÓN ELIMINAR EN HEADER ==========
+console.log('🗑️ Aplicando parche simple: botón eliminar en header...');
 
-// REEMPLAZAR LA FUNCIÓN clearQuestions ORIGINAL
-const originalClearQuestions = clearQuestions;
+// GUARDAR LA FUNCIÓN ORIGINAL
+const originalRenderQuestionsByTopicSimple = renderQuestionsByTopic;
 
-window.clearQuestions = function() {
-    // Si no hay temas, usar comportamiento original
-    if (state.topics.length === 0) {
-        originalClearQuestions();
+// REEMPLAZAR renderQuestionsByTopic
+renderQuestionsByTopic = function() {
+    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+    
+    let html = '';
+    
+    // Mostrar preguntas por cada tema que TENGA preguntas
+    state.topics.forEach(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        if (topicQuestions.length > 0) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📁 ${topic.name}</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
+                            <button onclick="deleteTopicSimple('${topic.id}')" class="btn btn-danger" style="padding: 4px 8px; font-size: 12px; background: #dc2626; border: none; border-radius: 4px; color: white; cursor: pointer;" title="Eliminar tema">
+                                🗑️
+                            </button>
+                        </div>
+                    </h3>
+                    <div style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                        ${topicQuestions.map(q => {
+                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                            return renderSingleQuestionSimple(q, actualIndex);
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    // Mostrar preguntas sin tema asignado SI existen
+    if (questionsWithoutTopic.length > 0) {
+        html += `
+            <div style="margin-bottom: 30px;">
+                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📂 Sin tema asignado</span>
+                    <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                </h3>
+                <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                    ${questionsWithoutTopic.map(q => {
+                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                        return renderSingleQuestionSimple(q, actualIndex);
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Si no hay preguntas en absoluto
+    if (html === '') {
+        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
+    }
+    
+    return html;
+};
+
+// FUNCIÓN PARA ELIMINAR TEMA
+window.deleteTopicSimple = function(topicId) {
+    // Encontrar el tema
+    const topicToDelete = state.topics.find(t => t.id == topicId);
+    if (!topicToDelete) {
+        if (typeof showMessage === 'function') {
+            showMessage('Tema no encontrado', 'error');
+        }
         return;
     }
     
-    // Crear modal de opciones
-    const modal = document.createElement('div');
-    modal.style.cssText = `
-        position: fixed; 
-        top: 0; 
-        left: 0; 
-        width: 100%; 
-        height: 100%;
-        background: rgba(0,0,0,0.5); 
-        display: flex; 
-        justify-content: center;
-        align-items: center; 
-        z-index: 1000;
-    `;
+    // Contar preguntas del tema
+    const questionsInTopic = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString());
+    const questionCount = questionsInTopic.length;
     
-    // Contar preguntas por tema y sin tema
-    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
-    const topicsCounts = state.topics.map(topic => {
-        const count = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length;
-        return { topic, count };
-    }).filter(tc => tc.count > 0); // Solo mostrar temas con preguntas
+    // Confirmación
+    let confirmMessage = `¿Eliminar el tema "${topicToDelete.name}"?`;
+    if (questionCount > 0) {
+        confirmMessage += `\n\nEsto eliminará también ${questionCount} pregunta${questionCount === 1 ? '' : 's'}.`;
+    }
+    confirmMessage += '\n\nEsta acción no se puede deshacer.';
     
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 16px; padding: 30px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
-            <h3 style="margin-bottom: 20px; color: #dc2626; text-align: center;">
-                🗑️ Opciones de Eliminación
-            </h3>
-            
-            <!-- Opción: Eliminar TODO -->
-            <div style="margin-bottom: 20px; padding: 15px; border: 2px solid #dc2626; border-radius: 8px; background: #fef2f2;">
-                <h4 style="margin: 0 0 10px 0; color: #dc2626;">Eliminar Todo</h4>
-                <p style="margin: 0 0 10px 0; font-size: 14px; color: #7f1d1d;">
-                    Eliminará todas las ${state.questions.length} preguntas del banco
-                </p>
-                <button onclick="deleteAllQuestions()" class="btn btn-danger" style="width: 100%;">
-                    🗑️ Eliminar TODAS las preguntas (${state.questions.length})
-                </button>
-            </div>
-            
-            <!-- Opciones por tema -->
-            ${topicsCounts.length > 0 ? `
-                <div style="margin-bottom: 20px;">
-                    <h4 style="margin-bottom: 15px; color: #374151;">Eliminar por Temas</h4>
-                    
-                    ${topicsCounts.map(tc => `
-                        <div style="margin-bottom: 10px; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #f9fafb;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-weight: 500; color: #374151;">
-                                    📁 ${tc.topic.name}
-                                </span>
-                                <span style="font-size: 14px; color: #6b7280;">
-                                    ${tc.count} pregunta${tc.count === 1 ? '' : 's'}
-                                </span>
-                            </div>
-                            <button onclick="deleteTopicQuestions('${tc.topic.id}')" class="btn btn-warning" style="width: 100%; margin-top: 8px; font-size: 13px;">
-                                🗑️ Eliminar solo preguntas de este tema
-                            </button>
-                        </div>
-                    `).join('')}
-                    
-                    <!-- Botón para eliminar múltiples temas -->
-                    <button onclick="showMultipleTopicsSelection()" class="btn btn-info" style="width: 100%; margin-top: 10px;">
-                        📋 Seleccionar múltiples temas
-                    </button>
-                </div>
-            ` : ''}
-            
-            <!-- Preguntas sin tema -->
-            ${questionsWithoutTopic.length > 0 ? `
-                <div style="margin-bottom: 20px; padding: 12px; border: 1px solid #6b7280; border-radius: 8px; background: #f8fafc;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <span style="font-weight: 500; color: #374151;">
-                            📂 Sin tema asignado
-                        </span>
-                        <span style="font-size: 14px; color: #6b7280;">
-                            ${questionsWithoutTopic.length} pregunta${questionsWithoutTopic.length === 1 ? '' : 's'}
-                        </span>
-                    </div>
-                    <button onclick="deleteQuestionsWithoutTopic()" class="btn btn-warning" style="width: 100%; font-size: 13px;">
-                        🗑️ Eliminar preguntas sin tema
-                    </button>
-                </div>
-            ` : ''}
-            
-            <!-- Botón cerrar -->
-            <div style="text-align: center; margin-top: 20px;">
-                <button onclick="closeClearModal()" class="btn btn-secondary">
-                    ❌ Cancelar
-                </button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Definir funciones del modal
-    window.deleteAllQuestions = function() {
-        if (confirm(`¿Estás seguro de eliminar TODAS las ${state.questions.length} preguntas?\n\nEsta acción no se puede deshacer.`)) {
-            state.questions = [];
-            localStorage.setItem('questions', JSON.stringify(state.questions));
-            closeClearModal();
-            render();
-            if (typeof showMessage === 'function') {
-                showMessage('Todas las preguntas eliminadas', 'success');
-            }
-        }
-    };
-    
-    window.deleteTopicQuestions = function(topicId) {
-        const topic = state.topics.find(t => t.id == topicId);
-        const questionsToDelete = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString());
+    if (confirm(confirmMessage)) {
+        // Eliminar tema
+        state.topics = state.topics.filter(t => t.id != topicId);
         
-        if (confirm(`¿Eliminar ${questionsToDelete.length} pregunta${questionsToDelete.length === 1 ? '' : 's'} del tema "${topic.name}"?\n\nEsta acción no se puede deshacer.`)) {
-            const originalCount = state.questions.length;
-            state.questions = state.questions.filter(q => !q.topicId || q.topicId.toString() !== topicId.toString());
-            const deletedCount = originalCount - state.questions.length;
-            
-            localStorage.setItem('questions', JSON.stringify(state.questions));
-            closeClearModal();
-            render();
-            
-            if (typeof showMessage === 'function') {
-                showMessage(`${deletedCount} pregunta${deletedCount === 1 ? '' : 's'} eliminada${deletedCount === 1 ? '' : 's'} del tema "${topic.name}"`, 'success');
-            }
-        }
-    };
-    
-    window.deleteQuestionsWithoutTopic = function() {
-        const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+        // Eliminar preguntas del tema
+        const originalCount = state.questions.length;
+        state.questions = state.questions.filter(q => !q.topicId || q.topicId.toString() !== topicId.toString());
+        const deletedQuestions = originalCount - state.questions.length;
         
-        if (confirm(`¿Eliminar ${questionsWithoutTopic.length} pregunta${questionsWithoutTopic.length === 1 ? '' : 's'} sin tema asignado?\n\nEsta acción no se puede deshacer.`)) {
-            state.questions = state.questions.filter(q => q.topicId);
-            localStorage.setItem('questions', JSON.stringify(state.questions));
-            closeClearModal();
-            render();
-            
-            if (typeof showMessage === 'function') {
-                showMessage(`${questionsWithoutTopic.length} pregunta${questionsWithoutTopic.length === 1 ? '' : 's'} sin tema eliminada${questionsWithoutTopic.length === 1 ? '' : 's'}`, 'success');
+        // Guardar cambios
+        localStorage.setItem('topics', JSON.stringify(state.topics));
+        localStorage.setItem('questions', JSON.stringify(state.questions));
+        
+        // Re-renderizar
+        render();
+        
+        // Mensaje de éxito
+        if (typeof showMessage === 'function') {
+            if (deletedQuestions > 0) {
+                showMessage(`Tema "${topicToDelete.name}" eliminado junto con ${deletedQuestions} pregunta${deletedQuestions === 1 ? '' : 's'}`, 'success');
+            } else {
+                showMessage(`Tema "${topicToDelete.name}" eliminado`, 'success');
             }
         }
-    };
-    
-    window.showMultipleTopicsSelection = function() {
-        // Cerrar modal actual y abrir selector múltiple
-        closeClearModal();
-        showMultipleTopicsModal();
-    };
-    
-    window.closeClearModal = function() {
-        const modal = document.querySelector('div[style*="position: fixed"]');
-        if (modal) {
-            modal.remove();
-        }
-    };
+    }
 };
 
-// FUNCIÓN PARA SELECTOR MÚLTIPLE DE TEMAS
-function showMultipleTopicsModal() {
-    const modal = document.createElement('div');
-    modal.style.cssText = `
-        position: fixed; 
-        top: 0; 
-        left: 0; 
-        width: 100%; 
-        height: 100%;
-        background: rgba(0,0,0,0.5); 
-        display: flex; 
-        justify-content: center;
-        align-items: center; 
-        z-index: 1000;
-    `;
+// FUNCIÓN AUXILIAR PARA RENDERIZAR PREGUNTA INDIVIDUAL
+function renderSingleQuestionSimple(q, actualIndex) {
+    // Si existe la función original, usarla
+    if (typeof renderSingleQuestion === 'function') {
+        return renderSingleQuestion(q, actualIndex);
+    }
     
-    const topicsWithQuestions = state.topics.filter(topic => {
-        const count = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length;
-        return count > 0;
-    });
+    // Fallback básico
+    const topicName = q.topicId ? getTopicNameSimple(q.topicId) : null;
     
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 16px; padding: 30px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
-            <h3 style="margin-bottom: 20px; color: #dc2626; text-align: center;">
-                📋 Seleccionar Temas a Eliminar
-            </h3>
-            
-            <div style="margin-bottom: 20px;">
-                <p style="font-size: 14px; color: #6b7280; margin-bottom: 15px;">
-                    Marca los temas cuyas preguntas quieres eliminar:
-                </p>
-                
-                ${topicsWithQuestions.map(topic => {
-                    const count = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length;
-                    return `
-                        <label style="display: flex; align-items: center; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 8px; cursor: pointer; background: #f9fafb;">
-                            <input type="checkbox" id="topic-${topic.id}" value="${topic.id}" style="margin-right: 10px; transform: scale(1.2);">
-                            <span style="flex: 1;">
-                                📁 <strong>${topic.name}</strong>
-                                <span style="color: #6b7280; font-size: 13px;">(${count} pregunta${count === 1 ? '' : 's'})</span>
-                            </span>
-                        </label>
-                    `;
-                }).join('')}
+    return `
+        <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
+            <div style="flex: 1;">
+                <div style="font-weight: 500; margin-bottom: 8px;">
+                    ${q.question}
+                    ${topicName && state.selectedTopicFilter === 'all' ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px; margin-left: 8px;">${topicName}</span>` : ''}
+                </div>
+                <ul style="list-style: none; margin: 0; padding: 0;">
+                    ${q.options.map((opt, optIndex) => `
+                        <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'};">
+                            ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✓' : ''}
+                        </li>
+                    `).join('')}
+                </ul>
             </div>
-            
-            <div style="display: flex; gap: 10px; justify-content: center;">
-                <button onclick="deleteSelectedTopics()" class="btn btn-danger">
-                    🗑️ Eliminar Seleccionados
-                </button>
-                <button onclick="closeClearModal()" class="btn btn-secondary">
-                    ❌ Cancelar
-                </button>
+            <div style="display: flex; gap: 5px; flex-shrink: 0; margin-left: 15px;">
+                <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
+                <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
             </div>
         </div>
     `;
-    
-    document.body.appendChild(modal);
-    
-    window.deleteSelectedTopics = function() {
-        const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
-        const selectedTopicIds = Array.from(checkboxes).map(cb => cb.value);
-        
-        if (selectedTopicIds.length === 0) {
-            alert('Selecciona al menos un tema para eliminar');
-            return;
-        }
-        
-        // Calcular cuántas preguntas se eliminarán
-        let totalToDelete = 0;
-        const topicNames = [];
-        
-        selectedTopicIds.forEach(topicId => {
-            const topic = state.topics.find(t => t.id == topicId);
-            const count = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
-            totalToDelete += count;
-            topicNames.push(topic.name);
-        });
-        
-        const confirmMessage = `¿Eliminar ${totalToDelete} pregunta${totalToDelete === 1 ? '' : 's'} de los siguientes temas?\n\n${topicNames.map(name => `• ${name}`).join('\n')}\n\nEsta acción no se puede deshacer.`;
-        
-        if (confirm(confirmMessage)) {
-            // Eliminar preguntas de los temas seleccionados
-            const originalCount = state.questions.length;
-            state.questions = state.questions.filter(q => {
-                if (!q.topicId) return true; // Mantener preguntas sin tema
-                return !selectedTopicIds.includes(q.topicId.toString());
-            });
-            
-            const deletedCount = originalCount - state.questions.length;
-            
-            localStorage.setItem('questions', JSON.stringify(state.questions));
-            closeClearModal();
-            render();
-            
-            if (typeof showMessage === 'function') {
-                showMessage(`${deletedCount} pregunta${deletedCount === 1 ? '' : 's'} eliminada${deletedCount === 1 ? '' : 's'} de ${selectedTopicIds.length} tema${selectedTopicIds.length === 1 ? '' : 's'}`, 'success');
-            }
-        }
-    };
 }
 
-console.log('✅ Parche para limpiar por temas aplicado correctamente');
-console.log('🗑️ Funcionalidades añadidas al botón "Limpiar Todo":');
-console.log('   - Modal con múltiples opciones de eliminación');
-console.log('   - Eliminar todas las preguntas (original)');
-console.log('   - Eliminar preguntas por tema individual');
-console.log('   - Eliminar preguntas de múltiples temas');
-console.log('   - Eliminar preguntas sin tema asignado');
-console.log('   - Contadores de preguntas por cada opción');
+// FUNCIÓN AUXILIAR PARA OBTENER NOMBRE DE TEMA
+function getTopicNameSimple(topicId) {
+    if (typeof getTopicName === 'function') {
+        return getTopicName(topicId);
+    }
+    const topic = state.topics.find(t => t.id == topicId);
+    return topic ? topic.name : 'Sin tema';
+}
+
+console.log('✅ Parche simple aplicado correctamente');
+console.log('🗑️ Funcionalidad añadida:');
+console.log('   - Botón eliminar (🗑️) en header de cada tema');
+console.log('   - Aparece al lado del número de preguntas');
+console.log('   - Elimina tema + todas sus preguntas');
+console.log('   - Confirmación antes de eliminar');
 console.log('   - Compatible con código existente');
 </script>
+
 </body>
 </html>
+
 
 
 
