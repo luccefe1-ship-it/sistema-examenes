@@ -13340,8 +13340,86 @@ console.log('   - Franjas con scroll interno únicamente');
 console.log('   - Botón de salir mejorado');
 console.log('   - SIN scroll vertical garantizado');
 </script>
+ 
+<script>
+// ========== PARCHE: TEXTO EDITABLE Y PROCESAMIENTO MANUAL ==========
+console.log('📝 Implementando texto editable y procesamiento manual...');
+
+// Estado para el procesamiento manual de texto
+let manualTextState = {
+    isProcessing: false,
+    processedQuestions: [],
+    selectedTopic: null,
+    editableText: ''
+};
+
+// FUNCIÓN para procesar texto manual (similar al procesamiento de imágenes)
+async function processManualText() {
+    const textContent = document.getElementById('editableTextArea').value.trim();
+    
+    if (!textContent) {
+        showMessage('⚠️ Ingresa texto para procesar', 'error');
+        return;
+    }
+    
+    if (!state.apiKey) {
+        showMessage('⚠️ Configura tu API key primero', 'error');
+        return;
+    }
+    
+    manualTextState.isProcessing = true;
+    render();
+    
+    try {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 2000,
+                messages: [
+                    {
+                        role: "user",
+                        content: `Analiza el siguiente texto y genera preguntas de opción múltiple basadas en el contenido:
+
+${textContent}
+
+Genera entre 3-8 preguntas (dependiendo de la longitud del contenido) en formato JSON:
+{
+    "questions": [
+        {
+            "question": "Pregunta aquí",
+            "options": ["A) opción", "B) opción", "C) opción", "D) opción"],
+            "correct": 0,
+            "explanation": "Explicación de por qué es correcta"
+        }
+    ]
+}
+
+IMPORTANTE: Responde SOLO con el JSON válido, sin texto adicional.`
+                    }
+                ]
+            })
+        });
+
+        const data = await response.json();
+        let responseText = data.content[0].text;
+        
+        // Limpiar respuesta para obtener solo el JSON
+        responseText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        
+        const questionsData = JSON.parse(responseText);
+        
+        if (questionsData.questions && questionsData.questions.length > 0) {
+            manualTextState.processedQuestions = questionsData.questions.map((q, index) => ({
+                ...q,
+                id: Date.now() + index,
+                source: 'manual_text',
 </body>
 </html>
+
 
 
 
