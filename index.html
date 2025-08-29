@@ -14260,8 +14260,434 @@ console.log('   - Scroll habilitado');
 console.log('   - Botones y elementos visibles');
 console.log('   - Touch optimizado para móviles');
 </script>
+    <!-- 
+PARCHE RESPONSIVE: ADAPTACIÓN MÓVIL Y TABLET
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche hace la web completamente responsive
+-->
+
+<style>
+/* ========== PARCHE RESPONSIVE ========== */
+
+/* RESET DE ALTURA PARA PERMITIR SCROLL */
+html, body {
+    height: auto !important;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto !important;
+}
+
+#app {
+    min-height: 100vh;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+.container {
+    min-height: 100vh;
+    height: auto !important;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+/* GRID RESPONSIVO MEJORADO */
+.three-column {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+/* TABLET - 768px a 1024px */
+@media (max-width: 1024px) {
+    .three-column {
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+    }
+    
+    .three-column .column:last-child {
+        grid-column: 1 / -1;
+    }
+    
+    .container {
+        padding: 15px;
+    }
+    
+    /* Ajustar navegación */
+    .nav-tabs {
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+    
+    .nav-tab {
+        font-size: 12px !important;
+        padding: 8px 12px !important;
+        min-width: auto;
+    }
+}
+
+/* MÓVIL - hasta 768px */
+@media (max-width: 768px) {
+    .three-column {
+        grid-template-columns: 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .container {
+        padding: 10px;
+    }
+    
+    /* NAVEGACIÓN MÓVIL */
+    .nav-tabs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+    
+    .nav-tab {
+        font-size: 11px !important;
+        padding: 10px 8px !important;
+        text-align: center;
+        line-height: 1.2;
+        border-radius: 8px !important;
+    }
+    
+    /* HEADER MÓVIL */
+    .header {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+        padding: 15px 10px;
+    }
+    
+    .title {
+        font-size: 1.5rem !important;
+        margin-bottom: 10px;
+    }
+    
+    /* COLUMNAS MÓVIL */
+    .column {
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+    
+    .column h3 {
+        font-size: 1.1rem !important;
+        margin-bottom: 12px !important;
+    }
+    
+    /* ÁREAS DE SUBIDA MÓVIL */
+    .upload-area {
+        padding: 25px 15px !important;
+        margin-bottom: 15px !important;
+    }
+    
+    .upload-area div:first-child {
+        font-size: 14px !important;
+    }
+    
+    .upload-area div:nth-child(2) {
+        font-size: 11px !important;
+    }
+    
+    .upload-area div:nth-child(3) {
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        margin-top: 8px !important;
+    }
+    
+    /* GRIDS DE ARCHIVOS MÓVIL */
+    .column div[style*="grid-template-columns: repeat(3, 1fr)"] {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+    }
+    
+    .column div[style*="grid-template-columns: repeat(2, 1fr)"] {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+    }
+    
+    /* TEXTAREA MÓVIL */
+    .textarea {
+        min-height: 200px !important;
+        font-size: 13px !important;
+        padding: 12px !important;
+    }
+    
+    /* BOTONES MÓVIL */
+    .btn {
+        padding: 12px 16px !important;
+        font-size: 14px !important;
+        border-radius: 8px !important;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        line-height: 1.3;
+        margin-bottom: 8px;
+    }
+    
+    /* BOTÓN PRINCIPAL MÓVIL */
+    button[onclick="transcribeAllContent()"] {
+        padding: 16px 20px !important;
+        font-size: 16px !important;
+        font-weight: bold !important;
+        min-height: 56px !important;
+        border-radius: 12px !important;
+        margin: 20px 0 !important;
+        width: 100% !important;
+        max-width: none !important;
+    }
+    
+    /* GESTIÓN DE TEMAS MÓVIL */
+    .column div[style*="background: #fef3c7"] {
+        padding: 12px !important;
+        border-radius: 8px !important;
+    }
+    
+    .column div[style*="background: #fef3c7"] h4 {
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+    }
+    
+    .column div[style*="display: grid; grid-template-columns: 1fr 1fr"] {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+        margin-bottom: 12px !important;
+    }
+    
+    /* SELECT Y INPUTS MÓVIL */
+    select, input[type="text"] {
+        padding: 12px !important;
+        font-size: 14px !important;
+        border-radius: 6px !important;
+        min-height: 44px !important;
+    }
+    
+    /* MENSAJES MÓVIL */
+    #messages .message {
+        padding: 10px 15px;
+        font-size: 14px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+}
+
+/* MÓVIL PEQUEÑO - hasta 480px */
+@media (max-width: 480px) {
+    .container {
+        padding: 8px;
+    }
+    
+    .nav-tabs {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+    
+    .nav-tab {
+        font-size: 12px !important;
+        padding: 12px 10px !important;
+    }
+    
+    .column {
+        padding: 12px;
+    }
+    
+    .upload-area {
+        padding: 20px 12px !important;
+    }
+    
+    .textarea {
+        min-height: 180px !important;
+        font-size: 12px !important;
+    }
+    
+    button[onclick="transcribeAllContent()"] {
+        font-size: 15px !important;
+        padding: 14px 16px !important;
+    }
+    
+    /* Archivos en una sola columna */
+    .column div[style*="grid-template-columns"] {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 6px !important;
+    }
+}
+
+/* PANTALLAS GRANDES - más de 1200px */
+@media (min-width: 1200px) {
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .three-column {
+        gap: 25px;
+    }
+    
+    .textarea {
+        min-height: 350px;
+    }
+}
+
+/* FIXES ADICIONALES PARA SCROLL */
+.three-column .column {
+    overflow: visible;
+    height: auto;
+}
+
+/* TEXTO TRANSCRITO SCROLLABLE */
+.textarea {
+    resize: vertical;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* BOTONES SIEMPRE VISIBLES */
+.btn {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* CONTENEDOR PRINCIPAL SIN ALTURA FIJA */
+body > div, #app > div {
+    min-height: auto !important;
+    height: auto !important;
+}
+
+/* FORZAR VISIBILIDAD DE SCROLL */
+body {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* MEJORAR TOUCH EN MÓVILES */
+@media (max-width: 768px) {
+    .upload-area, .btn, select, input {
+        -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+        cursor: pointer;
+    }
+    
+    /* Espaciado entre elementos */
+    .column > * {
+        margin-bottom: 12px;
+    }
+    
+    .column > *:last-child {
+        margin-bottom: 0;
+    }
+}
+
+/* CENTRAJE DEL BOTÓN PRINCIPAL */
+div[style*="text-align: center; margin: 20px 0"] {
+    text-align: center !important;
+    margin: 20px 0 !important;
+    padding: 0 10px;
+}
+
+@media (max-width: 768px) {
+    div[style*="text-align: center; margin: 20px 0"] {
+        margin: 15px 0 !important;
+        padding: 0 5px;
+    }
+}
+</style>
+
+<script>
+// ========== PARCHE RESPONSIVE JAVASCRIPT ==========
+console.log('📱 Aplicando parche responsive...');
+
+// FUNCIÓN PARA DETECTAR TAMAÑO DE PANTALLA
+function getScreenSize() {
+    const width = window.innerWidth;
+    if (width <= 480) return 'mobile-small';
+    if (width <= 768) return 'mobile';
+    if (width <= 1024) return 'tablet';
+    return 'desktop';
+}
+
+// AJUSTAR ALTURA DE TEXTAREA SEGÚN PANTALLA
+function adjustTextareaHeight() {
+    const textareas = document.querySelectorAll('.textarea');
+    const screenSize = getScreenSize();
+    
+    textareas.forEach(textarea => {
+        switch(screenSize) {
+            case 'mobile-small':
+                textarea.style.minHeight = '180px';
+                break;
+            case 'mobile':
+                textarea.style.minHeight = '200px';
+                break;
+            case 'tablet':
+                textarea.style.minHeight = '250px';
+                break;
+            default:
+                textarea.style.minHeight = '300px';
+        }
+    });
+}
+
+// LISTENER PARA CAMBIOS DE ORIENTACIÓN/TAMAÑO
+window.addEventListener('resize', function() {
+    setTimeout(() => {
+        adjustTextareaHeight();
+        
+        // Forzar scroll si es necesario
+        if (getScreenSize() !== 'desktop') {
+            document.body.style.overflowY = 'auto';
+            document.documentElement.style.overflowY = 'auto';
+        }
+    }, 100);
+});
+
+// APLICAR AL CARGAR
+document.addEventListener('DOMContentLoaded', function() {
+    adjustTextareaHeight();
+});
+
+// INTERCEPTAR RENDER PARA APLICAR RESPONSIVE
+const originalRenderResponsive = window.render;
+if (originalRenderResponsive) {
+    window.render = function() {
+        originalRenderResponsive.call(this);
+        
+        // Aplicar ajustes después del render
+        setTimeout(() => {
+            adjustTextareaHeight();
+            
+            // Asegurar scroll visible
+            document.body.style.height = 'auto';
+            document.body.style.overflowY = 'auto';
+            
+            const app = document.getElementById('app');
+            if (app) {
+                app.style.height = 'auto';
+                app.style.minHeight = '100vh';
+            }
+        }, 50);
+    };
+}
+
+console.log('✅ Parche responsive aplicado correctamente');
+console.log('📱 Funcionalidades añadidas:');
+console.log('   - Diseño responsive completo');
+console.log('   - Adaptación móvil y tablet');
+console.log('   - Scroll habilitado');
+console.log('   - Botones y elementos visibles');
+console.log('   - Touch optimizado para móviles');
+</script>
 </body>
 </html>
+
 
 
 
