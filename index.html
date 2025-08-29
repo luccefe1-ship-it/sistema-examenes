@@ -15871,9 +15871,79 @@ console.log('  - ⬆️ Botón "Editar" movido a cabecera azul');
 console.log('  - 📝 Ayuda mejorada sobre markdown');
 console.log('🧪 Prueba con: testMarkdownRendering()');
 </script>
-    <script>
-  // ========== PARCHE: BOTÓN EDITAR TEXTO EN ENCABEZADO ==========
-console.log('🔧 Corrigiendo botón editar texto en encabezado...');
+<script>
+// ========== PARCHE: BOTÓN EDITAR TEXTO COMPLETO EN ENCABEZADO ==========
+console.log('🔧 Corrigiendo botón para llamar al editor de frases completo...');
+
+// Función mejorada para editar desde el encabezado
+function editSummaryFromEncabezado() {
+    const summary = summarySystemState.viewingSummary;
+    if (!summary) return;
+    
+    // Verificar si existe startPhraseEditor (editor completo)
+    if (typeof startPhraseEditor === 'function') {
+        // Usar el editor de frases avanzado
+        startPhraseEditor();
+    } else {
+        // Fallback: mostrar opciones de edición
+        const opciones = `
+        ¿Qué deseas editar?
+        
+        1. Título únicamente
+        2. Contenido completo
+        3. Ambos (título y contenido)
+        
+        Escribe 1, 2 o 3:`;
+        
+        const opcion = prompt(opciones);
+        
+        if (opcion === '1') {
+            // Solo editar título
+            const newTitle = prompt('Nuevo título:', summary.title);
+            if (newTitle && newTitle.trim()) {
+                const index = summarySystemState.savedSummaries.findIndex(s => s.id === summary.id);
+                if (index !== -1) {
+                    summarySystemState.savedSummaries[index].title = newTitle.trim();
+                    summarySystemState.viewingSummary.title = newTitle.trim();
+                    localStorage.setItem('savedSummaries', JSON.stringify(summarySystemState.savedSummaries));
+                    render();
+                    showMessage('Título actualizado', 'success');
+                }
+            }
+        } else if (opcion === '2') {
+            // Solo editar contenido
+            const newContent = prompt('Nuevo contenido:', summary.content);
+            if (newContent && newContent.trim()) {
+                const index = summarySystemState.savedSummaries.findIndex(s => s.id === summary.id);
+                if (index !== -1) {
+                    summarySystemState.savedSummaries[index].content = newContent.trim();
+                    summarySystemState.viewingSummary.content = newContent.trim();
+                    localStorage.setItem('savedSummaries', JSON.stringify(summarySystemState.savedSummaries));
+                    render();
+                    showMessage('Contenido actualizado', 'success');
+                }
+            }
+        } else if (opcion === '3') {
+            // Editar ambos
+            const newTitle = prompt('Nuevo título:', summary.title);
+            if (newTitle && newTitle.trim()) {
+                const newContent = prompt('Nuevo contenido:', summary.content);
+                if (newContent && newContent.trim()) {
+                    const index = summarySystemState.savedSummaries.findIndex(s => s.id === summary.id);
+                    if (index !== -1) {
+                        summarySystemState.savedSummaries[index].title = newTitle.trim();
+                        summarySystemState.savedSummaries[index].content = newContent.trim();
+                        summarySystemState.viewingSummary.title = newTitle.trim();
+                        summarySystemState.viewingSummary.content = newContent.trim();
+                        localStorage.setItem('savedSummaries', JSON.stringify(summarySystemState.savedSummaries));
+                        render();
+                        showMessage('Título y contenido actualizados', 'success');
+                    }
+                }
+            }
+        }
+    }
+}
 
 // Reemplazar TODAS las versiones de renderViewSummary
 function renderViewSummaryFixed() {
@@ -15905,7 +15975,7 @@ function renderViewSummaryFixed() {
                             <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 20px;">📝 ${summary.content.length} caracteres</span>
                         </div>
                     </div>
-                    <!-- BOTÓN EDITAR TEXTO EN EL ENCABEZADO -->
+                    <!-- BOTÓN EDITAR TEXTO COMPLETO EN EL ENCABEZADO -->
                     <button onclick="editSummaryFromEncabezado()" class="btn" style="background: rgba(255,255,255,0.9); color: #667eea; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s; min-width: 140px;">
                         ✏️ Editar Texto
                     </button>
@@ -15934,29 +16004,17 @@ function renderViewSummaryFixed() {
     `;
 }
 
-// Función para editar desde el encabezado usando la lógica existente
-function editSummaryFromEncabezado() {
-    const summary = summarySystemState.viewingSummary;
-    if (!summary) return;
-    
-    // Encontrar el índice del resumen en el array
-    const index = summarySystemState.savedSummaries.findIndex(s => s.id === summary.id);
-    if (index !== -1) {
-        // Usar la función editSummary existente que ya maneja la edición completa
-        editSummary(index);
-    }
-}
-
 // Reemplazar TODAS las versiones posibles
 window.renderViewSummary = renderViewSummaryFixed;
 window.renderViewSummaryEnhanced = renderViewSummaryFixed;
 window.renderViewSummaryWithEditor = renderViewSummaryFixed;
 
-console.log('✅ Botón "Editar Texto" movido al encabezado correctamente');
-console.log('🎯 El botón usa la función editSummary() existente para edición completa');
+console.log('✅ Botón "Editar Texto" configurado para opciones completas');
+console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
