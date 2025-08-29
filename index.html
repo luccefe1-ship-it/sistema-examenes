@@ -13341,17 +13341,192 @@ console.log('   - Botón de salir mejorado');
 console.log('   - SIN scroll vertical garantizado');
 </script>
 <!-- 
-PARCHE CORRECCIÓN: USAR PROXY API INTERNO (SOLUCIONA CORS)
+PARCHE DEFINITIVO: SUBIR ARCHIVOS WORD/TXT - VERSIÓN COMPLETA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche corrige el problema de CORS usando el mismo endpoint que el código original
+Este es el parche completo y definitivo que incluye toda la funcionalidad
 -->
 
 <script>
-// ========== CORRECCIÓN CORS: USAR PROXY API INTERNO ==========
-console.log('🔧 Corrigiendo problema de CORS con API...');
+// ========== PARCHE DEFINITIVO: ARCHIVOS WORD/TXT ==========
+console.log('📁 Aplicando PARCHE DEFINITIVO para archivos Word/TXT...');
 
-// REEMPLAZAR la función transcribeAllContent para usar el proxy correcto
-window.transcribeAllContent = async function() {
+// 1. INICIALIZAR ESTADO PARA ARCHIVOS
+if (!state.selectedFiles) {
+    state.selectedFiles = [];
+}
+
+// 2. GUARDAR FUNCIÓN ORIGINAL Y REEMPLAZAR
+const originalRenderUploadTabDef = renderUploadTab;
+
+renderUploadTab = function() {
+    return `
+        <div class="three-column">
+            <!-- PRIMERA COLUMNA: IMÁGENES -->
+            <div class="column">
+                <h3 style="margin-bottom: 15px;">📤 Subir Imágenes</h3>
+                <div class="upload-area" onclick="document.getElementById('imageInput').click()">
+                    <div>📁 Seleccionar imágenes</div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">Hasta 10 imágenes</div>
+                    <div style="margin-top: 10px; color: #4f46e5; font-weight: 500;">
+                        ${state.selectedImages.length}/10 archivos
+                    </div>
+                </div>
+                <input type="file" id="imageInput" style="display: none;" accept="image/*" multiple>
+                
+                ${state.selectedImages.length > 0 ? `
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px;">
+                        ${state.selectedImages.map((file, i) => `
+                            <div style="position: relative; text-align: center; padding: 10px; background: #f3f4f6; border-radius: 8px;">
+                                <button onclick="removeImage(${i})" style="position: absolute; top: 5px; right: 5px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;">×</button>
+                                <div style="font-size: 10px; word-break: break-all;">${file.name}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            </div>
+
+            <!-- SEGUNDA COLUMNA: ARCHIVOS -->
+            <div class="column">
+                <h3 style="margin-bottom: 15px;">📄 Subir Archivos</h3>
+                <div class="upload-area" onclick="document.getElementById('fileInputDef').click()">
+                    <div>📎 Seleccionar archivos</div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">Word (.docx) y Texto (.txt)</div>
+                    <div style="margin-top: 10px; color: #4f46e5; font-weight: 500;">
+                        ${state.selectedFiles.length}/5 archivos
+                    </div>
+                </div>
+                <input type="file" id="fileInputDef" style="display: none;" accept=".docx,.txt" multiple>
+                
+                ${state.selectedFiles.length > 0 ? `
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px;">
+                        ${state.selectedFiles.map((file, i) => `
+                            <div style="position: relative; text-align: center; padding: 10px; background: #f3f4f6; border-radius: 8px;">
+                                <button onclick="removeFileDef(${i})" style="position: absolute; top: 5px; right: 5px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;">×</button>
+                                <div style="font-size: 10px; word-break: break-all;">${file.name}</div>
+                                <div style="font-size: 8px; color: #9ca3af;">${file.name.toLowerCase().endsWith('.docx') ? 'DOCX' : 'TXT'}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            </div>
+
+            <!-- TERCERA COLUMNA: TEXTO TRANSCRITO -->
+            <div class="column">
+                <h3 style="margin-bottom: 15px;">📝 Texto Transcrito</h3>
+                <textarea id="cleanedText" class="textarea" placeholder="El texto procesado aparecerá aquí..." readonly>${state.cleanedText}</textarea>
+                
+                <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px;">
+                    <h4 style="color: #92400e; margin-bottom: 10px;">🏷️ Gestión de Temas</h4>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <button onclick="createTopic()" class="btn btn-info" style="width: 100%; padding: 8px; font-size: 13px;">
+                            🆕 Crear Tema
+                        </button>
+                        
+                        <div style="position: relative;">
+                            <select id="topic-selector" onchange="updateSelectedTopic()" style="width: 100%; padding: 8px; border: none; background: #f59e0b; color: white; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;" ${state.topics.length === 0 ? 'disabled' : ''}>
+                                <option value="">🏷️ Seleccionar Tema</option>
+                                ${state.topics.map(topic => `
+                                    <option value="${topic.id}" ${state.selectedTopicForNewQuestions === topic.id ? 'selected' : ''}>
+                                        ${topic.name} (${getTopicQuestionCountDef(topic.id)})
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    ${state.topics.length === 0 ? `
+                        <div style="text-align: center; color: #92400e; font-size: 12px; margin-bottom: 10px;">
+                            ⚠️ Crea un tema primero para organizar tus preguntas
+                        </div>
+                    ` : ''}
+                    
+                    <button onclick="addToQuestions()" class="btn btn-success" style="width: 100%;" ${!state.cleanedText ? 'disabled' : ''}>
+                        ${getAddButtonTextDef()}
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- BOTÓN CENTRAL DE TRANSCRIPCIÓN -->
+        <div style="text-align: center; margin: 20px 0;">
+            <button onclick="transcribeAllContentDef()" class="btn btn-primary" style="padding: 15px 40px; font-size: 18px; font-weight: bold;" ${(state.selectedImages.length === 0 && state.selectedFiles.length === 0) || !state.apiKey ? 'disabled' : ''}>
+                🤖 1. Transcribir y Procesar
+            </button>
+            
+            ${state.transcribedText && !state.cleanedText ? `
+                <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; display: inline-block;">
+                    <span style="color: #92400e;">📄 Procesando texto automáticamente...</span>
+                </div>
+            ` : ''}
+        </div>
+    `;
+};
+
+// 3. FUNCIONES AUXILIARES
+function removeFileDef(index) {
+    state.selectedFiles.splice(index, 1);
+    render();
+    if (typeof showMessage === 'function') {
+        showMessage('Archivo eliminado', 'success');
+    }
+}
+
+function getTopicQuestionCountDef(topicId) {
+    if (typeof getTopicQuestionCount === 'function') {
+        return getTopicQuestionCount(topicId);
+    }
+    return state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
+}
+
+function getAddButtonTextDef() {
+    if (typeof getAddButtonText === 'function') {
+        return getAddButtonText();
+    }
+    if (!state.selectedTopicForNewQuestions) {
+        return '✅ 2. Añadir al Banco';
+    } else {
+        const topicName = getTopicNameDef(state.selectedTopicForNewQuestions);
+        return `✅ 2. Asignar a "${topicName}"`;
+    }
+}
+
+function getTopicNameDef(topicId) {
+    if (typeof getTopicName === 'function') {
+        return getTopicName(topicId);
+    }
+    const topic = state.topics.find(t => t.id == topicId);
+    return topic ? topic.name : 'Tema no encontrado';
+}
+
+// 4. LISTENER PARA ARCHIVOS
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.id === 'fileInputDef') {
+        const files = Array.from(e.target.files);
+        const validFiles = files.filter(file => 
+            file.name.toLowerCase().endsWith('.docx') || 
+            file.name.toLowerCase().endsWith('.txt')
+        );
+        
+        if (validFiles.length > 0) {
+            const maxFiles = 5;
+            const availableSlots = maxFiles - state.selectedFiles.length;
+            const filesToAdd = validFiles.slice(0, availableSlots);
+            
+            state.selectedFiles.push(...filesToAdd);
+            render();
+            
+            if (typeof showMessage === 'function') {
+                showMessage(`${filesToAdd.length} archivo(s) seleccionado(s)`, 'success');
+            }
+        }
+        
+        e.target.value = '';
+    }
+});
+
+// 5. FUNCIÓN PRINCIPAL DE TRANSCRIPCIÓN (USANDO PROXY)
+window.transcribeAllContentDef = async function() {
     if (!state.apiKey) {
         if (typeof showMessage === 'function') {
             showMessage('Configura tu API key primero', 'error');
@@ -13373,11 +13548,15 @@ window.transcribeAllContent = async function() {
     try {
         let allTranscriptions = [];
         
-        // PROCESAR IMÁGENES (usando el mismo método que el código original)
+        // PROCESAR IMÁGENES
         if (state.selectedImages.length > 0) {
+            if (typeof showMessage === 'function') {
+                showMessage('Transcribiendo imágenes...', 'success');
+            }
+            
             for (let i = 0; i < state.selectedImages.length; i++) {
                 const file = state.selectedImages[i];
-                const base64 = await fileToBase64Simple(file);
+                const base64 = await fileToBase64Def(file);
                 
                 const messageContent = [
                     {
@@ -13406,102 +13585,177 @@ Responde con el texto extraído conservando TODOS los símbolos y marcas visuale
                     }
                 ];
 
-                // USAR EL MISMO ENDPOINT QUE EL CÓDIGO ORIGINAL
-                const response = await fetch("/api/anthropic", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "x-api-key": state.apiKey,
-                    },
-                    body: JSON.stringify({
-                        model: "claude-sonnet-4-20250514", // MISMO MODELO QUE EL ORIGINAL
-                        max_tokens: 4000,
-                        messages: [{
-                            role: "user",
-                            content: messageContent
-                        }]
-                    })
-                });
+                try {
+                    const response = await fetch("/api/anthropic", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "x-api-key": state.apiKey,
+                        },
+                        body: JSON.stringify({
+                            model: "claude-sonnet-4-20250514",
+                            max_tokens: 4000,
+                            messages: [{
+                                role: "user",
+                                content: messageContent
+                            }]
+                        })
+                    });
 
-                if (response.ok) {
-                    const data = await response.json();
-                    allTranscriptions.push(`IMAGEN ${i + 1}:\n${data.content[0].text}`);
-                } else {
-                    console.error('Error en respuesta:', response.status, response.statusText);
-                    allTranscriptions.push(`IMAGEN ${i + 1}:\nERROR: No se pudo procesar la imagen.`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        allTranscriptions.push(`IMAGEN ${i + 1}:\n${data.content[0].text}`);
+                    } else {
+                        allTranscriptions.push(`IMAGEN ${i + 1}:\nERROR: No se pudo procesar (${response.status})`);
+                    }
+                } catch (error) {
+                    allTranscriptions.push(`IMAGEN ${i + 1}:\nERROR: ${error.message}`);
                 }
             }
         }
         
         // PROCESAR ARCHIVOS
         if (state.selectedFiles.length > 0) {
+            if (typeof showMessage === 'function') {
+                showMessage('Procesando archivos...', 'success');
+            }
+            
             for (let i = 0; i < state.selectedFiles.length; i++) {
                 const file = state.selectedFiles[i];
                 let textContent = '';
                 
-                if (file.name.toLowerCase().endsWith('.txt')) {
-                    textContent = await readTextFileSimple(file);
-                } else if (file.name.toLowerCase().endsWith('.docx')) {
-                    textContent = await readDocxFileSimple(file);
-                }
-                
-                // PROCESAR TEXTO CON IA
-                const response = await fetch("/api/anthropic", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "x-api-key": state.apiKey,
-                    },
-                    body: JSON.stringify({
-                        model: "claude-sonnet-4-20250514",
-                        max_tokens: 4000,
-                        messages: [{
-                            role: "user",
-                            content: `Analiza este contenido de archivo y organiza la información de manera estructurada.
+                try {
+                    if (file.name.toLowerCase().endsWith('.txt')) {
+                        textContent = await readTextFileDef(file);
+                    } else if (file.name.toLowerCase().endsWith('.docx')) {
+                        textContent = await readDocxFileDef(file);
+                    }
+                    
+                    // PROCESAR CONTENIDO DEL ARCHIVO CON IA
+                    const response = await fetch("/api/anthropic", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "x-api-key": state.apiKey,
+                        },
+                        body: JSON.stringify({
+                            model: "claude-sonnet-4-20250514",
+                            max_tokens: 4000,
+                            messages: [{
+                                role: "user",
+                                content: `Analiza este contenido de archivo y organiza la información de manera estructurada.
 
 INSTRUCCIONES:
 - Si encuentras preguntas de examen, organízalas claramente
 - CONSERVA todos los símbolos y marcas de respuestas correctas
 - Mantén la numeración original de las preguntas
 - Preserva el formato de opciones múltiples si existe
+- NO elimines información importante
 
-CONTENIDO DEL ARCHIVO:
+CONTENIDO DEL ARCHIVO "${file.name}":
 ${textContent}`
-                        }]
-                    })
-                });
+                            }]
+                        })
+                    });
 
-                if (response.ok) {
-                    const data = await response.json();
-                    allTranscriptions.push(`ARCHIVO: ${file.name}\n${data.content[0].text}`);
-                } else {
-                    allTranscriptions.push(`ARCHIVO: ${file.name}\nERROR: No se pudo procesar el archivo.`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        allTranscriptions.push(`ARCHIVO: ${file.name}\n${data.content[0].text}`);
+                    } else {
+                        allTranscriptions.push(`ARCHIVO: ${file.name}\nERROR: No se pudo procesar con IA`);
+                    }
+                } catch (error) {
+                    allTranscriptions.push(`ARCHIVO: ${file.name}\nERROR: ${error.message}`);
                 }
             }
         }
         
-        // COMBINAR TODO
-        const combinedText = allTranscriptions.join('\n\n=== SEPARADOR ===\n\n');
+        // COMBINAR TRANSCRIPCIONES
+        const combinedText = allTranscriptions.join('\n\n=== SEPARADOR DE CONTENIDO ===\n\n');
         state.transcribedText = combinedText;
         render();
         
         if (typeof showMessage === 'function') {
-            showMessage('Contenido procesado. Limpiando texto...', 'success');
+            showMessage('Contenido transcrito. Limpiando y procesando...', 'success');
         }
         
-        // LIMPIAR TEXTO
-        await cleanTextWithProxy();
+        // LIMPIAR TEXTO AUTOMÁTICAMENTE
+        await cleanTextDef();
         
     } catch (error) {
         console.error('Error completo:', error);
         if (typeof showMessage === 'function') {
-            showMessage(`Error: ${error.message}`, 'error');
+            showMessage(`Error general: ${error.message}`, 'error');
         }
     }
 };
 
-// NUEVA FUNCIÓN DE LIMPIEZA USANDO EL PROXY
-async function cleanTextWithProxy() {
+// 6. FUNCIONES DE LECTURA DE ARCHIVOS
+function fileToBase64Def(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+    });
+}
+
+function readTextFileDef(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsText(file, 'UTF-8');
+    });
+}
+
+async function readDocxFileDef(file) {
+    try {
+        // Cargar mammoth si no está disponible
+        if (typeof window.mammoth === 'undefined') {
+            await loadMammothDef();
+        }
+        
+        const arrayBuffer = await readArrayBufferDef(file);
+        const result = await window.mammoth.extractRawText({arrayBuffer: arrayBuffer});
+        return result.value;
+    } catch (error) {
+        return `ERROR: No se pudo leer el archivo DOCX. ${error.message}`;
+    }
+}
+
+function readArrayBufferDef(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+function loadMammothDef() {
+    return new Promise((resolve, reject) => {
+        if (typeof window.mammoth !== 'undefined') {
+            resolve();
+            return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js';
+        script.onload = () => {
+            console.log('✅ Mammoth.js cargado exitosamente');
+            resolve();
+        };
+        script.onerror = () => {
+            console.error('❌ Error cargando mammoth.js');
+            reject(new Error('No se pudo cargar mammoth.js'));
+        };
+        document.head.appendChild(script);
+    });
+}
+
+// 7. FUNCIÓN DE LIMPIEZA DE TEXTO
+async function cleanTextDef() {
     if (!state.transcribedText) return;
     
     try {
@@ -13560,18 +13814,30 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
     }
 }
 
-// ACTUALIZAR cleanTextSimple para usar el proxy también
-window.cleanTextSimple = cleanTextWithProxy;
+// 8. LIMPIAR ESTADOS AL VOLVER AL MENÚ (si existe la función)
+if (typeof goToMainMenuUnified === 'function') {
+    const originalGoToMainMenuUnified = goToMainMenuUnified;
+    goToMainMenuUnified = function() {
+        state.selectedFiles = [];
+        originalGoToMainMenuUnified();
+    };
+}
 
-console.log('✅ Corrección CORS aplicada correctamente');
-console.log('🎯 Cambios realizados:');
-console.log('   - Endpoint cambiado a: /api/anthropic');
-console.log('   - Modelo actualizado a: claude-sonnet-4-20250514');
-console.log('   - Headers corregidos para usar proxy');
-console.log('   - Funciones de limpieza actualizadas');
+console.log('✅ PARCHE DEFINITIVO aplicado correctamente');
+console.log('🎯 Funcionalidades completas:');
+console.log('   - ✅ Subir imágenes (original)');
+console.log('   - ✅ Subir archivos .docx y .txt');
+console.log('   - ✅ Interfaz de dos columnas');
+console.log('   - ✅ Botón centralizado de procesamiento');
+console.log('   - ✅ API proxy sin CORS');
+console.log('   - ✅ Procesamiento IA inteligente');
+console.log('   - ✅ Compatible con código existente');
+console.log('   - ✅ Manejo robusto de errores');
+console.log('📁 Sistema listo para procesar imágenes y archivos');
 </script>
 </body>
 </html>
+
 
 
 
