@@ -15688,331 +15688,212 @@ console.log('  - Se integra con el editor de frases');
 console.log('  - Auto-renderiza después de guardar cambios');
 </script>
 <script>
-// ========== PARCHE DEFINITIVO: CREAR SISTEMA DE NEGRITA DESDE CERO ==========
-console.log('🔧 INSTALANDO SISTEMA DE NEGRITA COMPLETO...');
+// ========== PARCHE ULTRA SIMPLE - SOLO JAVASCRIPT PURO ==========
+console.log('🔧 PARCHE SIMPLE CARGANDO...');
 
-// PASO 1: Estado global para negrita
-window.boldSystemState = {
-    isActive: false,
-    currentSummaryId: null,
-    isBoldEnabled: false,
-    textareaElement: null
-};
+// Estado simple
+let boldActive = false;
 
-// PASO 2: Crear función toggleBold desde cero
+// PASO 1: Función toggleBold simple
 window.toggleBold = function() {
-    console.log('🅱️ toggleBold ejecutada - Estado actual:', boldSystemState.isBoldEnabled);
+    console.log('🅱️ toggleBold() ejecutada');
     
     // Cambiar estado
-    boldSystemState.isBoldEnabled = !boldSystemState.isBoldEnabled;
+    boldActive = !boldActive;
+    console.log('📊 Bold activo:', boldActive);
     
-    console.log('🅱️ Nuevo estado:', boldSystemState.isBoldEnabled);
+    // Cambiar apariencia del botón
+    changeBoldButtonColor();
     
-    // Actualizar apariencia del botón inmediatamente
-    updateBoldButtonVisualState();
-    
-    // Aplicar/quitar negrita del contenido
-    if (boldSystemState.textareaElement) {
-        applyBoldToTextarea();
-    }
-    
-    console.log('✅ toggleBold completada');
+    // Cambiar contenido del textarea
+    changeBoldInTextarea();
 };
 
-// PASO 3: Actualizar apariencia visual del botón B
-function updateBoldButtonVisualState() {
-    // Buscar botón B con múltiples selectores
-    let boldButton = document.querySelector('button:contains("B")') || 
-                    Array.from(document.querySelectorAll('button')).find(btn => 
-                        btn.textContent.trim() === 'B' || btn.innerText.trim() === 'B');
+// PASO 2: Cambiar color del botón B
+function changeBoldButtonColor() {
+    console.log('🎨 Cambiando color del botón...');
     
-    if (!boldButton) {
-        console.warn('⚠️ No se encontró botón B');
-        return;
-    }
+    // Buscar TODOS los botones
+    const buttons = document.getElementsByTagName('button');
     
-    console.log('🎨 Actualizando apariencia del botón B...');
-    
-    if (boldSystemState.isBoldEnabled) {
-        // Botón activo - negrita habilitada
-        boldButton.style.cssText = `
-            background-color: #22c55e !important;
-            color: white !important;
-            font-weight: bold !important;
-            border: 2px solid #16a34a !important;
-            box-shadow: 0 0 8px rgba(34, 197, 94, 0.4) !important;
-            transform: scale(1.1) !important;
-        `;
-        console.log('✅ Botón B activado visualmente');
-    } else {
-        // Botón inactivo
-        boldButton.style.cssText = `
-            background-color: #e5e7eb !important;
-            color: #374151 !important;
-            font-weight: normal !important;
-            border: 1px solid #d1d5db !important;
-            box-shadow: none !important;
-            transform: scale(1) !important;
-        `;
-        console.log('✅ Botón B desactivado visualmente');
-    }
-}
-
-// PASO 4: Aplicar/quitar negrita del textarea
-function applyBoldToTextarea() {
-    const textarea = boldSystemState.textareaElement;
-    if (!textarea) {
-        console.warn('⚠️ No hay textarea disponible');
-        return;
-    }
-    
-    let content = textarea.value;
-    console.log('📝 Contenido actual del textarea:', content.substring(0, 100) + '...');
-    
-    if (boldSystemState.isBoldEnabled) {
-        // APLICAR NEGRITA - Envolver todo en **
-        if (!content.startsWith('**') || !content.endsWith('**')) {
-            // Primero quitar cualquier negrita existente
-            content = content.replace(/\*\*/g, '');
+    for (let i = 0; i < buttons.length; i++) {
+        const btn = buttons[i];
+        const text = btn.textContent || btn.innerText || '';
+        
+        // Si es el botón B
+        if (text.trim() === 'B') {
+            console.log('✅ Botón B encontrado');
             
-            // Luego envolver todo en negrita
-            if (content.trim()) {
-                content = '**' + content.trim() + '**';
+            if (boldActive) {
+                // VERDE - Negrita activada
+                btn.style.backgroundColor = '#22c55e';
+                btn.style.color = 'white';
+                btn.style.fontWeight = 'bold';
+                btn.style.border = '2px solid #16a34a';
+                console.log('✅ Botón B puesto en VERDE');
+            } else {
+                // GRIS - Negrita desactivada
+                btn.style.backgroundColor = '#e5e7eb';
+                btn.style.color = '#374151';
+                btn.style.fontWeight = 'normal';
+                btn.style.border = '1px solid #d1d5db';
+                console.log('✅ Botón B puesto en GRIS');
             }
-            
-            textarea.value = content;
-            console.log('✅ Negrita APLICADA al contenido completo');
+            break;
         }
-    } else {
-        // QUITAR NEGRITA - Eliminar todos los **
-        content = content.replace(/\*\*/g, '');
-        textarea.value = content;
-        console.log('✅ Negrita REMOVIDA del contenido completo');
     }
 }
 
-// PASO 5: Interceptar el sistema de edición de frases
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(setupBoldSystemIntegration, 2000);
-});
-
-function setupBoldSystemIntegration() {
-    console.log('🔗 Configurando integración con sistema de frases...');
+// PASO 3: Cambiar negrita en textarea
+function changeBoldInTextarea() {
+    console.log('📝 Cambiando negrita en textarea...');
     
-    // Interceptar activación del editor si existe
-    if (typeof window.activatePhraseEditor === 'function') {
-        const originalActivate = window.activatePhraseEditor;
-        window.activatePhraseEditor = function(summaryId) {
-            console.log('📝 Interceptando activación del editor para:', summaryId);
-            
-            // Ejecutar función original
-            originalActivate.call(this, summaryId);
-            
-            // Configurar nuestro sistema
-            setTimeout(() => initializeBoldForEditor(summaryId), 500);
-        };
-    }
+    // Buscar TODAS las textareas
+    const textareas = document.getElementsByTagName('textarea');
     
-    // Interceptar guardado si existe
-    if (typeof window.savePhraseEdits === 'function') {
-        const originalSave = window.savePhraseEdits;
-        window.savePhraseEdits = function() {
-            console.log('💾 Interceptando guardado...');
+    for (let i = 0; i < textareas.length; i++) {
+        const ta = textareas[i];
+        
+        // Si es visible y tiene contenido
+        if (ta.offsetHeight > 0 && ta.value && ta.value.length > 0) {
+            console.log('✅ Textarea encontrada con contenido');
             
-            // Procesar contenido antes de guardar
-            if (boldSystemState.textareaElement) {
-                applyBoldToTextarea(); // Asegurar que el formato esté correcto
+            let content = ta.value;
+            
+            if (boldActive) {
+                // APLICAR NEGRITA
+                // Quitar negrita existente primero
+                content = content.replace(/\*\*/g, '');
+                
+                // Envolver todo en negrita
+                if (content.trim()) {
+                    content = '**' + content.trim() + '**';
+                    ta.value = content;
+                    console.log('✅ NEGRITA APLICADA');
+                }
+            } else {
+                // QUITAR NEGRITA
+                content = content.replace(/\*\*/g, '');
+                ta.value = content;
+                console.log('✅ NEGRITA QUITADA');
             }
+            
+            break;
+        }
+    }
+}
+
+// PASO 4: Configurar botones B para que ejecuten toggleBold
+function setupBoldButtons() {
+    console.log('🔧 Configurando botones B...');
+    
+    const buttons = document.getElementsByTagName('button');
+    
+    for (let i = 0; i < buttons.length; i++) {
+        const btn = buttons[i];
+        const text = btn.textContent || btn.innerText || '';
+        
+        if (text.trim() === 'B') {
+            console.log('🎯 Configurando botón B');
+            
+            // Quitar onclick anterior
+            btn.onclick = null;
+            btn.removeAttribute('onclick');
+            
+            // Poner el nuestro
+            btn.onclick = function() {
+                console.log('🖱️ Click en B detectado');
+                toggleBold();
+            };
+            
+            console.log('✅ Botón B configurado');
+        }
+    }
+}
+
+// PASO 5: Interceptar guardado si existe
+function interceptSave() {
+    if (window.savePhraseEdits) {
+        const originalSave = window.savePhraseEdits;
+        
+        window.savePhraseEdits = function() {
+            console.log('💾 Guardando...');
+            
+            // Asegurar formato correcto antes de guardar
+            changeBoldInTextarea();
             
             // Guardar original
             originalSave.call(this);
             
-            // Procesar después del guardado
-            setTimeout(postSaveProcessing, 200);
+            console.log('✅ Guardado completado');
         };
+        
+        console.log('✅ Guardado interceptado');
     }
 }
 
-// PASO 6: Inicializar sistema para un editor específico
-function initializeBoldForEditor(summaryId) {
-    console.log('🎯 Inicializando negrita para editor:', summaryId);
-    
-    boldSystemState.isActive = true;
-    boldSystemState.currentSummaryId = summaryId;
-    
-    // Encontrar textarea del editor
-    const textarea = document.querySelector('textarea[placeholder*="Editar"], textarea#editableContent, .phrase-editor textarea');
-    
-    if (textarea) {
-        boldSystemState.textareaElement = textarea;
-        console.log('✅ Textarea encontrado y vinculado');
-        
-        // Analizar contenido existente para determinar estado inicial
-        const content = textarea.value;
-        boldSystemState.isBoldEnabled = content.includes('**') && 
-            (content.startsWith('**') || content.match(/^\*\*[\s\S]*\*\*$/));
-        
-        console.log('📊 Estado inicial determinado:', {
-            isBoldEnabled: boldSystemState.isBoldEnabled,
-            contentPreview: content.substring(0, 50)
-        });
-        
-        // Actualizar apariencia inicial del botón
-        setTimeout(updateBoldButtonVisualState, 300);
-    } else {
-        console.warn('⚠️ No se encontró textarea del editor');
-    }
+// PASO 6: Auto-setup cada vez que se detectan cambios
+function autoSetup() {
+    setupBoldButtons();
+    interceptSave();
 }
 
-// PASO 7: Procesamiento después del guardado
-function postSaveProcessing() {
-    console.log('🔄 Ejecutando post-procesamiento...');
-    
-    if (boldSystemState.currentSummaryId && boldSystemState.isBoldEnabled) {
-        // Buscar el resumen guardado y verificar que tenga la negrita
-        const summary = summarySystemState.savedSummaries.find(s => s.id == boldSystemState.currentSummaryId);
-        
-        if (summary) {
-            console.log('📄 Resumen encontrado:', summary.title);
-            
-            // Si la negrita está habilitada pero el contenido no la tiene, corregir
-            if (boldSystemState.isBoldEnabled && !summary.content.includes('**')) {
-                summary.content = '**' + summary.content.trim() + '**';
-                localStorage.setItem('savedSummaries', JSON.stringify(summarySystemState.savedSummaries));
-                console.log('✅ Negrita aplicada al resumen guardado');
-            }
-        }
-    }
-    
-    // Forzar re-renderizado
-    setTimeout(() => {
-        if (typeof render === 'function') {
-            render();
-            console.log('🔄 Re-renderizado forzado');
-        }
-    }, 100);
-}
+// PASO 7: Ejecutar setup periódicamente
+setInterval(function() {
+    setupBoldButtons();
+}, 2000);
 
-// PASO 8: Asegurar que los botones B tengan onclick correcto
-function fixBoldButtonsOnClick() {
-    const buttons = document.querySelectorAll('button');
-    
-    buttons.forEach(button => {
-        if (button.textContent.trim() === 'B' || button.innerText.trim() === 'B') {
-            // Remover onclick existente y agregar el nuestro
-            button.removeAttribute('onclick');
-            button.onclick = function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('🖱️ Click detectado en botón B');
-                window.toggleBold();
-            };
-            
-            console.log('🔧 Botón B configurado con onclick personalizado');
-        }
-    });
-}
+// PASO 8: Setup inicial
+setTimeout(function() {
+    console.log('🚀 Setup inicial...');
+    autoSetup();
+}, 1000);
 
-// PASO 9: Observador para detectar nuevos botones B
-const buttonObserver = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-        if (mutation.type === 'childList') {
-            mutation.addedNodes.forEach(function(node) {
-                if (node.nodeType === 1) { // Element node
-                    // Buscar botones B en los nodos añadidos
-                    const buttons = node.querySelectorAll ? node.querySelectorAll('button') : [];
-                    buttons.forEach(button => {
-                        if (button.textContent.trim() === 'B') {
-                            setTimeout(() => fixBoldButtonsOnClick(), 100);
-                        }
-                    });
-                }
-            });
-        }
-    });
+// PASO 9: Setup cuando el DOM cambie
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(autoSetup, 1500);
 });
 
-// Iniciar observador
-buttonObserver.observe(document.body, {
+// PASO 10: Observer simple para cambios
+const simpleObserver = new MutationObserver(function() {
+    setTimeout(setupBoldButtons, 500);
+});
+
+simpleObserver.observe(document.body, {
     childList: true,
     subtree: true
 });
 
-// PASO 10: Función de limpieza al salir del editor
-window.cleanupBoldSystem = function() {
-    boldSystemState.isActive = false;
-    boldSystemState.currentSummaryId = null;
-    boldSystemState.isBoldEnabled = false;
-    boldSystemState.textareaElement = null;
-    console.log('🧹 Sistema de negrita limpiado');
+// PASO 11: Función de test
+window.testBold = function() {
+    console.log('🔍 TEST BOLD:');
+    console.log('boldActive:', boldActive);
+    console.log('toggleBold existe:', typeof window.toggleBold);
+    
+    const buttons = document.getElementsByTagName('button');
+    let boldButtons = 0;
+    for (let i = 0; i < buttons.length; i++) {
+        if (buttons[i].textContent.trim() === 'B') {
+            boldButtons++;
+        }
+    }
+    console.log('Botones B encontrados:', boldButtons);
+    
+    const textareas = document.getElementsByTagName('textarea');
+    let visibleTextareas = 0;
+    for (let i = 0; i < textareas.length; i++) {
+        if (textareas[i].offsetHeight > 0) {
+            visibleTextareas++;
+        }
+    }
+    console.log('Textareas visibles:', visibleTextareas);
 };
 
-// PASO 11: Mejorar procesamiento de markdown para renderizado
-function enhanceMarkdownProcessing() {
-    // Si existe función de markdown, mejorarla
-    if (typeof window.convertMarkdownToHTML === 'function') {
-        const originalConvert = window.convertMarkdownToHTML;
-        window.convertMarkdownToHTML = function(content) {
-            if (!content) return content;
-            
-            // Procesar negrita con mejor detección
-            let processed = content.replace(/\*\*([\s\S]*?)\*\*/g, '<strong style="font-weight: bold; color: #1a202c;">$1</strong>');
-            
-            // Preservar saltos de línea
-            processed = processed.replace(/\n/g, '<br>');
-            
-            return processed;
-        };
-    }
-}
-
-// PASO 12: Inicialización completa
-setTimeout(() => {
-    setupBoldSystemIntegration();
-    fixBoldButtonsOnClick();
-    enhanceMarkdownProcessing();
-    
-    console.log('✅ SISTEMA DE NEGRITA INSTALADO COMPLETAMENTE');
-    console.log('🎯 Funcionalidades:');
-    console.log('  - toggleBold() creada desde cero');
-    console.log('  - Detección automática de botones B');
-    console.log('  - Aplicación de negrita a todo el contenido');
-    console.log('  - Persistencia en guardado');
-    console.log('  - Renderizado mejorado');
-}, 1500);
-
-// PASO 13: Función de diagnóstico completo
-window.testBoldSystem = function() {
-    console.log('🔍 === DIAGNÓSTICO COMPLETO DEL SISTEMA DE NEGRITA ===');
-    console.log('Estado:', boldSystemState);
-    
-    const buttons = Array.from(document.querySelectorAll('button')).filter(btn => 
-        btn.textContent.trim() === 'B');
-    console.log('Botones B encontrados:', buttons.length);
-    
-    buttons.forEach((btn, index) => {
-        console.log(`Botón B ${index + 1}:`, {
-            onclick: btn.onclick ? 'Configurado' : 'No configurado',
-            visible: btn.offsetHeight > 0,
-            styles: btn.style.cssText
-        });
-    });
-    
-    const textarea = document.querySelector('textarea[placeholder*="Editar"], textarea#editableContent');
-    console.log('Textarea encontrado:', !!textarea);
-    
-    if (textarea) {
-        console.log('Contenido del textarea:', textarea.value.substring(0, 100));
-    }
-    
-    console.log('toggleBold disponible:', typeof window.toggleBold === 'function');
-    console.log('=== FIN DIAGNÓSTICO ===');
-};
-
-console.log('🚀 Sistema de negrita cargado - Usa testBoldSystem() para diagnosticar');
+console.log('✅ PARCHE SIMPLE CARGADO - USA testBold() PARA PROBAR');
 </script>
 </body>
 </html>
+
 
 
 
