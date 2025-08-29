@@ -15687,269 +15687,200 @@ console.log('  - Preserva saltos de línea');
 console.log('  - Se integra con el editor de frases');
 console.log('  - Auto-renderiza después de guardar cambios');
 </script>
-    <script>
-// ========== PARCHE COMPLETO: EDITOR DE FRASES CON NEGRITA PERSISTENTE ==========
-console.log('🔧 Aplicando parche completo del editor de frases...');
+<script>
+// ========== PARCHE DEFINITIVO: CREAR SISTEMA DE NEGRITA DESDE CERO ==========
+console.log('🔧 INSTALANDO SISTEMA DE NEGRITA COMPLETO...');
 
-// PASO 1: Estado global para el editor mejorado
-window.phraseEditorBoldState = {
+// PASO 1: Estado global para negrita
+window.boldSystemState = {
     isActive: false,
     currentSummaryId: null,
     isBoldEnabled: false,
-    originalContent: '',
-    hasUnsavedChanges: false
+    textareaElement: null
 };
 
-// PASO 2: Interceptar inicialización del editor de frases
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(initializePhraseEditorBoldSystem, 2000);
-});
+// PASO 2: Crear función toggleBold desde cero
+window.toggleBold = function() {
+    console.log('🅱️ toggleBold ejecutada - Estado actual:', boldSystemState.isBoldEnabled);
+    
+    // Cambiar estado
+    boldSystemState.isBoldEnabled = !boldSystemState.isBoldEnabled;
+    
+    console.log('🅱️ Nuevo estado:', boldSystemState.isBoldEnabled);
+    
+    // Actualizar apariencia del botón inmediatamente
+    updateBoldButtonVisualState();
+    
+    // Aplicar/quitar negrita del contenido
+    if (boldSystemState.textareaElement) {
+        applyBoldToTextarea();
+    }
+    
+    console.log('✅ toggleBold completada');
+};
 
-function initializePhraseEditorBoldSystem() {
-    console.log('🎯 Inicializando sistema de negrita del editor...');
+// PASO 3: Actualizar apariencia visual del botón B
+function updateBoldButtonVisualState() {
+    // Buscar botón B con múltiples selectores
+    let boldButton = document.querySelector('button:contains("B")') || 
+                    Array.from(document.querySelectorAll('button')).find(btn => 
+                        btn.textContent.trim() === 'B' || btn.innerText.trim() === 'B');
     
-    // Interceptar función original de activación del editor
-    if (typeof window.activatePhraseEditor === 'function') {
-        const originalActivatePhraseEditor = window.activatePhraseEditor;
-        window.activatePhraseEditor = function(summaryId) {
-            console.log('📝 Activando editor para resumen:', summaryId);
-            
-            // Ejecutar función original
-            originalActivatePhraseEditor.call(this, summaryId);
-            
-            // Configurar estado de negrita
-            setupBoldStateForSummary(summaryId);
-        };
+    if (!boldButton) {
+        console.warn('⚠️ No se encontró botón B');
+        return;
     }
     
-    // Interceptar función de guardado
-    if (typeof window.savePhraseEdits === 'function') {
-        const originalSavePhraseEdits = window.savePhraseEdits;
-        window.savePhraseEdits = function() {
-            console.log('💾 Guardando cambios con estado de negrita...');
-            
-            // Procesar contenido antes de guardar
-            processBoldContentBeforeSaving();
-            
-            // Ejecutar guardado original
-            originalSavePhraseEdits.call(this);
-            
-            // Post-procesamiento después de guardar
-            setTimeout(() => {
-                applyBoldToRenderedContent();
-                phraseEditorBoldState.hasUnsavedChanges = false;
-            }, 200);
-        };
-    }
+    console.log('🎨 Actualizando apariencia del botón B...');
     
-    // Interceptar función toggleBold si existe
-    if (typeof window.toggleBold === 'function') {
-        const originalToggleBold = window.toggleBold;
-        window.toggleBold = function() {
-            console.log('🅱️ Alternando estado de negrita...');
-            
-            // Ejecutar función original
-            originalToggleBold.call(this);
-            
-            // Actualizar nuestro estado
-            updateBoldState();
-        };
+    if (boldSystemState.isBoldEnabled) {
+        // Botón activo - negrita habilitada
+        boldButton.style.cssText = `
+            background-color: #22c55e !important;
+            color: white !important;
+            font-weight: bold !important;
+            border: 2px solid #16a34a !important;
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.4) !important;
+            transform: scale(1.1) !important;
+        `;
+        console.log('✅ Botón B activado visualmente');
     } else {
-        // Crear función toggleBold si no existe
-        window.toggleBold = function() {
-            console.log('🅱️ Creando nueva función toggleBold...');
-            
-            phraseEditorBoldState.isBoldEnabled = !phraseEditorBoldState.isBoldEnabled;
-            phraseEditorBoldState.hasUnsavedChanges = true;
-            
-            // Actualizar apariencia del botón
-            updateBoldButtonAppearance();
-            
-            // Aplicar/quitar negrita al contenido actual
-            applyBoldToCurrentContent();
-        };
-    }
-    
-    console.log('✅ Sistema de negrita inicializado correctamente');
-}
-
-// PASO 3: Configurar estado de negrita para un resumen específico
-function setupBoldStateForSummary(summaryId) {
-    phraseEditorBoldState.currentSummaryId = summaryId;
-    phraseEditorBoldState.isActive = true;
-    
-    // Buscar el resumen en el sistema
-    const summary = summarySystemState.savedSummaries.find(s => s.id == summaryId);
-    if (summary) {
-        phraseEditorBoldState.originalContent = summary.content;
-        
-        // Detectar si el contenido ya tiene negrita
-        const hasBoldMarkdown = summary.content.includes('**') && summary.content.match(/\*\*.*?\*\*/);
-        const hasAllBold = checkIfAllContentIsBold(summary.content);
-        
-        phraseEditorBoldState.isBoldEnabled = hasBoldMarkdown || hasAllBold;
-        
-        console.log('📊 Estado inicial de negrita:', {
-            summaryId,
-            isBoldEnabled: phraseEditorBoldState.isBoldEnabled,
-            hasBoldMarkdown,
-            hasAllBold
-        });
-        
-        // Actualizar botón B
-        setTimeout(updateBoldButtonAppearance, 300);
+        // Botón inactivo
+        boldButton.style.cssText = `
+            background-color: #e5e7eb !important;
+            color: #374151 !important;
+            font-weight: normal !important;
+            border: 1px solid #d1d5db !important;
+            box-shadow: none !important;
+            transform: scale(1) !important;
+        `;
+        console.log('✅ Botón B desactivado visualmente');
     }
 }
 
-// PASO 4: Verificar si todo el contenido está en negrita
-function checkIfAllContentIsBold(content) {
-    if (!content || !content.trim()) return false;
-    
-    // Limpiar contenido para análisis
-    const cleanContent = content.trim().replace(/\n+/g, ' ');
-    
-    // Si todo el contenido está envuelto en **
-    if (cleanContent.startsWith('**') && cleanContent.endsWith('**')) {
-        return true;
+// PASO 4: Aplicar/quitar negrita del textarea
+function applyBoldToTextarea() {
+    const textarea = boldSystemState.textareaElement;
+    if (!textarea) {
+        console.warn('⚠️ No hay textarea disponible');
+        return;
     }
     
-    // Si la mayoría del contenido tiene negrita
-    const boldMatches = content.match(/\*\*(.*?)\*\*/g);
-    if (boldMatches) {
-        const boldText = boldMatches.join('').replace(/\*\*/g, '');
-        const totalText = content.replace(/\*\*/g, '');
-        const boldRatio = boldText.length / totalText.length;
-        
-        return boldRatio > 0.7; // Si más del 70% está en negrita
-    }
+    let content = textarea.value;
+    console.log('📝 Contenido actual del textarea:', content.substring(0, 100) + '...');
     
-    return false;
-}
-
-// PASO 5: Actualizar estado cuando se presiona B
-function updateBoldState() {
-    // Buscar botón B en el DOM
-    const boldButton = document.querySelector('button[onclick*="toggleBold"], .btn:contains("B"), button[title*="Negrita"]');
-    
-    if (boldButton) {
-        // Detectar si el botón está activo por su apariencia
-        const isActive = boldButton.style.backgroundColor === 'rgb(34, 197, 94)' || 
-                         boldButton.classList.contains('active') ||
-                         boldButton.style.backgroundColor === '#22c55e';
-        
-        phraseEditorBoldState.isBoldEnabled = isActive;
-        phraseEditorBoldState.hasUnsavedChanges = true;
-        
-        console.log('🔄 Estado de negrita actualizado:', phraseEditorBoldState.isBoldEnabled);
-        
-        // Aplicar cambios al contenido
-        setTimeout(applyBoldToCurrentContent, 100);
-    }
-}
-
-// PASO 6: Actualizar apariencia del botón B
-function updateBoldButtonAppearance() {
-    const boldButton = document.querySelector('button[onclick*="toggleBold"]') || 
-                      Array.from(document.querySelectorAll('.btn')).find(btn => btn.textContent.trim() === 'B');
-    
-    if (boldButton) {
-        if (phraseEditorBoldState.isBoldEnabled) {
-            // Botón activo (negrita habilitada)
-            boldButton.style.backgroundColor = '#22c55e';
-            boldButton.style.color = 'white';
-            boldButton.style.fontWeight = 'bold';
-            boldButton.style.transform = 'scale(1.05)';
-            boldButton.title = 'Negrita activada - Clic para desactivar';
-        } else {
-            // Botón inactivo
-            boldButton.style.backgroundColor = '#e5e7eb';
-            boldButton.style.color = '#374151';
-            boldButton.style.fontWeight = 'normal';
-            boldButton.style.transform = 'scale(1)';
-            boldButton.title = 'Activar negrita';
-        }
-        
-        console.log('🎨 Apariencia del botón B actualizada:', phraseEditorBoldState.isBoldEnabled);
-    }
-}
-
-// PASO 7: Aplicar negrita al contenido actual en el editor
-function applyBoldToCurrentContent() {
-    const textarea = document.querySelector('textarea#editableContent, textarea[placeholder*="Editar"]');
-    
-    if (textarea && phraseEditorBoldState.isActive) {
-        let content = textarea.value;
-        
-        if (phraseEditorBoldState.isBoldEnabled) {
-            // Aplicar negrita a todo el contenido
-            if (!content.startsWith('**') || !content.endsWith('**')) {
-                // Quitar negrita existente primero
-                content = content.replace(/\*\*(.*?)\*\*/g, '$1');
-                
-                // Aplicar negrita a todo
-                content = '**' + content + '**';
-                
-                textarea.value = content;
-                console.log('🅱️ Negrita aplicada a todo el contenido');
-            }
-        } else {
-            // Quitar toda la negrita
-            content = content.replace(/\*\*/g, '');
-            textarea.value = content;
-            console.log('🚫 Negrita removida de todo el contenido');
-        }
-        
-        phraseEditorBoldState.hasUnsavedChanges = true;
-    }
-}
-
-// PASO 8: Procesar contenido antes de guardar
-function processBoldContentBeforeSaving() {
-    const textarea = document.querySelector('textarea#editableContent, textarea[placeholder*="Editar"]');
-    
-    if (textarea && phraseEditorBoldState.isActive) {
-        let content = textarea.value;
-        
-        // Si la negrita está habilitada, asegurar que todo el contenido esté en negrita
-        if (phraseEditorBoldState.isBoldEnabled) {
-            // Limpiar negrita existente
+    if (boldSystemState.isBoldEnabled) {
+        // APLICAR NEGRITA - Envolver todo en **
+        if (!content.startsWith('**') || !content.endsWith('**')) {
+            // Primero quitar cualquier negrita existente
             content = content.replace(/\*\*/g, '');
             
-            // Si hay contenido, envolverlo en negrita
+            // Luego envolver todo en negrita
             if (content.trim()) {
                 content = '**' + content.trim() + '**';
-                textarea.value = content;
             }
-        } else {
-            // Si la negrita está deshabilitada, quitar toda la negrita
-            content = content.replace(/\*\*/g, '');
+            
             textarea.value = content;
+            console.log('✅ Negrita APLICADA al contenido completo');
         }
-        
-        console.log('🔧 Contenido procesado antes de guardar:', {
-            isBoldEnabled: phraseEditorBoldState.isBoldEnabled,
-            contentLength: content.length,
-            hasBoldMarkdown: content.includes('**')
-        });
+    } else {
+        // QUITAR NEGRITA - Eliminar todos los **
+        content = content.replace(/\*\*/g, '');
+        textarea.value = content;
+        console.log('✅ Negrita REMOVIDA del contenido completo');
     }
 }
 
-// PASO 9: Aplicar negrita al contenido renderizado después de guardar
-function applyBoldToRenderedContent() {
-    if (!phraseEditorBoldState.currentSummaryId) return;
+// PASO 5: Interceptar el sistema de edición de frases
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(setupBoldSystemIntegration, 2000);
+});
+
+function setupBoldSystemIntegration() {
+    console.log('🔗 Configurando integración con sistema de frases...');
     
-    // Buscar el resumen actualizado
-    const summary = summarySystemState.savedSummaries.find(s => s.id == phraseEditorBoldState.currentSummaryId);
+    // Interceptar activación del editor si existe
+    if (typeof window.activatePhraseEditor === 'function') {
+        const originalActivate = window.activatePhraseEditor;
+        window.activatePhraseEditor = function(summaryId) {
+            console.log('📝 Interceptando activación del editor para:', summaryId);
+            
+            // Ejecutar función original
+            originalActivate.call(this, summaryId);
+            
+            // Configurar nuestro sistema
+            setTimeout(() => initializeBoldForEditor(summaryId), 500);
+        };
+    }
     
-    if (summary && phraseEditorBoldState.isBoldEnabled) {
-        // Si el contenido no tiene negrita markdown, agregarlo
-        if (!summary.content.includes('**') && summary.content.trim()) {
-            summary.content = '**' + summary.content.trim() + '**';
+    // Interceptar guardado si existe
+    if (typeof window.savePhraseEdits === 'function') {
+        const originalSave = window.savePhraseEdits;
+        window.savePhraseEdits = function() {
+            console.log('💾 Interceptando guardado...');
             
-            // Actualizar en localStorage
-            localStorage.setItem('savedSummaries', JSON.stringify(summarySystemState.savedSummaries));
+            // Procesar contenido antes de guardar
+            if (boldSystemState.textareaElement) {
+                applyBoldToTextarea(); // Asegurar que el formato esté correcto
+            }
             
-            console.log('✅ Negrita aplicada al contenido renderizado');
+            // Guardar original
+            originalSave.call(this);
+            
+            // Procesar después del guardado
+            setTimeout(postSaveProcessing, 200);
+        };
+    }
+}
+
+// PASO 6: Inicializar sistema para un editor específico
+function initializeBoldForEditor(summaryId) {
+    console.log('🎯 Inicializando negrita para editor:', summaryId);
+    
+    boldSystemState.isActive = true;
+    boldSystemState.currentSummaryId = summaryId;
+    
+    // Encontrar textarea del editor
+    const textarea = document.querySelector('textarea[placeholder*="Editar"], textarea#editableContent, .phrase-editor textarea');
+    
+    if (textarea) {
+        boldSystemState.textareaElement = textarea;
+        console.log('✅ Textarea encontrado y vinculado');
+        
+        // Analizar contenido existente para determinar estado inicial
+        const content = textarea.value;
+        boldSystemState.isBoldEnabled = content.includes('**') && 
+            (content.startsWith('**') || content.match(/^\*\*[\s\S]*\*\*$/));
+        
+        console.log('📊 Estado inicial determinado:', {
+            isBoldEnabled: boldSystemState.isBoldEnabled,
+            contentPreview: content.substring(0, 50)
+        });
+        
+        // Actualizar apariencia inicial del botón
+        setTimeout(updateBoldButtonVisualState, 300);
+    } else {
+        console.warn('⚠️ No se encontró textarea del editor');
+    }
+}
+
+// PASO 7: Procesamiento después del guardado
+function postSaveProcessing() {
+    console.log('🔄 Ejecutando post-procesamiento...');
+    
+    if (boldSystemState.currentSummaryId && boldSystemState.isBoldEnabled) {
+        // Buscar el resumen guardado y verificar que tenga la negrita
+        const summary = summarySystemState.savedSummaries.find(s => s.id == boldSystemState.currentSummaryId);
+        
+        if (summary) {
+            console.log('📄 Resumen encontrado:', summary.title);
+            
+            // Si la negrita está habilitada pero el contenido no la tiene, corregir
+            if (boldSystemState.isBoldEnabled && !summary.content.includes('**')) {
+                summary.content = '**' + summary.content.trim() + '**';
+                localStorage.setItem('savedSummaries', JSON.stringify(summarySystemState.savedSummaries));
+                console.log('✅ Negrita aplicada al resumen guardado');
+            }
         }
     }
     
@@ -15957,101 +15888,132 @@ function applyBoldToRenderedContent() {
     setTimeout(() => {
         if (typeof render === 'function') {
             render();
+            console.log('🔄 Re-renderizado forzado');
         }
     }, 100);
 }
 
-// PASO 10: Función para limpiar estado al salir del editor
-function cleanupPhraseEditorBoldState() {
-    phraseEditorBoldState.isActive = false;
-    phraseEditorBoldState.currentSummaryId = null;
-    phraseEditorBoldState.isBoldEnabled = false;
-    phraseEditorBoldState.originalContent = '';
-    phraseEditorBoldState.hasUnsavedChanges = false;
+// PASO 8: Asegurar que los botones B tengan onclick correcto
+function fixBoldButtonsOnClick() {
+    const buttons = document.querySelectorAll('button');
     
-    console.log('🧹 Estado del editor limpiado');
+    buttons.forEach(button => {
+        if (button.textContent.trim() === 'B' || button.innerText.trim() === 'B') {
+            // Remover onclick existente y agregar el nuestro
+            button.removeAttribute('onclick');
+            button.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🖱️ Click detectado en botón B');
+                window.toggleBold();
+            };
+            
+            console.log('🔧 Botón B configurado con onclick personalizado');
+        }
+    });
 }
 
-// Interceptar función de cancelar edición si existe
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        if (typeof window.cancelPhraseEdit === 'function') {
-            const originalCancelPhraseEdit = window.cancelPhraseEdit;
-            window.cancelPhraseEdit = function() {
-                cleanupPhraseEditorBoldState();
-                originalCancelPhraseEdit.call(this);
-            };
+// PASO 9: Observador para detectar nuevos botones B
+const buttonObserver = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        if (mutation.type === 'childList') {
+            mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType === 1) { // Element node
+                    // Buscar botones B en los nodos añadidos
+                    const buttons = node.querySelectorAll ? node.querySelectorAll('button') : [];
+                    buttons.forEach(button => {
+                        if (button.textContent.trim() === 'B') {
+                            setTimeout(() => fixBoldButtonsOnClick(), 100);
+                        }
+                    });
+                }
+            });
         }
-    }, 2500);
+    });
 });
 
-// PASO 11: Mejorar el procesamiento de markdown para negrita
-const originalConvertMarkdownToHTML = window.convertMarkdownToHTML;
-if (originalConvertMarkdownToHTML) {
-    window.convertMarkdownToHTML = function(content) {
-        if (!content) return content;
-        
-        // Procesar negrita con mejor detección
-        let processed = content.replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: bold; color: #1a202c;">$1</strong>');
-        
-        // Si todo el contenido está en negrita (casos especiales)
-        if (content.trim().startsWith('**') && content.trim().endsWith('**')) {
-            const innerContent = content.trim().slice(2, -2);
-            processed = '<strong style="font-weight: bold; color: #1a202c;">' + innerContent + '</strong>';
-        }
-        
-        // Preservar saltos de línea
-        processed = processed.replace(/\n/g, '<br>');
-        
-        return processed;
-    };
-} else {
-    window.convertMarkdownToHTML = function(content) {
-        if (!content) return content;
-        
-        let processed = content.replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: bold; color: #1a202c;">$1</strong>');
-        processed = processed.replace(/\n/g, '<br>');
-        
-        return processed;
-    };
-}
+// Iniciar observador
+buttonObserver.observe(document.body, {
+    childList: true,
+    subtree: true
+});
 
-// PASO 12: Función de diagnóstico
-window.diagnoseBoldSystem = function() {
-    console.log('🔍 DIAGNÓSTICO DEL SISTEMA DE NEGRITA:');
-    console.log('Estado actual:', phraseEditorBoldState);
-    
-    const boldButton = document.querySelector('button[onclick*="toggleBold"]') || 
-                      Array.from(document.querySelectorAll('.btn')).find(btn => btn.textContent.trim() === 'B');
-    console.log('Botón B encontrado:', !!boldButton);
-    
-    const textarea = document.querySelector('textarea#editableContent, textarea[placeholder*="Editar"]');
-    console.log('Textarea encontrado:', !!textarea);
-    
-    if (phraseEditorBoldState.currentSummaryId) {
-        const summary = summarySystemState.savedSummaries.find(s => s.id == phraseEditorBoldState.currentSummaryId);
-        console.log('Resumen actual:', summary ? summary.title : 'No encontrado');
-        console.log('Contenido del resumen:', summary ? summary.content : 'N/A');
-    }
+// PASO 10: Función de limpieza al salir del editor
+window.cleanupBoldSystem = function() {
+    boldSystemState.isActive = false;
+    boldSystemState.currentSummaryId = null;
+    boldSystemState.isBoldEnabled = false;
+    boldSystemState.textareaElement = null;
+    console.log('🧹 Sistema de negrita limpiado');
 };
 
-// PASO 13: Inicialización de respaldo
-setTimeout(() => {
-    if (typeof summarySystemState !== 'undefined') {
-        initializePhraseEditorBoldSystem();
+// PASO 11: Mejorar procesamiento de markdown para renderizado
+function enhanceMarkdownProcessing() {
+    // Si existe función de markdown, mejorarla
+    if (typeof window.convertMarkdownToHTML === 'function') {
+        const originalConvert = window.convertMarkdownToHTML;
+        window.convertMarkdownToHTML = function(content) {
+            if (!content) return content;
+            
+            // Procesar negrita con mejor detección
+            let processed = content.replace(/\*\*([\s\S]*?)\*\*/g, '<strong style="font-weight: bold; color: #1a202c;">$1</strong>');
+            
+            // Preservar saltos de línea
+            processed = processed.replace(/\n/g, '<br>');
+            
+            return processed;
+        };
     }
-}, 3000);
+}
 
-console.log('✅ PARCHE COMPLETO DEL EDITOR DE FRASES APLICADO');
-console.log('🔧 Funcionalidades disponibles:');
-console.log('  - Botón B persiste estado de negrita');
-console.log('  - Contenido se guarda con negrita aplicada');
-console.log('  - Renderizado muestra negrita correctamente');
-console.log('  - Estado sincronizado entre edición y vista');
-console.log('🧪 Diagnóstico disponible: diagnoseBoldSystem()');
+// PASO 12: Inicialización completa
+setTimeout(() => {
+    setupBoldSystemIntegration();
+    fixBoldButtonsOnClick();
+    enhanceMarkdownProcessing();
+    
+    console.log('✅ SISTEMA DE NEGRITA INSTALADO COMPLETAMENTE');
+    console.log('🎯 Funcionalidades:');
+    console.log('  - toggleBold() creada desde cero');
+    console.log('  - Detección automática de botones B');
+    console.log('  - Aplicación de negrita a todo el contenido');
+    console.log('  - Persistencia en guardado');
+    console.log('  - Renderizado mejorado');
+}, 1500);
+
+// PASO 13: Función de diagnóstico completo
+window.testBoldSystem = function() {
+    console.log('🔍 === DIAGNÓSTICO COMPLETO DEL SISTEMA DE NEGRITA ===');
+    console.log('Estado:', boldSystemState);
+    
+    const buttons = Array.from(document.querySelectorAll('button')).filter(btn => 
+        btn.textContent.trim() === 'B');
+    console.log('Botones B encontrados:', buttons.length);
+    
+    buttons.forEach((btn, index) => {
+        console.log(`Botón B ${index + 1}:`, {
+            onclick: btn.onclick ? 'Configurado' : 'No configurado',
+            visible: btn.offsetHeight > 0,
+            styles: btn.style.cssText
+        });
+    });
+    
+    const textarea = document.querySelector('textarea[placeholder*="Editar"], textarea#editableContent');
+    console.log('Textarea encontrado:', !!textarea);
+    
+    if (textarea) {
+        console.log('Contenido del textarea:', textarea.value.substring(0, 100));
+    }
+    
+    console.log('toggleBold disponible:', typeof window.toggleBold === 'function');
+    console.log('=== FIN DIAGNÓSTICO ===');
+};
+
+console.log('🚀 Sistema de negrita cargado - Usa testBoldSystem() para diagnosticar');
 </script>
 </body>
 </html>
+
 
 
 
