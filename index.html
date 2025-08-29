@@ -15080,116 +15080,170 @@ renderQuestionsByTopic = function() {
 console.log('✅ Triangulito colapsar añadido + botón eliminar tema mantenido');
 </script>
 <!-- 
-PARCHE DEFINITIVO: EDITOR DE RESÚMENES - VERSIÓN FUNCIONAL
+PARCHE CORRECTO: EDITOR DE FRASES PARA LA FUNCIÓN ACTUAL
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche intercepta la función renderViewSummary REAL del sistema
+Este parche intercepta renderViewSummaryEnhanced que es la función que realmente se usa
 -->
 
 <script>
-    // ========== PARCHE DEFINITIVO: EDITOR AVANZADO DE RESÚMENES ==========
+    // ========== PARCHE CORRECTO: EDITOR DE FRASES PARA RESÚMENES ==========
     
-    // Estado extendido para el editor de resúmenes
+    // Estado del editor de frases
     let summaryEditorState = {
-        editingIndex: null,
-        editingText: '',
-        summaryParts: [],
         isEditMode: false,
-        originalRenderViewSummary: null
+        editingIndex: null,
+        summaryParts: [],
+        originalFunction: null
     };
     
-    // INTERCEPTAR y GUARDAR la función renderViewSummary original
-    if (typeof renderViewSummary === 'function') {
-        summaryEditorState.originalRenderViewSummary = renderViewSummary;
-        console.log('✅ Función renderViewSummary original guardada');
-    } else {
-        console.log('⚠️ Función renderViewSummary no encontrada, creando nueva...');
-    }
-    
-    // REEMPLAZAR completamente la función renderViewSummary
-    renderViewSummary = function() {
-        const summary = summarySystemState.viewingSummary;
-        if (!summary) {
-            summarySystemState.currentView = 'library';
-            return renderSummaryLibrary ? renderSummaryLibrary() : '<div>Error: No hay resumen para mostrar</div>';
-        }
+    // INTERCEPTAR la función renderViewSummaryEnhanced REAL
+    if (typeof renderViewSummaryEnhanced === 'function') {
+        summaryEditorState.originalFunction = renderViewSummaryEnhanced;
+        console.log('✅ Función renderViewSummaryEnhanced interceptada correctamente');
         
-        const topicName = summary.topicId ? getSummaryTopicName(summary.topicId) : 'Sin tema';
-        
-        return `
-            <div style="max-width: 1000px; margin: 0 auto;">
-                <!-- Header con botones -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid #f3f4f6;">
-                    <div>
-                        <button onclick="closeSummaryView()" class="btn btn-secondary" style="margin-bottom: 12px; padding: 6px 12px; font-size: 13px;">
-                            ← Volver a la Biblioteca
+        // REEMPLAZAR con la versión mejorada
+        renderViewSummaryEnhanced = function() {
+            const summary = summarySystemState.viewingSummary;
+            if (!summary) {
+                console.error('No hay resumen para mostrar');
+                summarySystemState.currentView = 'library';
+                return renderSummaryLibraryEnhanced();
+            }
+            
+            const topicName = summary.topicId ? getSummaryTopicName(summary.topicId) : null;
+            
+            return `
+                <div style="max-width: 1000px; margin: 0 auto;">
+                    
+                    <!-- Navegación elegante -->
+                    <div style="margin-bottom: 25px;">
+                        <button onclick="closeSummaryViewEnhanced()" class="btn btn-secondary" style="display: flex; align-items: center; gap: 10px; padding: 12px 20px; font-size: 14px; border-radius: 10px; transition: all 0.2s ease; background: #6b7280; border: none;" onmouseover="this.style.background='#4b5563'" onmouseout="this.style.background='#6b7280'">
+                            <span style="font-size: 16px;">←</span> Volver a la Biblioteca
                         </button>
-                        <h1 style="color: #1f2937; margin: 0; font-size: 24px; display: flex; align-items: center; gap: 10px;">
-                            📄 ${summary.title}
-                            ${summaryEditorState.isEditMode ? '<span style="background: #f59e0b; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">⚡ EDITANDO</span>' : ''}
-                        </h1>
-                        <div style="margin-top: 8px; display: flex; align-items: center; gap: 20px; color: #6b7280; font-size: 14px;">
-                            <span>📂 ${topicName}</span>
-                            <span>📅 ${summary.createdAt}</span>
-                            <span>📊 ${summary.content.length} caracteres</span>
-                        </div>
                     </div>
                     
-                    <!-- Botones de acción -->
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <button onclick="toggleEditMode()" class="btn ${summaryEditorState.isEditMode ? 'btn-warning' : 'btn-info'}" style="padding: 10px 16px; font-size: 14px; font-weight: 500;">
-                            ${summaryEditorState.isEditMode ? '🔒 Finalizar Edición' : '✏️ Editar Resumen'}
-                        </button>
-                        <button onclick="copySummaryContentToClipboard('${summary.id}')" class="btn btn-success" style="padding: 10px 16px; font-size: 14px;">
-                            📋 Copiar
-                        </button>
+                    <!-- Tarjeta principal del resumen -->
+                    <div style="background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+                        
+                        <!-- Header del resumen -->
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 35px; color: white; position: relative;">
+                            <div style="position: absolute; top: 0; right: 0; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border-radius: 50%; transform: translate(30px, -30px);"></div>
+                            <div style="position: relative; z-index: 2;">
+                                <h1 style="margin: 0 0 15px 0; font-size: 2.2rem; font-weight: 700; line-height: 1.2; color: white;">
+                                    ${summary.title}
+                                    ${summaryEditorState.isEditMode ? '<span style="background: rgba(255,255,255,0.3); color: white; padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; margin-left: 15px; animation: pulse 2s infinite;">⚡ EDITANDO FRASES</span>' : ''}
+                                </h1>
+                                <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px; opacity: 0.95;">
+                                    <div style="background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 20px;">
+                                        <strong>${topicName || 'Sin tema'}</strong>
+                                    </div>
+                                    <div style="background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 20px;">
+                                        ${summary.createdAt}
+                                    </div>
+                                    <div style="background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 20px;">
+                                        ${Math.round(summary.content.length / 5)} palabras aprox.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Contenido del resumen -->
+                        <div style="padding: 40px; background: #fafafa;">
+                            <div style="background: white; padding: 35px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #f1f1f1;">
+                                <div style="max-width: none; font-family: 'Segoe UI', system-ui, sans-serif;">
+                                    ${summaryEditorState.isEditMode ? renderEditableSummaryContent() : formatSummaryContentAdvanced(summary.content)}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Panel de acciones MEJORADO -->
+                        <div style="background: #f8fafc; padding: 25px 35px; border-top: 1px solid #e2e8f0;">
+                            <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;">
+                                
+                                <!-- BOTÓN PRINCIPAL: EDITAR FRASES -->
+                                <button onclick="toggleEditMode()" class="btn ${summaryEditorState.isEditMode ? 'btn-warning' : 'btn-primary'}" style="padding: 12px 24px; font-size: 15px; display: flex; align-items: center; gap: 10px; border-radius: 8px; font-weight: 600; min-width: 180px; justify-content: center; ${summaryEditorState.isEditMode ? 'background: #f59e0b; border: none;' : 'background: #3b82f6; border: none;'}" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                                    ${summaryEditorState.isEditMode ? '🔒 Finalizar Edición' : '✏️ Editar Frases'}
+                                </button>
+                                
+                                <button onclick="copySummaryContentToClipboard('${summary.id}')" class="btn btn-info" style="padding: 10px 20px; font-size: 14px; display: flex; align-items: center; gap: 8px; border-radius: 8px; font-weight: 500; min-width: 160px; justify-content: center;">
+                                    📋 Copiar Texto
+                                </button>
+                                <button onclick="editSummaryFromViewEnhanced()" class="btn btn-warning" style="padding: 10px 20px; font-size: 14px; display: flex; align-items: center; gap: 8px; border-radius: 8px; font-weight: 500; min-width: 160px; justify-content: center;">
+                                    ✏️ Editar Título
+                                </button>
+                                <button onclick="deleteSummaryFromViewEnhanced('${summary.id}')" class="btn btn-danger" style="padding: 10px 20px; font-size: 14px; display: flex; align-items: center; gap: 8px; border-radius: 8px; font-weight: 500; min-width: 160px; justify-content: center;">
+                                    🗑️ Eliminar
+                                </button>
+                            </div>
+                            
+                            <!-- Panel de ayuda en modo edición -->
+                            ${summaryEditorState.isEditMode ? `
+                                <div style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, #dbeafe, #e0e7ff); border-radius: 10px; border: 2px solid #3b82f6;">
+                                    <div style="text-align: center; margin-bottom: 12px;">
+                                        <span style="font-size: 20px;">💡</span>
+                                        <strong style="color: #1e40af; font-size: 16px; margin-left: 8px;">Modo Edición de Frases Activado</strong>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; font-size: 13px; color: #1e40af; text-align: center;">
+                                        <div><strong>✏️ Editar:</strong><br>Modifica cualquier frase</div>
+                                        <div><strong>🔤 Negrita:</strong><br>Aplica formato de negrita</div>
+                                        <div><strong>🗑️ Eliminar:</strong><br>Oculta frases (reversible)</div>
+                                        <div><strong>💾 Auto-guardado:</strong><br>Los cambios se guardan automáticamente</div>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
                     </div>
                 </div>
                 
-                <!-- Contenido del resumen -->
-                <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    ${summaryEditorState.isEditMode ? renderEditableSummaryContent() : renderReadOnlySummaryContent(summary)}
-                </div>
-                
-                <!-- Panel de ayuda en modo edición -->
-                ${summaryEditorState.isEditMode ? `
-                    <div style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, #e0f2fe, #f0f9ff); border-radius: 12px; border: 2px solid #0ea5e9;">
-                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
-                            <span style="font-size: 20px;">💡</span>
-                            <h4 style="margin: 0; color: #0c4a6e; font-size: 16px;">Guía del Editor</h4>
-                        </div>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; font-size: 13px; color: #0369a1; line-height: 1.5;">
-                            <div>
-                                <strong>✏️ Editar:</strong><br>
-                                Modifica el texto de cualquier frase
-                            </div>
-                            <div>
-                                <strong>🔤 Negrita:</strong><br>
-                                Aplica o quita formato de negrita
-                            </div>
-                            <div>
-                                <strong>🗑️ Eliminar:</strong><br>
-                                Oculta frases (se pueden restaurar)
-                            </div>
-                            <div>
-                                <strong>💾 Auto-guardado:</strong><br>
-                                Los cambios se guardan automáticamente
-                            </div>
-                        </div>
-                    </div>
-                ` : ''}
-                
-                <!-- Botones de acción adicionales -->
-                <div style="margin-top: 25px; display: flex; justify-content: center; gap: 15px;">
-                    <button onclick="editSummaryFromView()" class="btn btn-warning" style="padding: 10px 20px; font-size: 14px;">
-                        ✏️ Editar Título
-                    </button>
-                    <button onclick="deleteSummaryFromView('${summary.id}')" class="btn btn-danger" style="padding: 10px 20px; font-size: 14px;">
-                        🗑️ Eliminar Resumen
-                    </button>
-                </div>
-            </div>
-        `;
-    };
+                <style>
+                    @keyframes slideIn {
+                        from {
+                            opacity: 0;
+                            transform: translateY(15px);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translateY(0);
+                        }
+                    }
+                    
+                    @keyframes pulse {
+                        0%, 100% { opacity: 1; }
+                        50% { opacity: 0.7; }
+                    }
+                </style>
+            `;
+        };
+    } else {
+        console.error('❌ Función renderViewSummaryEnhanced no encontrada');
+    }
+    
+    // Función para activar/desactivar modo edición
+    function toggleEditMode() {
+        const summary = summarySystemState.viewingSummary;
+        
+        if (!summary || !summary.content) {
+            showMessage('❌ No hay resumen para editar', 'error');
+            return;
+        }
+        
+        summaryEditorState.isEditMode = !summaryEditorState.isEditMode;
+        
+        if (summaryEditorState.isEditMode) {
+            summaryEditorState.summaryParts = parseSummaryIntoParts(summary.content);
+            showMessage('✏️ Modo edición de frases activado', 'success');
+        } else {
+            summaryEditorState.editingIndex = null;
+            showMessage('🔒 Modo edición desactivado', 'info');
+        }
+        
+        render();
+        
+        // Scroll suave hacia arriba
+        setTimeout(() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 100);
+    }
     
     // Función para dividir el resumen en partes editables
     function parseSummaryIntoParts(summaryText) {
@@ -15227,42 +15281,114 @@ Este parche intercepta la función renderViewSummary REAL del sistema
         return 'paragraph';
     }
     
-    // Función para activar/desactivar modo edición
-    function toggleEditMode() {
-        const summary = summarySystemState.viewingSummary;
-        
-        if (!summary || !summary.content) {
-            showMessage('❌ No hay resumen para editar', 'error');
-            return;
+    // Función para renderizar contenido editable
+    function renderEditableSummaryContent() {
+        if (summaryEditorState.summaryParts.length === 0) {
+            return '<div style="text-align: center; color: #6b7280; padding: 40px; font-size: 16px;">📝 No hay contenido para editar</div>';
         }
         
-        summaryEditorState.isEditMode = !summaryEditorState.isEditMode;
+        const deletedCount = summaryEditorState.summaryParts.filter(p => p.isDeleted).length;
+        const activeCount = summaryEditorState.summaryParts.length - deletedCount;
+        const boldCount = summaryEditorState.summaryParts.filter(p => !p.isDeleted && p.isBold).length;
         
-        if (summaryEditorState.isEditMode) {
-            summaryEditorState.summaryParts = parseSummaryIntoParts(summary.content);
-            showMessage('✏️ Modo edición activado - Puedes editar cada frase', 'success');
-        } else {
-            summaryEditorState.editingIndex = null;
-            showMessage('🔒 Modo edición desactivado', 'info');
-        }
-        
-        render();
-        
-        // Scroll suave hacia arriba
-        setTimeout(() => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }, 100);
+        return `
+            <!-- Estadísticas del editor -->
+            <div style="margin-bottom: 25px; padding: 15px; background: linear-gradient(135deg, #ecfdf5, #f0fdf4); border-radius: 10px; border: 2px solid #10b981; text-align: center;">
+                <div style="font-size: 15px; color: #065f46; font-weight: 600;">
+                    📊 Estado del Resumen
+                </div>
+                <div style="font-size: 13px; color: #047857; margin-top: 5px;">
+                    ${activeCount} frases activas${deletedCount > 0 ? ` • ${deletedCount} eliminadas` : ''}${boldCount > 0 ? ` • ${boldCount} en negrita` : ''}
+                </div>
+            </div>
+            
+            <!-- Lista de frases editables -->
+            <div style="max-height: 65vh; overflow-y: auto; padding-right: 8px;">
+                ${summaryEditorState.summaryParts.map((part, index) => 
+                    renderEditableSummaryPart(part, index)
+                ).join('')}
+            </div>
+        `;
     }
     
-    // Función para editar una frase específica
-    function editSummaryPart(partIndex) {
-        const part = summaryEditorState.summaryParts[partIndex];
-        if (!part) return;
+    // Función para renderizar una parte editable
+    function renderEditableSummaryPart(part, index) {
+        if (part.isDeleted) {
+            return `
+                <div style="background: #fef2f2; border: 2px dashed #f87171; border-radius: 10px; padding: 15px; margin: 12px 0; opacity: 0.7;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #dc2626; font-style: italic; font-weight: 500;">🗑️ Frase eliminada</span>
+                        <button onclick="restoreSummaryPart(${index})" class="btn" style="background: #10b981; color: white; padding: 6px 12px; font-size: 12px; border-radius: 6px; border: none;">
+                            ↻ Restaurar
+                        </button>
+                    </div>
+                    <div style="color: #6b7280; font-size: 14px; margin-top: 8px; text-decoration: line-through;">
+                        ${part.text.substring(0, 120)}${part.text.length > 120 ? '...' : ''}
+                    </div>
+                </div>
+            `;
+        }
         
+        if (summaryEditorState.editingIndex === index) {
+            return `
+                <div style="border: 3px solid #4f46e5; border-radius: 12px; padding: 20px; margin: 15px 0; background: linear-gradient(135deg, #f8fafc, #ffffff); box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">✏️ Editando frase:</label>
+                    <textarea 
+                        id="edit-input-${index}" 
+                        style="width: 100%; min-height: 100px; padding: 12px; border: 2px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.5; resize: vertical;"
+                        placeholder="Escriba el nuevo texto..."
+                    >${part.text}</textarea>
+                    <div style="display: flex; gap: 10px; margin-top: 12px; justify-content: flex-end;">
+                        <button onclick="saveSummaryPart(${index})" class="btn btn-primary" style="padding: 8px 16px; font-size: 13px; border-radius: 6px;">
+                            ✅ Guardar
+                        </button>
+                        <button onclick="cancelSummaryEdit()" class="btn btn-secondary" style="padding: 8px 16px; font-size: 13px; border-radius: 6px;">
+                            ❌ Cancelar
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        return `
+            <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin: 12px 0; background: white; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.05);"
+                 onmouseover="this.style.borderColor='#4f46e5'; this.style.backgroundColor='#f8fafc'; this.style.boxShadow='0 4px 12px rgba(79, 70, 229, 0.1)';"
+                 onmouseout="this.style.borderColor='#e5e7eb'; this.style.backgroundColor='white'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
+                
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div style="flex: 1; margin-right: 15px;">
+                        <div style="${getPartStyle(part)}">${part.text}</div>
+                        <div style="font-size: 11px; color: #9ca3af; margin-top: 8px; display: flex; gap: 12px; align-items: center;">
+                            <span>${getTypeLabel(part.type)}</span>
+                            <span>${part.text.length} caracteres</span>
+                            ${part.isBold ? '<span style="color: #059669; font-weight: bold; background: #ecfdf5; padding: 2px 6px; border-radius: 4px;">NEGRITA</span>' : ''}
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 6px; opacity: 0.8;" onmouseover="this.style.opacity='1';" onmouseout="this.style.opacity='0.8';">
+                        <button onclick="editSummaryPart(${index})" title="Editar esta frase"
+                                style="background: #3b82f6; color: white; border: none; padding: 6px 8px; font-size: 11px; border-radius: 6px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'">
+                            ✏️
+                        </button>
+                        <button onclick="toggleSummaryBold(${index})" title="${part.isBold ? 'Quitar negrita' : 'Poner en negrita'}"
+                                style="background: ${part.isBold ? '#059669' : '#6b7280'}; color: white; border: none; padding: 6px 8px; font-size: 11px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: all 0.2s;" onmouseover="this.style.background='${part.isBold ? '#047857' : '#4b5563'}'" onmouseout="this.style.background='${part.isBold ? '#059669' : '#6b7280'}'">
+                            B
+                        </button>
+                        <button onclick="deleteSummaryPart(${index})" title="Eliminar esta frase"
+                                style="background: #dc2626; color: white; border: none; padding: 6px 8px; font-size: 11px; border-radius: 6px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Funciones del editor
+    function editSummaryPart(partIndex) {
         summaryEditorState.editingIndex = partIndex;
         render();
         
-        // Enfocar en el textarea después del render
         setTimeout(() => {
             const textarea = document.getElementById(`edit-input-${partIndex}`);
             if (textarea) {
@@ -15272,7 +15398,6 @@ Este parche intercepta la función renderViewSummary REAL del sistema
         }, 100);
     }
     
-    // Función para guardar la edición
     function saveSummaryPart(partIndex) {
         const textarea = document.getElementById(`edit-input-${partIndex}`);
         const newText = textarea ? textarea.value.trim() : '';
@@ -15288,13 +15413,11 @@ Este parche intercepta la función renderViewSummary REAL del sistema
         }
     }
     
-    // Función para cancelar edición
     function cancelSummaryEdit() {
         summaryEditorState.editingIndex = null;
         render();
     }
     
-    // Función para toggle negrita
     function toggleSummaryBold(partIndex) {
         const part = summaryEditorState.summaryParts[partIndex];
         if (part) {
@@ -15305,7 +15428,6 @@ Este parche intercepta la función renderViewSummary REAL del sistema
         }
     }
     
-    // Función para eliminar frase
     function deleteSummaryPart(partIndex) {
         const part = summaryEditorState.summaryParts[partIndex];
         if (!part) return;
@@ -15319,7 +15441,6 @@ Este parche intercepta la función renderViewSummary REAL del sistema
         }
     }
     
-    // Función para restaurar frase
     function restoreSummaryPart(partIndex) {
         const part = summaryEditorState.summaryParts[partIndex];
         if (part) {
@@ -15330,20 +15451,15 @@ Este parche intercepta la función renderViewSummary REAL del sistema
         }
     }
     
-    // Función para actualizar el contenido completo
     function updateSummaryContent() {
         const newContent = summaryEditorState.summaryParts
             .filter(part => !part.isDeleted)
-            .map(part => {
-                return part.isBold ? `**${part.text}**` : part.text;
-            })
+            .map(part => part.isBold ? `**${part.text}**` : part.text)
             .join('\n\n');
         
-        // Actualizar en el estado
         if (summarySystemState.viewingSummary) {
             summarySystemState.viewingSummary.content = newContent;
             
-            // Actualizar en localStorage
             const index = summarySystemState.savedSummaries.findIndex(s => s.id === summarySystemState.viewingSummary.id);
             if (index !== -1) {
                 summarySystemState.savedSummaries[index].content = newContent;
@@ -15352,124 +15468,19 @@ Este parche intercepta la función renderViewSummary REAL del sistema
         }
     }
     
-    // Función para renderizar contenido editable
-    function renderEditableSummaryContent() {
-        if (summaryEditorState.summaryParts.length === 0) {
-            return '<div style="text-align: center; color: #6b7280; padding: 40px; font-size: 16px;">📝 No hay contenido para editar</div>';
-        }
-        
-        const deletedCount = summaryEditorState.summaryParts.filter(p => p.isDeleted).length;
-        const activeCount = summaryEditorState.summaryParts.length - deletedCount;
-        const boldCount = summaryEditorState.summaryParts.filter(p => !p.isDeleted && p.isBold).length;
-        
-        return `
-            <!-- Estadísticas -->
-            <div style="margin-bottom: 20px; padding: 12px; background: linear-gradient(135deg, #ecfdf5, #f0fdf4); border-radius: 8px; border: 2px solid #10b981;">
-                <div style="font-size: 14px; color: #065f46; text-align: center;">
-                    📊 <strong>Estado:</strong> ${activeCount} frases activas${deletedCount > 0 ? `, ${deletedCount} eliminadas` : ''}${boldCount > 0 ? `, ${boldCount} en negrita` : ''}
-                </div>
-            </div>
-            
-            <!-- Lista de frases editables -->
-            <div style="max-height: 60vh; overflow-y: auto; padding-right: 8px;">
-                ${summaryEditorState.summaryParts.map((part, index) => 
-                    renderEditableSummaryPart(part, index)
-                ).join('')}
-            </div>
-        `;
-    }
-    
-    // Función para renderizar una parte editable
-    function renderEditableSummaryPart(part, index) {
-        if (part.isDeleted) {
-            return `
-                <div style="background: #fef2f2; border: 2px dashed #f87171; border-radius: 8px; padding: 12px; margin: 8px 0; opacity: 0.7;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #dc2626; font-style: italic;">🗑️ Frase eliminada</span>
-                        <button onclick="restoreSummaryPart(${index})" class="btn" style="background: #10b981; color: white; padding: 4px 8px; font-size: 11px;">
-                            ↻ Restaurar
-                        </button>
-                    </div>
-                    <div style="color: #6b7280; font-size: 13px; margin-top: 5px; text-decoration: line-through;">
-                        ${part.text.substring(0, 100)}${part.text.length > 100 ? '...' : ''}
-                    </div>
-                </div>
-            `;
-        }
-        
-        if (summaryEditorState.editingIndex === index) {
-            return `
-                <div style="border: 3px solid #4f46e5; border-radius: 10px; padding: 15px; margin: 10px 0; background: #f8fafc;">
-                    <label style="display: block; margin-bottom: 6px; font-weight: 600; color: #374151; font-size: 13px;">✏️ Editando:</label>
-                    <textarea 
-                        id="edit-input-${index}" 
-                        style="width: 100%; min-height: 80px; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-family: inherit; font-size: 14px; line-height: 1.4; resize: vertical;"
-                    >${part.text}</textarea>
-                    <div style="display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end;">
-                        <button onclick="saveSummaryPart(${index})" class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;">
-                            ✅ Guardar
-                        </button>
-                        <button onclick="cancelSummaryEdit()" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">
-                            ❌ Cancelar
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
-        
-        return `
-            <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin: 8px 0; background: white; transition: all 0.2s;"
-                 onmouseover="this.style.borderColor='#4f46e5'; this.style.backgroundColor='#f9fafb';"
-                 onmouseout="this.style.borderColor='#e5e7eb'; this.style.backgroundColor='white';">
-                
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div style="flex: 1; margin-right: 10px;">
-                        <div style="${getPartStyle(part)}">${part.text}</div>
-                        <div style="font-size: 11px; color: #9ca3af; margin-top: 5px; display: flex; gap: 10px;">
-                            <span>${getTypeLabel(part.type)}</span>
-                            <span>${part.text.length} char</span>
-                            ${part.isBold ? '<span style="color: #059669; font-weight: bold;">NEGRITA</span>' : ''}
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 4px; opacity: 0.7;" onmouseover="this.style.opacity='1';" onmouseout="this.style.opacity='0.7';">
-                        <button onclick="editSummaryPart(${index})" title="Editar frase"
-                                style="background: #3b82f6; color: white; border: none; padding: 4px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;">
-                            ✏️
-                        </button>
-                        <button onclick="toggleSummaryBold(${index})" title="${part.isBold ? 'Quitar negrita' : 'Poner en negrita'}"
-                                style="background: ${part.isBold ? '#059669' : '#6b7280'}; color: white; border: none; padding: 4px 6px; font-size: 10px; border-radius: 4px; cursor: pointer; font-weight: bold;">
-                            B
-                        </button>
-                        <button onclick="deleteSummaryPart(${index})" title="Eliminar frase"
-                                style="background: #dc2626; color: white; border: none; padding: 4px 6px; font-size: 10px; border-radius: 4px; cursor: pointer;">
-                            🗑️
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    // Función para obtener estilo de parte
+    // Funciones auxiliares
     function getPartStyle(part) {
-        let style = "line-height: 1.5; margin: 0; word-wrap: break-word;";
-        
+        let style = "line-height: 1.6; margin: 0; word-wrap: break-word;";
         if (part.isBold) style += " font-weight: bold;";
         
         switch(part.type) {
-            case 'title':
-                return style + " font-size: 16px; color: #1f2937; font-weight: 600;";
-            case 'subtitle':
-                return style + " font-size: 15px; color: #374151; font-weight: 500;";
-            case 'list':
-                return style + " color: #4b5563; padding-left: 12px;";
-            default:
-                return style + " color: #4b5563; font-size: 14px;";
+            case 'title': return style + " font-size: 17px; color: #1f2937; font-weight: 600;";
+            case 'subtitle': return style + " font-size: 16px; color: #374151; font-weight: 500;";
+            case 'list': return style + " color: #4b5563; padding-left: 15px;";
+            default: return style + " color: #4b5563; font-size: 15px;";
         }
     }
     
-    // Función para obtener etiqueta de tipo
     function getTypeLabel(type) {
         switch(type) {
             case 'title': return '📝 Título';
@@ -15480,73 +15491,12 @@ Este parche intercepta la función renderViewSummary REAL del sistema
         }
     }
     
-    // Función para renderizar contenido de solo lectura
-    function renderReadOnlySummaryContent(summary) {
-        const lines = summary.content.split('\n').filter(line => line.trim());
-        
-        return `<div style="font-size: 15px; line-height: 1.7;">` + lines.map(line => {
-            const trimmed = line.trim();
-            if (!trimmed) return '';
-            
-            // Detectar negrita markdown
-            if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
-                const content = trimmed.slice(2, -2);
-                return `<div style="font-weight: bold; margin: 15px 0; color: #1f2937; font-size: 17px; padding-left: 12px; border-left: 4px solid #4f46e5;">${content}</div>`;
-            }
-            
-            // Títulos
-            if (trimmed.length < 80 && trimmed.includes(':')) {
-                return `<h4 style="color: #1f2937; margin: 20px 0 10px 0; font-weight: 600; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px;">${trimmed}</h4>`;
-            }
-            
-            // Elementos de lista
-            if (trimmed.match(/^[•\-\*]/)) {
-                return `<div style="margin: 8px 0; padding-left: 20px; color: #4b5563; position: relative;"><span style="position: absolute; left: 0; color: #4f46e5; font-weight: bold;">•</span>${trimmed.substring(1).trim()}</div>`;
-            }
-            
-            // Párrafos normales
-            return `<p style="margin: 15px 0; text-align: justify; color: #4b5563;">${trimmed}</p>`;
-        }).join('') + `</div>`;
-    }
-    
-    // Función auxiliar para copiar contenido
-    function copySummaryContentToClipboard(summaryId) {
-        const summary = summarySystemState.savedSummaries.find(s => s.id == summaryId) || summarySystemState.viewingSummary;
-        if (!summary) {
-            showMessage('❌ No se encontró el resumen', 'error');
-            return;
-        }
-        
-        const cleanContent = summary.content.replace(/\*\*(.*?)\*\*/g, '$1');
-        
-        try {
-            navigator.clipboard.writeText(cleanContent).then(() => {
-                showMessage('📋 Contenido copiado al portapapeles', 'success');
-            });
-        } catch (error) {
-            // Fallback
-            const textarea = document.createElement('textarea');
-            textarea.value = cleanContent;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                showMessage('📋 Contenido copiado al portapapeles', 'success');
-            } catch (err) {
-                showMessage('❌ Error al copiar', 'error');
-            }
-            document.body.removeChild(textarea);
-        }
-    }
-    
-    console.log('✅ PARCHE DEFINITIVO aplicado correctamente');
-    console.log('🎯 Funciones disponibles: toggleEditMode(), editSummaryPart(), toggleSummaryBold(), deleteSummaryPart()');
-    console.log('📋 renderViewSummary interceptada y mejorada con editor completo');
+    console.log('✅ PARCHE CORRECTO aplicado - Interceptando renderViewSummaryEnhanced');
+    console.log('🎯 Botón "Editar Frases" añadido al panel de acciones');
 </script>
 </body>
 </html>
+
 
 
 
