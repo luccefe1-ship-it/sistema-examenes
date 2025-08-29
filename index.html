@@ -14974,78 +14974,62 @@ console.log('🔧 Funciones de debugging disponibles:');
 console.log('   - debugTopicSystem() - Diagnóstico completo');
 console.log('   - createTopic() - Crear tema manualmente');
 </script>
-// PARCHE: REEMPLAZAR función renderQuestionsByTopic con carpetas colapsables
-// Añadir este código al final de index.html justo antes de </body>
+// PARCHE SIMPLE: Botón colapsar/expandir al lado de cada tema
+// Añadir al final de index.html justo antes de </body>
 
 <script>
-// Estado para carpetas colapsadas
-let collapsedFolders = JSON.parse(localStorage.getItem('collapsedFolders') || '{}');
+// Estado simple para carpetas colapsadas
+let collapsedTopics = JSON.parse(localStorage.getItem('collapsedTopics') || '{}');
 
-// Funciones para manejar colapso
-window.toggleFolder = function(topicId) {
-    collapsedFolders[topicId] = !collapsedFolders[topicId];
-    localStorage.setItem('collapsedFolders', JSON.stringify(collapsedFolders));
-    render();
+// Función para alternar visibilidad de un tema
+window.toggleTopicVisibility = function(topicId) {
+    collapsedTopics[topicId] = !collapsedTopics[topicId];
+    localStorage.setItem('collapsedTopics', JSON.stringify(collapsedTopics));
+    
+    // Cambiar visibilidad del div
+    const contentDiv = document.getElementById('topic-content-' + topicId);
+    const button = document.getElementById('toggle-btn-' + topicId);
+    
+    if (contentDiv) {
+        if (collapsedTopics[topicId]) {
+            contentDiv.style.display = 'none';
+            button.textContent = '👁️';
+            button.title = 'Mostrar preguntas';
+        } else {
+            contentDiv.style.display = 'block';
+            button.textContent = '👁️‍🗨️';
+            button.title = 'Ocultar preguntas';
+        }
+    }
 };
 
-window.collapseAllFolders = function() {
-    const allTopicIds = state.topics.map(t => t.id.toString());
-    allTopicIds.forEach(id => collapsedFolders[id] = true);
-    collapsedFolders['sin-tema'] = true;
-    localStorage.setItem('collapsedFolders', JSON.stringify(collapsedFolders));
-    render();
-};
-
-window.expandAllFolders = function() {
-    collapsedFolders = {};
-    localStorage.setItem('collapsedFolders', JSON.stringify(collapsedFolders));
-    render();
-};
-
-// REEMPLAZAR la función renderQuestionsByTopic
+// REEMPLAZAR renderQuestionsByTopic para añadir botones
 renderQuestionsByTopic = function() {
     const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
     
     let html = '';
-    
-    // Botones de control global (solo si hay temas con preguntas)
-    const hasTopicsWithQuestions = state.topics.some(topic => {
-        return state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length > 0;
-    });
-    
-    if (hasTopicsWithQuestions || questionsWithoutTopic.length > 0) {
-        html += `
-            <div style="margin-bottom: 20px; text-align: center; padding: 12px; background: linear-gradient(135deg, #f8fafc, #e2e8f0); border-radius: 8px; border: 1px solid #cbd5e1;">
-                <button onclick="expandAllFolders()" style="background: #10b981; color: white; margin-right: 8px; padding: 6px 12px; font-size: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                    📂 Expandir Todo
-                </button>
-                <button onclick="collapseAllFolders()" style="background: #6b7280; color: white; padding: 6px 12px; font-size: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                    📁 Colapsar Todo
-                </button>
-            </div>
-        `;
-    }
     
     // Mostrar preguntas por cada tema que TENGA preguntas
     state.topics.forEach(topic => {
         const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
         if (topicQuestions.length > 0) {
             const topicId = topic.id.toString();
-            const isCollapsed = collapsedFolders[topicId];
-            const collapseIcon = isCollapsed ? '📁' : '📂';
+            const isCollapsed = collapsedTopics[topicId] || false;
             
             html += `
                 <div style="margin-bottom: 30px;">
-                    <h3 onclick="toggleFolder('${topicId}')" style="background: #4f46e5; color: white; padding: 12px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; transition: background-color 0.2s;" 
-                        onmouseover="this.style.backgroundColor='#4338ca'" 
-                        onmouseout="this.style.backgroundColor='#4f46e5'">
-                        <span>${collapseIcon} ${topic.name}</span>
+                    <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📁 ${topic.name}</span>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
-                            <span style="font-size: 11px; opacity: 0.7;">${isCollapsed ? 'Expandir' : 'Colapsar'}</span>
+                            <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
+                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 16px;"
+                                    title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                                ${isCollapsed ? '👁️' : '👁️‍🗨️'}
+                            </button>
                         </div>
                     </h3>
-                    <div style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                    <div id="topic-content-${topicId}" style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
                         ${topicQuestions.map(q => {
                             const actualIndex = state.questions.findIndex(question => question.id === q.id);
                             return renderSingleQuestion(q, actualIndex);
@@ -15059,21 +15043,22 @@ renderQuestionsByTopic = function() {
     // Mostrar preguntas sin tema asignado SI existen
     if (questionsWithoutTopic.length > 0) {
         const topicId = 'sin-tema';
-        const isCollapsed = collapsedFolders[topicId];
-        const collapseIcon = isCollapsed ? '📁' : '📂';
+        const isCollapsed = collapsedTopics[topicId] || false;
         
         html += `
             <div style="margin-bottom: 30px;">
-                <h3 onclick="toggleFolder('${topicId}')" style="background: #6b7280; color: white; padding: 12px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; transition: background-color 0.2s;"
-                    onmouseover="this.style.backgroundColor='#57606a'" 
-                    onmouseout="this.style.backgroundColor='#6b7280'">
-                    <span>${collapseIcon} Sin tema asignado</span>
+                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📂 Sin tema asignado</span>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
-                        <span style="font-size: 11px; opacity: 0.7;">${isCollapsed ? 'Expandir' : 'Colapsar'}</span>
+                        <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
+                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 16px;"
+                                title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                            ${isCollapsed ? '👁️' : '👁️‍🗨️'}
+                        </button>
                     </div>
                 </h3>
-                <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                <div id="topic-content-${topicId}" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
                     ${questionsWithoutTopic.map(q => {
                         const actualIndex = state.questions.findIndex(question => question.id === q.id);
                         return renderSingleQuestion(q, actualIndex);
@@ -15084,17 +15069,18 @@ renderQuestionsByTopic = function() {
     }
     
     // Si no hay preguntas en absoluto
-    if (html === '' || (!hasTopicsWithQuestions && questionsWithoutTopic.length === 0)) {
+    if (html === '') {
         return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
     }
     
     return html;
 };
 
-console.log('✅ Parche de carpetas colapsables aplicado correctamente');
+console.log('✅ Botones de colapsar añadidos a cada tema');
 </script>
 </body>
 </html>
+
 
 
 
