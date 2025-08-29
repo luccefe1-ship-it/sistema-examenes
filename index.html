@@ -13340,68 +13340,64 @@ console.log('   - Franjas con scroll interno únicamente');
 console.log('   - Botón de salir mejorado');
 console.log('   - SIN scroll vertical garantizado');
 </script>
-
+// ========== PARCHE SIMPLE: ARCHIVOS DE TEXTO ==========
+// Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 
 <script>
-console.log('📄 Aplicando parche de archivos de texto v2 mejorado...');
+console.log('📄 Aplicando parche simple para archivos de texto...');
 
-// 1. AÑADIR ESTADO PARA ARCHIVOS DE TEXTO
+// 1. AÑADIR ESTADO
 if (!state.selectedTextFiles) {
     state.selectedTextFiles = [];
 }
 
-// 2. MODIFICAR SOLO LA PRIMERA COLUMNA DEL renderUploadTab EXISTENTE
-// Interceptar la función renderUploadTab para añadir la nueva columna
+// 2. MODIFICAR SOLO renderUploadTab - DISEÑO SIMPLE
 const originalRenderUploadTab = window.renderUploadTab;
 
 window.renderUploadTab = function() {
-    // Mantener el diseño original pero con scroll horizontal
     return `
-        <div style="overflow-x: auto; overflow-y: visible;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 30px; min-width: 1200px;">
-                
-                <!-- COLUMNA 1: SUBIR IMÁGENES (ORIGINAL) -->
-                <div class="column">
-                    <h3 style="margin-bottom: 15px;">📤 Subir Imágenes</h3>
-                    <div class="upload-area" onclick="document.getElementById('imageInput').click()">
-                        <div>📷 Seleccionar imágenes</div>
-                        <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">Hasta 10 imágenes</div>
-                        <div style="margin-top: 10px; color: #4f46e5; font-weight: 500;">
-                            ${state.selectedImages.length}/10 archivos
-                        </div>
+        <div class="three-column">
+            <!-- COLUMNA 1: IMÁGENES (ORIGINAL) -->
+            <div class="column">
+                <h3 style="margin-bottom: 15px;">📤 Subir Imágenes</h3>
+                <div class="upload-area" onclick="document.getElementById('imageInput').click()">
+                    <div>📷 Seleccionar imágenes</div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">Hasta 10 imágenes</div>
+                    <div style="margin-top: 10px; color: #4f46e5; font-weight: 500;">
+                        ${state.selectedImages.length}/10 archivos
                     </div>
-                    <input type="file" id="imageInput" style="display: none;" accept="image/*" multiple>
-                    
-                    ${state.selectedImages.length > 0 ? `
-                        <div class="file-list">
-                            ${state.selectedImages.map((file, index) => `
-                                <div class="file-item">
-                                    <span class="file-name">${file.name}</span>
-                                    <button onclick="removeImage(${index})" class="file-remove">×</button>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : ''}
-                    
-                    <button onclick="transcribeImages()" class="btn btn-primary" style="width: 100%; margin-top: 15px;" ${state.selectedImages.length === 0 || !state.apiKey || state.isProcessing ? 'disabled' : ''}>
-                        ${state.isProcessing ? '🔄 Transcribiendo...' : '🎯 1. Transcribir Imágenes'}
-                    </button>
                 </div>
+                <input type="file" id="imageInput" style="display: none;" accept="image/*" multiple>
+                
+                ${state.selectedImages.length > 0 ? `
+                    <div class="file-list">
+                        ${state.selectedImages.map((file, index) => `
+                            <div class="file-item">
+                                <span class="file-name">${file.name}</span>
+                                <button onclick="removeImage(${index})" class="file-remove">×</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+                
+                <button onclick="transcribeImages()" class="btn btn-primary" style="width: 100%; margin-top: 15px;" ${state.selectedImages.length === 0 || !state.apiKey || state.isProcessing ? 'disabled' : ''}>
+                    ${state.isProcessing ? '🔄 Transcribiendo...' : '🎯 1. Transcribir y Procesar'}
+                </button>
 
-                <!-- COLUMNA 2: NUEVA - SUBIR ARCHIVOS DE TEXTO -->
-                <div class="column" style="background: #f0f9ff; border: 2px solid #0ea5e9;">
-                    <h3 style="margin-bottom: 15px; color: #0369a1;">📄 Subir Archivos de Texto</h3>
-                    <div class="upload-area" onclick="document.getElementById('textFileInput').click()" style="border-color: #0ea5e9; background: white;">
+                <!-- NUEVA SECCIÓN: ARCHIVOS DE TEXTO -->
+                <div style="margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
+                    <h3 style="margin-bottom: 15px; color: #0369a1;">📄 O Subir Archivos de Texto</h3>
+                    <div class="upload-area" onclick="document.getElementById('textFileInput').click()" style="border-color: #0ea5e9;">
                         <div style="color: #0369a1;">📋 Seleccionar archivos</div>
                         <div style="font-size: 12px; color: #0284c7; margin-top: 5px;">TXT, DOC, DOCX</div>
                         <div style="margin-top: 10px; color: #0ea5e9; font-weight: 500;">
                             ${state.selectedTextFiles.length}/10 archivos
                         </div>
                     </div>
-                    <input type="file" id="textFileInput" style="display: none;" accept=".txt,.doc,.docx" multiple>
+                    <input type="file" id="textFileInput" style="display: none;" accept=".txt,.doc,.docx,text/plain" multiple>
                     
                     ${state.selectedTextFiles.length > 0 ? `
-                        <div class="file-list">
+                        <div class="file-list" style="max-height: 120px;">
                             ${state.selectedTextFiles.map((file, index) => `
                                 <div class="file-item">
                                     <span class="file-name">📄 ${file.name}</span>
@@ -13412,80 +13408,63 @@ window.renderUploadTab = function() {
                     ` : ''}
                     
                     <button onclick="processTextFiles()" class="btn btn-info" style="width: 100%; margin-top: 15px;" ${state.selectedTextFiles.length === 0 || !state.apiKey || state.isProcessing ? 'disabled' : ''}>
-                        ${state.isProcessing ? '🔄 Procesando...' : '📝 1. Procesar Texto'}
+                        ${state.isProcessing ? '🔄 Procesando...' : '📝 1. Procesar Archivos'}
                     </button>
-                    
-                    <div style="margin-top: 10px; padding: 8px; background: #e0f2fe; border-radius: 6px; font-size: 12px; color: #0284c7;">
-                        <strong>💡 Compatibles:</strong> Archivos de texto, apuntes, documentos Word
-                    </div>
                 </div>
+            </div>
 
-                <!-- COLUMNA 3: TEXTO TRANSCRITO (ORIGINAL MANTENIDO) -->
-                <div class="column">
-                    <h3 style="margin-bottom: 15px;">📝 Texto Transcrito</h3>
-                    <textarea id="transcribedText" class="textarea" placeholder="El texto transcrito aparecerá aquí. Puedes editarlo antes de generar preguntas..." style="height: 250px;">${state.transcribedText}</textarea>
+            <!-- COLUMNA 2: TEXTO TRANSCRITO (ORIGINAL) -->
+            <div class="column">
+                <h3 style="margin-bottom: 15px;">📝 Texto Transcrito</h3>
+                <textarea id="transcribedText" class="textarea" placeholder="El texto transcrito aparecerá aquí. Puedes editarlo antes de generar preguntas..." style="height: 300px;">${state.transcribedText}</textarea>
+                
+                <div style="background: #fff7ed; border: 2px solid #fb923c; border-radius: 12px; padding: 20px; margin: 20px 0;">
+                    <h4 style="color: #ea580c; margin-bottom: 15px;">🏷️ Gestión de Temas</h4>
                     
-                    <!-- MANTENER EL SISTEMA ORIGINAL DE TEMAS -->
-                    <div style="background: #fff7ed; border: 2px solid #fb923c; border-radius: 12px; padding: 20px; margin: 20px 0;">
-                        <h4 style="color: #ea580c; margin-bottom: 15px;">🏷️ Gestión de Temas</h4>
-                        
-                        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                            <button onclick="showCreateTopicModal()" class="btn btn-info">
-                                🆕 Crear Tema
-                            </button>
-                            <select style="flex: 1; padding: 10px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px;" onchange="state.selectedTopicForNewQuestions = this.value; render();">
-                                <option value="banco_general" ${state.selectedTopicForNewQuestions === 'banco_general' ? 'selected' : ''}>
-                                    📦 Banco General
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <button onclick="showCreateTopicModal()" class="btn btn-info">
+                            🆕 Crear Tema
+                        </button>
+                        <select style="flex: 1; padding: 10px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px;" onchange="state.selectedTopicForNewQuestions = this.value; render();">
+                            <option value="banco_general" ${state.selectedTopicForNewQuestions === 'banco_general' ? 'selected' : ''}>
+                                📦 Banco General
+                            </option>
+                            ${Object.keys(state.topics).map(topic => `
+                                <option value="${topic}" ${state.selectedTopicForNewQuestions === topic ? 'selected' : ''}>
+                                    🏷️ ${topic}
                                 </option>
-                                ${Object.keys(state.topics).map(topic => `
-                                    <option value="${topic}" ${state.selectedTopicForNewQuestions === topic ? 'selected' : ''}>
-                                        🏷️ ${topic}
-                                    </option>
-                                `).join('')}
-                            </select>
-                        </div>
+                            `).join('')}
+                        </select>
                     </div>
-                    
-                    <button onclick="generateQuestions()" class="btn btn-success" style="width: 100%;" ${!state.transcribedText.trim() || !state.apiKey || state.isProcessing ? 'disabled' : ''}>
-                        ${getAddButtonText()}
-                    </button>
                 </div>
-
-                <!-- COLUMNA 4: INFORMACIÓN Y ESTADO (OPCIONAL) -->
-                <div class="column" style="background: #fefce8; border: 2px solid #eab308;">
-                    <h3 style="margin-bottom: 15px; color: #a16207;">📊 Estado del Sistema</h3>
-                    
-                    <div style="padding: 15px; background: white; border-radius: 8px; margin-bottom: 15px;">
-                        <div style="font-size: 14px; color: #374151; margin-bottom: 8px;">
-                            <strong>🖼️ Imágenes:</strong> ${state.selectedImages.length}/10
-                        </div>
-                        <div style="font-size: 14px; color: #374151; margin-bottom: 8px;">
-                            <strong>📄 Archivos:</strong> ${state.selectedTextFiles.length}/10
-                        </div>
-                        <div style="font-size: 14px; color: #374151; margin-bottom: 8px;">
-                            <strong>📝 Texto:</strong> ${state.transcribedText ? '✅ Disponible' : '❌ Vacío'}
-                        </div>
-                        <div style="font-size: 14px; color: #374151;">
-                            <strong>🔑 API:</strong> ${state.apiKey ? '✅ Configurada' : '❌ Falta'}
-                        </div>
+                
+                <button onclick="generateQuestions()" class="btn btn-success" style="width: 100%;" ${!state.transcribedText.trim() || !state.apiKey || state.isProcessing ? 'disabled' : ''}>
+                    ${getAddButtonText()}
+                </button>
+                
+                ${state.isProcessing ? `
+                    <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; text-align: center;">
+                        <span style="color: #92400e;">🔄 Procesando con IA...</span>
                     </div>
-                    
-                    ${state.isProcessing ? `
-                        <div style="padding: 15px; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; text-align: center;">
-                            <div style="color: #92400e; font-weight: 600;">🤖 IA Procesando...</div>
-                            <div style="color: #92400e; font-size: 12px; margin-top: 5px;">Por favor espera</div>
-                        </div>
-                    ` : ''}
-                    
-                    <div style="margin-top: 15px; padding: 12px; background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; font-size: 13px; color: #166534;">
-                        <strong>✅ Flujo de trabajo:</strong>
-                        <ol style="margin: 8px 0 0 20px; font-size: 12px;">
-                            <li>Sube imágenes O archivos de texto</li>
-                            <li>Procesa con IA</li>
-                            <li>Edita el texto si es necesario</li>
-                            <li>Selecciona tema</li>
-                            <li>Genera preguntas</li>
-                        </ol>
+                ` : ''}
+            </div>
+
+            <!-- COLUMNA 3: PREGUNTAS GENERADAS (ORIGINAL) -->
+            <div class="column">
+                <h3 style="margin-bottom: 15px;">❓ Preguntas Generadas</h3>
+                <textarea class="textarea" placeholder="Las preguntas aparecerán aquí después del procesamiento..." readonly style="height: 300px;">${state.generatedQuestions}</textarea>
+                
+                <button onclick="addQuestionsToBank()" class="btn btn-success" style="width: 100%; margin-top: 15px;" ${!state.generatedQuestions || state.isProcessing ? 'disabled' : ''}>
+                    ✅ 2. Añadir al Banco
+                </button>
+                
+                <div style="margin-top: 15px; padding: 15px; background: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px;">
+                    <h4 style="color: #166534; margin-bottom: 10px;">💡 Instrucciones</h4>
+                    <div style="font-size: 13px; color: #16a34a;">
+                        <p>1. Sube imágenes O archivos de texto</p>
+                        <p>2. Procesa el contenido con IA</p>
+                        <p>3. Edita el texto si es necesario</p>
+                        <p>4. Genera preguntas y añádelas al banco</p>
                     </div>
                 </div>
             </div>
@@ -13493,26 +13472,15 @@ window.renderUploadTab = function() {
     `;
 };
 
-// 3. FUNCIONES PARA ARCHIVOS DE TEXTO
+// 3. FUNCIONES SIMPLES
 function removeTextFile(index) {
     state.selectedTextFiles.splice(index, 1);
     render();
-    showMessage('Archivo eliminado', 'success');
 }
 
-// 4. FUNCIÓN PARA LEER ARCHIVOS
-function fileToText(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsText(file, 'UTF-8');
-    });
-}
-
-// 5. FUNCIÓN PRINCIPAL PARA PROCESAR ARCHIVOS DE TEXTO - CORREGIDA
+// 4. FUNCIÓN PRINCIPAL - SIMPLIFICADA Y FUNCIONAL
 window.processTextFiles = async function() {
-    console.log('🔄 Iniciando processTextFiles...');
+    console.log('🔄 Procesando archivos de texto...');
     
     if (!state.apiKey) {
         showMessage('Configura tu API key primero', 'error');
@@ -13520,88 +13488,50 @@ window.processTextFiles = async function() {
     }
 
     if (state.selectedTextFiles.length === 0) {
-        showMessage('Selecciona al menos un archivo de texto', 'error');
+        showMessage('Selecciona al menos un archivo', 'error');
         return;
     }
 
     state.isProcessing = true;
     render();
-    showMessage('Procesando archivos de texto...', 'success');
     
     try {
-        let allTexts = [];
+        let combinedText = '';
         
-        // Procesar cada archivo
+        // Leer todos los archivos
         for (const file of state.selectedTextFiles) {
-            console.log('📄 Procesando archivo:', file.name, file.type);
-            let textContent = '';
-            
-            if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
-                file.type === 'application/msword' ||
-                file.name.endsWith('.doc') || 
-                file.name.endsWith('.docx')) {
-                
-                console.log('📄 Procesando archivo Word...');
-                
-                // Para archivos Word, usar la API de Claude con tipo document
-                try {
-                    const base64 = await fileToBase64(file);
-                    
-                    const response = await fetch("https://api.anthropic.com/v1/messages", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            model: "claude-sonnet-4-20250514",
-                            max_tokens: 4000,
-                            messages: [{
-                                role: "user",
-                                content: [
-                                    {
-                                        type: "document",
-                                        source: {
-                                            type: "base64",
-                                            media_type: file.type,
-                                            data: base64
-                                        }
-                                    },
-                                    {
-                                        type: "text",
-                                        text: "Extrae todo el texto de este documento Word manteniendo la estructura y formato original."
-                                    }
-                                ]
-                            }]
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`Error API Word: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    textContent = data.content[0].text;
-                    console.log('✅ Archivo Word procesado');
-                    
-                } catch (wordError) {
-                    console.error('❌ Error procesando Word:', wordError);
-                    showMessage(`Error procesando ${file.name}: ${wordError.message}`, 'error');
-                    textContent = `[Error procesando ${file.name}]`;
-                }
-                
+            if (file.name.endsWith('.txt') || file.type === 'text/plain') {
+                // Archivo de texto plano
+                const text = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result);
+                    reader.onerror = reject;
+                    reader.readAsText(file);
+                });
+                combinedText += `--- ${file.name} ---\n${text}\n\n`;
             } else {
-                // Archivos de texto plano
-                console.log('📄 Procesando archivo de texto plano...');
-                textContent = await fileToText(file);
+                // Para archivos Word, intentar leer como texto
+                try {
+                    const text = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = e => resolve(e.target.result);
+                        reader.onerror = reject;
+                        reader.readAsText(file);
+                    });
+                    combinedText += `--- ${file.name} ---\n${text}\n\n`;
+                } catch (error) {
+                    combinedText += `--- ${file.name} ---\n[Archivo Word - contenido no legible como texto plano]\n\n`;
+                    showMessage(`Nota: ${file.name} necesita conversión manual`, 'error');
+                }
             }
-            
-            allTexts.push(`=== ${file.name} ===\n${textContent}\n`);
         }
 
-        const combinedText = allTexts.join('\n');
-        console.log('📝 Texto combinado listo, enviando a IA...');
+        // Si no hay texto, salir
+        if (!combinedText.trim()) {
+            throw new Error('No se pudo extraer texto de los archivos');
+        }
 
-        // Procesar todo el texto con IA para organizar
+        // Procesar con IA - SIMPLIFICADO
         const response = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
             headers: {
@@ -13609,104 +13539,78 @@ window.processTextFiles = async function() {
             },
             body: JSON.stringify({
                 model: "claude-sonnet-4-20250514",
-                max_tokens: 4000,
+                max_tokens: 3000,
                 messages: [{
                     role: "user",
-                    content: `Procesa este contenido de archivos de texto para prepararlo para generar preguntas de examen:
+                    content: `Organiza este texto para crear preguntas de examen:
 
 ${combinedText}
 
-INSTRUCCIONES:
-- Si ya hay preguntas, mantenlas tal como están
-- Si es material de estudio, organízalo claramente
-- Conserva toda la información importante
-- Estructura el contenido de manera ordenada
-- NO generes preguntas todavía, solo organiza el texto`
+Instrucciones:
+- Si ya hay preguntas, manténlas
+- Si es material de estudio, organízalo
+- Conserva información importante
+- Estructura el contenido claramente`
                 }]
             })
         });
 
         if (!response.ok) {
-            throw new Error(`Error API: ${response.status}`);
+            throw new Error(`Error API: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
         const processedText = data.content[0].text;
 
-        // Añadir al texto transcrito existente
+        // Añadir al texto transcrito
         if (state.transcribedText.trim()) {
-            state.transcribedText += '\n\n--- ARCHIVOS DE TEXTO ---\n' + processedText;
+            state.transcribedText += '\n\n' + processedText;
         } else {
             state.transcribedText = processedText;
         }
 
         state.isProcessing = false;
-        showMessage(`${state.selectedTextFiles.length} archivo(s) procesado(s) exitosamente`, 'success');
+        showMessage(`${state.selectedTextFiles.length} archivo(s) procesado(s)`, 'success');
         render();
-        
-        console.log('✅ processTextFiles completado exitosamente');
         
     } catch (error) {
-        console.error('❌ Error en processTextFiles:', error);
+        console.error('Error:', error);
         state.isProcessing = false;
         render();
-        showMessage(`Error procesando archivos: ${error.message}`, 'error');
+        showMessage(`Error: ${error.message}`, 'error');
     }
 };
 
-// 6. EVENT LISTENER PARA SELECCIÓN DE ARCHIVOS
+// 5. EVENT LISTENERS
 document.addEventListener('change', function(e) {
     if (e.target && e.target.id === 'textFileInput') {
-        console.log('📄 Archivos seleccionados:', e.target.files.length);
-        
         const files = Array.from(e.target.files);
         
-        const validFiles = files.filter(file => {
-            const isValid = file.type === 'text/plain' || 
-                           file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                           file.type === 'application/msword' ||
-                           file.name.endsWith('.txt') ||
-                           file.name.endsWith('.docx') ||
-                           file.name.endsWith('.doc');
-            
-            console.log('📄 Archivo:', file.name, 'Tipo:', file.type, 'Válido:', isValid);
-            return isValid;
-        });
+        if (files.length === 0) return;
         
-        if (validFiles.length === 0) {
-            showMessage('Selecciona archivos válidos (.txt, .doc, .docx)', 'error');
+        if (state.selectedTextFiles.length + files.length > 10) {
+            showMessage('Máximo 10 archivos', 'error');
             return;
         }
         
-        if (state.selectedTextFiles.length + validFiles.length > 10) {
-            showMessage('Máximo 10 archivos permitidos', 'error');
-            return;
-        }
-        
-        state.selectedTextFiles = [...state.selectedTextFiles, ...validFiles];
+        state.selectedTextFiles = [...state.selectedTextFiles, ...files];
         render();
-        showMessage(`${validFiles.length} archivo(s) añadido(s)`, 'success');
+        showMessage(`${files.length} archivo(s) añadido(s)`, 'success');
     }
 });
 
-// 7. EVENT LISTENER PARA EDICIÓN DEL TEXTAREA
 document.addEventListener('input', function(e) {
     if (e.target && e.target.id === 'transcribedText') {
         state.transcribedText = e.target.value;
     }
 });
 
-console.log('✅ Parche de archivos de texto v2 aplicado correctamente');
-console.log('📋 Solucionado:');
-console.log('  ✅ Scroll horizontal para pantallas pequeñas');
-console.log('  ✅ Función processTextFiles() corregida y funcional');
-console.log('  ✅ Sistema de temas original mantenido');
-console.log('  ✅ Event listeners funcionando');
-console.log('  ✅ Compatibilidad con .TXT, .DOC, .DOCX');
+console.log('✅ Parche simple aplicado - Funciones básicas para archivos de texto');
 </script>
 
 </body>
 </html>
+
 
 
 
