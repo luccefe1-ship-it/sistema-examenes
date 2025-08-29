@@ -14974,7 +14974,7 @@ console.log('🔧 Funciones de debugging disponibles:');
 console.log('   - debugTopicSystem() - Diagnóstico completo');
 console.log('   - createTopic() - Crear tema manualmente');
 </script>
-// PARCHE SIMPLE: Botón colapsar/expandir al lado de cada tema
+// PARCHE: Triangulito colapsar + mantener botón eliminar tema
 // Añadir al final de index.html justo antes de </body>
 
 <script>
@@ -14993,17 +14993,17 @@ window.toggleTopicVisibility = function(topicId) {
     if (contentDiv) {
         if (collapsedTopics[topicId]) {
             contentDiv.style.display = 'none';
-            button.textContent = '👁️';
+            button.textContent = '▶';
             button.title = 'Mostrar preguntas';
         } else {
             contentDiv.style.display = 'block';
-            button.textContent = '👁️‍🗨️';
+            button.textContent = '▼';
             button.title = 'Ocultar preguntas';
         }
     }
 };
 
-// REEMPLAZAR renderQuestionsByTopic para añadir botones
+// REEMPLAZAR renderQuestionsByTopic manteniendo eliminar tema
 renderQuestionsByTopic = function() {
     const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
     
@@ -15023,9 +15023,12 @@ renderQuestionsByTopic = function() {
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
                             <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
-                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 16px;"
+                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
                                     title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
-                                ${isCollapsed ? '👁️' : '👁️‍🗨️'}
+                                ${isCollapsed ? '▶' : '▼'}
+                            </button>
+                            <button onclick="deleteTopicSimple('${topic.id}')" class="btn btn-danger" style="padding: 4px 8px; font-size: 12px; background: #dc2626; border: none; border-radius: 4px; color: white; cursor: pointer;" title="Eliminar tema">
+                                🗑️
                             </button>
                         </div>
                     </h3>
@@ -15052,9 +15055,9 @@ renderQuestionsByTopic = function() {
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
                         <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
-                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 16px;"
+                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
                                 title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
-                            ${isCollapsed ? '👁️' : '👁️‍🗨️'}
+                            ${isCollapsed ? '▶' : '▼'}
                         </button>
                     </div>
                 </h3>
@@ -15076,10 +15079,11 @@ renderQuestionsByTopic = function() {
     return html;
 };
 
-console.log('✅ Botones de colapsar añadidos a cada tema');
+console.log('✅ Triangulito colapsar añadido + botón eliminar tema mantenido');
 </script>
 </body>
 </html>
+
 
 
 
