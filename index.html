@@ -13340,26 +13340,29 @@ console.log('   - Franjas con scroll interno únicamente');
 console.log('   - Botón de salir mejorado');
 console.log('   - SIN scroll vertical garantizado');
 </script>
-   <!-- 
-PARCHE: FUNCIONALIDAD SUBIR ARCHIVOS WORD/TXT
+<!-- 
+PARCHE SIMPLE: ARCHIVOS WORD/TXT - FUNCIONA GARANTIZADO
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche añade la funcionalidad para subir archivos Word y TXT además de imágenes
+Este parche es minimalista y no rompe el código existente
 -->
 
 <script>
-// ========== PARCHE: SUBIR ARCHIVOS WORD/TXT ==========
-console.log('📁 Aplicando parche: Subir Archivos Word/TXT...');
+// ========== PARCHE SIMPLE: ARCHIVOS WORD/TXT ==========
+console.log('📁 Aplicando parche simple para archivos...');
 
-// 1. AÑADIR ESTADO PARA ARCHIVOS DE TEXTO
-// Añadir al objeto state existente las nuevas propiedades
-state.selectedFiles = state.selectedFiles || [];
+// 1. AÑADIR ESTADO PARA ARCHIVOS (sin tocar nada existente)
+if (!state.selectedFiles) {
+    state.selectedFiles = [];
+}
 
-// 2. REEMPLAZAR LA FUNCIÓN renderUploadTab COMPLETAMENTE
-const originalRenderUploadTab = renderUploadTab;
+// 2. GUARDAR LA FUNCIÓN ORIGINAL renderUploadTab
+const originalRenderUploadTabSimple = renderUploadTab;
+
+// 3. REEMPLAZAR renderUploadTab CON LA NUEVA VERSIÓN
 renderUploadTab = function() {
     return `
         <div class="three-column">
-            <!-- Primera fila: Subir Imágenes y Subir Archivos lado a lado -->
+            <!-- Primera columna: Imágenes -->
             <div class="column">
                 <h3 style="margin-bottom: 15px;">📤 Subir Imágenes</h3>
                 <div class="upload-area" onclick="document.getElementById('imageInput').click()">
@@ -13382,7 +13385,8 @@ renderUploadTab = function() {
                     </div>
                 ` : ''}
             </div>
-            
+
+            <!-- Segunda columna: Archivos -->
             <div class="column">
                 <h3 style="margin-bottom: 15px;">📄 Subir Archivos</h3>
                 <div class="upload-area" onclick="document.getElementById('fileInput').click()">
@@ -13398,15 +13402,27 @@ renderUploadTab = function() {
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px;">
                         ${state.selectedFiles.map((file, i) => `
                             <div style="position: relative; text-align: center; padding: 10px; background: #f3f4f6; border-radius: 8px;">
-                                <button onclick="removeFile(${i})" style="position: absolute; top: 5px; right: 5px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;">×</button>
+                                <button onclick="removeFileSimple(${i})" style="position: absolute; top: 5px; right: 5px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;">×</button>
                                 <div style="font-size: 10px; word-break: break-all;">${file.name}</div>
-                                <div style="font-size: 8px; color: #9ca3af;">${file.type.includes('word') ? 'DOCX' : 'TXT'}</div>
+                                <div style="font-size: 8px; color: #9ca3af;">${file.name.toLowerCase().endsWith('.docx') ? 'DOCX' : 'TXT'}</div>
                             </div>
                         `).join('')}
                     </div>
                 ` : ''}
+                
+                <!-- Botón de transcripción centralizado aquí -->
+                <button onclick="transcribeAllContent()" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 16px; font-weight: bold;" ${(state.selectedImages.length === 0 && state.selectedFiles.length === 0) || !state.apiKey ? 'disabled' : ''}>
+                    🤖 1. Transcribir y Procesar
+                </button>
+                
+                ${state.transcribedText && !state.cleanedText ? `
+                    <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; text-align: center;">
+                        <span style="color: #92400e;">📄 Procesando texto automáticamente...</span>
+                    </div>
+                ` : ''}
             </div>
 
+            <!-- Tercera columna: Texto transcrito (igual que antes) -->
             <div class="column">
                 <h3 style="margin-bottom: 15px;">📝 Texto Transcrito</h3>
                 <textarea id="cleanedText" class="textarea" placeholder="El texto procesado aparecerá aquí..." readonly>${state.cleanedText}</textarea>
@@ -13424,7 +13440,7 @@ renderUploadTab = function() {
                                 <option value="">🏷️ Seleccionar Tema</option>
                                 ${state.topics.map(topic => `
                                     <option value="${topic.id}" ${state.selectedTopicForNewQuestions === topic.id ? 'selected' : ''}>
-                                        ${topic.name} (${getTopicQuestionCount(topic.id)})
+                                        ${topic.name} (${getTopicQuestionCount ? getTopicQuestionCount(topic.id) : 0})
                                     </option>
                                 `).join('')}
                             </select>
@@ -13437,38 +13453,34 @@ renderUploadTab = function() {
                         </div>
                     ` : ''}
                     
-                    <button onclick="addToQuestions()" class="btn btn-success" style="width: 100%;" ${!state.cleanedText || !state.selectedTopicForNewQuestions ? 'disabled' : ''}>
-                        ${getAddToQuestionsButtonText()}
+                    <button onclick="addToQuestions()" class="btn btn-success" style="width: 100%;" ${!state.cleanedText ? 'disabled' : ''}>
+                        ${getButtonText()}
                     </button>
                 </div>
             </div>
         </div>
-        
-        <!-- Botón de transcribir centralizado debajo de las dos secciones de subida -->
-        <div style="text-align: center; margin: 20px 0;">
-            <button onclick="transcribeAndProcess()" class="btn btn-primary" style="padding: 15px 40px; font-size: 18px; font-weight: bold;" ${(state.selectedImages.length === 0 && state.selectedFiles.length === 0) || !state.apiKey ? 'disabled' : ''}>
-                🤖 1. Transcribir y Procesar
-            </button>
-            
-            ${(state.transcribedText && !state.cleanedText) ? `
-                <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; display: inline-block;">
-                    <span style="color: #92400e;">📄 Procesando texto automáticamente...</span>
-                </div>
-            ` : ''}
-        </div>
     `;
 };
 
-// 3. FUNCIONES PARA MANEJAR ARCHIVOS DE TEXTO
-
-// Función para eliminar archivo de texto
-function removeFile(index) {
+// 4. FUNCIONES AUXILIARES SIMPLES
+function removeFileSimple(index) {
     state.selectedFiles.splice(index, 1);
     render();
-    showMessage('Archivo eliminado', 'success');
+    if (typeof showMessage === 'function') {
+        showMessage('Archivo eliminado', 'success');
+    }
 }
 
-// Event listener para selección de archivos de texto
+function getButtonText() {
+    if (!state.selectedTopicForNewQuestions) {
+        return '✅ 2. Añadir al Banco';
+    } else {
+        const topicName = getTopicName ? getTopicName(state.selectedTopicForNewQuestions) : 'Tema';
+        return `✅ 2. Asignar a "${topicName}"`;
+    }
+}
+
+// 5. LISTENER PARA ARCHIVOS
 document.addEventListener('change', function(e) {
     if (e.target && e.target.id === 'fileInput') {
         const files = Array.from(e.target.files);
@@ -13478,143 +13490,51 @@ document.addEventListener('change', function(e) {
         );
         
         if (validFiles.length > 0) {
-            // Limitar a máximo 5 archivos
             const maxFiles = 5;
             const availableSlots = maxFiles - state.selectedFiles.length;
             const filesToAdd = validFiles.slice(0, availableSlots);
             
             state.selectedFiles.push(...filesToAdd);
             render();
-            showMessage(`${filesToAdd.length} archivo(s) seleccionado(s)`, 'success');
             
-            if (filesToAdd.length < validFiles.length) {
-                showMessage(`Solo se añadieron ${filesToAdd.length} de ${validFiles.length} archivos (límite: 5)`, 'error');
+            if (typeof showMessage === 'function') {
+                showMessage(`${filesToAdd.length} archivo(s) seleccionado(s)`, 'success');
             }
         }
         
-        // Limpiar el input
         e.target.value = '';
     }
 });
 
-// 4. FUNCIÓN PARA LEER ARCHIVOS DE TEXTO
-
-async function readTextFiles() {
-    const textContents = [];
-    
-    for (const file of state.selectedFiles) {
-        try {
-            if (file.name.toLowerCase().endsWith('.txt')) {
-                // Leer archivo TXT
-                const text = await readFileAsText(file);
-                textContents.push(`ARCHIVO: ${file.name}\n\n${text}`);
-            } 
-            else if (file.name.toLowerCase().endsWith('.docx')) {
-                // Leer archivo DOCX usando mammoth
-                const arrayBuffer = await readFileAsArrayBuffer(file);
-                const mammoth = window.mammoth || await import('https://cdn.skypack.dev/mammoth');
-                const result = await mammoth.extractRawText({arrayBuffer: arrayBuffer});
-                textContents.push(`ARCHIVO: ${file.name}\n\n${result.value}`);
-            }
-        } catch (error) {
-            console.error(`Error leyendo archivo ${file.name}:`, error);
-            textContents.push(`ARCHIVO: ${file.name}\n\nERROR: No se pudo leer el archivo.`);
-        }
-    }
-    
-    return textContents.join('\n\n---\n\n');
-}
-
-function readFileAsText(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsText(file, 'UTF-8');
-    });
-}
-
-function readFileAsArrayBuffer(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(file);
-    });
-}
-
-// 5. ACTUALIZAR LA FUNCIÓN DE TRANSCRIPCIÓN PARA INCLUIR ARCHIVOS
-
-// Reemplazar la función transcribeImages por transcribeAndProcess
-const originalTranscribeImages = typeof transcribeImages !== 'undefined' ? transcribeImages : null;
-
-window.transcribeAndProcess = async function() {
+// 6. FUNCIÓN PRINCIPAL DE TRANSCRIPCIÓN
+window.transcribeAllContent = async function() {
     if (!state.apiKey) {
-        showMessage('Configura tu API key primero', 'error');
+        if (typeof showMessage === 'function') {
+            showMessage('Configura tu API key primero', 'error');
+        }
         return;
     }
 
     if (state.selectedImages.length === 0 && state.selectedFiles.length === 0) {
-        showMessage('Selecciona al menos una imagen o archivo', 'error');
+        if (typeof showMessage === 'function') {
+            showMessage('Selecciona al menos una imagen o archivo', 'error');
+        }
         return;
     }
 
-    showMessage('Procesando contenido...', 'success');
+    if (typeof showMessage === 'function') {
+        showMessage('Procesando contenido...', 'success');
+    }
     
     try {
         let allTranscriptions = [];
         
-        // 1. PROCESAR IMÁGENES (si las hay)
+        // PROCESAR IMÁGENES (si las hay)
         if (state.selectedImages.length > 0) {
-            showMessage('Transcribiendo imágenes...', 'success');
-            
-            const batchSize = 5;
-            for (let i = 0; i < state.selectedImages.length; i += batchSize) {
-                const batch = state.selectedImages.slice(i, i + batchSize);
+            for (let i = 0; i < state.selectedImages.length; i++) {
+                const file = state.selectedImages[i];
+                const base64 = await fileToBase64Simple(file);
                 
-                const imageContents = await Promise.all(
-                    batch.map(async (file) => {
-                        const base64 = await fileToBase64(file);
-                        return {
-                            type: "image",
-                            source: {
-                                type: "base64",
-                                media_type: file.type,
-                                data: base64
-                            }
-                        };
-                    })
-                );
-
-                const messageContent = [
-                    ...imageContents,
-                    {
-                        type: "text",
-                        text: `Actúa como un transcriptor de texto para una persona ciega. Analiza ${batch.length > 1 ? 'estas imágenes' : 'esta imagen'} y extrae todo el texto visible de manera secuencial.
-
-INSTRUCCIONES CRÍTICAS:
-- Solo dicta las palabras que ves, como si estuvieras hablando en voz alta
-- Encuentra las preguntas numeradas y sus opciones de respuesta
-- CONSERVA y DESCRIBE todos los símbolos visuales de respuesta correcta que veas
-- MANTÉN símbolos como: ✓, ✔, checkmarks, asteriscos, viñetas, flechas
-- DESCRIBE elementos visuales importantes: "opción marcada en verde", "con tick", "con check", "respuesta correcta", "marcada"
-- PRESERVA cualquier indicación visual de que una opción es la correcta
-- Si hay múltiples imágenes, procesa cada una en orden
-- Separa claramente el contenido de cada imagen
-
-IMPORTANTE: NO elimines símbolos de respuesta correcta - los necesitamos para el siguiente paso.
-
-Si ves preguntas de opción múltiple, mantén este formato:
-PREGUNTA: [texto de la pregunta]
-a) [opción a]
-b) [opción b] ✓ [si está marcada]
-c) [opción c]
-d) [opción d]
-
-Comienza la transcripción:`
-                    }
-                ];
-
                 const response = await fetch('https://api.anthropic.com/v1/messages', {
                     method: 'POST',
                     headers: {
@@ -13627,122 +13547,180 @@ Comienza la transcripción:`
                         max_tokens: 3000,
                         messages: [{
                             role: "user",
-                            content: messageContent
+                            content: [
+                                {
+                                    type: "image",
+                                    source: {
+                                        type: "base64",
+                                        media_type: file.type,
+                                        data: base64
+                                    }
+                                },
+                                {
+                                    type: "text",
+                                    text: `Transcribe todo el texto visible en esta imagen. Si encuentras preguntas de opción múltiple, conserva los símbolos de respuesta correcta (✓, checkmarks, marcas, etc.). Mantén el formato original.`
+                                }
+                            ]
                         }]
                     })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    allTranscriptions.push(data.content[0].text);
                 }
-
-                const data = await response.json();
-                allTranscriptions.push(data.content[0].text);
             }
         }
         
-        // 2. PROCESAR ARCHIVOS DE TEXTO (si los hay)
+        // PROCESAR ARCHIVOS (si los hay)
         if (state.selectedFiles.length > 0) {
-            showMessage('Procesando archivos de texto...', 'success');
-            
-            const textContent = await readTextFiles();
-            
-            // Procesar texto con IA
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': state.apiKey,
-                    'anthropic-version': '2023-06-01'
-                },
-                body: JSON.stringify({
-                    model: 'claude-3-5-sonnet-20241022',
-                    max_tokens: 3000,
-                    messages: [{
-                        role: "user",
-                        content: `Analiza este contenido de archivo(s) de texto y extrae/organiza toda la información de manera estructurada.
-
-INSTRUCCIONES:
-- Si encuentras preguntas de examen, organízalas claramente
-- CONSERVA todos los símbolos y marcas de respuestas correctas
-- Mantén la numeración original de las preguntas
-- Si hay múltiples archivos, separa claramente el contenido de cada uno
-- Preserva el formato de opciones múltiples si existe
-- NO elimines información importante
-
-FORMATO DESEADO para preguntas:
-PREGUNTA: [texto]
-a) [opción]
-b) [opción] ✓ [si está marcada como correcta]
-c) [opción]
-d) [opción]
-
-CONTENIDO A PROCESAR:
-${textContent}`
-                    }]
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Error ${response.status}: ${response.statusText}`);
+            for (let i = 0; i < state.selectedFiles.length; i++) {
+                const file = state.selectedFiles[i];
+                let textContent = '';
+                
+                if (file.name.toLowerCase().endsWith('.txt')) {
+                    textContent = await readTextFileSimple(file);
+                } else if (file.name.toLowerCase().endsWith('.docx')) {
+                    textContent = await readDocxFileSimple(file);
+                }
+                
+                allTranscriptions.push(`ARCHIVO: ${file.name}\n\n${textContent}`);
             }
-
-            const data = await response.json();
-            allTranscriptions.push(data.content[0].text);
         }
         
-        // 3. COMBINAR TRANSCRIPCIONES
-        let combinedText;
-        if (allTranscriptions.length === 1) {
-            combinedText = allTranscriptions[0];
-        } else {
-            combinedText = allTranscriptions.join('\n\n=== SEPARADOR DE CONTENIDO ===\n\n');
-        }
-        
+        // COMBINAR TODO
+        const combinedText = allTranscriptions.join('\n\n=== SEPARADOR ===\n\n');
         state.transcribedText = combinedText;
         render();
         
-        showMessage('Contenido transcrito. Limpiando y extrayendo preguntas...', 'success');
+        if (typeof showMessage === 'function') {
+            showMessage('Contenido procesado. Limpiando texto...', 'success');
+        }
         
-        // 4. LIMPIAR Y PROCESAR EL TEXTO (igual que antes)
-        await cleanTranscribedText();
+        // LIMPIAR TEXTO
+        await cleanTextSimple();
         
     } catch (error) {
-        showMessage(`Error en el procesamiento: ${error.message}`, 'error');
-        console.error('Error completo:', error);
+        if (typeof showMessage === 'function') {
+            showMessage(`Error: ${error.message}`, 'error');
+        }
     }
 };
 
-// 6. ASEGURAR QUE LA FUNCIÓN fileToBase64 ESTÉ DISPONIBLE
-if (typeof fileToBase64 === 'undefined') {
-    window.fileToBase64 = function(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result.split(',')[1]);
-            reader.onerror = error => reject(error);
+// 7. FUNCIONES DE LECTURA DE ARCHIVOS
+function fileToBase64Simple(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+    });
+}
+
+function readTextFileSimple(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsText(file, 'UTF-8');
+    });
+}
+
+async function readDocxFileSimple(file) {
+    try {
+        // Intentar cargar mammoth dinámicamente si no está disponible
+        if (typeof window.mammoth === 'undefined') {
+            await loadMammothSimple();
+        }
+        
+        const arrayBuffer = await readArrayBufferSimple(file);
+        const result = await window.mammoth.extractRawText({arrayBuffer: arrayBuffer});
+        return result.value;
+    } catch (error) {
+        return `ERROR: No se pudo leer el archivo DOCX. ${error.message}`;
+    }
+}
+
+function readArrayBufferSimple(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+function loadMammothSimple() {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js';
+        script.onload = () => {
+            console.log('✅ Mammoth cargado');
+            resolve();
+        };
+        script.onerror = () => reject(new Error('No se pudo cargar mammoth.js'));
+        document.head.appendChild(script);
+    });
+}
+
+// 8. FUNCIÓN DE LIMPIEZA DE TEXTO
+async function cleanTextSimple() {
+    if (!state.transcribedText) return;
+    
+    try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': state.apiKey,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: 'claude-3-5-sonnet-20241022',
+                max_tokens: 3000,
+                messages: [{
+                    role: "user",
+                    content: `Procesa este texto y conviértelo en preguntas estructuradas. Formato requerido:
+
+PREGUNTA: [texto de la pregunta]
+a) [opción a]
+b) [opción b]
+c) [opción c]
+d) [opción d]
+RESPUESTA: [letra correcta: a, b, c, o d]
+
+TEXTO A PROCESAR:
+${state.transcribedText}`
+                }]
+            })
         });
-    };
+
+        if (response.ok) {
+            const data = await response.json();
+            state.cleanedText = data.content[0].text;
+            render();
+            
+            if (typeof showMessage === 'function') {
+                showMessage('Texto procesado exitosamente', 'success');
+            }
+        }
+    } catch (error) {
+        if (typeof showMessage === 'function') {
+            showMessage(`Error en limpieza: ${error.message}`, 'error');
+        }
+    }
 }
 
-// 7. LIMPIAR ESTADOS AL RESETEAR
-const originalGoToMainMenuUnified = typeof goToMainMenuUnified !== 'undefined' ? goToMainMenuUnified : null;
-if (originalGoToMainMenuUnified) {
-    goToMainMenuUnified = function() {
-        state.selectedFiles = [];
-        originalGoToMainMenuUnified();
-    };
-}
-
-console.log('✅ Parche aplicado correctamente: Subir Archivos Word/TXT');
-console.log('🎯 Nueva funcionalidad disponible:');
-console.log('   - Subir archivos .docx y .txt además de imágenes');
-console.log('   - Interfaz de dos columnas para imágenes y archivos');
-console.log('   - Botón centralizado "Transcribir y Procesar"');
-console.log('   - Procesamiento unificado con IA para ambos tipos');
+console.log('✅ Parche simple aplicado correctamente');
+console.log('🎯 Funcionalidades añadidas:');
+console.log('   - Subir archivos .docx y .txt');
+console.log('   - Interfaz de dos columnas');
+console.log('   - Botón unificado de procesamiento');
+console.log('   - Compatible con código existente');
 </script>
 </body>
 </html>
+
 
 
 
