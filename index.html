@@ -13122,23 +13122,18 @@ window.renderDuelInterface = function() {
         'rgba(34, 197, 94, 0.3)' : 
         'rgba(220, 38, 38, 0.3)';
     
-    // Colores de la FRANJA DEL USUARIO (izquierda) - SIEMPRE SOLO INFORMATIVA
-    const userFrameBg = 'linear-gradient(135deg, #f3f4f6, #e5e7eb)'; // GRIS neutro - solo información
-    const userFrameBorder = '#6b7280'; // GRIS neutro
-    const userHeaderBg = '#6b7280'; // GRIS neutro
+    // Colores de la FRANJA DEL USUARIO (izquierda)
+    const userFrameBg = isMyTurnToAsk ? 
+        'linear-gradient(135deg, #f0fdf4, #ecfdf5)' : // VERDE claro para preguntar
+        'linear-gradient(135deg, #fef2f2, #fee2e2)';   // ROJO claro para responder/esperar
     
-    // Colores de la FRANJA DEL OPONENTE (derecha) - SIEMPRE ACTIVA PARA SELECCIÓN
-    const opponentFrameBg = isMyTurnToAsk ? 
-        'linear-gradient(135deg, #f0fdf4, #ecfdf5)' : // VERDE claro cuando puedo seleccionar
-        'linear-gradient(135deg, #f8fafc, #e2e8f0)';   // GRIS claro cuando espero
+    const userFrameBorder = isMyTurnToAsk ? 
+        '#22c55e' : // VERDE para preguntar
+        '#dc2626';  // ROJO para responder/esperar
     
-    const opponentFrameBorder = isMyTurnToAsk ? 
-        '#22c55e' : // VERDE cuando puedo seleccionar
-        '#9ca3af';  // GRIS cuando espero
-    
-    const opponentHeaderBg = isMyTurnToAsk ? 
-        '#22c55e' : // VERDE cuando puedo seleccionar
-        '#6b7280';  // GRIS cuando espero
+    const userHeaderBg = isMyTurnToAsk ? 
+        '#22c55e' : // VERDE para preguntar
+        '#dc2626';  // ROJO para responder/esperar
     
     // Mensaje de estado simplificado con palabras grandes
     let statusMessage = '';
@@ -13146,11 +13141,11 @@ window.renderDuelInterface = function() {
         const isCorrect = gameData.currentResponse.isCorrect;
         statusMessage = `${isCorrect ? '✅ CORRECTO' : '❌ INCORRECTO'} - Cambiando turno...`;
     } else if (canAnswer) {
-        statusMessage = 'RESPONDER PREGUNTA';
+        statusMessage = 'RESPONDER';
     } else if (currentQuestion && waitingForAnswer) {
         statusMessage = '⏳ ESPERANDO RESPUESTA - Tu oponente está respondiendo';
     } else if (myTurn) {
-        statusMessage = 'SELECCIONA PREGUNTA DEL OPONENTE';
+        statusMessage = 'PREGUNTAR';
     } else {
         statusMessage = '⏳ TURNO DEL OPONENTE - Está seleccionando una pregunta';
     }
@@ -13274,7 +13269,7 @@ window.renderDuelInterface = function() {
                 
                 <!-- Mensaje central -->
                 <div style="text-align: center; flex: 1;">
-                    <p style="margin: 0; font-size: ${statusMessage === 'SELECCIONA PREGUNTA DEL OPONENTE' || statusMessage === 'RESPONDER PREGUNTA' ? '2.5rem' : '18px'}; 
+                    <p style="margin: 0; font-size: ${statusMessage === 'PREGUNTAR' || statusMessage === 'RESPONDER' ? '2.5rem' : '18px'}; 
                               font-weight: bold;">
                         ${statusMessage}
                     </p>
@@ -13294,7 +13289,7 @@ window.renderDuelInterface = function() {
                 <!-- Interfaz de 3 franjas -->
                 <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 20px; height: calc(100vh - 120px);">
                     
-                    <!-- FRANJA IZQUIERDA: Usuario - SOLO INFORMATIVA (SIN SELECCIÓN) -->
+                    <!-- FRANJA IZQUIERDA: Usuario con colores dinámicos -->
                     <div style="background: ${userFrameBg}; border: 2px solid ${userFrameBorder}; 
                                 border-radius: 12px; display: flex; flex-direction: column; position: relative;">
                         
@@ -13310,21 +13305,12 @@ window.renderDuelInterface = function() {
                             </div>
                         </div>
                         
-                        <!-- Contenido SOLO INFORMATIVO - MIS TEMAS (SIN SELECCIÓN) -->
+                        <!-- Contenido con scroll - SOLO MIS TEMAS (sin selección) -->
                         <div style="flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 50px;">
                             <div style="font-size: 13px; color: ${userHeaderBg}; margin-bottom: 15px; text-align: center; font-weight: 600; text-transform: uppercase;">
-                                Mis Temas (${Object.keys(myBank).length}) - Solo Info
+                                Mis Temas (${Object.keys(myBank).length})
                             </div>
-                            ${renderMyTopicsForDisplay(myBank)}
-                            
-                            <!-- Mensaje claro de que no se puede seleccionar aquí -->
-                            <div style="margin-top: 20px; padding: 12px; background: rgba(107, 114, 128, 0.1); 
-                                        border-radius: 8px; text-align: center; border: 1px dashed #6b7280;">
-                                <div style="font-size: 12px; color: #6b7280; font-weight: 500;">
-                                    ℹ️ Tus temas son solo informativos<br>
-                                    <strong>Selecciona preguntas del oponente →</strong>
-                                </div>
-                            </div>
+                            ${renderMyTopicsForDisplay(myBank, false)}
                         </div>
                         
                         <!-- Contador fijo en la parte inferior -->
@@ -13347,13 +13333,14 @@ window.renderDuelInterface = function() {
                         </div>
                     </div>
                     
-                    <!-- FRANJA DERECHA: Oponente - SIEMPRE PARA SELECCIÓN DE PREGUNTAS -->
-                    <div style="background: ${opponentFrameBg}; border: 2px solid ${opponentFrameBorder}; 
+                    <!-- FRANJA DERECHA: Oponente reformado -->
+                    <div style="background: ${myTurn ? '#f59e0b' : '#9ca3af'}; border: 2px solid ${myTurn ? '#f59e0b' : '#9ca3af'}; 
                                 border-radius: 12px; display: flex; flex-direction: column; position: relative;">
                         
-                        <!-- Header del oponente -->
-                        <div style="padding: 15px; border-bottom: 2px solid ${opponentFrameBorder}; 
-                                    background: ${opponentHeaderBg}; color: white; text-align: center;">
+                        <!-- Header del oponente reformado -->
+                        <div style="padding: 15px; border-bottom: 2px solid ${myTurn ? '#f59e0b' : '#9ca3af'}; 
+                                    background: ${myTurn ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #6b7280, #4b5563)'}; 
+                                    color: white; text-align: center;">
                             <!-- Nombre grande e invitado/anfitrión pequeño -->
                             <div style="font-size: 16px; font-weight: bold; margin-bottom: 2px;">
                                 ${opponent ? opponent.name.toUpperCase() : 'OPONENTE'}
@@ -13363,12 +13350,11 @@ window.renderDuelInterface = function() {
                             </div>
                         </div>
                         
-                        <!-- Contenido - SIEMPRE PARA SELECCIÓN -->
+                        <!-- Contenido con scroll -->
                         <div style="flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 50px;">
-                            <div style="font-size: 13px; color: ${opponentHeaderBg}; margin-bottom: 15px; text-align: center; font-weight: 600; text-transform: uppercase;">
-                                ${myTurn ? '🎯 SELECCIONA PREGUNTA' : 'Temas del Oponente'} (${Object.keys(opponentBank).length})
+                            <div style="font-size: 13px; color: ${myTurn ? '#92400e' : '#6b7280'}; margin-bottom: 15px; text-align: center; font-weight: 600; text-transform: uppercase;">
+                                ${myTurn ? '🎯 Selecciona pregunta' : 'Temas del oponente'} (${Object.keys(opponentBank).length})
                             </div>
-                            
                             ${Object.keys(opponentBank).length === 0 ? `
                                 <div style="text-align: center; padding: 40px 20px; color: #dc2626;">
                                     <div style="font-size: 2rem; margin-bottom: 15px;">⚠️</div>
@@ -13379,24 +13365,13 @@ window.renderDuelInterface = function() {
                                     </button>
                                 </div>
                             ` : renderOpponentTopicsForSelection(opponentBank, myTurn)}
-                            
-                            <!-- Mensaje claro de selección SOLO del oponente -->
-                            ${myTurn ? `
-                                <div style="margin-top: 15px; padding: 12px; background: rgba(34, 197, 94, 0.1); 
-                                            border-radius: 8px; text-align: center; border: 1px solid #22c55e;">
-                                    <div style="font-size: 12px; color: #16a34a; font-weight: 500;">
-                                        🎯 SOLO puedes seleccionar preguntas del oponente<br>
-                                        <strong>Haz clic en un tema para ver preguntas</strong>
-                                    </div>
-                                </div>
-                            ` : ''}
                         </div>
                         
                         <!-- Contador fijo en la parte inferior del oponente -->
                         <div style="position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); 
                                     background: white; padding: 8px 16px; border-radius: 20px; 
                                     box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 18px; font-weight: bold; 
-                                    color: ${opponentHeaderBg};">
+                                    color: ${myTurn ? '#f59e0b' : '#6b7280'};">
                             ${opponentFailures}/3
                         </div>
                     </div>
@@ -13416,8 +13391,8 @@ window.renderDuelInterface = function() {
     `;
 };
 
-// FUNCIÓN MODIFICADA: renderMyTopicsForDisplay - SOLO INFORMATIVA (SIN CLICS)
-window.renderMyTopicsForDisplay = function(myBank) {
+// FUNCIÓN MODIFICADA: renderMyTopicsForDisplay - SIN SELECCIÓN
+window.renderMyTopicsForDisplay = function(myBank, canSelect = false) {
     if (!myBank || Object.keys(myBank).length === 0) {
         return `
             <div style="text-align: center; padding: 30px 15px; color: #9ca3af;">
@@ -13438,7 +13413,7 @@ window.renderMyTopicsForDisplay = function(myBank) {
                 <!-- Tema NO CLICKEABLE - solo informativo -->
                 <div style="padding: 12px; background: linear-gradient(135deg, #f9fafb, #f3f4f6); 
                             border-bottom: 1px solid #e5e7eb; cursor: default;">
-                    <div style="display: flex; justify-content: between; align-items: center;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-weight: 600; color: #374151; font-size: 13px;">
                             📖 ${topicName}
                         </span>
@@ -13449,7 +13424,7 @@ window.renderMyTopicsForDisplay = function(myBank) {
                     </div>
                 </div>
                 
-                <!-- Lista de preguntas VISIBLE SIEMPRE pero NO CLICKEABLE -->
+                <!-- Lista de preguntas VISIBLE pero NO CLICKEABLE -->
                 <div style="padding: 8px;">
                     ${questionCount === 0 ? `
                         <div style="text-align: center; padding: 15px; color: #9ca3af; font-size: 12px;">
@@ -13473,7 +13448,7 @@ window.renderMyTopicsForDisplay = function(myBank) {
     }).join('');
 };
 
-// FUNCIÓN MODIFICADA: renderOpponentTopicsForSelection - SOLO PARA SELECCIÓN
+// FUNCIÓN MODIFICADA: renderOpponentTopicsForSelection - SOLO PERMITE SELECCIÓN DE OPONENTE
 window.renderOpponentTopicsForSelection = function(opponentBank, canSelect) {
     if (!opponentBank || Object.keys(opponentBank).length === 0) {
         return `
@@ -13493,26 +13468,26 @@ window.renderOpponentTopicsForSelection = function(opponentBank, canSelect) {
         
         return `
             <div style="margin-bottom: 12px; background: white; border-radius: 8px; overflow: hidden; 
-                        border: 2px solid ${canSelect ? '#22c55e' : '#e5e7eb'};">
+                        border: 2px solid ${canSelect ? '#f59e0b' : '#e5e7eb'};">
                 
-                <!-- Tema CLICKEABLE solo cuando es mi turno -->
+                <!-- Tema CLICKEABLE solo cuando puedo seleccionar -->
                 <div onclick="${canSelect ? `toggleOpponentTopic('${topicId}')` : ''}" 
-                     style="padding: 12px; background: ${canSelect ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : '#f9fafb'}; 
-                             border-bottom: 1px solid ${canSelect ? '#22c55e' : '#e5e7eb'}; 
+                     style="padding: 12px; background: ${canSelect ? 'linear-gradient(135deg, #fef3c7, #fde68a)' : '#f9fafb'}; 
+                             border-bottom: 1px solid ${canSelect ? '#f59e0b' : '#e5e7eb'}; 
                              cursor: ${canSelect ? 'pointer' : 'default'}; 
                              transition: all 0.2s;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: 600; color: ${canSelect ? '#16a34a' : '#6b7280'}; font-size: 13px;">
+                        <span style="font-weight: 600; color: ${canSelect ? '#92400e' : '#6b7280'}; font-size: 13px;">
                             ${canSelect ? '🎯' : '📖'} ${topicName}
                         </span>
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="background: ${canSelect ? '#22c55e' : '#e5e7eb'}; 
+                            <span style="background: ${canSelect ? '#f59e0b' : '#e5e7eb'}; 
                                   color: ${canSelect ? 'white' : '#6b7280'}; padding: 2px 8px; 
                                   border-radius: 12px; font-size: 11px; font-weight: 500;">
                                 ${questionCount} preguntas
                             </span>
                             ${canSelect ? `
-                                <span style="color: #16a34a; font-size: 12px;">
+                                <span style="color: #92400e; font-size: 12px;">
                                     ${isExpanded ? '▼' : '▶'}
                                 </span>
                             ` : ''}
@@ -13520,9 +13495,9 @@ window.renderOpponentTopicsForSelection = function(opponentBank, canSelect) {
                     </div>
                 </div>
                 
-                <!-- Lista de preguntas SELECCIONABLES solo cuando es mi turno y está expandido -->
+                <!-- Lista de preguntas SOLO DEL OPONENTE cuando está expandido -->
                 ${canSelect && isExpanded ? `
-                    <div style="padding: 8px; background: #f8fafc;">
+                    <div style="padding: 8px; background: #fefbf3;">
                         ${questionCount === 0 ? `
                             <div style="text-align: center; padding: 15px; color: #9ca3af; font-size: 12px;">
                                 Sin preguntas en este tema
@@ -13531,19 +13506,19 @@ window.renderOpponentTopicsForSelection = function(opponentBank, canSelect) {
                             <div onclick="selectOpponentQuestion('${topicName}', ${index})" 
                                  style="padding: 10px; margin: 4px 0; background: white; 
                                         border-radius: 6px; font-size: 12px; color: #374151; 
-                                        border: 2px solid #22c55e; cursor: pointer; 
-                                        transition: all 0.2s; hover: background: #f0fdf4;">
+                                        border: 2px solid #f59e0b; cursor: pointer; 
+                                        transition: all 0.2s;">
                                 <div style="font-weight: 500; margin-bottom: 4px;">
                                     🎯 ${index + 1}. ${question.question}
                                 </div>
-                                <div style="font-size: 10px; color: #6b7280;">
-                                    Clic para seleccionar esta pregunta
+                                <div style="font-size: 10px; color: #92400e;">
+                                    Clic para hacer esta pregunta al oponente
                                 </div>
                             </div>
                         `).join('')}
                     </div>
                 ` : canSelect ? `
-                    <div style="padding: 10px; text-align: center; background: #f8fafc; color: #16a34a; font-size: 11px;">
+                    <div style="padding: 10px; text-align: center; background: #fefbf3; color: #92400e; font-size: 11px;">
                         👆 Haz clic para ver las preguntas disponibles
                     </div>
                 ` : `
@@ -13567,40 +13542,31 @@ window.renderOpponentTopicsForSelection = function(opponentBank, canSelect) {
     }).join('');
 };
 
-// NUEVA FUNCIÓN: toggleOpponentTopic - Solo para expandir temas del oponente
+// FUNCIÓN: toggleOpponentTopic - Solo expandir temas del oponente
 window.toggleOpponentTopic = function(topicId) {
-    // Solo funciona cuando es mi turno
-    if (!multiplayerState.myTurn) {
-        console.log('⚠️ No es tu turno para seleccionar preguntas');
-        return;
-    }
+    if (!multiplayerState.myTurn) return;
     
     if (!window.expandedOpponentTopics) {
         window.expandedOpponentTopics = {};
     }
     
     window.expandedOpponentTopics[topicId] = !window.expandedOpponentTopics[topicId];
-    
-    console.log('🎯 Tema del oponente expandido:', topicId, window.expandedOpponentTopics[topicId]);
-    
-    // Re-renderizar para mostrar los cambios
     render();
 };
 
-// NUEVA FUNCIÓN: selectOpponentQuestion - Solo para seleccionar preguntas del oponente
+// FUNCIÓN CRÍTICA: selectOpponentQuestion - FORZAR uso del banco del oponente
 window.selectOpponentQuestion = function(topicName, questionIndex) {
-    // Verificar que es mi turno
     if (!multiplayerState.myTurn) {
         showMessage('No es tu turno para hacer preguntas', 'warning');
         return;
     }
     
-    // Obtener la pregunta del banco del oponente
+    // ✅ FORZAR: Solo usar banco del oponente
     const opponentBank = getOpponentQuestionBank();
     const topicQuestions = opponentBank[topicName];
     
     if (!topicQuestions || !topicQuestions[questionIndex]) {
-        showMessage('Pregunta no encontrada', 'error');
+        showMessage('Pregunta no encontrada en el banco del oponente', 'error');
         return;
     }
     
@@ -13609,7 +13575,8 @@ window.selectOpponentQuestion = function(topicName, questionIndex) {
     console.log('🎯 Pregunta del oponente seleccionada:', {
         topic: topicName,
         questionIndex: questionIndex,
-        question: selectedQuestion.question
+        question: selectedQuestion.question,
+        source: 'SOLO_BANCO_OPONENTE'
     });
     
     // Enviar pregunta a Firebase
@@ -13622,15 +13589,10 @@ window.selectOpponentQuestion = function(topicName, questionIndex) {
     };
     
     database.ref('rooms/' + multiplayerState.currentRoom).update(questionData).then(() => {
-        console.log('✅ Pregunta enviada correctamente');
+        console.log('✅ Pregunta del oponente enviada correctamente');
         showMessage(`Pregunta enviada: ${selectedQuestion.question.substring(0, 50)}...`, 'success');
-        
-        // Colapsar temas expandidos
         window.expandedOpponentTopics = {};
-        
-        // Re-renderizar
         render();
-        
     }).catch(error => {
         console.error('❌ Error enviando pregunta:', error);
         showMessage('Error al enviar la pregunta', 'error');
@@ -13655,6 +13617,21 @@ window.exitDuelMode = function() {
         }
     }
 };
+
+console.log('✅ SOLUCIÓN RADICAL aplicada correctamente');
+console.log('🎯 Cambios extremos:');
+console.log('   - Position: fixed para ocupar pantalla completa');
+console.log('   - Altura calculada exacta: calc(100vh - 120px)');
+console.log('   - Overflow: hidden forzado en body');
+console.log('   - Header mejorado más visible y legible');
+console.log('   - Franjas con scroll interno únicamente');
+console.log('   - Botón de salir mejorado');
+console.log('   - SIN scroll vertical garantizado');
+console.log('   - 🟢 VERDE: Turno de preguntar (myTurn = true)');
+console.log('   - 🔴 ROJO: Turno de responder o esperar (canAnswer = true o neutral)');
+console.log('   - ✅ RESULTADO EN PREGUNTA: Muestra resultado 5 segundos con colores verde/rojo');
+console.log('   - 🚫 FRANJA IZQUIERDA: Solo informativa, NO se pueden seleccionar temas propios');
+console.log('   - 🎯 FRANJA DERECHA: ÚNICA zona para seleccionar preguntas del oponente');
 
 // NUEVA función para manejar respuestas con visualización en la pregunta
 window.answerCurrentQuestion = function(optionIndex) {
@@ -13763,183 +13740,6 @@ function changeToNextTurn() {
         console.error('❌ Error cambiando turno:', error);
     });
 }
-
-// FUNCIÓN FORZADA: Solo permitir selección del banco del oponente
-window.renderOpponentTopicsForSelection = function(opponentBank, canSelect) {
-    if (!opponentBank || Object.keys(opponentBank).length === 0) {
-        return `
-            <div style="text-align: center; padding: 30px 15px; color: #dc2626;">
-                <div style="font-size: 2rem; margin-bottom: 10px;">⚠️</div>
-                <p style="margin: 0; font-size: 13px; font-weight: bold;">Sin temas del oponente</p>
-                <p style="margin: 8px 0; font-size: 11px;">Esperando sincronización...</p>
-            </div>
-        `;
-    }
-
-    return Object.keys(opponentBank).map(topicName => {
-        const topicQuestions = opponentBank[topicName] || [];
-        const questionCount = topicQuestions.length;
-        const topicId = `opponent_topic_${topicName.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        const isExpanded = window.expandedOpponentTopics && window.expandedOpponentTopics[topicId];
-        
-        return `
-            <div style="margin-bottom: 12px; background: white; border-radius: 8px; overflow: hidden; 
-                        border: 2px solid ${canSelect ? '#f59e0b' : '#e5e7eb'};">
-                
-                <!-- Tema CLICKEABLE solo cuando puedo seleccionar -->
-                <div onclick="${canSelect ? `toggleOpponentTopic('${topicId}')` : ''}" 
-                     style="padding: 12px; background: ${canSelect ? 'linear-gradient(135deg, #fef3c7, #fde68a)' : '#f9fafb'}; 
-                             border-bottom: 1px solid ${canSelect ? '#f59e0b' : '#e5e7eb'}; 
-                             cursor: ${canSelect ? 'pointer' : 'default'}; 
-                             transition: all 0.2s;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: 600; color: ${canSelect ? '#92400e' : '#6b7280'}; font-size: 13px;">
-                            ${canSelect ? '🎯' : '📖'} ${topicName}
-                        </span>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="background: ${canSelect ? '#f59e0b' : '#e5e7eb'}; 
-                                  color: ${canSelect ? 'white' : '#6b7280'}; padding: 2px 8px; 
-                                  border-radius: 12px; font-size: 11px; font-weight: 500;">
-                                ${questionCount} preguntas
-                            </span>
-                            ${canSelect ? `
-                                <span style="color: #92400e; font-size: 12px;">
-                                    ${isExpanded ? '▼' : '▶'}
-                                </span>
-                            ` : ''}
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Lista de preguntas SOLO DEL OPONENTE cuando está expandido -->
-                ${canSelect && isExpanded ? `
-                    <div style="padding: 8px; background: #fefbf3;">
-                        ${questionCount === 0 ? `
-                            <div style="text-align: center; padding: 15px; color: #9ca3af; font-size: 12px;">
-                                Sin preguntas en este tema
-                            </div>
-                        ` : topicQuestions.map((question, index) => `
-                            <div onclick="selectOpponentQuestion('${topicName}', ${index})" 
-                                 style="padding: 10px; margin: 4px 0; background: white; 
-                                        border-radius: 6px; font-size: 12px; color: #374151; 
-                                        border: 2px solid #f59e0b; cursor: pointer; 
-                                        transition: all 0.2s; hover: background: #fef3c7;">
-                                <div style="font-weight: 500; margin-bottom: 4px;">
-                                    🎯 ${index + 1}. ${question.question}
-                                </div>
-                                <div style="font-size: 10px; color: #92400e;">
-                                    Clic para hacer esta pregunta al oponente
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    }).join('');
-};
-
-// FUNCIÓN: Solo mostrar temas del oponente sin selección
-window.renderOpponentTopicsForDisplay = function(opponentBank) {
-    if (!opponentBank || Object.keys(opponentBank).length === 0) {
-        return `
-            <div style="text-align: center; padding: 30px 15px; color: #9ca3af;">
-                <div style="font-size: 2rem; margin-bottom: 10px;">⏳</div>
-                <p style="margin: 0; font-size: 13px;">Esperando temas del oponente...</p>
-            </div>
-        `;
-    }
-
-    return Object.keys(opponentBank).map(topicName => {
-        const topicQuestions = opponentBank[topicName] || [];
-        const questionCount = topicQuestions.length;
-        
-        return `
-            <div style="margin-bottom: 12px; background: white; border-radius: 8px; overflow: hidden; 
-                        border: 1px solid #e5e7eb; opacity: 0.7;">
-                
-                <div style="padding: 12px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: 600; color: #6b7280; font-size: 13px;">
-                            📖 ${topicName}
-                        </span>
-                        <span style="background: #e5e7eb; color: #6b7280; padding: 2px 8px; 
-                              border-radius: 12px; font-size: 11px; font-weight: 500;">
-                            ${questionCount} preguntas
-                        </span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
-};
-
-// FUNCIÓN CRÍTICA: toggleOpponentTopic - Solo expandir temas del oponente
-window.toggleOpponentTopic = function(topicId) {
-    if (!multiplayerState.myTurn) return;
-    
-    if (!window.expandedOpponentTopics) {
-        window.expandedOpponentTopics = {};
-    }
-    
-    window.expandedOpponentTopics[topicId] = !window.expandedOpponentTopics[topicId];
-    render();
-};
-
-// FUNCIÓN CRÍTICA: selectOpponentQuestion - FORZAR uso del banco del oponente
-window.selectOpponentQuestion = function(topicName, questionIndex) {
-    if (!multiplayerState.myTurn) {
-        showMessage('No es tu turno para hacer preguntas', 'warning');
-        return;
-    }
-    
-    // ✅ FORZAR: Solo usar banco del oponente
-    const opponentBank = getOpponentQuestionBank();
-    const topicQuestions = opponentBank[topicName];
-    
-    if (!topicQuestions || !topicQuestions[questionIndex]) {
-        showMessage('Pregunta no encontrada en el banco del oponente', 'error');
-        return;
-    }
-    
-    const selectedQuestion = topicQuestions[questionIndex];
-    
-    console.log('🎯 Pregunta del oponente seleccionada:', {
-        topic: topicName,
-        questionIndex: questionIndex,
-        question: selectedQuestion.question,
-        source: 'SOLO_BANCO_OPONENTE'
-    });
-    
-    // Enviar pregunta a Firebase
-    const questionData = {
-        'gameData/currentQuestionData': selectedQuestion,
-        'gameData/waitingForAnswer': true,
-        'gameData/showingResult': false,
-        'gameData/questionAsker': multiplayerState.isHost ? 'host' : 'guest',
-        lastActivity: firebase.database.ServerValue.TIMESTAMP
-    };
-    
-    database.ref('rooms/' + multiplayerState.currentRoom).update(questionData).then(() => {
-        console.log('✅ Pregunta del oponente enviada correctamente');
-        showMessage(`Pregunta enviada: ${selectedQuestion.question.substring(0, 50)}...`, 'success');
-        window.expandedOpponentTopics = {};
-        render();
-    }).catch(error => {
-        console.error('❌ Error enviando pregunta:', error);
-        showMessage('Error al enviar la pregunta', 'error');
-    });
-};
-
-console.log('✅ SOLUCIÓN RADICAL aplicada correctamente');
-console.log('🎯 Cambios principales:');
-console.log('   - 🚫 FRANJA IZQUIERDA: Solo informativa, SIN selección de preguntas propias');
-console.log('   - 🎯 FRANJA DERECHA: ÚNICA zona de selección, solo preguntas del oponente');
-console.log('   - 🔒 renderMyTopicsForDisplay(): Temas propios NO clickeables');
-console.log('   - ✅ renderOpponentTopicsForSelection(): Solo preguntas del oponente seleccionables');
-console.log('   - 🎮 selectOpponentQuestion(): Solo permite seleccionar del banco del oponente');
-console.log('   - 🎨 Colores dinámicos: VERDE cuando puedes seleccionar, GRIS cuando esperas');
-console.log('   - ⚠️ Mensajes claros indicando dónde seleccionar');
 </script>
 <!-- 
 PARCHE DEFINITIVO: SUBIR ARCHIVOS WORD/TXT - VERSIÓN COMPLETA
@@ -16613,6 +16413,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
