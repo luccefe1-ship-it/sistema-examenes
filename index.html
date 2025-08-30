@@ -13106,6 +13106,35 @@ window.renderDuelInterface = function() {
     const showingResult = gameData?.showingResult;
     const canAnswer = currentQuestion && !myTurn && !showingResult && waitingForAnswer;
     
+    // ========== SISTEMA DE COLORES DINÁMICO ==========
+    // VERDE: Turno de preguntar (myTurn = true)
+    // ROJO: Turno de responder (canAnswer = true o esperando)
+    const isMyTurnToAsk = myTurn; // Turno de hacer pregunta = VERDE
+    const isMyTurnToAnswer = canAnswer; // Turno de responder = ROJO
+    const isWaitingOrResult = !isMyTurnToAsk && !isMyTurnToAnswer; // Estado neutral
+    
+    // Colores del HEADER
+    const headerBgColor = isMyTurnToAsk ? 
+        'linear-gradient(135deg, #22c55e, #16a34a)' : // VERDE para preguntar
+        'linear-gradient(135deg, #dc2626, #7f1d1d)';   // ROJO para responder/esperar
+    
+    const headerShadow = isMyTurnToAsk ? 
+        'rgba(34, 197, 94, 0.3)' : 
+        'rgba(220, 38, 38, 0.3)';
+    
+    // Colores de la FRANJA DEL USUARIO (izquierda)
+    const userFrameBg = isMyTurnToAsk ? 
+        'linear-gradient(135deg, #f0fdf4, #ecfdf5)' : // VERDE claro para preguntar
+        'linear-gradient(135deg, #fef2f2, #fee2e2)';   // ROJO claro para responder/esperar
+    
+    const userFrameBorder = isMyTurnToAsk ? 
+        '#22c55e' : // VERDE para preguntar
+        '#dc2626';  // ROJO para responder/esperar
+    
+    const userHeaderBg = isMyTurnToAsk ? 
+        '#22c55e' : // VERDE para preguntar
+        '#dc2626';  // ROJO para responder/esperar
+    
     // Mensaje de estado simplificado
     let statusMessage = '';
     if (showingResult && gameData?.currentResponse) {
@@ -13137,9 +13166,9 @@ window.renderDuelInterface = function() {
         z-index: 1000;
     ">
         
-        <!-- Header mejorado más visible y legible -->
+        <!-- Header mejorado con COLORES DINÁMICOS -->
         <div style="
-            background: linear-gradient(135deg, #dc2626, #7f1d1d); 
+            background: ${headerBgColor}; 
             color: white; 
             padding: 18px 25px; 
             border-radius: 12px; 
@@ -13148,12 +13177,12 @@ window.renderDuelInterface = function() {
             justify-content: space-between; 
             align-items: center;
             flex-shrink: 0;
-            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+            box-shadow: 0 4px 12px ${headerShadow};
         ">
             <div style="flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center;">
                 <div style="font-size: 2rem; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;">
                     <span>⚔️</span>
-                    <span>CULOOOOOOOO</span>
+                    <span>DUELO</span>
                     <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 8px; font-size: 1.8rem; letter-spacing: 2px;">
                         ${multiplayerState.roomCode}
                     </span>
@@ -13184,19 +13213,19 @@ window.renderDuelInterface = function() {
             overflow: hidden;
         ">
             
-            <!-- FRANJA IZQUIERDA: Usuario actual -->
+            <!-- FRANJA IZQUIERDA: Usuario actual con COLORES DINÁMICOS -->
             <div style="
-                background: linear-gradient(135deg, #f0fdf4, #ecfdf5); 
-                border: 2px solid #22c55e; 
+                background: ${userFrameBg}; 
+                border: 2px solid ${userFrameBorder}; 
                 border-radius: 8px; 
                 display: flex; 
                 flex-direction: column;
                 overflow: hidden;
             ">
-                <!-- Header usuario -->
+                <!-- Header usuario con COLORES DINÁMICOS -->
                 <div style="
                     padding: 8px 12px; 
-                    background: #22c55e; 
+                    background: ${userHeaderBg}; 
                     color: white; 
                     text-align: center;
                     flex-shrink: 0;
@@ -13214,7 +13243,7 @@ window.renderDuelInterface = function() {
                     overflow-y: auto; 
                     padding: 8px;
                 ">
-                    <div style="font-size: 11px; color: #16a34a; margin-bottom: 8px; text-align: center; font-weight: 600;">
+                    <div style="font-size: 11px; color: ${isMyTurnToAsk ? '#16a34a' : '#dc2626'}; margin-bottom: 8px; text-align: center; font-weight: 600;">
                         Mis Temas (${Object.keys(myBank).length}):
                     </div>
                     ${renderMyTopics(myBank)}
@@ -13341,6 +13370,8 @@ console.log('   - Header mejorado más visible y legible');
 console.log('   - Franjas con scroll interno únicamente');
 console.log('   - Botón de salir mejorado');
 console.log('   - SIN scroll vertical garantizado');
+console.log('   - 🟢 VERDE: Turno de preguntar (myTurn = true)');
+console.log('   - 🔴 ROJO: Turno de responder o esperar (canAnswer = true o neutral)');
 </script>
 <!-- 
 PARCHE DEFINITIVO: SUBIR ARCHIVOS WORD/TXT - VERSIÓN COMPLETA
@@ -16014,6 +16045,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
