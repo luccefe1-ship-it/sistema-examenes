@@ -13150,6 +13150,90 @@ window.renderDuelInterface = function() {
         statusMessage = '⏳ TURNO DEL OPONENTE - Está seleccionando una pregunta';
     }
 
+    // NUEVA función para renderizar pregunta con resultado
+    function renderCurrentQuestionWithResult(question, canAnswer) {
+        const gameData = multiplayerState.currentRoomData?.gameData;
+        const showingResult = gameData?.showingResult;
+        const currentResponse = gameData?.currentResponse;
+        
+        if (showingResult && currentResponse) {
+            // Mostrar resultado durante 5 segundos
+            const isCorrect = currentResponse.isCorrect;
+            const selectedIndex = currentResponse.selectedIndex;
+            const correctIndex = question.correctAnswer;
+            
+            return `
+                <div style="text-align: center; padding: 20px;">
+                    <div style="background: ${isCorrect ? '#dcfce7' : '#fee2e2'}; border: 3px solid ${isCorrect ? '#22c55e' : '#dc2626'}; border-radius: 12px; padding: 25px; margin-bottom: 20px;">
+                        <div style="font-size: 2.5rem; margin-bottom: 15px;">${isCorrect ? '🎉' : '😔'}</div>
+                        <div style="font-size: 2rem; font-weight: bold; color: ${isCorrect ? '#16a34a' : '#dc2626'}; margin-bottom: 10px;">
+                            ${isCorrect ? '¡CORRECTO!' : 'INCORRECTO'}
+                        </div>
+                        <div style="font-size: 1.1rem; color: #374151;">
+                            Respuesta seleccionada: <strong>${question.options[selectedIndex]}</strong>
+                        </div>
+                        ${!isCorrect ? `
+                            <div style="font-size: 1.1rem; color: #16a34a; margin-top: 8px;">
+                                Respuesta correcta: <strong>${question.options[correctIndex]}</strong>
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <!-- Mostrar la pregunta original en segundo plano -->
+                    <div style="opacity: 0.6; background: #f9fafb; padding: 20px; border-radius: 8px;">
+                        <h3 style="color: #374151; margin-bottom: 20px; text-align: left;">${question.question}</h3>
+                        <div style="display: grid; gap: 10px;">
+                            ${question.options.map((option, optionIndex) => `
+                                <div style="
+                                    padding: 12px 15px; 
+                                    border-radius: 8px; 
+                                    text-align: left;
+                                    background: ${optionIndex === correctIndex ? '#dcfce7' : (optionIndex === selectedIndex && !isCorrect ? '#fee2e2' : '#f3f4f6')}; 
+                                    border: 2px solid ${optionIndex === correctIndex ? '#22c55e' : (optionIndex === selectedIndex && !isCorrect ? '#dc2626' : '#e5e7eb')};
+                                    color: ${optionIndex === correctIndex ? '#16a34a' : (optionIndex === selectedIndex && !isCorrect ? '#dc2626' : '#374151')};
+                                    font-weight: ${optionIndex === correctIndex || optionIndex === selectedIndex ? 'bold' : 'normal'};
+                                ">
+                                    <strong>${String.fromCharCode(97 + optionIndex)})</strong> ${option}
+                                    ${optionIndex === correctIndex ? ' ✅' : (optionIndex === selectedIndex && !isCorrect ? ' ❌' : '')}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Mostrar pregunta normal para responder
+            return `
+                <div style="text-align: center; padding: 20px;">
+                    <h3 style="color: #374151; margin-bottom: 20px;">${question.question}</h3>
+                    <div style="display: grid; gap: 12px; max-width: 600px; margin: 0 auto;">
+                        ${question.options.map((option, optionIndex) => `
+                            <button ${canAnswer ? `onclick="answerCurrentQuestion(${optionIndex})"` : ''} 
+                                    style="
+                                        padding: 15px; 
+                                        text-align: left; 
+                                        background: ${canAnswer ? '#f9fafb' : '#f3f4f6'}; 
+                                        border: 2px solid ${canAnswer ? '#e5e7eb' : '#d1d5db'}; 
+                                        border-radius: 8px; 
+                                        cursor: ${canAnswer ? 'pointer' : 'not-allowed'}; 
+                                        transition: all 0.2s;
+                                        opacity: ${canAnswer ? '1' : '0.6'};
+                                    " 
+                                    ${canAnswer ? `onmouseover="this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#d1d5db';" onmouseout="this.style.backgroundColor='#f9fafb'; this.style.borderColor='#e5e7eb';"` : ''}>
+                                <strong>${String.fromCharCode(97 + optionIndex)})</strong> ${option}
+                            </button>
+                        `).join('')}
+                    </div>
+                    ${canAnswer ? `
+                        <div style="margin-top: 20px; padding: 10px; background: #fef3c7; border-radius: 8px; color: #92400e;">
+                            <span style="font-size: 1.2rem;">⚡</span> Haz clic en una opción para responder
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+    }
+
     return `
     <!-- LAYOUT RADICAL SIN SCROLL - ALTURA FIJA -->
     <div style="
@@ -13281,7 +13365,7 @@ window.renderDuelInterface = function() {
                     padding: 15px;
                     overflow-y: auto;
                 ">
-                    ${currentQuestion ? renderCurrentQuestion(currentQuestion, !myTurn) : `
+                    ${currentQuestion ? renderCurrentQuestionWithResult(currentQuestion, !myTurn) : `
                         <div style="text-align: center; color: #9ca3af;">
                             <div style="font-size: 2.5rem; margin-bottom: 10px;">🎯</div>
                             <h3 style="color: #6b7280; margin: 0 0 5px 0; font-size: 16px;">Esperando pregunta</h3>
@@ -13374,6 +13458,103 @@ console.log('   - Botón de salir mejorado');
 console.log('   - SIN scroll vertical garantizado');
 console.log('   - 🟢 VERDE: Turno de preguntar (myTurn = true)');
 console.log('   - 🔴 ROJO: Turno de responder o esperar (canAnswer = true o neutral)');
+console.log('   - ✅ RESULTADO EN PREGUNTA: Muestra resultado 5 segundos con colores verde/rojo');
+
+// NUEVA función para manejar respuestas con visualización en la pregunta
+window.answerCurrentQuestion = function(optionIndex) {
+    console.log('🎯 Respondiendo pregunta con opción:', optionIndex);
+    
+    // Verificar que hay una pregunta actual
+    const currentQuestion = multiplayerState.currentRoomData?.gameData?.currentQuestionData;
+    if (!currentQuestion) {
+        showMessage('No hay pregunta actual para responder', 'warning');
+        return;
+    }
+    
+    // Verificar que no estoy esperando una respuesta ya procesada
+    if (!multiplayerState.currentRoomData?.gameData?.waitingForAnswer) {
+        showMessage('Esta pregunta ya fue respondida', 'warning');
+        return;
+    }
+    
+    // Verificar que es mi turno para responder (es el turno del otro)
+    if (multiplayerState.myTurn) {
+        showMessage('No es tu turno para responder', 'warning');
+        return;
+    }
+    
+    // Determinar si la respuesta es correcta
+    const isCorrect = optionIndex === currentQuestion.correctAnswer;
+    const selectedOption = currentQuestion.options[optionIndex];
+    
+    console.log('📊 Procesando respuesta:', {
+        selectedIndex: optionIndex,
+        correctIndex: currentQuestion.correctAnswer,
+        isCorrect: isCorrect,
+        selectedOption: selectedOption
+    });
+    
+    // Preparar datos de la respuesta
+    const responseData = {
+        'gameData/currentResponse': {
+            selectedIndex: optionIndex,
+            isCorrect: isCorrect,
+            selectedOption: selectedOption,
+            answeredBy: multiplayerState.isHost ? 'host' : 'guest',
+            timestamp: Date.now()
+        },
+        'gameData/waitingForAnswer': false, // Ya no esperamos respuesta
+        'gameData/showingResult': true, // Mostrar resultado por 5 segundos
+        lastActivity: firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    // Si la respuesta es incorrecta, incrementar fallos del que responde
+    if (!isCorrect) {
+        const failuresPath = multiplayerState.isHost ? 'gameData/hostFailures' : 'gameData/guestFailures';
+        const currentFailures = multiplayerState.isHost ? 
+            (multiplayerState.myFailures || 0) : 
+            (multiplayerState.myFailures || 0);
+        
+        responseData[failuresPath] = currentFailures + 1;
+    }
+    
+    // Actualizar Firebase con la respuesta
+    database.ref('rooms/' + multiplayerState.currentRoom).update(responseData).then(() => {
+        const resultMessage = isCorrect ? 
+            `✅ ¡Correcto! ${selectedOption}` : 
+            `❌ Incorrecto. Era: ${currentQuestion.options[currentQuestion.correctAnswer]}`;
+        
+        console.log('🎉 Resultado mostrado en la pregunta durante 5 segundos');
+        
+        // Después de 5 segundos, cambiar el turno y limpiar la pregunta
+        setTimeout(() => {
+            changeToNextTurn();
+        }, 5000);
+        
+    }).catch(error => {
+        console.error('❌ Error enviando respuesta:', error);
+        showMessage('Error al enviar la respuesta', 'error');
+    });
+};
+
+// FUNCIÓN AUXILIAR para cambiar al siguiente turno
+function changeToNextTurn() {
+    const nextTurnData = {
+        'gameData/currentQuestionData': null, // Limpiar pregunta actual
+        'gameData/currentResponse': null, // Limpiar respuesta
+        'gameData/showingResult': false, // No mostrar resultado
+        'gameData/questionAsker': null, // Limpiar quien preguntó
+        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host', // Cambiar turno
+        lastActivity: firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).update(nextTurnData).then(() => {
+        console.log('🔄 Turno cambiado correctamente');
+        showMessage('Tu turno para preguntar', 'info');
+    }).catch(error => {
+        console.error('❌ Error cambiando turno:', error);
+    });
+}
 </script>
 <!-- 
 PARCHE DEFINITIVO: SUBIR ARCHIVOS WORD/TXT - VERSIÓN COMPLETA
@@ -16047,6 +16228,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
