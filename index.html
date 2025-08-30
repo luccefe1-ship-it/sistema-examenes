@@ -16011,9 +16011,341 @@ window.renderViewSummaryWithEditor = renderViewSummaryFixed;
 
 console.log('✅ Botón "Editar Texto" configurado para opciones completas');
 console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
-</script>        
+</script>
+<script>
+// ========== PARCHE EXCLUSIVO: INTERFAZ MULTIJUGADOR CON COLORES DE TURNO ==========
+console.log('🎨 Aplicando parche de interfaz multijugador con colores de turno...');
+
+// SOBREESCRIBIR función renderDuelInterface completamente
+window.renderDuelInterface = function() {
+    const isHost = multiplayerState.isHost;
+    const opponent = multiplayerState.opponent;
+    const myTurn = multiplayerState.myTurn;
+    const myFailures = multiplayerState.myFailures || 0;
+    const opponentFailures = multiplayerState.opponentFailures || 0;
+
+    // Obtener bancos de preguntas
+    const opponentBank = getOpponentQuestionBank();
+    let myBank = getMyQuestionBank();
+    
+    if (Object.keys(myBank).length === 0 && state.questions) {
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        myBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+    }
+    
+    // Datos de la pregunta actual
+    const currentQuestion = multiplayerState.currentRoomData?.gameData?.currentQuestionData || null;
+    const gameData = multiplayerState.currentRoomData?.gameData;
+    const waitingForAnswer = gameData?.waitingForAnswer;
+    const showingResult = gameData?.showingResult;
+    const canAnswer = currentQuestion && !myTurn && !showingResult && waitingForAnswer;
+    
+    // DETERMINAR ACCIÓN Y COLORES
+    const isAsking = myTurn; // Si es mi turno, estoy preguntando
+    const isAnswering = !myTurn; // Si no es mi turno, estoy respondiendo
+    
+    // Colores según la acción
+    const headerBgColor = isAsking ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, #dc2626, #b91c1c)';
+    const headerText = isAsking ? 'PREGUNTAR' : 'RESPONDER';
+    const myFrameColor = isAsking ? '#22c55e' : '#dc2626';
+    const myFrameBg = isAsking ? '#f0fdf4' : '#fef2f2';
+    
+    // Mensaje de estado
+    let statusMessage = '';
+    if (showingResult && gameData?.currentResponse) {
+        const isCorrect = gameData.currentResponse.isCorrect;
+        statusMessage = `${isCorrect ? '✅ CORRECTO' : '❌ INCORRECTO'} - Cambiando turno...`;
+    } else if (canAnswer) {
+        statusMessage = '🎯 ¡TURNO DE RESPONDER!';
+    } else if (myTurn) {
+        statusMessage = '🤔 Selecciona una pregunta del oponente';
+    } else {
+        statusMessage = '⏳ Esperando pregunta del oponente';
+    }
+
+    return `
+        <div style="max-width: 1400px; margin: 0 auto; padding: 20px; min-height: calc(100vh - 200px);">
+            
+            <!-- ENCABEZADO MODIFICADO CON ELEMENTOS A LA IZQUIERDA -->
+            <div style="text-align: left; margin-bottom: 25px; background: ${headerBgColor}; color: white; padding: 20px; border-radius: 16px; display: flex; align-items: center; gap: 15px;">
+                <!-- Espadas y DUELO a la izquierda -->
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 2rem; font-weight: 800;">
+                    <span>⚔️</span>
+                    <span>DUELO</span>
+                    <span>⚔️</span>
+                </div>
+                
+                <!-- Contenido principal centrado -->
+                <div style="flex: 1; text-align: center;">
+                    <h1 style="margin: 0 0 5px 0; font-size: 2.5rem; font-weight: 800; letter-spacing: 3px;">
+                        ${headerText}
+                    </h1>
+                    <div style="font-size: 1.5rem; font-weight: bold; letter-spacing: 2px; margin: 5px 0; opacity: 0.9;">
+                        Sala: ${multiplayerState.roomCode}
+                    </div>
+                    <p style="margin: 0; opacity: 0.8; font-size: 14px;">
+                        ${statusMessage}
+                    </p>
+                </div>
+            </div>
+            
+            <!-- INTERFAZ DE 3 FRANJAS CON COLORES DINÁMICOS -->
+            <div style="display: grid; grid-template-columns: 350px 1fr 350px; gap: 20px; min-height: 500px;">
+                
+                <!-- FRANJA IZQUIERDA: MI PANEL CON COLOR DINÁMICO -->
+                <div style="background: ${myFrameBg}; border: 3px solid ${myFrameColor}; border-radius: 12px; padding: 20px; overflow-y: auto; max-height: 600px;">
+                    <div style="text-align: center; margin-bottom: 20px; padding: 15px; background: ${myFrameColor}; color: white; border-radius: 8px;">
+                        <h3 style="margin: 0; font-size: 1.2rem; font-weight: bold;">
+                            ${isAsking ? '🤔 MIS PREGUNTAS' : '🎯 MIS RESPUESTAS'}
+                        </h3>
+                        <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.9;">
+                            Fallos: ${myFailures}/3
+                        </p>
+                    </div>
+                    
+                    ${isAsking ? `
+                        <!-- Modo PREGUNTAR: Mostrar preguntas del oponente para seleccionar -->
+                        <div style="color: #374151;">
+                            <p style="text-align: center; margin-bottom: 15px; font-weight: bold; color: ${myFrameColor};">
+                                📚 Preguntas del Oponente
+                            </p>
+                            ${Object.keys(opponentBank).length > 0 ? Object.keys(opponentBank).map(topic => `
+                                <div style="margin-bottom: 15px; background: white; border-radius: 8px; border: 1px solid #e5e7eb; overflow: hidden;">
+                                    <div onclick="toggleTopicQuestions('${topic}')" style="padding: 12px; background: #f8fafc; cursor: pointer; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: between; align-items: center;">
+                                        <span style="font-weight: bold; color: #1f2937;">📖 ${topic}</span>
+                                        <span style="color: #6b7280; font-size: 12px;">${opponentBank[topic].questions.length} preguntas</span>
+                                    </div>
+                                    <div id="topic-${topic.replace(/[^a-zA-Z0-9]/g, '')}" style="display: none; max-height: 200px; overflow-y: auto;">
+                                        ${opponentBank[topic].questions.map((q, index) => `
+                                            <div onclick="selectQuestionToAsk('${topic}', ${index})" 
+                                                 style="padding: 10px; border-bottom: 1px solid #f3f4f6; cursor: pointer; transition: all 0.2s; font-size: 14px;"
+                                                 onmouseover="this.style.background='#f0fdf4'" 
+                                                 onmouseout="this.style.background='white'">
+                                                <div style="font-weight: 500; color: #1f2937; margin-bottom: 4px;">
+                                                    ❓ ${q.question.substring(0, 80)}${q.question.length > 80 ? '...' : ''}
+                                                </div>
+                                                <div style="font-size: 12px; color: #6b7280;">
+                                                    ${q.options.length} opciones
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('') : `
+                                <div style="text-align: center; padding: 20px; color: #6b7280;">
+                                    <div style="font-size: 3rem; margin-bottom: 10px;">🤷‍♂️</div>
+                                    <p>No hay preguntas del oponente disponibles</p>
+                                </div>
+                            `}
+                        </div>
+                    ` : `
+                        <!-- Modo RESPONDER: Panel de información -->
+                        <div style="color: #374151; text-align: center;">
+                            ${canAnswer ? `
+                                <div style="background: #fef2f2; border: 2px solid #f87171; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                                    <div style="font-size: 1.5rem; margin-bottom: 10px;">⏰</div>
+                                    <p style="margin: 0; font-weight: bold; color: #dc2626;">
+                                        ¡Es tu turno de responder!
+                                    </p>
+                                    <p style="margin: 5px 0 0 0; font-size: 12px; color: #7f1d1d;">
+                                        Mira el panel central y selecciona tu respuesta
+                                    </p>
+                                </div>
+                            ` : `
+                                <div style="background: white; border-radius: 8px; padding: 20px;">
+                                    <div style="font-size: 2rem; margin-bottom: 10px;">⏳</div>
+                                    <p style="margin: 0; color: #6b7280;">
+                                        Esperando pregunta del oponente...
+                                    </p>
+                                </div>
+                            `}
+                            
+                            <!-- Estadísticas personales -->
+                            <div style="margin-top: 20px; background: white; border-radius: 8px; padding: 15px; border: 1px solid #e5e7eb;">
+                                <h4 style="margin: 0 0 10px 0; color: #1f2937;">📊 Mis Estadísticas</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px;">
+                                    <div>
+                                        <span style="color: #ef4444;">❌ Fallos:</span>
+                                        <strong> ${myFailures}/3</strong>
+                                    </div>
+                                    <div>
+                                        <span style="color: #22c55e;">✅ Aciertos:</span>
+                                        <strong> ${Math.max(0, (gameData?.totalQuestions || 0) - myFailures)}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `}
+                </div>
+                
+                <!-- FRANJA CENTRAL: PREGUNTA ACTUAL -->
+                <div style="background: #ffffff; border: 2px solid #e5e7eb; border-radius: 12px; padding: 25px; display: flex; flex-direction: column; justify-content: center; text-align: center;">
+                    ${currentQuestion ? `
+                        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                            <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 1.1rem;">🎯 PREGUNTA EN CURSO</h3>
+                                <div style="font-size: 18px; font-weight: 500; line-height: 1.4;">
+                                    ${currentQuestion.question}
+                                </div>
+                            </div>
+                            
+                            <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+                                ${currentQuestion.options.map((option, index) => `
+                                    <button onclick="answerCurrentQuestion(${index})" 
+                                            style="padding: 15px 20px; background: ${canAnswer ? '#f8fafc' : '#f9fafb'}; 
+                                                   border: 2px solid ${canAnswer ? '#3b82f6' : '#e5e7eb'}; 
+                                                   border-radius: 8px; cursor: ${canAnswer ? 'pointer' : 'not-allowed'}; 
+                                                   transition: all 0.2s; font-size: 16px; text-align: left;
+                                                   color: ${canAnswer ? '#1f2937' : '#9ca3af'};"
+                                            ${canAnswer ? `onmouseover="this.style.background='#dbeafe'; this.style.borderColor='#2563eb';" 
+                                                          onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#3b82f6';"` : ''}
+                                            ${!canAnswer ? 'disabled' : ''}>
+                                        <strong>${String.fromCharCode(65 + index)}.</strong> ${option}
+                                    </button>
+                                `).join('')}
+                            </div>
+                            
+                            ${showingResult && gameData?.currentResponse ? `
+                                <div style="margin-top: 20px; padding: 15px; background: ${gameData.currentResponse.isCorrect ? '#f0fdf4' : '#fef2f2'}; 
+                                           border: 2px solid ${gameData.currentResponse.isCorrect ? '#22c55e' : '#ef4444'}; border-radius: 8px;">
+                                    <div style="font-size: 1.2rem; font-weight: bold; color: ${gameData.currentResponse.isCorrect ? '#16a34a' : '#dc2626'};">
+                                        ${gameData.currentResponse.isCorrect ? '✅ ¡CORRECTO!' : '❌ INCORRECTO'}
+                                    </div>
+                                    <div style="margin-top: 8px; color: #374151;">
+                                        Respuesta seleccionada: <strong>${gameData.currentResponse.selectedOption}</strong>
+                                    </div>
+                                    ${!gameData.currentResponse.isCorrect ? `
+                                        <div style="margin-top: 5px; color: #16a34a;">
+                                            Respuesta correcta: <strong>${currentQuestion.options[currentQuestion.correctAnswer]}</strong>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            ` : ''}
+                        </div>
+                    ` : `
+                        <div style="color: #6b7280;">
+                            <div style="font-size: 4rem; margin-bottom: 20px;">🎮</div>
+                            <h3 style="margin: 0 0 10px 0; color: #374151;">Esperando Pregunta</h3>
+                            <p style="margin: 0;">
+                                ${myTurn ? 'Selecciona una pregunta del panel izquierdo' : 'El oponente está seleccionando una pregunta'}
+                            </p>
+                        </div>
+                    `}
+                </div>
+                
+                <!-- FRANJA DERECHA: INFORMACIÓN DEL OPONENTE -->
+                <div style="background: #f8fafc; border: 2px solid #e5e7eb; border-radius: 12px; padding: 20px; overflow-y: auto; max-height: 600px;">
+                    <div style="text-align: center; margin-bottom: 20px; padding: 15px; background: #6366f1; color: white; border-radius: 8px;">
+                        <h3 style="margin: 0; font-size: 1.2rem; font-weight: bold;">
+                            👤 OPONENTE
+                        </h3>
+                        <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">
+                            ${opponent ? opponent : 'Esperando...'}
+                        </p>
+                        <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.8;">
+                            Fallos: ${opponentFailures}/3
+                        </p>
+                    </div>
+                    
+                    <div style="color: #374151;">
+                        <div style="background: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; border: 1px solid #e5e7eb;">
+                            <h4 style="margin: 0 0 10px 0; color: #1f2937; display: flex; align-items: center; gap: 8px;">
+                                📚 Banco de Preguntas
+                            </h4>
+                            <div style="font-size: 14px; color: #6b7280;">
+                                Total de temas: <strong style="color: #1f2937;">${Object.keys(opponentBank).length}</strong>
+                            </div>
+                            <div style="font-size: 14px; color: #6b7280;">
+                                Total de preguntas: <strong style="color: #1f2937;">
+                                    ${Object.values(opponentBank).reduce((total, topic) => total + (topic.questions?.length || 0), 0)}
+                                </strong>
+                            </div>
+                        </div>
+                        
+                        <!-- Lista de temas disponibles -->
+                        <div style="background: white; border-radius: 8px; padding: 15px; border: 1px solid #e5e7eb;">
+                            <h4 style="margin: 0 0 10px 0; color: #1f2937;">🎯 Temas Disponibles</h4>
+                            <div style="max-height: 200px; overflow-y: auto;">
+                                ${Object.keys(opponentBank).length > 0 ? Object.keys(opponentBank).map(topic => `
+                                    <div style="padding: 8px; margin: 4px 0; background: #f8fafc; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                        <div style="font-weight: 500; color: #1f2937; font-size: 13px;">
+                                            📖 ${topic}
+                                        </div>
+                                        <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
+                                            ${opponentBank[topic].questions?.length || 0} preguntas disponibles
+                                        </div>
+                                    </div>
+                                `).join('') : `
+                                    <div style="text-align: center; padding: 20px; color: #9ca3af;">
+                                        <div style="font-size: 2rem; margin-bottom: 8px;">📚</div>
+                                        <p style="margin: 0; font-size: 14px;">No hay temas disponibles</p>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                        
+                        <!-- Estadísticas del duelo -->
+                        <div style="margin-top: 15px; background: white; border-radius: 8px; padding: 15px; border: 1px solid #e5e7eb;">
+                            <h4 style="margin: 0 0 10px 0; color: #1f2937;">⚡ Estado del Duelo</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px;">
+                                <div style="text-align: center; padding: 8px; background: #f0fdf4; border-radius: 6px;">
+                                    <div style="color: #22c55e; font-weight: bold;">Tu Record</div>
+                                    <div style="color: #16a34a; font-size: 16px; font-weight: bold;">
+                                        ${Math.max(0, 3 - myFailures)}
+                                    </div>
+                                    <div style="color: #6b7280; font-size: 11px;">intentos restantes</div>
+                                </div>
+                                <div style="text-align: center; padding: 8px; background: #fef3c7; border-radius: 6px;">
+                                    <div style="color: #f59e0b; font-weight: bold;">Oponente</div>
+                                    <div style="color: #d97706; font-size: 16px; font-weight: bold;">
+                                        ${Math.max(0, 3 - opponentFailures)}
+                                    </div>
+                                    <div style="color: #6b7280; font-size: 11px;">intentos restantes</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- PANEL DE CONTROL INFERIOR -->
+            <div style="margin-top: 20px; text-align: center; padding: 15px; background: #f8fafc; border-radius: 12px; border: 2px solid #e5e7eb;">
+                <button onclick="leaveRoom()" style="padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer; margin-right: 10px; font-weight: bold;">
+                    🚪 Salir del Duelo
+                </button>
+                <button onclick="forceResync()" style="padding: 10px 20px; background: #6366f1; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                    🔄 Sincronizar
+                </button>
+            </div>
+        </div>
+    `;
+};
+
+// Función auxiliar para forzar resincronización
+window.forceResync = function() {
+    if (multiplayerState.currentRoom && database) {
+        showMessage('🔄 Resincronizando sala...', 'info');
+        database.ref('rooms/' + multiplayerState.currentRoom).once('value', (snapshot) => {
+            if (snapshot.exists()) {
+                updateLocalStateFromRoom(snapshot.val());
+                render();
+                showMessage('✅ Sala resincronizada', 'success');
+            }
+        });
+    }
+};
+
+console.log('✅ PARCHE APLICADO - Interfaz multijugador actualizada con:');
+console.log('   🎨 Franja verde cuando es turno de PREGUNTAR');
+console.log('   🎨 Franja roja cuando es turno de RESPONDER');
+console.log('   🎨 Encabezado verde/rojo según la acción');
+console.log('   ⚔️ Espadas y "DUELO" posicionados a la izquierda');
+console.log('   📝 Texto dinámico: "PREGUNTAR" / "RESPONDER"');
+console.log('   🔧 Función forceResync() para sincronización manual');
+</script>
 </body>
 </html>
+
 
 
 
