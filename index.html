@@ -13524,39 +13524,11 @@ function changeToNextTurn() {
     };
     
     database.ref('rooms/' + multiplayerState.currentRoom).update(nextTurnData).then(() => {
-        // FUNCIÓN para mostrar MIS temas (solo para visualización, sin selección)
-function renderMyTopicsForDisplay(questionBank) {
-    if (!questionBank || Object.keys(questionBank).length === 0) {
-        return `
-            <div style="text-align: center; padding: 20px; color: #6b7280;">
-                <div style="font-size: 2rem; margin-bottom: 10px;">📚</div>
-                <p style="margin: 0; font-size: 14px;">Sin temas disponibles</p>
-            </div>
-        `;
-    }
-
-    let html = '';
-    Object.keys(questionBank).forEach(topicKey => {
-        const topic = questionBank[topicKey];
-        if (topic.questions && topic.questions.length > 0) {
-            html += `
-                <div style="margin-bottom: 12px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-                    <div style="background: #f9fafb; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: 500; color: #374151; font-size: 13px;">${topic.name}</span>
-                        <span style="background: #22c55e; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
-                            ${topic.questions.length}
-                        </span>
-                    </div>
-                </div>
-            `;
-        }
+        console.log('🔄 Turno cambiado correctamente de', currentTurn, 'a', nextTurn);
+        showMessage('Turno cambiado', 'info');
+    }).catch(error => {
+        console.error('❌ Error cambiando turno:', error);
     });
-
-    return html || `
-        <div style="text-align: center; padding: 20px; color: #6b7280;">
-            <p style="margin: 0; font-size: 14px;">Sin preguntas en tus temas</p>
-        </div>
-    `;
 }
 </script>
 <!-- 
@@ -16231,6 +16203,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
