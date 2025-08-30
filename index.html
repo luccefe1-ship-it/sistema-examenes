@@ -16013,18 +16013,23 @@ console.log('✅ Botón "Editar Texto" configurado para opciones completas');
 console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>
 <!-- 
-PARCHE VISUAL: COLORES DINÁMICOS POR TURNO EN MULTIJUGADOR
+PARCHE CORREGIDO: COLORES DINÁMICOS SINCRONIZADOS
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche modifica solo los colores según el turno del usuario
+Este parche corrige la sincronización de colores entre header y franja
 -->
 
 <script>
-// ========== PARCHE VISUAL: COLORES DINÁMICOS POR TURNO ==========
-console.log('🎨 Aplicando parche de colores dinámicos por turno...');
+// ========== PARCHE CORREGIDO: COLORES DINÁMICOS SINCRONIZADOS ==========
+console.log('🎨 Aplicando parche CORREGIDO de colores sincronizados...');
 
-// REEMPLAZAR la función renderDuelInterface para cambiar colores según turno
-const originalRenderDuelInterface = renderDuelInterface;
-renderDuelInterface = function() {
+// INTERCEPTAR Y REEMPLAZAR completamente renderDuelInterface
+if (typeof window.renderDuelInterface === 'function') {
+    // Guardar referencia original si existe
+    window.originalRenderDuelInterfaceColors = window.renderDuelInterface;
+}
+
+// NUEVA función renderDuelInterface con colores sincronizados
+window.renderDuelInterface = function() {
     const isHost = multiplayerState.isHost;
     const opponent = multiplayerState.opponent;
     const myTurn = multiplayerState.myTurn;
@@ -16038,86 +16043,100 @@ renderDuelInterface = function() {
     // Datos de la pregunta actual si existe
     const currentQuestion = multiplayerState.currentRoomData?.gameData?.currentQuestionData || null;
 
-    // COLORES DINÁMICOS SEGÚN TURNO
-    const headerColors = myTurn ? 
-        'background: linear-gradient(135deg, #16a34a, #15803d);' :  // Verde cuando es mi turno
-        'background: linear-gradient(135deg, #dc2626, #b91c1c);';   // Rojo cuando es turno del oponente
+    // DEFINIR COLORES SEGÚN TURNO (CRÍTICO)
+    const isMyTurnActive = myTurn === true;
+    
+    console.log('🎯 Estado del turno para colores:', {
+        myTurn: myTurn,
+        isMyTurnActive: isMyTurnActive,
+        colorTheme: isMyTurnActive ? 'VERDE' : 'ROJO'
+    });
 
-    const myPanelColors = myTurn ? 
-        { bg: '#f0fdf4', border: '#22c55e' } :  // Verde cuando es mi turno
-        { bg: '#fef2f2', border: '#ef4444' };  // Rojo cuando no es mi turno
+    // Colores dinámicos
+    const headerStyle = isMyTurnActive ? 
+        'background: linear-gradient(135deg, #16a34a, #15803d);' :  // VERDE cuando es mi turno
+        'background: linear-gradient(135deg, #dc2626, #b91c1c);';   // ROJO cuando NO es mi turno
+
+    const myPanelStyle = isMyTurnActive ? 
+        'background: #f0fdf4; border: 2px solid #22c55e;' :  // VERDE cuando es mi turno
+        'background: #fef2f2; border: 2px solid #ef4444;';   // ROJO cuando NO es mi turno
+
+    const turnIndicator = isMyTurnActive ? '🟢' : '🔴';
+    const turnMessage = isMyTurnActive ? 
+        '🟢 Tu turno: Selecciona una pregunta' : 
+        '🔴 Turno del oponente: Espera tu respuesta';
 
     return `
         <div style="max-width: 1400px; margin: 0 auto; padding: 20px; min-height: calc(100vh - 200px);">
             
-            <!-- Header del duelo con colores dinámicos -->
-            <div style="text-align: center; margin-bottom: 25px; ${headerColors} color: white; padding: 20px; border-radius: 16px;">
+            <!-- Header del duelo con colores SINCRONIZADOS -->
+            <div style="text-align: center; margin-bottom: 25px; ${headerStyle} color: white; padding: 20px; border-radius: 16px;">
                 <h1 style="margin: 0 0 10px 0; font-size: 2rem; font-weight: 800;">⚔️ Duelo de Preguntas</h1>
                 <div style="font-size: 1.8rem; font-weight: bold; letter-spacing: 2px; margin: 5px 0;">
                     ${multiplayerState.roomCode}
                 </div>
                 <p style="margin: 0; opacity: 0.9; font-size: 14px;">
-                    ${myTurn ? '🟢 Tu turno: Selecciona una pregunta' : '🔴 Turno del oponente: Espera tu respuesta'}
+                    ${turnMessage}
                 </p>
             </div>
             
             <!-- Interfaz de 3 franjas -->
             <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 20px; min-height: 500px;">
                 
-                <!-- FRANJA IZQUIERDA: Panel del jugador con colores dinámicos -->
-                <div style="background: ${myPanelColors.bg}; border: 2px solid ${myPanelColors.border}; border-radius: 16px; padding: 20px; overflow-y: auto; max-height: 600px;">
+                <!-- FRANJA IZQUIERDA: Panel del jugador con colores SINCRONIZADOS -->
+                <div style="${myPanelStyle} border-radius: 16px; padding: 20px; overflow-y: auto; max-height: 600px;">
                     <h3 style="margin: 0 0 15px 0; color: #1f2937; display: flex; align-items: center; gap: 8px;">
-                        ${myTurn ? '🟢' : '🔴'} ${state.currentUser.name}
+                        ${turnIndicator} ${state.currentUser.name}
                         <span style="font-size: 12px; color: #6b7280;">
                             (${myFailures}/3 fallos)
                         </span>
                     </h3>
                     
                     <div style="margin-bottom: 15px;">
-                        <p style="margin: 0; font-size: 14px; color: ${myTurn ? '#16a34a' : '#dc2626'}; font-weight: 600;">
-                            ${myTurn ? '✨ ¡Tu turno de preguntar!' : '⏳ Esperando tu respuesta...'}
+                        <p style="margin: 0; font-size: 14px; color: ${isMyTurnActive ? '#16a34a' : '#dc2626'}; font-weight: 600;">
+                            ${isMyTurnActive ? '✨ ¡Tu turno de preguntar!' : '⏳ Esperando tu respuesta...'}
                         </p>
                     </div>
                     
                     <!-- Temas del jugador actual -->
                     ${Object.keys(myBank).length > 0 ? Object.keys(myBank).map(topicName => {
                         const topicQuestions = myBank[topicName] || [];
-                        const topicId = `topic-${topicName.replace(/\s+/g, '-')}`;
+                        const topicId = \`topic-\${topicName.replace(/\s+/g, '-')}\`;
                         
-                        return `
+                        return \`
                             <div style="margin-bottom: 15px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-                                <div onclick="toggleTopicQuestions('${topicId}')" 
+                                <div onclick="toggleTopicQuestions('\${topicId}')" 
                                      style="background: #f9fafb; padding: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb;">
                                     <h4 style="margin: 0; color: #374151; font-size: 14px; font-weight: 600;">
-                                        📁 ${topicName}
+                                        📁 \${topicName}
                                     </h4>
                                     <span style="color: #6b7280; font-size: 12px; background: #e5e7eb; padding: 2px 8px; border-radius: 12px;">
-                                        ${topicQuestions.length} pregunta${topicQuestions.length !== 1 ? 's' : ''}
+                                        \${topicQuestions.length} pregunta\${topicQuestions.length !== 1 ? 's' : ''}
                                     </span>
                                 </div>
-                                <div id="${topicId}" style="display: none;">
-                                    ${topicQuestions.map((q, index) => `
-                                        <div onclick="${myTurn ? `selectQuestionFromOpponent('${topicName}', ${index})` : ''}" 
-                                             style="padding: 10px 12px; border-bottom: 1px solid #f3f4f6; cursor: ${myTurn ? 'pointer' : 'default'}; ${myTurn ? 'hover:background-color: #f0f9ff;' : ''} ${!myTurn ? 'opacity: 0.6;' : ''}">
+                                <div id="\${topicId}" style="display: none;">
+                                    \${topicQuestions.map((q, index) => \`
+                                        <div onclick="\${isMyTurnActive ? \`selectQuestionFromOpponent('\${topicName}', \${index})\` : ''}" 
+                                             style="padding: 10px 12px; border-bottom: 1px solid #f3f4f6; cursor: \${isMyTurnActive ? 'pointer' : 'default'}; \${isMyTurnActive ? 'hover:background-color: #f0f9ff;' : ''} \${!isMyTurnActive ? 'opacity: 0.6;' : ''}">
                                             <p style="margin: 0; font-size: 13px; color: #374151;">
-                                                <strong>P:</strong> ${q.question}
+                                                <strong>P:</strong> \${q.question}
                                             </p>
                                             <p style="margin: 5px 0 0 0; font-size: 12px; color: #16a34a;">
-                                                <strong>R:</strong> ${q.correctAnswer}
+                                                <strong>R:</strong> \${q.correctAnswer}
                                             </p>
                                         </div>
-                                    `).join('')}
+                                    \`).join('')}
                                 </div>
                             </div>
-                        `;
-                    }).join('') : `
+                        \`;
+                    }).join('') : \`
                         <div style="text-align: center; padding: 20px; color: #9ca3af;">
                             No hay preguntas disponibles
                         </div>
-                    `}
+                    \`}
                 </div>
                 
-                <!-- FRANJA CENTRAL: Pregunta actual (sin cambios de color) -->
+                <!-- FRANJA CENTRAL: Pregunta actual -->
                 <div style="background: white; border: 2px solid #e5e7eb; border-radius: 16px; padding: 30px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
                     ${currentQuestion ? `
                         <div style="width: 100%;">
@@ -16137,20 +16156,20 @@ renderDuelInterface = function() {
                             </div>
                             
                             <p style="color: #6b7280; margin: 0; font-size: 14px;">
-                                ${myTurn ? 'El oponente debe responder' : 'Selecciona tu respuesta'}
+                                ${isMyTurnActive ? 'El oponente debe responder' : 'Selecciona tu respuesta'}
                             </p>
                         </div>
                     ` : `
                         <div>
                             <div style="font-size: 4rem; margin-bottom: 20px; opacity: 0.3;">❓</div>
                             <h3 style="color: #6b7280; margin: 0; font-size: 1.2rem;">
-                                ${myTurn ? 'Selecciona una pregunta de tu banco' : 'Esperando pregunta del oponente...'}
+                                ${isMyTurnActive ? 'Selecciona una pregunta de tu banco' : 'Esperando pregunta del oponente...'}
                             </h3>
                         </div>
                     `}
                 </div>
                 
-                <!-- FRANJA DERECHA: Información del oponente (sin cambios de color) -->
+                <!-- FRANJA DERECHA: Información del oponente -->
                 <div style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 16px; padding: 20px;">
                     <h3 style="margin: 0 0 15px 0; color: #1f2937; display: flex; align-items: center; gap: 8px;">
                         👤 ${opponent ? opponent.name : 'Esperando...'}
@@ -16163,7 +16182,7 @@ renderDuelInterface = function() {
                     
                     <div style="margin-bottom: 15px;">
                         <p style="margin: 0; font-size: 14px; color: #6b7280;">
-                            ${opponent ? (myTurn ? '⏳ Esperando su pregunta...' : '🎯 Preparando pregunta...') : 'Sin oponente'}
+                            ${opponent ? (isMyTurnActive ? '⏳ Esperando su pregunta...' : '🎯 Preparando pregunta...') : 'Sin oponente'}
                         </p>
                     </div>
                     
@@ -16190,15 +16209,16 @@ renderDuelInterface = function() {
     `;
 };
 
-console.log('✅ Parche de colores dinámicos aplicado correctamente');
-console.log('🎨 Cambios visuales:');
-console.log('   - Header VERDE cuando es tu turno, ROJO cuando no');
-console.log('   - Franja izquierda VERDE cuando puedes preguntar, ROJA cuando esperas');
-console.log('   - Indicadores visuales 🟢/🔴 según estado del turno');
-console.log('   - Texto descriptivo actualizado con colores');
+console.log('✅ Parche CORREGIDO de colores sincronizados aplicado');
+console.log('🎨 Cambios críticos:');
+console.log('   - Header y franja SINCRONIZADOS por estado de turno');
+console.log('   - Verde cuando myTurn === true');
+console.log('   - Rojo cuando myTurn === false');
+console.log('   - Debugging de estado añadido en consola');
 </script>
 </body>
 </html>
+
 
 
 
