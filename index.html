@@ -16013,58 +16013,106 @@ console.log('✅ Botón "Editar Texto" configurado para opciones completas');
 console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>
 <!-- 
-PARCHE CORREGIDO SIN ERRORES: COLORES SINCRONIZADOS
+PARCHE SIMPLE Y ROBUSTO: COLORES SINCRONIZADOS SIN ERRORES
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-ELIMINAR todos los parches anteriores antes de añadir este
+ELIMINAR completamente todos los parches anteriores
 -->
 
 <script>
-// ========== PARCHE CORREGIDO SIN ERRORES ==========
-console.log('🎨 Aplicando parche corregido sin errores...');
+// ========== PARCHE SIMPLE Y ROBUSTO ==========
+console.log('🔧 Aplicando parche simple y robusto...');
 
-// Guardar función original si existe
-if (typeof renderDuelInterface !== 'undefined') {
-    window.originalRenderDuelInterfaceBackup = renderDuelInterface;
+// Función auxiliar para obtener colores
+function getTurnColors() {
+    const isMyTurn = multiplayerState.myTurn === true;
+    return {
+        header: isMyTurn ? 
+            'background: linear-gradient(135deg, #16a34a, #15803d);' : 
+            'background: linear-gradient(135deg, #dc2626, #b91c1c);',
+        franja: isMyTurn ? 
+            'background: #f0fdf4; border: 2px solid #22c55e;' : 
+            'background: #fef2f2; border: 2px solid #ef4444;',
+        icon: isMyTurn ? '🟢' : '🔴',
+        text: isMyTurn ? '#16a34a' : '#dc2626'
+    };
 }
 
-// Nueva función sin errores
-window.renderDuelInterface = function() {
+// Función auxiliar para renderizar temas sin errores
+function renderTopicsSafely(bank, isClickable = true) {
+    if (!bank || typeof bank !== 'object') return '<div style="color: #9ca3af; text-align: center; padding: 20px;">Sin temas</div>';
+    
+    const topics = Object.keys(bank);
+    if (topics.length === 0) return '<div style="color: #9ca3af; text-align: center; padding: 20px;">Sin temas</div>';
+    
+    let html = '';
+    
+    for (let i = 0; i < topics.length; i++) {
+        const topicName = topics[i];
+        const questions = bank[topicName] || [];
+        const safeId = 'topic' + i;
+        
+        html += `
+            <div style="margin-bottom: 10px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                <div onclick="toggleTopicQuestions('${safeId}')" 
+                     style="background: #f9fafb; padding: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: #374151;">📁 ${topicName}</span>
+                    <span style="font-size: 12px; color: #6b7280; background: #e5e7eb; padding: 2px 8px; border-radius: 12px;">
+                        ${questions.length}
+                    </span>
+                </div>
+                <div id="${safeId}" style="display: none; background: white;">
+        `;
+        
+        // Renderizar preguntas sin map()
+        for (let j = 0; j < questions.length; j++) {
+            const q = questions[j];
+            const clickAction = isClickable ? `selectQuestionFromOpponent('${topicName}', ${j})` : '';
+            const cursor = isClickable ? 'pointer' : 'default';
+            const opacity = isClickable ? '' : 'opacity: 0.6;';
+            
+            html += `
+                <div onclick="${clickAction}" 
+                     style="padding: 10px 12px; border-bottom: 1px solid #f3f4f6; cursor: ${cursor}; ${opacity}">
+                    <p style="margin: 0; font-size: 13px; color: #374151;">
+                        <strong>P:</strong> ${q.question || 'Sin pregunta'}
+                    </p>
+                </div>
+            `;
+        }
+        
+        html += '</div></div>';
+    }
+    
+    return html;
+}
+
+// Reemplazar renderDuelInterface completamente
+renderDuelInterface = function() {
     const isHost = multiplayerState.isHost;
     const opponent = multiplayerState.opponent;
     const myFailures = multiplayerState.myFailures || 0;
     const opponentFailures = multiplayerState.opponentFailures || 0;
     
-    // Obtener bancos de preguntas
+    // Obtener bancos
     const opponentBank = getOpponentQuestionBank();
     const myBank = getMyQuestionBank();
-    
-    // Datos de la pregunta actual
     const currentQuestion = multiplayerState.currentRoomData?.gameData?.currentQuestionData || null;
     
-    // COLORES SEGÚN TURNO
+    // Obtener colores
+    const colors = getTurnColors();
     const isMyTurn = multiplayerState.myTurn === true;
-    const headerStyle = isMyTurn ? 
-        'background: linear-gradient(135deg, #16a34a, #15803d);' :  // VERDE
-        'background: linear-gradient(135deg, #dc2626, #b91c1c);';   // ROJO
-    
-    const franjaStyle = isMyTurn ?
-        'background: #f0fdf4; border: 2px solid #22c55e;' :  // VERDE
-        'background: #fef2f2; border: 2px solid #ef4444;';   // ROJO
-    
-    const indicator = isMyTurn ? '🟢' : '🔴';
-    const textColor = isMyTurn ? '#16a34a' : '#dc2626';
 
     return `
         <div style="max-width: 1400px; margin: 0 auto; padding: 20px; min-height: calc(100vh - 200px);">
             
             <!-- Header sincronizado -->
-            <div style="text-align: center; margin-bottom: 25px; ${headerStyle} color: white; padding: 20px; border-radius: 16px;">
+            <div style="text-align: center; margin-bottom: 25px; ${colors.header} color: white; padding: 20px; border-radius: 16px;">
                 <h1 style="margin: 0 0 10px 0; font-size: 2rem; font-weight: 800;">⚔️ Duelo de Preguntas</h1>
                 <div style="font-size: 1.8rem; font-weight: bold; letter-spacing: 2px; margin: 5px 0;">
                     ${multiplayerState.roomCode}
                 </div>
                 <p style="margin: 0; opacity: 0.9; font-size: 14px;">
-                    ${indicator} ${isMyTurn ? 'ES TU TURNO - Selecciona una pregunta' : 'Turno del oponente - Espera tu respuesta'}
+                    ${colors.icon} ${isMyTurn ? 'ES TU TURNO - Selecciona una pregunta' : 'Turno del oponente - Espera tu respuesta'}
                 </p>
             </div>
             
@@ -16072,47 +16120,20 @@ window.renderDuelInterface = function() {
             <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 20px; min-height: 500px;">
                 
                 <!-- Franja izquierda sincronizada -->
-                <div style="${franjaStyle} border-radius: 16px; padding: 20px; overflow-y: auto; max-height: 600px;">
+                <div style="${colors.franja} border-radius: 16px; padding: 20px; overflow-y: auto; max-height: 600px;">
                     <h3 style="margin: 0 0 15px 0; color: #1f2937; display: flex; align-items: center; gap: 8px;">
-                        ${indicator} ${state.currentUser.name}
-                        <span style="font-size: 12px; color: #6b7280;">
-                            (${myFailures}/3 fallos)
-                        </span>
+                        ${colors.icon} ${state.currentUser.name}
+                        <span style="font-size: 12px; color: #6b7280;">(${myFailures}/3 fallos)</span>
                     </h3>
                     
                     <div style="margin-bottom: 15px;">
-                        <p style="margin: 0; font-size: 14px; color: ${textColor}; font-weight: 600;">
+                        <p style="margin: 0; font-size: 14px; color: ${colors.text}; font-weight: 600;">
                             ${isMyTurn ? '✨ ¡Tu turno de preguntar!' : '⏳ Esperando tu respuesta...'}
                         </p>
                     </div>
                     
-                    <!-- Lista de temas simplificada -->
-                    <div style="margin-bottom: 15px;">
-                        ${Object.keys(myBank || {}).length > 0 ? 
-                            Object.keys(myBank).map(topicName => {
-                                const topicQuestions = myBank[topicName] || [];
-                                const safeTopicId = 'topic-' + topicName.replace(/[^a-zA-Z0-9]/g, '');
-                                
-                                return `
-                                    <div style="margin-bottom: 10px; border: 1px solid #e5e7eb; border-radius: 8px;">
-                                        <div onclick="toggleTopicQuestions('${safeTopicId}')" 
-                                             style="background: #f9fafb; padding: 12px; cursor: pointer; display: flex; justify-content: space-between;">
-                                            <span style="font-weight: 600;">📁 ${topicName}</span>
-                                            <span style="font-size: 12px; color: #6b7280;">${topicQuestions.length}</span>
-                                        </div>
-                                        <div id="${safeTopicId}" style="display: none; background: white;">
-                                            ${topicQuestions.map((q, index) => 
-                                                `<div onclick="${isMyTurn ? `selectQuestionFromOpponent('${topicName}', ${index})` : ''}" 
-                                                      style="padding: 10px; border-bottom: 1px solid #f0f0f0; cursor: ${isMyTurn ? 'pointer' : 'default'}; ${isMyTurn ? '' : 'opacity: 0.6;'}">
-                                                    <strong>P:</strong> ${q.question || 'Sin pregunta'}
-                                                </div>`
-                                            ).join('')}
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('') 
-                        : '<div style="text-align: center; padding: 20px; color: #9ca3af;">No hay temas disponibles</div>'}
-                    </div>
+                    <!-- Mis temas -->
+                    ${renderTopicsSafely(myBank, isMyTurn)}
                 </div>
                 
                 <!-- Franja central -->
@@ -16124,17 +16145,14 @@ window.renderDuelInterface = function() {
                             </h2>
                             
                             <div style="display: grid; gap: 15px; margin-bottom: 30px;">
-                                ${currentQuestion.options ? currentQuestion.options.map((option, index) => `
-                                    <button onclick="answerCurrentQuestion(${index})" 
-                                            style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; padding: 15px 20px; text-align: left; cursor: pointer; transition: all 0.2s; font-size: 14px;">
-                                        <strong>${String.fromCharCode(65 + index)})</strong> ${option}
-                                    </button>
-                                `).join('') : ''}
+                                ${currentQuestion.options && currentQuestion.options.length > 0 ? 
+                                    currentQuestion.options.map((option, index) => `
+                                        <button onclick="answerCurrentQuestion(${index})" 
+                                                style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; padding: 15px 20px; text-align: left; cursor: pointer; font-size: 14px;">
+                                            <strong>${String.fromCharCode(65 + index)})</strong> ${option}
+                                        </button>
+                                    `).join('') : ''}
                             </div>
-                            
-                            <p style="color: #6b7280; margin: 0; font-size: 14px;">
-                                ${isMyTurn ? 'El oponente debe responder' : 'Selecciona tu respuesta'}
-                            </p>
                         </div>
                     ` : `
                         <div>
@@ -16148,41 +16166,23 @@ window.renderDuelInterface = function() {
                 
                 <!-- Franja derecha -->
                 <div style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 16px; padding: 20px;">
-                    <h3 style="margin: 0 0 15px 0; color: #1f2937; display: flex; align-items: center; gap: 8px;">
+                    <h3 style="margin: 0 0 15px 0; color: #1f2937;">
                         👤 ${opponent ? opponent.name : 'Esperando...'}
-                        ${opponent ? `
-                            <span style="font-size: 12px; color: #6b7280;">
-                                (${opponentFailures}/3 fallos)
-                            </span>
-                        ` : ''}
+                        ${opponent ? `<span style="font-size: 12px; color: #6b7280;">(${opponentFailures}/3 fallos)</span>` : ''}
                     </h3>
                     
                     <div style="margin-bottom: 15px;">
                         <p style="margin: 0; font-size: 14px; color: #6b7280;">
-                            ${opponent ? (isMyTurn ? '⏳ Esperando su pregunta...' : '🎯 Preparando pregunta...') : 'Sin oponente'}
+                            ${opponent ? (isMyTurn ? '⏳ Esperando...' : '🎯 Preparando...') : 'Sin oponente'}
                         </p>
                     </div>
                     
-                    <!-- Temas del oponente -->
-                    ${opponent && Object.keys(opponentBank || {}).length > 0 ? 
-                        Object.keys(opponentBank).map(topicName => {
-                            const topicQuestions = opponentBank[topicName] || [];
-                            return `
-                                <div style="background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 10px; text-align: center;">
-                                    <p style="margin: 0 0 5px 0; font-size: 12px; color: #1e40af; font-weight: 600;">
-                                        ${topicName}
-                                    </p>
-                                    <p style="margin: 0; font-size: 14px; color: #374151;">
-                                        ${topicQuestions.length} pregunta${topicQuestions.length !== 1 ? 's' : ''}
-                                    </p>
-                                </div>
-                            `;
-                        }).join('')
-                    : '<div style="text-align: center; color: #9ca3af;">Sin temas disponibles</div>'}
+                    <!-- Temas del oponente (solo mostrar, no clickeables) -->
+                    ${opponent ? renderTopicsSafely(opponentBank, false) : '<div style="color: #9ca3af; text-align: center;">Sin oponente</div>'}
                 </div>
             </div>
             
-            <!-- Botón para salir -->
+            <!-- Botón salir -->
             <div style="text-align: center; margin-top: 30px;">
                 <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 12px 25px; font-size: 16px;">
                     🚪 Salir del Duelo
@@ -16192,11 +16192,11 @@ window.renderDuelInterface = function() {
     `;
 };
 
-console.log('✅ Parche corregido aplicado sin errores');
-console.log('🎨 Funcionalidad restaurada con colores sincronizados');
+console.log('✅ Parche simple aplicado - sin errores de map()');
 </script>
 </body>
 </html>
+
 
 
 
