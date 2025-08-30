@@ -13135,17 +13135,17 @@ window.renderDuelInterface = function() {
         '#22c55e' : // VERDE para preguntar
         '#dc2626';  // ROJO para responder/esperar
     
-    // Mensaje de estado simplificado
+    // Mensaje de estado simplificado con palabras grandes
     let statusMessage = '';
     if (showingResult && gameData?.currentResponse) {
         const isCorrect = gameData.currentResponse.isCorrect;
         statusMessage = `${isCorrect ? '✅ CORRECTO' : '❌ INCORRECTO'} - Cambiando turno...`;
     } else if (canAnswer) {
-        statusMessage = '🎯 ¡TURNO DE RESPONDER! - Haz clic en una opción';
+        statusMessage = 'RESPONDER';
     } else if (currentQuestion && waitingForAnswer) {
         statusMessage = '⏳ ESPERANDO RESPUESTA - Tu oponente está respondiendo';
     } else if (myTurn) {
-        statusMessage = '🎯 ES TU TURNO - Selecciona una pregunta del panel derecho';
+        statusMessage = 'PREGUNTAR';
     } else {
         statusMessage = '⏳ TURNO DEL OPONENTE - Está seleccionando una pregunta';
     }
@@ -13179,18 +13179,20 @@ window.renderDuelInterface = function() {
             flex-shrink: 0;
             box-shadow: 0 4px 12px ${headerShadow};
         ">
-            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center;">
-                <div style="font-size: 2rem; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;">
-                    <span>⚔️</span>
-                    <span>DUELO</span>
-                    <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 8px; font-size: 1.8rem; letter-spacing: 2px;">
-                        ${multiplayerState.roomCode}
-                    </span>
-                </div>
-                <div style="font-size: 16px; font-weight: 600; opacity: 0.95; background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 20px;">
+            <!-- Espadas y DUELO a la izquierda -->
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 2rem;">⚔️</span>
+                <span style="font-size: 2rem; font-weight: bold;">DUELO</span>
+            </div>
+            
+            <!-- Mensaje de estado centrado -->
+            <div style="flex: 1; display: flex; justify-content: center;">
+                <div style="font-size: ${statusMessage === 'PREGUNTAR' || statusMessage === 'RESPONDER' ? '2.5rem' : '16px'}; font-weight: bold; opacity: 0.95; background: rgba(255,255,255,0.1); padding: ${statusMessage === 'PREGUNTAR' || statusMessage === 'RESPONDER' ? '12px 20px' : '8px 16px'}; border-radius: 20px;">
                     ${statusMessage}
                 </div>
             </div>
+            
+            <!-- Botón salir a la derecha -->
             <button onclick="leaveRoom()" style="
                 background: rgba(255,255,255,0.15); 
                 border: 2px solid rgba(255,255,255,0.3);
@@ -16045,6 +16047,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
