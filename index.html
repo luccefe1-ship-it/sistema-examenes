@@ -16216,8 +16216,226 @@ console.log('   - Verde cuando myTurn === true');
 console.log('   - Rojo cuando myTurn === false');
 console.log('   - Debugging de estado añadido en consola');
 </script>
+    <!-- 
+PARCHE ESPECÍFICO: SINCRONIZACIÓN FORZADA DE COLORES HEADER-FRANJA
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche fuerza que header y franja tengan el mismo color según el turno
+-->
+
+<script>
+// ========== PARCHE ESPECÍFICO: SINCRONIZACIÓN FORZADA ==========
+console.log('🔥 FORZANDO sincronización de colores header-franja...');
+
+// FUNCIÓN AUXILIAR para determinar colores según turno
+function getColorsByTurn() {
+    const myTurnState = multiplayerState.myTurn;
+    
+    console.log('🎯 Analizando turno para colores:', {
+        'multiplayerState.myTurn': myTurnState,
+        'tipo': typeof myTurnState,
+        'esVerdadero': myTurnState === true,
+        'colorResultante': myTurnState === true ? 'VERDE' : 'ROJO'
+    });
+    
+    if (myTurnState === true) {
+        return {
+            headerBg: 'background: linear-gradient(135deg, #16a34a, #15803d);',
+            franjaBg: 'background: #f0fdf4;',
+            franjaBorder: 'border: 2px solid #22c55e;',
+            textColor: '#16a34a',
+            indicator: '🟢',
+            theme: 'GREEN'
+        };
+    } else {
+        return {
+            headerBg: 'background: linear-gradient(135deg, #dc2626, #b91c1c);',
+            franjaBg: 'background: #fef2f2;',
+            franjaBorder: 'border: 2px solid #ef4444;',
+            textColor: '#dc2626',
+            indicator: '🔴',
+            theme: 'RED'
+        };
+    }
+}
+
+// REEMPLAZAR COMPLETAMENTE renderDuelInterface con sincronización forzada
+if (typeof renderDuelInterface !== 'undefined') {
+    const originalRenderDuelInterfaceForced = renderDuelInterface;
+}
+
+renderDuelInterface = function() {
+    const isHost = multiplayerState.isHost;
+    const opponent = multiplayerState.opponent;
+    const myFailures = multiplayerState.myFailures || 0;
+    const opponentFailures = multiplayerState.opponentFailures || 0;
+    
+    // Obtener bancos de preguntas
+    const opponentBank = getOpponentQuestionBank();
+    const myBank = getMyQuestionBank();
+    
+    // Datos de la pregunta actual si existe
+    const currentQuestion = multiplayerState.currentRoomData?.gameData?.currentQuestionData || null;
+    
+    // OBTENER COLORES SINCRONIZADOS
+    const colors = getColorsByTurn();
+    
+    console.log('🎨 Aplicando tema de colores:', colors.theme);
+
+    return `
+        <div style="max-width: 1400px; margin: 0 auto; padding: 20px; min-height: calc(100vh - 200px);">
+            
+            <!-- HEADER CON COLOR SINCRONIZADO -->
+            <div style="text-align: center; margin-bottom: 25px; ${colors.headerBg} color: white; padding: 20px; border-radius: 16px;">
+                <h1 style="margin: 0 0 10px 0; font-size: 2rem; font-weight: 800;">⚔️ Duelo de Preguntas</h1>
+                <div style="font-size: 1.8rem; font-weight: bold; letter-spacing: 2px; margin: 5px 0;">
+                    ${multiplayerState.roomCode}
+                </div>
+                <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                    ${colors.indicator} ${multiplayerState.myTurn ? 'ES TU TURNO - Selecciona una pregunta del panel derecho' : 'Turno del oponente - Espera tu respuesta'}
+                </p>
+            </div>
+            
+            <!-- Interfaz de 3 franjas -->
+            <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 20px; min-height: 500px;">
+                
+                <!-- FRANJA IZQUIERDA CON COLOR SINCRONIZADO -->
+                <div style="${colors.franjaBg} ${colors.franjaBorder} border-radius: 16px; padding: 20px; overflow-y: auto; max-height: 600px;">
+                    <h3 style="margin: 0 0 15px 0; color: #1f2937; display: flex; align-items: center; gap: 8px;">
+                        ${colors.indicator} ${state.currentUser.name}
+                        <span style="font-size: 12px; color: #6b7280;">
+                            (${myFailures}/3 fallos)
+                        </span>
+                    </h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <p style="margin: 0; font-size: 14px; color: ${colors.textColor}; font-weight: 600;">
+                            ${multiplayerState.myTurn ? '✨ ¡Tu turno de preguntar!' : '⏳ Esperando tu respuesta...'}
+                        </p>
+                    </div>
+                    
+                    <!-- Temas del jugador -->
+                    ${Object.keys(myBank).length > 0 ? Object.keys(myBank).map(topicName => {
+                        const topicQuestions = myBank[topicName] || [];
+                        const topicId = `topic-${topicName.replace(/\\s+/g, '-')}`;
+                        
+                        return `
+                            <div style="margin-bottom: 15px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                                <div onclick="toggleTopicQuestions('${topicId}')" 
+                                     style="background: #f9fafb; padding: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb;">
+                                    <h4 style="margin: 0; color: #374151; font-size: 14px; font-weight: 600;">
+                                        📁 ${topicName}
+                                    </h4>
+                                    <span style="color: #6b7280; font-size: 12px; background: #e5e7eb; padding: 2px 8px; border-radius: 12px;">
+                                        ${topicQuestions.length} pregunta${topicQuestions.length !== 1 ? 's' : ''}
+                                    </span>
+                                </div>
+                                <div id="${topicId}" style="display: none;">
+                                    ${topicQuestions.map((q, index) => `
+                                        <div onclick="${multiplayerState.myTurn ? `selectQuestionFromOpponent('${topicName}', ${index})` : ''}" 
+                                             style="padding: 10px 12px; border-bottom: 1px solid #f3f4f6; cursor: ${multiplayerState.myTurn ? 'pointer' : 'default'}; ${multiplayerState.myTurn ? 'hover:background-color: #f0f9ff;' : ''} ${!multiplayerState.myTurn ? 'opacity: 0.6;' : ''}">
+                                            <p style="margin: 0; font-size: 13px; color: #374151;">
+                                                <strong>P:</strong> ${q.question}
+                                            </p>
+                                            <p style="margin: 5px 0 0 0; font-size: 12px; color: #16a34a;">
+                                                <strong>R:</strong> ${q.correctAnswer}
+                                            </p>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }).join('') : `
+                        <div style="text-align: center; padding: 20px; color: #9ca3af;">
+                            No hay preguntas disponibles
+                        </div>
+                    `}
+                </div>
+                
+                <!-- FRANJA CENTRAL: Pregunta actual -->
+                <div style="background: white; border: 2px solid #e5e7eb; border-radius: 16px; padding: 30px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                    ${currentQuestion ? `
+                        <div style="width: 100%;">
+                            <h2 style="color: #1f2937; margin-bottom: 30px; font-size: 1.5rem; line-height: 1.4;">
+                                ${currentQuestion.question}
+                            </h2>
+                            
+                            <div style="display: grid; gap: 15px; margin-bottom: 30px;">
+                                ${currentQuestion.options.map((option, index) => `
+                                    <button onclick="answerCurrentQuestion(${index})" 
+                                            style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; padding: 15px 20px; text-align: left; cursor: pointer; transition: all 0.2s; font-size: 14px;"
+                                            onmouseover="this.style.background='#f0f9ff'; this.style.borderColor='#3b82f6';"
+                                            onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#e2e8f0';">
+                                        <strong>${String.fromCharCode(65 + index)})</strong> ${option}
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : `
+                        <div>
+                            <div style="font-size: 4rem; margin-bottom: 20px; opacity: 0.3;">❓</div>
+                            <h3 style="color: #6b7280; margin: 0; font-size: 1.2rem;">
+                                Esperando pregunta
+                            </h3>
+                            <p style="color: #9ca3af; margin: 10px 0 0 0; font-size: 14px;">
+                                Selecciona del panel derecho
+                            </p>
+                        </div>
+                    `}
+                </div>
+                
+                <!-- FRANJA DERECHA: Información del oponente -->
+                <div style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 16px; padding: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: #1f2937; display: flex; align-items: center; gap: 8px;">
+                        👤 ${opponent ? opponent.name : 'Esperando...'}
+                        ${opponent ? `
+                            <span style="font-size: 12px; color: #6b7280;">
+                                (${opponentFailures}/3 fallos)
+                            </span>
+                        ` : ''}
+                    </h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <p style="margin: 0; font-size: 14px; color: #6b7280;">
+                            Sus Temas (${Object.keys(opponentBank).length}):
+                        </p>
+                    </div>
+                    
+                    ${Object.keys(opponentBank).map(topicName => {
+                        const topicQuestions = opponentBank[topicName] || [];
+                        return `
+                            <div style="background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 10px; text-align: center;">
+                                <p style="margin: 0 0 5px 0; font-size: 12px; color: #1e40af; font-weight: 600;">
+                                    ${topicName}
+                                </p>
+                                <p style="margin: 0; font-size: 14px; color: #374151;">
+                                    ${topicQuestions.length} pregunta${topicQuestions.length !== 1 ? 's' : ''}
+                                </p>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+            
+            <!-- Botón para salir -->
+            <div style="text-align: center; margin-top: 30px;">
+                <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 12px 25px; font-size: 16px;">
+                    🚪 Salir del Duelo
+                </button>
+            </div>
+        </div>
+    `;
+};
+
+console.log('✅ Parche de sincronización FORZADA aplicado');
+console.log('🎨 Garantías:');
+console.log('   - Header VERDE = Franja VERDE cuando myTurn === true');
+console.log('   - Header ROJO = Franja ROJA cuando myTurn === false');
+console.log('   - Sincronización 100% garantizada');
+console.log('   - Debug completo en consola');
+</script>
 </body>
 </html>
+
 
 
 
