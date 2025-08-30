@@ -13170,274 +13170,218 @@ window.renderDuelInterface = function() {
                         </div>
                     </div>
                     
-                    <!-- Mostrar la pregunta original en segundo plano -->
-                    <div style="opacity: 0.6; background: #f9fafb; padding: 20px; border-radius: 8px;">
-                        <h3 style="color: #374151; margin-bottom: 20px; text-align: left;">${question.question}</h3>
-                        <div style="display: grid; gap: 10px;">
-                            ${question.options.map((option, optionIndex) => `
-                                <div style="
-                                    padding: 12px 15px; 
-                                    border-radius: 8px; 
-                                    text-align: left;
-                                    background: ${optionIndex === question.correctAnswer ? '#dcfce7' : (optionIndex === currentResponse.selectedIndex && !isCorrect ? '#fee2e2' : '#f3f4f6')}; 
-                                    border: 2px solid ${optionIndex === question.correctAnswer ? '#22c55e' : (optionIndex === currentResponse.selectedIndex && !isCorrect ? '#dc2626' : '#e5e7eb')};
-                                    color: ${optionIndex === question.correctAnswer ? '#16a34a' : (optionIndex === currentResponse.selectedIndex && !isCorrect ? '#dc2626' : '#374151')};
-                                    font-weight: ${optionIndex === question.correctAnswer || optionIndex === currentResponse.selectedIndex ? 'bold' : 'normal'};
-                                ">
-                                    <strong>${String.fromCharCode(97 + optionIndex)})</strong> ${option}
-                                    ${optionIndex === question.correctAnswer ? ' ✅' : (optionIndex === currentResponse.selectedIndex && !isCorrect ? ' ❌' : '')}
-                                </div>
-                            `).join('')}
+                    <!-- Pregunta con opciones coloreadas (en segundo plano) -->
+                    <div style="opacity: 0.6;">
+                        <div style="font-size: 18px; font-weight: bold; margin-bottom: 20px; color: #374151;">
+                            ${question.question}
+                        </div>
+                        <div style="display: grid; gap: 12px;">
+                            ${question.options.map((option, index) => {
+                                let bgColor = '#f8fafc';
+                                let borderColor = '#e2e8f0';
+                                let textColor = '#374151';
+                                
+                                if (index === currentResponse.selectedIndex) {
+                                    if (isCorrect) {
+                                        bgColor = '#dcfce7';
+                                        borderColor = '#22c55e';
+                                        textColor = '#16a34a';
+                                    } else {
+                                        bgColor = '#fee2e2';
+                                        borderColor = '#dc2626';
+                                        textColor = '#dc2626';
+                                    }
+                                } else if (index === question.correctAnswer && !isCorrect) {
+                                    bgColor = '#dcfce7';
+                                    borderColor = '#22c55e';
+                                    textColor = '#16a34a';
+                                }
+                                
+                                const icon = index === question.correctAnswer ? '✅' : 
+                                           (index === currentResponse.selectedIndex && !isCorrect ? '❌' : '');
+                                
+                                return `
+                                    <div style="padding: 15px; background: ${bgColor}; border: 2px solid ${borderColor}; 
+                                                border-radius: 10px; text-align: left; color: ${textColor}; font-weight: 500;">
+                                        ${icon} ${option}
+                                    </div>
+                                `;
+                            }).join('')}
                         </div>
                     </div>
-                </div>
-            `;
-        } else {
-            // Mostrar pregunta normal para responder
-            return `
-                <div style="text-align: center; padding: 20px;">
-                    <h3 style="color: #374151; margin-bottom: 20px;">${question.question}</h3>
-                    <div style="display: grid; gap: 12px; max-width: 600px; margin: 0 auto;">
-                        ${question.options.map((option, optionIndex) => `
-                            <button ${canAnswer ? `onclick="answerCurrentQuestion(${optionIndex})"` : ''} 
-                                    style="
-                                        padding: 15px; 
-                                        text-align: left; 
-                                        background: ${canAnswer ? '#f9fafb' : '#f3f4f6'}; 
-                                        border: 2px solid ${canAnswer ? '#e5e7eb' : '#d1d5db'}; 
-                                        border-radius: 8px; 
-                                        cursor: ${canAnswer ? 'pointer' : 'not-allowed'}; 
-                                        transition: all 0.2s;
-                                        opacity: ${canAnswer ? '1' : '0.6'};
-                                    " 
-                                    ${canAnswer ? `onmouseover="this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#d1d5db';" onmouseout="this.style.backgroundColor='#f9fafb'; this.style.borderColor='#e5e7eb';"` : ''}>
-                                <strong>${String.fromCharCode(97 + optionIndex)})</strong> ${option}
-                            </button>
-                        `).join('')}
-                    </div>
-                    ${canAnswer ? `
-                        <div style="margin-top: 20px; padding: 10px; background: #fef3c7; border-radius: 8px; color: #92400e;">
-                            <span style="font-size: 1.2rem;">⚡</span> Haz clic en una opción para responder
-                        </div>
-                    ` : ''}
                 </div>
             `;
         }
-    }
-
-    return `
-    <!-- LAYOUT RADICAL SIN SCROLL - ALTURA FIJA -->
-    <div style="
-        position: fixed; 
-        top: 0; 
-        left: 0; 
-        right: 0; 
-        bottom: 0; 
-        padding: 15px; 
-        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-        display: flex; 
-        flex-direction: column;
-        overflow: hidden;
-        z-index: 1000;
-    ">
         
-        <!-- Header mejorado con COLORES DINÁMICOS -->
-        <div style="
-            background: ${headerBgColor}; 
-            color: white; 
-            padding: 18px 25px; 
-            border-radius: 12px; 
-            margin-bottom: 12px; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center;
-            flex-shrink: 0;
-            box-shadow: 0 4px 12px ${headerShadow};
-        ">
-            <!-- Espadas y DUELO a la izquierda -->
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <span style="font-size: 2rem;">⚔️</span>
-                <span style="font-size: 2rem; font-weight: bold;">DUELO</span>
-            </div>
-            
-            <!-- Mensaje de estado centrado -->
-            <div style="flex: 1; display: flex; justify-content: center;">
-                <div style="font-size: ${statusMessage === 'PREGUNTAR' || statusMessage === 'RESPONDER' ? '2.5rem' : '16px'}; font-weight: bold; opacity: 0.95; background: rgba(255,255,255,0.1); padding: ${statusMessage === 'PREGUNTAR' || statusMessage === 'RESPONDER' ? '12px 20px' : '8px 16px'}; border-radius: 20px;">
-                    ${statusMessage}
+        // Mostrar pregunta normal
+        if (!question) {
+            return `
+                <div style="text-align: center; padding: 60px 20px; color: #6b7280;">
+                    <div style="font-size: 3rem; margin-bottom: 15px;">📝</div>
+                    <p style="margin: 0; font-size: 16px;">Esperando pregunta...</p>
+                </div>
+            `;
+        }
+        
+        return `
+            <div style="text-align: center; padding: 20px;">
+                <div style="font-size: 18px; font-weight: bold; margin-bottom: 25px; color: #374151; line-height: 1.4;">
+                    ${question.question}
+                </div>
+                <div style="display: grid; gap: 12px; max-width: 500px; margin: 0 auto;">
+                    ${question.options.map((option, index) => `
+                        <button 
+                            onclick="${canAnswer ? `answerCurrentQuestion(${index})` : ''}" 
+                            style="padding: 15px; background: ${canAnswer ? '#f8fafc hover:bg-blue-50' : '#f3f4f6'}; 
+                                   border: 2px solid ${canAnswer ? '#0ea5e9' : '#d1d5db'}; border-radius: 10px; 
+                                   text-align: left; cursor: ${canAnswer ? 'pointer' : 'not-allowed'}; 
+                                   color: ${canAnswer ? '#374151' : '#9ca3af'}; font-weight: 500;
+                                   transition: all 0.2s;"
+                            ${canAnswer ? '' : 'disabled'}>
+                            ${option}
+                        </button>
+                    `).join('')}
                 </div>
             </div>
-            
-            <!-- Botón salir a la derecha -->
-            <button onclick="leaveRoom()" style="
-                background: rgba(255,255,255,0.15); 
-                border: 2px solid rgba(255,255,255,0.3);
-                color: white; 
-                padding: 10px 16px; 
-                border-radius: 8px; 
-                font-size: 14px; 
-                font-weight: bold;
-                cursor: pointer;
-                transition: all 0.2s ease;
-            " onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">❌ Salir</button>
-        </div>
-
-        <!-- Layout de 3 franjas - ALTURA CALCULADA EXACTA -->
-        <div style="
-            display: grid; 
-            grid-template-columns: 280px 1fr 280px; 
-            gap: 12px; 
-            height: calc(100vh - 120px); 
-            overflow: hidden;
-        ">
-            
-            <!-- FRANJA IZQUIERDA: Usuario actual con COLORES DINÁMICOS -->
-            <div style="
-                background: ${userFrameBg}; 
-                border: 2px solid ${userFrameBorder}; 
-                border-radius: 8px; 
-                display: flex; 
-                flex-direction: column;
-                overflow: hidden;
-            ">
-                <!-- Header usuario con COLORES DINÁMICOS - NOMBRE GRANDE -->
-                <div style="
-                    padding: 8px 12px; 
-                    background: ${userHeaderBg}; 
-                    color: white; 
-                    text-align: center;
-                    flex-shrink: 0;
-                ">
-                    <div style="font-size: 16px; font-weight: bold; margin-bottom: 2px;">${state.currentUser.name}</div>
-                    <div style="font-size: 10px; opacity: 0.8;">${isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</div>
+        `;
+    }
+    
+    // Aplicar estilo agresivo anti-scroll
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    
+    // Renderizar interfaz completa
+    return `
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; 
+                    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); 
+                    display: flex; flex-direction: column;">
+        
+            <!-- HEADER CON COLORES DINÁMICOS -->
+            <div style="background: ${headerBgColor}; 
+                        padding: 20px; text-align: center; color: white; 
+                        box-shadow: 0 4px 20px ${headerShadow};
+                        display: flex; justify-content: space-between; align-items: center;">
+                
+                <!-- Espadas y DUELO a la izquierda -->
+                <div style="display: flex; align-items: center; font-size: 18px; font-weight: bold;">
+                    ⚔️ DUELO
                 </div>
                 
-                <!-- Contenido scrolleable - SIN contador -->
-                <div style="
-                    flex: 1; 
-                    overflow-y: auto; 
-                    padding: 8px;
-                    padding-bottom: 50px;
-                ">
-                    <div style="font-size: 11px; color: ${isMyTurnToAsk ? '#16a34a' : '#dc2626'}; margin-bottom: 8px; text-align: center; font-weight: 600;">
-                        Mis Temas (${Object.keys(myBank).length}):
-                    </div>
-                    ${renderMyTopics(myBank)}
+                <!-- Mensaje central -->
+                <div style="text-align: center; flex: 1;">
+                    <p style="margin: 0; font-size: ${statusMessage === 'PREGUNTAR' || statusMessage === 'RESPONDER' ? '2.5rem' : '18px'}; 
+                              font-weight: bold;">
+                        ${statusMessage}
+                    </p>
                 </div>
                 
-                <!-- Contador FIJO en la parte inferior -->
-                <div style="
-                    position: absolute;
-                    bottom: 8px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    background: ${userHeaderBg};
-                    color: white;
-                    padding: 8px 16px;
-                    border-radius: 20px;
-                    font-size: 18px;
-                    font-weight: bold;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-                ">
-                    ❌ ${myFailures}/3
-                </div>
+                <!-- Botón de salir -->
+                <button onclick="exitDuelMode()" style="background: rgba(255,255,255,0.2); color: white; 
+                        border: 2px solid rgba(255,255,255,0.4); padding: 10px 20px; border-radius: 8px; 
+                        cursor: pointer; font-weight: bold;">
+                    ❌ Salir
+                </button>
             </div>
 
-            <!-- FRANJA CENTRAL: Pregunta actual -->
-            <div style="
-                background: white; 
-                border: 2px solid #e2e8f0; 
-                border-radius: 8px; 
-                display: flex; 
-                flex-direction: column;
-                overflow: hidden;
-            ">
-                <!-- Header pregunta -->
-                <div style="
-                    padding: 8px 15px; 
-                    background: linear-gradient(135deg, #f8fafc, #e2e8f0); 
-                    text-align: center;
-                    border-bottom: 1px solid #e2e8f0;
-                    flex-shrink: 0;
-                ">
-                    <h3 style="margin: 0; color: #374151; font-size: 14px;">📋 Pregunta Actual</h3>
-                </div>
+            <!-- Contenido principal -->
+            <div style="flex: 1; padding: 25px; overflow: hidden;">
                 
-                <!-- Contenido pregunta -->
-                <div style="
-                    flex: 1; 
-                    display: flex; 
-                    align-items: center; 
-                    justify-content: center; 
-                    padding: 15px;
-                    overflow-y: auto;
-                ">
-                    ${currentQuestion ? renderCurrentQuestionWithResult(currentQuestion, !myTurn) : `
-                        <div style="text-align: center; color: #9ca3af;">
-                            <div style="font-size: 2.5rem; margin-bottom: 10px;">🎯</div>
-                            <h3 style="color: #6b7280; margin: 0 0 5px 0; font-size: 16px;">Esperando pregunta</h3>
-                            <p style="margin: 0; font-size: 12px;">
-                                ${myTurn ? 'Selecciona del panel derecho' : 'El oponente está seleccionando'}
-                            </p>
+                <!-- Interfaz de 3 franjas -->
+                <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 20px; height: calc(100vh - 120px);">
+                    
+                    <!-- FRANJA IZQUIERDA: Usuario con colores dinámicos -->
+                    <div style="background: ${userFrameBg}; border: 2px solid ${userFrameBorder}; 
+                                border-radius: 12px; display: flex; flex-direction: column; position: relative;">
+                        
+                        <!-- Header del usuario -->
+                        <div style="padding: 15px; border-bottom: 2px solid ${userFrameBorder}; 
+                                    background: ${userHeaderBg}; color: white; text-align: center;">
+                            <!-- Nombre grande e invitado pequeño -->
+                            <div style="font-size: 16px; font-weight: bold; margin-bottom: 2px;">
+                                ${state.currentUser?.name?.toUpperCase() || 'USUARIO'}
+                            </div>
+                            <div style="font-size: 10px; opacity: 0.8;">
+                                👤 ${isHost ? 'ANFITRIÓN' : 'INVITADO'}
+                            </div>
                         </div>
-                    `}
-                </div>
-            </div>
-
-            <!-- FRANJA DERECHA: Oponente -->
-            <div style="
-                background: ${myTurn ? 'linear-gradient(135deg, #fff7ed, #fed7aa)' : 'linear-gradient(135deg, #f8fafc, #e2e8f0)'}; 
-                border: 2px solid ${myTurn ? '#f97316' : '#6b7280'}; 
-                border-radius: 8px; 
-                display: flex; 
-                flex-direction: column;
-                overflow: hidden;
-            ">
-                <!-- Header oponente -->
-                <div style="
-                    padding: 8px 12px; 
-                    background: ${myTurn ? '#f97316' : '#6b7280'}; 
-                    color: white; 
-                    text-align: center;
-                    flex-shrink: 0;
-                ">
-                    <div style="font-size: 13px; font-weight: bold;">${!isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</div>
-                    <div style="font-size: 11px; opacity: 0.9;">${opponent ? opponent.name : 'Esperando...'}</div>
-                    <div style="font-size: 10px; background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 10px; margin-top: 4px; display: inline-block;">
-                        ❌ ${opponentFailures}/3
+                        
+                        <!-- Contenido con scroll -->
+                        <div style="flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 50px;">
+                            ${myTurn ? renderOpponentTopics(opponentBank) : `
+                                <div style="text-align: center; padding: 40px 20px; color: #6b7280;">
+                                    <div style="font-size: 2rem; margin-bottom: 10px;">⏳</div>
+                                    <p style="margin: 0; font-size: 14px;">Esperando tu turno</p>
+                                </div>
+                            `}
+                        </div>
+                        
+                        <!-- Contador fijo en la parte inferior -->
+                        <div style="position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); 
+                                    background: white; padding: 8px 16px; border-radius: 20px; 
+                                    box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 18px; font-weight: bold; 
+                                    color: ${userHeaderBg};">
+                            ${myFailures}/3
+                        </div>
+                    </div>
+                    
+                    <!-- FRANJA CENTRAL: Pregunta actual -->
+                    <div style="background: white; border: 2px solid #e2e8f0; border-radius: 12px; display: flex; flex-direction: column;">
+                        <div style="padding: 20px; border-bottom: 2px solid #e2e8f0; background: linear-gradient(135deg, #f8fafc, #e2e8f0); text-align: center;">
+                            <h3 style="margin: 0; color: #374151; font-size: 18px;">📋 Pregunta Actual</h3>
+                        </div>
+                        
+                        <div style="flex: 1; display: flex; align-items: center; justify-content: center; overflow-y: auto;">
+                            ${renderCurrentQuestionWithResult(currentQuestion, canAnswer)}
+                        </div>
+                    </div>
+                    
+                    <!-- FRANJA DERECHA: Oponente -->
+                    <div style="background: ${myTurn ? '#f59e0b' : '#9ca3af'}; border: 2px solid ${myTurn ? '#f59e0b' : '#9ca3af'}; border-radius: 12px; overflow-y: auto; max-height: 600px;">
+                        <div style="padding: 15px; border-bottom: 2px solid ${myTurn ? '#f59e0b' : '#9ca3af'}; background: ${myTurn ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #6b7280, #4b5563)'}; color: white; text-align: center;">
+                            <h3 style="margin: 0; font-size: 16px;">${!isHost ? '👑 ANFITRIÓN' : '👤 INVITADO'}</h3>
+                            <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">${opponent ? opponent.name : 'Oponente'}</p>
+                            <div style="margin-top: 8px;">
+                                <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; font-size: 12px;">
+                                    ❌ ${opponentFailures}/3 Fallos
+                                </span>
+                            </div>
+                        </div>
+                        <div style="padding: 15px;">
+                            <div style="font-size: 13px; color: ${myTurn ? '#92400e' : '#6b7280'}; margin-bottom: 15px; text-align: center; font-weight: 600; text-transform: uppercase;">
+                                ${myTurn ? '🎯 Selecciona pregunta' : 'Temas del oponente'} (${Object.keys(opponentBank).length})
+                            </div>
+                            ${Object.keys(opponentBank).length === 0 ? `
+                                <div style="text-align: center; padding: 40px 20px; color: #dc2626;">
+                                    <div style="font-size: 2rem; margin-bottom: 15px;">⚠️</div>
+                                    <p style="margin: 0; font-size: 14px; font-weight: bold;">Sin temas del oponente</p>
+                                    <p style="margin: 10px 0; font-size: 12px;">Problema de sincronización</p>
+                                    <button onclick="forceResync()" style="padding: 8px 16px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                                        🔄 Resincronizar
+                                    </button>
+                                </div>
+                            ` : renderOpponentTopicsForSelection(opponentBank, myTurn)}
+                        </div>
                     </div>
                 </div>
-                
-                <!-- Contenido scrolleable -->
-                <div style="
-                    flex: 1; 
-                    overflow-y: auto; 
-                    padding: 8px;
-                ">
-                    ${myTurn ? `
-                        <div style="font-size: 11px; color: #ea580c; margin-bottom: 8px; text-align: center; font-weight: 600;">
-                            Sus Temas (${Object.keys(opponentBank).length}):
-                        </div>
-                        ${renderOpponentTopics(opponentBank)}
-                    ` : `
-                        <div style="text-align: center; padding: 40px 10px; color: #6b7280;">
-                            <div style="font-size: 1.5rem; margin-bottom: 8px;">⏳</div>
-                            <p style="margin: 0; font-size: 11px;">Esperando tu turno</p>
-                        </div>
-                    `}
+
+                <!-- Botones de control -->
+                <div style="text-align: center; margin-top: 25px;">
+                    <button onclick="leaveRoom()" class="btn btn-danger" style="padding: 12px 24px; margin-right: 10px;">
+                        🚪 Salir del Duelo
+                    </button>
+                    <button onclick="forceResync()" class="btn btn-info" style="padding: 12px 24px;">
+                        🔄 Forzar Resync
+                    </button>
                 </div>
             </div>
         </div>
-    </div>
     `;
 };
 
-// FORZAR que el body no tenga scroll
-document.documentElement.style.overflow = 'hidden';
-document.body.style.overflow = 'hidden';
-
-// FUNCIÓN para salir de la sala
-window.leaveRoom = function() {
-    if (confirm('¿Salir de la sala de duelo?')) {
+// Función mejorada para salir del modo duelo
+window.exitDuelMode = function() {
+    if (confirm('¿Estás seguro de que quieres abandonar el duelo?')) 
+    {
         // Restaurar scroll normal
         document.documentElement.style.overflow = '';
         document.body.style.overflow = '';
@@ -13543,20 +13487,32 @@ window.answerCurrentQuestion = function(optionIndex) {
     });
 };
 
-// FUNCIÓN AUXILIAR para cambiar al siguiente turno
+// FUNCIÓN AUXILIAR para cambiar al siguiente turno - CORREGIDA ✅
 function changeToNextTurn() {
+    // OBTENER EL TURNO ACTUAL desde Firebase
+    const currentTurn = multiplayerState.currentRoomData?.gameData?.currentTurn;
+    
+    // ALTERNAR al turno CONTRARIO
+    const nextTurn = currentTurn === 'host' ? 'guest' : 'host';
+    
+    console.log('🔄 Cambiando turno:', {
+        currentTurn: currentTurn,
+        nextTurn: nextTurn,
+        myRole: multiplayerState.isHost ? 'host' : 'guest'
+    });
+    
     const nextTurnData = {
         'gameData/currentQuestionData': null, // Limpiar pregunta actual
         'gameData/currentResponse': null, // Limpiar respuesta
         'gameData/showingResult': false, // No mostrar resultado
         'gameData/questionAsker': null, // Limpiar quien preguntó
-        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host', // Cambiar turno
+        'gameData/currentTurn': nextTurn, // ✅ CORREGIDO: Alternar al turno contrario
         lastActivity: firebase.database.ServerValue.TIMESTAMP
     };
     
     database.ref('rooms/' + multiplayerState.currentRoom).update(nextTurnData).then(() => {
-        console.log('🔄 Turno cambiado correctamente');
-        showMessage('Tu turno para preguntar', 'info');
+        console.log('🔄 Turno cambiado correctamente de', currentTurn, 'a', nextTurn);
+        showMessage('Turno cambiado', 'info');
     }).catch(error => {
         console.error('❌ Error cambiando turno:', error);
     });
@@ -16234,6 +16190,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
