@@ -13122,7 +13122,7 @@ window.renderDuelInterface = function() {
     }
 
     return `
-   <!-- LAYOUT RADICAL SIN SCROLL - ALTURA FIJA CON COLORES DINÁMICOS -->
+    <!-- LAYOUT RADICAL SIN SCROLL - ALTURA FIJA -->
     <div style="
         position: fixed; 
         top: 0; 
@@ -13137,9 +13137,9 @@ window.renderDuelInterface = function() {
         z-index: 1000;
     ">
         
-        <!-- Header mejorado con colores dinámicos según turno -->
+        <!-- Header mejorado más visible y legible -->
         <div style="
-            background: ${myTurn ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, #dc2626, #b91c1c)'}; 
+            background: linear-gradient(135deg, #dc2626, #7f1d1d); 
             color: white; 
             padding: 18px 25px; 
             border-radius: 12px; 
@@ -13148,29 +13148,20 @@ window.renderDuelInterface = function() {
             justify-content: space-between; 
             align-items: center;
             flex-shrink: 0;
-            box-shadow: 0 4px 12px ${myTurn ? 'rgba(34, 197, 94, 0.3)' : 'rgba(220, 38, 38, 0.3)'};
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
         ">
-            <!-- Espadas y DUELO a la izquierda -->
-            <div style="display: flex; align-items: center; gap: 8px; font-size: 1.5rem; font-weight: bold;">
-                <span>⚔️</span>
-                <span>DUELO</span>
-                <span>⚔️</span>
-            </div>
-            
-            <!-- Contenido principal centrado -->
             <div style="flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center;">
-                <div style="font-size: 2.2rem; font-weight: bold; margin-bottom: 8px;">
-                    ${myTurn ? 'PREGUNTAR' : 'RESPONDER'}
+                <div style="font-size: 2rem; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;">
+                    <span>⚔️</span>
+                    <span>DUELO</span>
+                    <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 8px; font-size: 1.8rem; letter-spacing: 2px;">
+                        ${multiplayerState.roomCode}
+                    </span>
                 </div>
-                <div style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 8px; font-size: 1.8rem; letter-spacing: 2px; font-weight: bold;">
-                    ${multiplayerState.roomCode}
-                </div>
-                <div style="font-size: 14px; font-weight: 600; opacity: 0.95; background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 20px; margin-top: 6px;">
+                <div style="font-size: 16px; font-weight: 600; opacity: 0.95; background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 20px;">
                     ${statusMessage}
                 </div>
             </div>
-            
-            <!-- Botón salir a la derecha -->
             <button onclick="leaveRoom()" style="
                 background: rgba(255,255,255,0.15); 
                 border: 2px solid rgba(255,255,255,0.3);
@@ -13193,19 +13184,19 @@ window.renderDuelInterface = function() {
             overflow: hidden;
         ">
             
-            <!-- FRANJA IZQUIERDA: Usuario actual con colores dinámicos -->
+            <!-- FRANJA IZQUIERDA: Usuario actual -->
             <div style="
-                background: ${myTurn ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : 'linear-gradient(135deg, #fef2f2, #fee2e2)'}; 
-                border: 2px solid ${myTurn ? '#22c55e' : '#dc2626'}; 
+                background: linear-gradient(135deg, #f0fdf4, #ecfdf5); 
+                border: 2px solid #22c55e; 
                 border-radius: 8px; 
                 display: flex; 
                 flex-direction: column;
                 overflow: hidden;
             ">
-                <!-- Header usuario con color dinámico -->
+                <!-- Header usuario -->
                 <div style="
                     padding: 8px 12px; 
-                    background: ${myTurn ? '#22c55e' : '#dc2626'}; 
+                    background: #22c55e; 
                     color: white; 
                     text-align: center;
                     flex-shrink: 0;
@@ -13223,14 +13214,14 @@ window.renderDuelInterface = function() {
                     overflow-y: auto; 
                     padding: 8px;
                 ">
-                    <div style="font-size: 11px; color: ${myTurn ? '#16a34a' : '#dc2626'}; margin-bottom: 8px; text-align: center; font-weight: 600;">
+                    <div style="font-size: 11px; color: #16a34a; margin-bottom: 8px; text-align: center; font-weight: 600;">
                         Mis Temas (${Object.keys(myBank).length}):
                     </div>
                     ${renderMyTopics(myBank)}
                 </div>
             </div>
 
-            <!-- FRANJA CENTRAL: Pregunta actual (sin cambios) -->
+            <!-- FRANJA CENTRAL: Pregunta actual -->
             <div style="
                 background: white; 
                 border: 2px solid #e2e8f0; 
@@ -13271,7 +13262,7 @@ window.renderDuelInterface = function() {
                 </div>
             </div>
 
-            <!-- FRANJA DERECHA: Oponente (sin cambios) -->
+            <!-- FRANJA DERECHA: Oponente -->
             <div style="
                 background: ${myTurn ? 'linear-gradient(135deg, #fff7ed, #fed7aa)' : 'linear-gradient(135deg, #f8fafc, #e2e8f0)'}; 
                 border: 2px solid ${myTurn ? '#f97316' : '#6b7280'}; 
@@ -13317,6 +13308,7 @@ window.renderDuelInterface = function() {
         </div>
     </div>
     `;
+};
 
 // FORZAR que el body no tenga scroll
 document.documentElement.style.overflow = 'hidden';
