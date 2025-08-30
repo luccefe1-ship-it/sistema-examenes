@@ -13157,26 +13157,17 @@ window.renderDuelInterface = function() {
         const currentResponse = gameData?.currentResponse;
         
         if (showingResult && currentResponse) {
-            // Mostrar resultado durante 5 segundos
+            // Mostrar resultado durante 5 segundos - SOLO emoji y palabra
             const isCorrect = currentResponse.isCorrect;
-            const selectedIndex = currentResponse.selectedIndex;
-            const correctIndex = question.correctAnswer;
             
             return `
                 <div style="text-align: center; padding: 20px;">
-                    <div style="background: ${isCorrect ? '#dcfce7' : '#fee2e2'}; border: 3px solid ${isCorrect ? '#22c55e' : '#dc2626'}; border-radius: 12px; padding: 25px; margin-bottom: 20px;">
-                        <div style="font-size: 2.5rem; margin-bottom: 15px;">${isCorrect ? '🎉' : '😔'}</div>
-                        <div style="font-size: 2rem; font-weight: bold; color: ${isCorrect ? '#16a34a' : '#dc2626'}; margin-bottom: 10px;">
+                    <!-- Mensaje simple: SOLO emoji y palabra -->
+                    <div style="margin-bottom: 40px;">
+                        <div style="font-size: 4rem; margin-bottom: 10px;">${isCorrect ? '🎉' : '😔'}</div>
+                        <div style="font-size: 3rem; font-weight: bold; color: ${isCorrect ? '#16a34a' : '#dc2626'};">
                             ${isCorrect ? '¡CORRECTO!' : 'INCORRECTO'}
                         </div>
-                        <div style="font-size: 1.1rem; color: #374151;">
-                            Respuesta seleccionada: <strong>${question.options[selectedIndex]}</strong>
-                        </div>
-                        ${!isCorrect ? `
-                            <div style="font-size: 1.1rem; color: #16a34a; margin-top: 8px;">
-                                Respuesta correcta: <strong>${question.options[correctIndex]}</strong>
-                            </div>
-                        ` : ''}
                     </div>
                     
                     <!-- Mostrar la pregunta original en segundo plano -->
@@ -13188,13 +13179,13 @@ window.renderDuelInterface = function() {
                                     padding: 12px 15px; 
                                     border-radius: 8px; 
                                     text-align: left;
-                                    background: ${optionIndex === correctIndex ? '#dcfce7' : (optionIndex === selectedIndex && !isCorrect ? '#fee2e2' : '#f3f4f6')}; 
-                                    border: 2px solid ${optionIndex === correctIndex ? '#22c55e' : (optionIndex === selectedIndex && !isCorrect ? '#dc2626' : '#e5e7eb')};
-                                    color: ${optionIndex === correctIndex ? '#16a34a' : (optionIndex === selectedIndex && !isCorrect ? '#dc2626' : '#374151')};
-                                    font-weight: ${optionIndex === correctIndex || optionIndex === selectedIndex ? 'bold' : 'normal'};
+                                    background: ${optionIndex === question.correctAnswer ? '#dcfce7' : (optionIndex === currentResponse.selectedIndex && !isCorrect ? '#fee2e2' : '#f3f4f6')}; 
+                                    border: 2px solid ${optionIndex === question.correctAnswer ? '#22c55e' : (optionIndex === currentResponse.selectedIndex && !isCorrect ? '#dc2626' : '#e5e7eb')};
+                                    color: ${optionIndex === question.correctAnswer ? '#16a34a' : (optionIndex === currentResponse.selectedIndex && !isCorrect ? '#dc2626' : '#374151')};
+                                    font-weight: ${optionIndex === question.correctAnswer || optionIndex === currentResponse.selectedIndex ? 'bold' : 'normal'};
                                 ">
                                     <strong>${String.fromCharCode(97 + optionIndex)})</strong> ${option}
-                                    ${optionIndex === correctIndex ? ' ✅' : (optionIndex === selectedIndex && !isCorrect ? ' ❌' : '')}
+                                    ${optionIndex === question.correctAnswer ? ' ✅' : (optionIndex === currentResponse.selectedIndex && !isCorrect ? ' ❌' : '')}
                                 </div>
                             `).join('')}
                         </div>
@@ -16228,6 +16219,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
