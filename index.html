@@ -13245,6 +13245,41 @@ window.renderDuelInterface = function() {
             </div>
         `;
     }
+
+    // FUNCIÓN para mostrar MIS temas (solo para visualización, sin selección)
+    function renderMyTopicsForDisplay(questionBank) {
+        if (!questionBank || Object.keys(questionBank).length === 0) {
+            return `
+                <div style="text-align: center; padding: 20px; color: #6b7280;">
+                    <div style="font-size: 2rem; margin-bottom: 10px;">📚</div>
+                    <p style="margin: 0; font-size: 14px;">Sin temas disponibles</p>
+                </div>
+            `;
+        }
+
+        let html = '';
+        Object.keys(questionBank).forEach(topicKey => {
+            const topic = questionBank[topicKey];
+            if (topic.questions && topic.questions.length > 0) {
+                html += `
+                    <div style="margin-bottom: 12px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                        <div style="background: #f9fafb; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 500; color: #374151; font-size: 13px;">${topic.name}</span>
+                            <span style="background: #22c55e; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                                ${topic.questions.length}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        return html || `
+            <div style="text-align: center; padding: 20px; color: #6b7280;">
+                <p style="margin: 0; font-size: 14px;">Sin preguntas en tus temas</p>
+            </div>
+        `;
+    }
     
     // Aplicar estilo agresivo anti-scroll
     document.documentElement.style.overflow = 'hidden';
@@ -13289,7 +13324,7 @@ window.renderDuelInterface = function() {
                 <!-- Interfaz de 3 franjas -->
                 <div style="display: grid; grid-template-columns: 300px 1fr 300px; gap: 20px; height: calc(100vh - 120px);">
                     
-                    <!-- FRANJA IZQUIERDA: Usuario con colores dinámicos -->
+                    <!-- FRANJA IZQUIERDA: Usuario con colores dinámicos - SOLO MIS TEMAS (sin selección) -->
                     <div style="background: ${userFrameBg}; border: 2px solid ${userFrameBorder}; 
                                 border-radius: 12px; display: flex; flex-direction: column; position: relative;">
                         
@@ -13305,14 +13340,12 @@ window.renderDuelInterface = function() {
                             </div>
                         </div>
                         
-                        <!-- Contenido con scroll -->
+                        <!-- Contenido con scroll - SOLO MIS TEMAS (sin selección) -->
                         <div style="flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 50px;">
-                            ${myTurn ? renderOpponentTopics(opponentBank) : `
-                                <div style="text-align: center; padding: 40px 20px; color: #6b7280;">
-                                    <div style="font-size: 2rem; margin-bottom: 10px;">⏳</div>
-                                    <p style="margin: 0; font-size: 14px;">Esperando tu turno</p>
-                                </div>
-                            `}
+                            <div style="font-size: 13px; color: ${userHeaderBg}; margin-bottom: 15px; text-align: center; font-weight: 600; text-transform: uppercase;">
+                                Mis Temas (${Object.keys(myBank).length})
+                            </div>
+                            ${renderMyTopicsForDisplay(myBank)}
                         </div>
                         
                         <!-- Contador fijo en la parte inferior -->
@@ -13335,12 +13368,12 @@ window.renderDuelInterface = function() {
                         </div>
                     </div>
                     
-                    <!-- FRANJA DERECHA: Oponente reformado -->
-                    <div style="background: ${myTurn ? '#f59e0b' : '#9ca3af'}; border: 2px solid ${myTurn ? '#f59e0b' : '#9ca3af'}; 
+                    <!-- FRANJA DERECHA: Oponente reformado - TEMAS DEL OPONENTE -->
+                    <div style="background: ${myTurn ? '#fef3c7' : '#f8fafc'}; border: 2px solid ${myTurn ? '#f59e0b' : '#e2e8f0'}; 
                                 border-radius: 12px; display: flex; flex-direction: column; position: relative;">
                         
                         <!-- Header del oponente reformado -->
-                        <div style="padding: 15px; border-bottom: 2px solid ${myTurn ? '#f59e0b' : '#9ca3af'}; 
+                        <div style="padding: 15px; border-bottom: 2px solid ${myTurn ? '#f59e0b' : '#e2e8f0'}; 
                                     background: ${myTurn ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #6b7280, #4b5563)'}; 
                                     color: white; text-align: center;">
                             <!-- Nombre grande e invitado/anfitrión pequeño -->
@@ -13352,21 +13385,12 @@ window.renderDuelInterface = function() {
                             </div>
                         </div>
                         
-                        <!-- Contenido con scroll -->
+                        <!-- Contenido con scroll - TEMAS DEL OPONENTE SELECCIONABLES -->
                         <div style="flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 50px;">
                             <div style="font-size: 13px; color: ${myTurn ? '#92400e' : '#6b7280'}; margin-bottom: 15px; text-align: center; font-weight: 600; text-transform: uppercase;">
                                 ${myTurn ? '🎯 Selecciona pregunta' : 'Temas del oponente'} (${Object.keys(opponentBank).length})
                             </div>
-                            ${Object.keys(opponentBank).length === 0 ? `
-                                <div style="text-align: center; padding: 40px 20px; color: #dc2626;">
-                                    <div style="font-size: 2rem; margin-bottom: 15px;">⚠️</div>
-                                    <p style="margin: 0; font-size: 14px; font-weight: bold;">Sin temas del oponente</p>
-                                    <p style="margin: 10px 0; font-size: 12px;">Problema de sincronización</p>
-                                    <button onclick="forceResync()" style="padding: 8px 16px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                                        🔄 Resincronizar
-                                    </button>
-                                </div>
-                            ` : renderOpponentTopicsForSelection(opponentBank, myTurn)}
+                            ${renderOpponentTopicsForSelection(opponentBank, myTurn)}
                         </div>
                         
                         <!-- Contador fijo en la parte inferior del oponente -->
@@ -13411,19 +13435,6 @@ window.exitDuelMode = function() {
         }
     }
 };
-
-console.log('✅ SOLUCIÓN RADICAL aplicada correctamente');
-console.log('🎯 Cambios extremos:');
-console.log('   - Position: fixed para ocupar pantalla completa');
-console.log('   - Altura calculada exacta: calc(100vh - 120px)');
-console.log('   - Overflow: hidden forzado en body');
-console.log('   - Header mejorado más visible y legible');
-console.log('   - Franjas con scroll interno únicamente');
-console.log('   - Botón de salir mejorado');
-console.log('   - SIN scroll vertical garantizado');
-console.log('   - 🟢 VERDE: Turno de preguntar (myTurn = true)');
-console.log('   - 🔴 ROJO: Turno de responder o esperar (canAnswer = true o neutral)');
-console.log('   - ✅ RESULTADO EN PREGUNTA: Muestra resultado 5 segundos con colores verde/rojo');
 
 // NUEVA función para manejar respuestas con visualización en la pregunta
 window.answerCurrentQuestion = function(optionIndex) {
@@ -13532,6 +13543,13 @@ function changeToNextTurn() {
         console.error('❌ Error cambiando turno:', error);
     });
 }
+
+console.log('✅ CÓDIGO CORREGIDO - Solo se pueden seleccionar preguntas del OPONENTE');
+console.log('🎯 Estructura corregida:');
+console.log('   - Franja izquierda: MIS temas (solo visualización)');
+console.log('   - Franja derecha: TEMAS DEL OPONENTE (seleccionables solo en mi turno)');
+console.log('   - La función renderOpponentTopicsForSelection maneja los clickables');
+console.log('   - Imposible preguntarse a uno mismo');
 </script>
 <!-- 
 PARCHE DEFINITIVO: SUBIR ARCHIVOS WORD/TXT - VERSIÓN COMPLETA
@@ -16205,6 +16223,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
