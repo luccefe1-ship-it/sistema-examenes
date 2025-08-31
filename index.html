@@ -17103,20 +17103,23 @@ console.log('✅ Botón "Editar Texto" configurado para opciones completas');
 console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>
 
+
 <!-- 
-PARCHE: SISTEMA DE ÍNDICE DE TEMAS DE OPOSICIÓN
+PARCHE MEJORADO: SISTEMA DE ÍNDICE DE TEMAS DE OPOSICIÓN V2
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Sistema completo para gestionar progreso de temas de estudio
+Sistema completo con sincronización automática, drag&drop y estadísticas
 -->
 
 <script>
-    // ========== PARCHE: SISTEMA DE ÍNDICE DE TEMAS DE OPOSICIÓN ==========
-    console.log('📖 Implementando sistema de índice de temas...');
+    // ========== PARCHE MEJORADO: SISTEMA DE ÍNDICE DE TEMAS V2 ==========
+    console.log('📖 Implementando sistema de índice de temas mejorado v2...');
     
     // Estado global para los temas de oposición
     let topicsIndexState = {
         topics: [],
-        nextId: 1
+        nextId: 1,
+        draggedItem: null,
+        showingStats: false
     };
     
     // Colores para las vueltas
@@ -17129,8 +17132,8 @@ Sistema completo para gestionar progreso de temas de estudio
     
     // Nombres de las fases
     const PHASES = ['leido', 'memorizado', 'practicado'];
-    const PHASE_NAMES = ['Leído', 'Memorizado', 'Practicado'];
-    const PHASE_ICONS = ['📖', '🧠', '✍️'];
+    const PHASE_NAMES = ['Leído', 'Memorizado', 'Preguntas'];
+    const PHASE_ICONS = ['📖', '🧠', '📝'];
     
     // FUNCIÓN para ir al índice de temas desde el menú principal
     window.goToTopicsIndex = function() {
@@ -17138,9 +17141,11 @@ Sistema completo para gestionar progreso de temas de estudio
         
         showIntermediateScreen = false;
         state.currentTab = 'topics-index';
+        topicsIndexState.showingStats = false;
         
-        // Cargar temas del usuario
+        // Cargar y sincronizar temas
         loadUserTopics();
+        syncWithTestTopics();
         
         render();
     };
@@ -17150,8 +17155,66 @@ Sistema completo para gestionar progreso de temas de estudio
         console.log('🏠 Volviendo al menú principal desde índice...');
         showIntermediateScreen = true;
         state.currentTab = 'upload';
+        topicsIndexState.showingStats = false;
         render();
     };
+    
+    // FUNCIÓN para sincronizar con temas de test
+    function syncWithTestTopics() {
+        if (!state.topics || !Array.isArray(state.topics)) return;
+        
+        // Agregar temas del sistema de test que no estén en el índice
+        state.topics.forEach(testTopic => {
+            const existsInIndex = topicsIndexState.topics.find(indexTopic => 
+                indexTopic.testTopicId === testTopic.id || indexTopic.name === testTopic.name
+            );
+            
+            if (!existsInIndex) {
+                const newTopic = {
+                    id: topicsIndexState.nextId++,
+                    name: testTopic.name,
+                    testTopicId: testTopic.id,
+                    phases: {
+                        leido: false,
+                        memorizado: false,
+                        practicado: false
+                    },
+                    completedRounds: 0,
+                    currentRound: 1,
+                    order: topicsIndexState.topics.length
+                };
+                
+                topicsIndexState.topics.push(newTopic);
+                console.log(`✅ Tema sincronizado: ${testTopic.name}`);
+            }
+        });
+        
+        saveUserTopics();
+    }
+    
+    // FUNCIÓN para contar preguntas respondidas por tema
+    function getAnsweredQuestionsCount(topicName, testTopicId) {
+        if (!state.testResults || !Array.isArray(state.testResults)) return 0;
+        
+        let count = 0;
+        
+        state.testResults.forEach(result => {
+            if (result.answers && Array.isArray(result.answers)) {
+                result.answers.forEach(answer => {
+                    // Verificar por ID de tema o por nombre
+                    const question = state.questions.find(q => q.id === answer.questionId);
+                    if (question) {
+                        if (question.topicId === testTopicId || 
+                            (question.topic && question.topic.toLowerCase() === topicName.toLowerCase())) {
+                            count++;
+                        }
+                    }
+                });
+            }
+        });
+        
+        return count;
+    }
     
     // FUNCIÓN para cargar temas del usuario
     function loadUserTopics() {
@@ -17162,6 +17225,16 @@ Sistema completo para gestionar progreso de temas de estudio
             const data = JSON.parse(saved);
             topicsIndexState.topics = data.topics || [];
             topicsIndexState.nextId = data.nextId || 1;
+            
+            // Asegurar que todos los temas tienen order
+            topicsIndexState.topics.forEach((topic, index) => {
+                if (typeof topic.order === 'undefined') {
+                    topic.order = index;
+                }
+            });
+            
+            // Ordenar por order
+            topicsIndexState.topics.sort((a, b) => a.order - b.order);
         } else {
             topicsIndexState.topics = [];
             topicsIndexState.nextId = 1;
@@ -17191,13 +17264,15 @@ Sistema completo para gestionar progreso de temas de estudio
         const newTopic = {
             id: topicsIndexState.nextId++,
             name: topicName.trim(),
+            testTopicId: null,
             phases: {
                 leido: false,
                 memorizado: false,
                 practicado: false
             },
             completedRounds: 0,
-            currentRound: 1
+            currentRound: 1,
+            order: topicsIndexState.topics.length
         };
         
         topicsIndexState.topics.push(newTopic);
@@ -17215,6 +17290,12 @@ Sistema completo para gestionar progreso de temas de estudio
         if (!confirm(`¿Seguro que quieres eliminar "${topic.name}"?`)) return;
         
         topicsIndexState.topics = topicsIndexState.topics.filter(t => t.id !== topicId);
+        
+        // Reordenar los order
+        topicsIndexState.topics.forEach((t, index) => {
+            t.order = index;
+        });
+        
         saveUserTopics();
         render();
         
@@ -17229,13 +17310,15 @@ Sistema completo para gestionar progreso de temas de estudio
         // Toggle la fase
         topic.phases[phase] = !topic.phases[phase];
         
-        // Si se desmarca una fase, desmarcar las siguientes también
-        const phaseIndex = PHASES.indexOf(phase);
-        for (let i = phaseIndex + 1; i < PHASES.length; i++) {
-            topic.phases[PHASES[i]] = false;
+        // Si se desmarca una fase, desmarcar las siguientes también (excepto practicado que es automático)
+        if (phase !== 'practicado') {
+            const phaseIndex = PHASES.indexOf(phase);
+            for (let i = phaseIndex + 1; i < PHASES.length - 1; i++) { // -1 para excluir practicado
+                topic.phases[PHASES[i]] = false;
+            }
         }
         
-        // Verificar si se completó una vuelta
+        // Verificar si se completó una vuelta (solo leído y memorizado, practicado es automático)
         checkRoundCompletion(topic);
         
         saveUserTopics();
@@ -17244,18 +17327,20 @@ Sistema completo para gestionar progreso de temas de estudio
     
     // FUNCIÓN para verificar si se completó una vuelta
     function checkRoundCompletion(topic) {
-        const allCompleted = PHASES.every(phase => topic.phases[phase]);
+        const answeredCount = getAnsweredQuestionsCount(topic.name, topic.testTopicId);
+        const manuallyCompleted = topic.phases.leido && topic.phases.memorizado;
+        const hasAnsweredQuestions = answeredCount > 0;
         
-        if (allCompleted && topic.phases.leido && topic.phases.memorizado && topic.phases.practicado) {
+        if (manuallyCompleted && hasAnsweredQuestions) {
             // Completó una vuelta
             topic.completedRounds++;
             topic.currentRound = topic.completedRounds + 1;
             
-            // Reset fases para la próxima vuelta
+            // Reset fases manuales para la próxima vuelta (practicado se mantiene automático)
             topic.phases = {
                 leido: false,
                 memorizado: false,
-                practicado: false
+                practicado: topic.phases.practicado // Mantener el estado automático
             };
             
             const roundText = getOrdinalText(topic.completedRounds + 1);
@@ -17280,8 +17365,8 @@ Sistema completo para gestionar progreso de temas de estudio
         const topic = topicsIndexState.topics.find(t => t.id === topicId);
         if (!topic) return;
         
-        // Buscar la última fase marcada para desmarcar
-        for (let i = PHASES.length - 1; i >= 0; i--) {
+        // Buscar la última fase marcada para desmarcar (excepto practicado)
+        for (let i = PHASES.length - 2; i >= 0; i--) { // -2 para excluir practicado
             if (topic.phases[PHASES[i]]) {
                 topic.phases[PHASES[i]] = false;
                 saveUserTopics();
@@ -17296,11 +17381,11 @@ Sistema completo para gestionar progreso de temas de estudio
             topic.completedRounds--;
             topic.currentRound = topic.completedRounds + 1;
             
-            // Marcar todas las fases como completadas para simular vuelta anterior
+            // Marcar fases manuales como completadas para simular vuelta anterior
             topic.phases = {
                 leido: true,
                 memorizado: true,
-                practicado: true
+                practicado: topic.phases.practicado // Mantener automático
             };
             
             saveUserTopics();
@@ -17319,8 +17404,265 @@ Sistema completo para gestionar progreso de temas de estudio
         return ROUND_COLORS[4];
     }
     
+    // FUNCIONES DE DRAG & DROP
+    function handleDragStart(e, topicId) {
+        topicsIndexState.draggedItem = topicId;
+        e.target.style.opacity = '0.5';
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/html', e.target.outerHTML);
+    }
+    
+    function handleDragEnd(e) {
+        e.target.style.opacity = '1';
+        topicsIndexState.draggedItem = null;
+        
+        // Remover clases de drop
+        document.querySelectorAll('.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+        });
+    }
+    
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        e.currentTarget.classList.add('drag-over');
+    }
+    
+    function handleDragLeave(e) {
+        e.currentTarget.classList.remove('drag-over');
+    }
+    
+    function handleDrop(e, targetTopicId) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag-over');
+        
+        if (topicsIndexState.draggedItem === targetTopicId) return;
+        
+        const draggedTopic = topicsIndexState.topics.find(t => t.id === topicsIndexState.draggedItem);
+        const targetTopic = topicsIndexState.topics.find(t => t.id === targetTopicId);
+        
+        if (!draggedTopic || !targetTopic) return;
+        
+        // Intercambiar orders
+        const tempOrder = draggedTopic.order;
+        draggedTopic.order = targetTopic.order;
+        targetTopic.order = tempOrder;
+        
+        // Reordenar array
+        topicsIndexState.topics.sort((a, b) => a.order - b.order);
+        
+        saveUserTopics();
+        render();
+        showMessage(`📋 Tema "${draggedTopic.name}" reordenado`, 'info');
+    }
+    
+    // FUNCIÓN para mostrar estadísticas
+    function showTopicsStats() {
+        topicsIndexState.showingStats = true;
+        render();
+    }
+    
+    // FUNCIÓN para volver del vista de estadísticas
+    function backFromStats() {
+        topicsIndexState.showingStats = false;
+        render();
+    }
+    
+    // FUNCIÓN para renderizar vista de estadísticas
+    function renderTopicsStatsView() {
+        const hasTopics = topicsIndexState.topics.length > 0;
+        
+        if (!hasTopics) {
+            return `
+                <div style="text-align: center; padding: 80px 20px;">
+                    <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); width: 120px; height: 120px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);">
+                        <span style="font-size: 4rem; color: white;">📊</span>
+                    </div>
+                    <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 2.5rem;">No hay estadísticas disponibles</h2>
+                    <p style="color: #6b7280; margin: 0 0 30px 0; font-size: 1.2rem;">
+                        Crea algunos temas primero para ver las estadísticas de progreso.
+                    </p>
+                    <button onclick="backFromStats()" class="btn btn-secondary" style="padding: 15px 25px; font-size: 16px;">
+                        ← Volver al Índice
+                    </button>
+                </div>
+            `;
+        }
+        
+        // Calcular estadísticas
+        const stats = topicsIndexState.topics.map(topic => {
+            const answeredCount = getAnsweredQuestionsCount(topic.name, topic.testTopicId);
+            const manualProgress = (topic.phases.leido ? 1 : 0) + (topic.phases.memorizado ? 1 : 0);
+            const totalProgress = manualProgress + (answeredCount > 0 ? 1 : 0);
+            const progressPercentage = Math.round((totalProgress / 3) * 100);
+            
+            return {
+                name: topic.name,
+                leido: topic.phases.leido,
+                memorizado: topic.phases.memorizado,
+                answeredQuestions: answeredCount,
+                completedRounds: topic.completedRounds,
+                progressPercentage: progressPercentage,
+                color: getRoundColor(topic.completedRounds)
+            };
+        });
+        
+        const maxAnswered = Math.max(...stats.map(s => s.answeredQuestions), 1);
+        
+        return `
+            <div style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+                
+                <!-- Header -->
+                <div style="text-align: center; margin-bottom: 40px;">
+                    <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                        <span>📊</span> Estadísticas de Progreso
+                    </h1>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                        Análisis visual de tu avance por temas
+                    </p>
+                </div>
+                
+                <!-- Controles -->
+                <div style="display: flex; justify-content: center; margin-bottom: 40px;">
+                    <button onclick="backFromStats()" class="btn btn-secondary" style="padding: 12px 20px; display: flex; align-items: center; gap: 8px;">
+                        <span>←</span> Volver al Índice
+                    </button>
+                </div>
+                
+                <!-- Gráfico de barras -->
+                <div style="background: white; border-radius: 16px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 30px;">
+                    <h3 style="color: #1f2937; margin: 0 0 25px 0; font-size: 1.4rem; text-align: center;">📈 Progreso General por Tema</h3>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        ${stats.map((stat, index) => `
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <!-- Nombre del tema -->
+                                <div style="min-width: 200px; font-weight: 600; color: #1f2937; font-size: 14px; text-align: right;">
+                                    ${stat.name.length > 25 ? stat.name.substring(0, 25) + '...' : stat.name}
+                                </div>
+                                
+                                <!-- Barra de progreso -->
+                                <div style="flex: 1; background: #f3f4f6; height: 30px; border-radius: 15px; overflow: hidden; position: relative; border: 2px solid #e5e7eb;">
+                                    <div style="
+                                        background: linear-gradient(90deg, ${stat.color === '#ffffff' ? '#4f46e5' : stat.color}, ${stat.color === '#ffffff' ? '#7c3aed' : stat.color}); 
+                                        height: 100%; 
+                                        width: ${stat.progressPercentage}%; 
+                                        transition: width 0.8s ease;
+                                        border-radius: 13px;
+                                    "></div>
+                                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: ${stat.progressPercentage > 50 ? 'white' : '#1f2937'}; font-weight: 700; font-size: 13px;">
+                                        ${stat.progressPercentage}%
+                                    </div>
+                                </div>
+                                
+                                <!-- Indicadores -->
+                                <div style="min-width: 120px; display: flex; align-items: center; gap: 8px; font-size: 12px;">
+                                    <span style="color: ${stat.leido ? '#10b981' : '#d1d5db'};">📖</span>
+                                    <span style="color: ${stat.memorizado ? '#10b981' : '#d1d5db'};">🧠</span>
+                                    <span style="background: ${stat.answeredQuestions > 0 ? '#10b981' : '#f3f4f6'}; color: ${stat.answeredQuestions > 0 ? 'white' : '#6b7280'}; padding: 2px 6px; border-radius: 8px; font-weight: 600;">
+                                        ${stat.answeredQuestions}
+                                    </span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <!-- Estadísticas detalladas -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                    
+                    <!-- Preguntas respondidas -->
+                    <div style="background: white; border-radius: 16px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                        <h4 style="color: #1f2937; margin: 0 0 20px 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                            <span>📝</span> Preguntas Respondidas
+                        </h4>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 12px; max-height: 300px; overflow-y: auto;">
+                            ${stats.sort((a, b) => b.answeredQuestions - a.answeredQuestions).map(stat => `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f8fafc; border-radius: 8px;">
+                                    <span style="font-size: 13px; color: #1f2937; font-weight: 500;">
+                                        ${stat.name.length > 20 ? stat.name.substring(0, 20) + '...' : stat.name}
+                                    </span>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <div style="width: ${Math.max((stat.answeredQuestions / maxAnswered) * 60, 5)}px; height: 6px; background: linear-gradient(90deg, #4f46e5, #7c3aed); border-radius: 3px;"></div>
+                                        <span style="font-weight: 700; color: #4f46e5; font-size: 13px; min-width: 25px; text-align: right;">
+                                            ${stat.answeredQuestions}
+                                        </span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <!-- Vueltas completadas -->
+                    <div style="background: white; border-radius: 16px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                        <h4 style="color: #1f2937; margin: 0 0 20px 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                            <span>🏆</span> Vueltas Completadas
+                        </h4>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 12px; max-height: 300px; overflow-y: auto;">
+                            ${stats.filter(s => s.completedRounds > 0).length > 0 ? 
+                                stats.filter(s => s.completedRounds > 0)
+                                     .sort((a, b) => b.completedRounds - a.completedRounds)
+                                     .map(stat => `
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: linear-gradient(90deg, ${stat.color}10, ${stat.color}20); border-radius: 8px; border: 1px solid ${stat.color}30;">
+                                        <span style="font-size: 13px; color: #1f2937; font-weight: 500;">
+                                            ${stat.name.length > 20 ? stat.name.substring(0, 20) + '...' : stat.name}
+                                        </span>
+                                        <div style="background: ${stat.color}; color: ${stat.color === '#ffffff' ? '#1f2937' : 'white'}; padding: 4px 8px; border-radius: 8px; font-weight: 700; font-size: 12px;">
+                                            ${stat.completedRounds} vuelta${stat.completedRounds !== 1 ? 's' : ''}
+                                        </div>
+                                    </div>
+                                `).join('') : 
+                                '<div style="text-align: center; color: #6b7280; font-style: italic; padding: 20px;">Aún no has completado ninguna vuelta</div>'
+                            }
+                        </div>
+                    </div>
+                    
+                    <!-- Resumen general -->
+                    <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; border-radius: 16px; padding: 25px; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);">
+                        <h4 style="margin: 0 0 20px 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                            <span>🎯</span> Resumen General
+                        </h4>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 15px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>Total temas:</span>
+                                <strong>${stats.length}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>Preguntas totales:</span>
+                                <strong>${stats.reduce((sum, s) => sum + s.answeredQuestions, 0)}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>Temas leídos:</span>
+                                <strong>${stats.filter(s => s.leido).length}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>Temas memorizados:</span>
+                                <strong>${stats.filter(s => s.memorizado).length}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>Vueltas completadas:</span>
+                                <strong>${stats.reduce((sum, s) => sum + s.completedRounds, 0)}</strong>
+                            </div>
+                            <div style="border-top: 1px solid rgba(255,255,255,0.3); padding-top: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 16px;">
+                                <span>Progreso medio:</span>
+                                <strong>${Math.round(stats.reduce((sum, s) => sum + s.progressPercentage, 0) / stats.length)}%</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
     // FUNCIÓN para renderizar el índice de temas
     function renderTopicsIndexTab() {
+        if (topicsIndexState.showingStats) {
+            return renderTopicsStatsView();
+        }
+        
         const hasTopics = topicsIndexState.topics.length > 0;
         
         return `
@@ -17332,7 +17674,7 @@ Sistema completo para gestionar progreso de temas de estudio
                         <span>📖</span> Índice de Temas
                     </h1>
                     <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
-                        Gestiona tu progreso de estudio por temas
+                        Gestiona tu progreso de estudio por temas • Arrastra para reordenar
                     </p>
                 </div>
                 
@@ -17341,8 +17683,8 @@ Sistema completo para gestionar progreso de temas de estudio
                     <button onclick="addNewTopic()" class="btn btn-success" style="padding: 12px 20px; display: flex; align-items: center; gap: 8px;">
                         <span>➕</span> Añadir Tema
                     </button>
-                    <button onclick="loadUserTopics(); render();" class="btn btn-info" style="padding: 12px 20px; display: flex; align-items: center; gap: 8px;">
-                        <span>🔄</span> Recargar
+                    <button onclick="showTopicsStats()" class="btn btn-info" style="padding: 12px 20px; display: flex; align-items: center; gap: 8px;">
+                        <span>📊</span> Ver Estadísticas
                     </button>
                     ${hasTopics ? `
                         <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 12px 20px; border-radius: 20px; font-weight: 600; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
@@ -17351,7 +17693,7 @@ Sistema completo para gestionar progreso de temas de estudio
                     ` : ''}
                 </div>
                 
-                <!-- Lista de temas -->
+                <!-- Lista de temas con drag & drop -->
                 ${hasTopics ? `
                     <div style="display: flex; flex-direction: column; gap: 20px;">
                         ${topicsIndexState.topics.map(topic => {
@@ -17359,23 +17701,36 @@ Sistema completo para gestionar progreso de temas de estudio
                             const currentRoundText = topic.completedRounds > 0 ? 
                                 `${getOrdinalText(topic.currentRound).charAt(0).toUpperCase()}${getOrdinalText(topic.currentRound).slice(1)} vuelta` : 
                                 'Primera vuelta';
+                            const answeredCount = getAnsweredQuestionsCount(topic.name, topic.testTopicId);
                                 
                             return `
-                                <div style="
+                                <div draggable="true" 
+                                     ondrags="handleDragStart(event, ${topic.id})"
+                                     ondragend="handleDragEnd(event)"
+                                     ondragover="handleDragOver(event)"
+                                     ondragleave="handleDragLeave(event)"
+                                     ondrop="handleDrop(event, ${topic.id})"
+                                     style="
                                     background: ${roundColor}; 
                                     border: 2px solid #e2e8f0; 
                                     border-radius: 15px; 
                                     padding: 25px; 
                                     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
                                     transition: all 0.3s ease;
+                                    cursor: grab;
                                     ${topic.completedRounds > 0 ? 'border-color: ' + roundColor.replace('0.1', '0.3') + ';' : ''}
-                                " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                                " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'" class="topic-item">
                                     
                                     <!-- Header del tema -->
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-                                        <h3 style="color: #1f2937; margin: 0; font-size: 1.3rem; font-weight: 600; flex: 1; min-width: 200px;">
-                                            ${topic.name}
-                                        </h3>
+                                        <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 200px;">
+                                            <div style="background: #6b7280; color: white; width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: grab;" title="Arrastra para reordenar">
+                                                ⋮⋮
+                                            </div>
+                                            <h3 style="color: #1f2937; margin: 0; font-size: 1.3rem; font-weight: 600;">
+                                                ${topic.name}
+                                            </h3>
+                                        </div>
                                         
                                         <div style="display: flex; align-items: center; gap: 10px;">
                                             <!-- Indicador de vuelta -->
@@ -17401,32 +17756,64 @@ Sistema completo para gestionar progreso de temas de estudio
                                     
                                     <!-- Franjas de progreso -->
                                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; border-radius: 10px; overflow: hidden; border: 2px solid #d1d5db; background: #d1d5db;">
-                                        ${PHASES.map((phase, index) => `
-                                            <div onclick="togglePhase(${topic.id}, '${phase}')" style="
-                                                background: ${topic.phases[phase] ? '#10b981' : '#f9fafb'}; 
-                                                color: ${topic.phases[phase] ? '#ffffff' : '#6b7280'}; 
-                                                padding: 20px 15px; 
-                                                text-align: center; 
-                                                cursor: pointer; 
-                                                transition: all 0.2s ease;
-                                                font-weight: ${topic.phases[phase] ? '700' : '500'};
-                                                font-size: 14px;
-                                            " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-                                                <div style="font-size: 1.5rem; margin-bottom: 5px;">${PHASE_ICONS[index]}</div>
-                                                <div>${PHASE_NAMES[index]}</div>
-                                                ${topic.phases[phase] ? '<div style="font-size: 1.2rem; margin-top: 5px;">✅</div>' : ''}
-                                            </div>
-                                        `).join('')}
+                                        <!-- Leído -->
+                                        <div onclick="togglePhase(${topic.id}, 'leido')" style="
+                                            background: ${topic.phases.leido ? '#10b981' : '#f9fafb'}; 
+                                            color: ${topic.phases.leido ? '#ffffff' : '#6b7280'}; 
+                                            padding: 20px 15px; 
+                                            text-align: center; 
+                                            cursor: pointer; 
+                                            transition: all 0.2s ease;
+                                            font-weight: ${topic.phases.leido ? '700' : '500'};
+                                            font-size: 14px;
+                                        " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                                            <div style="font-size: 1.5rem; margin-bottom: 5px;">📖</div>
+                                            <div>Leído</div>
+                                            ${topic.phases.leido ? '<div style="font-size: 1.2rem; margin-top: 5px;">✅</div>' : ''}
+                                        </div>
+                                        
+                                        <!-- Memorizado -->
+                                        <div onclick="togglePhase(${topic.id}, 'memorizado')" style="
+                                            background: ${topic.phases.memorizado ? '#10b981' : '#f9fafb'}; 
+                                            color: ${topic.phases.memorizado ? '#ffffff' : '#6b7280'}; 
+                                            padding: 20px 15px; 
+                                            text-align: center; 
+                                            cursor: pointer; 
+                                            transition: all 0.2s ease;
+                                            font-weight: ${topic.phases.memorizado ? '700' : '500'};
+                                            font-size: 14px;
+                                        " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                                            <div style="font-size: 1.5rem; margin-bottom: 5px;">🧠</div>
+                                            <div>Memorizado</div>
+                                            ${topic.phases.memorizado ? '<div style="font-size: 1.2rem; margin-top: 5px;">✅</div>' : ''}
+                                        </div>
+                                        
+                                        <!-- Preguntas respondidas (automático) -->
+                                        <div style="
+                                            background: ${answeredCount > 0 ? '#10b981' : '#f9fafb'}; 
+                                            color: ${answeredCount > 0 ? '#ffffff' : '#6b7280'}; 
+                                            padding: 20px 15px; 
+                                            text-align: center; 
+                                            font-weight: ${answeredCount > 0 ? '700' : '500'};
+                                            font-size: 14px;
+                                        ">
+                                            <div style="font-size: 1.5rem; margin-bottom: 5px;">📝</div>
+                                            <div style="font-size: 12px; margin-bottom: 3px;">Preguntas</div>
+                                            <div style="font-weight: 700; font-size: 16px; ${answeredCount > 0 ? 'color: #ffffff;' : 'color: #9ca3af;'}">${answeredCount}</div>
+                                            ${answeredCount > 0 ? '<div style="font-size: 1.2rem; margin-top: 5px;">✅</div>' : ''}
+                                        </div>
                                     </div>
                                     
                                     <!-- Progreso visual -->
                                     <div style="margin-top: 15px;">
                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                             <span style="font-size: 13px; color: #6b7280; font-weight: 600;">Progreso actual:</span>
-                                            <span style="font-size: 13px; color: #1f2937; font-weight: 700;">${PHASES.filter(phase => topic.phases[phase]).length}/3 fases</span>
+                                            <span style="font-size: 13px; color: #1f2937; font-weight: 700;">
+                                                ${(topic.phases.leido ? 1 : 0) + (topic.phases.memorizado ? 1 : 0) + (answeredCount > 0 ? 1 : 0)}/3 fases
+                                            </span>
                                         </div>
                                         <div style="background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden;">
-                                            <div style="background: linear-gradient(90deg, #10b981, #059669); height: 100%; width: ${(PHASES.filter(phase => topic.phases[phase]).length / 3) * 100}%; transition: width 0.3s ease; border-radius: 4px;"></div>
+                                            <div style="background: linear-gradient(90deg, #10b981, #059669); height: 100%; width: ${((topic.phases.leido ? 1 : 0) + (topic.phases.memorizado ? 1 : 0) + (answeredCount > 0 ? 1 : 0)) / 3 * 100}%; transition: width 0.3s ease; border-radius: 4px;"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -17447,10 +17834,11 @@ Sistema completo para gestionar progreso de temas de estudio
                         <div style="background: #f0f9ff; border: 2px solid #3b82f6; border-radius: 12px; padding: 25px; margin: 0 auto 30px; text-align: left; max-width: 500px;">
                             <h3 style="color: #1e40af; margin: 0 0 15px 0; font-size: 1.1rem;">📝 ¿Cómo funciona?</h3>
                             <ol style="color: #1e3a8a; margin: 0; padding-left: 20px; line-height: 1.8;">
-                                <li>Añade un tema (ej: "Tema 1: Constitución")</li>
-                                <li>Marca las fases: Leído → Memorizado → Practicado</li>
+                                <li>Los temas de "Realizar Test" aparecen automáticamente aquí</li>
+                                <li>Marca las fases: Leído → Memorizado</li>
+                                <li>Las preguntas respondidas se cuentan automáticamente</li>
                                 <li>Al completar las 3 fases, empieza una nueva vuelta</li>
-                                <li>Los colores cambian: verde (2ª), azul (3ª), dorado (4ª+)</li>
+                                <li>Arrastra los temas para reordenarlos</li>
                             </ol>
                         </div>
                         
@@ -17460,13 +17848,13 @@ Sistema completo para gestionar progreso de temas de estudio
                     </div>
                 `}
                 
-                <!-- Leyenda -->
+                <!-- Leyenda mejorada -->
                 ${hasTopics ? `
                     <div style="margin-top: 40px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;">
                         <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 1rem; font-weight: 600; text-align: center;">
                             📊 Leyenda del Sistema
                         </h3>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; text-align: center;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; text-align: center; margin-bottom: 20px;">
                             <div>
                                 <div style="background: #ffffff; border: 2px solid #e2e8f0; height: 40px; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #6b7280;">
                                     Primera vuelta
@@ -17492,12 +17880,42 @@ Sistema completo para gestionar progreso de temas de estudio
                                 <span style="font-size: 12px; color: #6b7280;">Dorado</span>
                             </div>
                         </div>
-                        <div style="text-align: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0; color: #6b7280; font-size: 13px;">
-                            💡 Haz clic en las fases para marcar tu progreso • Usa ↶ para deshacer el último avance
+                        <div style="text-align: center; padding-top: 15px; border-top: 1px solid #e2e8f0; color: #6b7280; font-size: 13px;">
+                            💡 Haz clic en Leído/Memorizado para marcar • Las preguntas se cuentan automáticamente • Arrastra ⋮⋮ para reordenar • Usa ↶ para deshacer
                         </div>
                     </div>
                 ` : ''}
             </div>
+            
+            <!-- Estilos CSS para drag & drop -->
+            <style>
+                .topic-item {
+                    user-select: none;
+                }
+                
+                .topic-item:active {
+                    cursor: grabbing;
+                }
+                
+                .topic-item.drag-over {
+                    border-style: dashed !important;
+                    border-color: #4f46e5 !important;
+                    transform: translateY(-2px) scale(1.02) !important;
+                    box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3) !important;
+                }
+                
+                @media (max-width: 768px) {
+                    .topic-item {
+                        margin: 0 -10px;
+                        border-radius: 12px;
+                    }
+                    
+                    .topic-item > div > div {
+                        padding: 20px !important;
+                        gap: 8px !important;
+                    }
+                }
+            </style>
         `;
     }
     
@@ -17556,7 +17974,7 @@ Sistema completo para gestionar progreso de temas de estudio
                                 </div>
                             </button>
                             
-                            <!-- NUEVO BOTÓN: ÍNDICE DE TEMAS -->
+                            <!-- BOTÓN: ÍNDICE DE TEMAS -->
                             <button onclick="goToTopicsIndex()" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
                                     <span style="font-size: 1.5rem;">📖</span>
@@ -17598,271 +18016,299 @@ Sistema completo para gestionar progreso de temas de estudio
         `;
     };
         
-        // EXTENDER renderTabContent para incluir topics-index
-        const originalRenderTabContentTopics = renderTabContent;
-        renderTabContent = function() {
-            switch(state.currentTab) {
-                case 'upload':
-                    return renderUploadTab();
-                case 'questions':
-                    return renderQuestionsTab();
-                case 'test':
-                    return renderTestTab();
-                case 'results':
-                    return renderResultsTab();
-                case 'summary':
-                    return renderSummaryTab();
-                case 'memory-cards':
-                    return renderMemoryCardsTab();
-                case 'topics-index':
-                    return renderTopicsIndexTab();
-                default:
-                    return '<div>Error: Pestaña no encontrada - ' + state.currentTab + '</div>';
-            }
-        };
-        
-        // EXTENDER render para mostrar botón en header cuando estamos en índice de temas
-        const originalRenderTopicsIndex = render;
-        render = function() {
-            if (showIntermediateScreen && state.currentUser) {
-                const app = document.getElementById('app');
-                app.innerHTML = `
-                    <div class="container">
-                        <div class="header">
-                            <div class="title">Sistema de Exámenes</div>
-                            <div>
-                                <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
-                                    ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
-                                </span>
-                                <button onclick="configureAPI()" class="btn btn-secondary">API</button>
-                                <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
-                                <button onclick="logout()" class="btn btn-danger">Salir</button>
-                            </div>
+    // EXTENDER renderTabContent para incluir topics-index
+    const originalRenderTabContentTopics = renderTabContent;
+    renderTabContent = function() {
+        switch(state.currentTab) {
+            case 'upload':
+                return renderUploadTab();
+            case 'questions':
+                return renderQuestionsTab();
+            case 'test':
+                return renderTestTab();
+            case 'results':
+                return renderResultsTab();
+            case 'summary':
+                return renderSummaryTab();
+            case 'memory-cards':
+                return renderMemoryCardsTab();
+            case 'topics-index':
+                return renderTopicsIndexTab();
+            default:
+                return '<div>Error: Pestaña no encontrada - ' + state.currentTab + '</div>';
+        }
+    };
+    
+    // EXTENDER render para mostrar botón en header cuando estamos en índice de temas
+    const originalRenderTopicsIndex = render;
+    render = function() {
+        if (showIntermediateScreen && state.currentUser) {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <div class="title">Sistema de Exámenes</div>
+                        <div>
+                            <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                                ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                            </span>
+                            <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                            <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                            <button onclick="logout()" class="btn btn-danger">Salir</button>
                         </div>
-                        ${renderIntermediateScreen()}
                     </div>
-                `;
-            } else if (state.currentUser) {
-                const app = document.getElementById('app');
-                
-                let pageTitle = 'Sistema de Exámenes';
-                if (state.currentTab === 'questions') pageTitle = 'Banco de Preguntas';
-                else if (state.currentTab === 'results') pageTitle = 'Resultados del Test';
-                else if (state.currentTab === 'summary') pageTitle = 'Generador de Resúmenes';
-                else if (state.currentTab === 'memory-cards') pageTitle = 'Tarjetas de Memoria';
-                else if (state.currentTab === 'topics-index') pageTitle = 'Índice de Temas';
-                
-                const showNavTabs = state.currentTab !== 'summary' && state.currentTab !== 'memory-cards' && state.currentTab !== 'topics-index';
-                
-                app.innerHTML = `
-                    <div class="container">
-                        <div class="header">
-                            <div class="title">${pageTitle}</div>
-                            <div>
-                                <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
-                                    ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
-                                </span>
-                                <button onclick="configureAPI()" class="btn btn-secondary">API</button>
-                                ${state.currentTab === 'memory-cards' ? `
-                                    <button onclick="backToMainMenuFromCards()" class="btn btn-info">🏠 Menú</button>
-                                ` : ''}
-                                ${state.currentTab === 'topics-index' ? `
-                                    <button onclick="backToMainMenuFromTopics()" class="btn btn-info">🏠 Menú</button>
-                                ` : ''}
-                                <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
-                                <button onclick="logout()" class="btn btn-danger">Salir</button>
-                            </div>
+                    ${renderIntermediateScreen()}
+                </div>
+            `;
+        } else if (state.currentUser) {
+            const app = document.getElementById('app');
+            
+            let pageTitle = 'Sistema de Exámenes';
+            if (state.currentTab === 'questions') pageTitle = 'Banco de Preguntas';
+            else if (state.currentTab === 'results') pageTitle = 'Resultados del Test';
+            else if (state.currentTab === 'summary') pageTitle = 'Generador de Resúmenes';
+            else if (state.currentTab === 'memory-cards') pageTitle = 'Tarjetas de Memoria';
+            Tienes razón, veo que el código se corta. A partir de donde se queda (else if (state.currentTab === '), necesitas completar así:
+javascript            else if (state.currentTab === 'topics-index') pageTitle = topicsIndexState.showingStats ? 'Estadísticas de Progreso' : 'Índice de Temas';
+            
+            const showNavTabs = state.currentTab !== 'summary' && state.currentTab !== 'memory-cards' && state.currentTab !== 'topics-index';
+            
+            app.innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <div class="title">${pageTitle}</div>
+                        <div>
+                            <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                                ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                            </span>
+                            <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                            ${state.currentTab === 'memory-cards' ? `
+                                <button onclick="backToMainMenuFromCards()" class="btn btn-info">🏠 Menú</button>
+                            ` : ''}
+                            ${state.currentTab === 'topics-index' ? `
+                                <button onclick="backToMainMenuFromTopics()" class="btn btn-info">🏠 Menú</button>
+                            ` : ''}
+                            <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                            <button onclick="logout()" class="btn btn-danger">Salir</button>
                         </div>
-
-                        ${showNavTabs ? `
-                            <div class="nav-tabs">
-                                <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
-                                    📤 Subir Test
-                                </button>
-                                <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
-                                    📋 Banco de Preguntas (${getFilteredQuestions().length})
-                                </button>
-                                <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
-                                    🎯 Test Aleatorio
-                                </button>
-                                <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
-                                    📊 Resultados (${state.testResults.length})
-                                </button>
-                            </div>
-                        ` : ''}
-
-                        <div id="messages"></div>
-
-                        ${renderTabContent()}
                     </div>
-                `;
-            } else {
-                originalRenderTopicsIndex.call(this);
-            }
-        };
-        
-        // ATAJOS DE TECLADO para el índice de temas
-        function setupTopicsIndexKeyboard() {
-            document.addEventListener('keydown', function(e) {
-                if (state.currentTab !== 'topics-index') return;
-                
-                switch(e.key) {
-                    case 'n':
-                    case 'N':
-                        if (e.ctrlKey || e.metaKey) {
-                            e.preventDefault();
-                            addNewTopic();
-                        }
-                        break;
-                    case 'r':
-                    case 'R':
-                        if (e.ctrlKey || e.metaKey) {
-                            e.preventDefault();
-                            loadUserTopics();
-                            render();
-                        }
-                        break;
-                    case 'Escape':
+
+                    ${showNavTabs ? `
+                        <div class="nav-tabs">
+                            <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
+                                📤 Subir Test
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
+                                📋 Banco de Preguntas (${getFilteredQuestions().length})
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
+                                🎯 Test Aleatorio
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                                📊 Resultados (${state.testResults.length})
+                            </button>
+                        </div>
+                    ` : ''}
+
+                    <div id="messages"></div>
+
+                    ${renderTabContent()}
+                </div>
+            `;
+        } else {
+            originalRenderTopicsIndex.call(this);
+        }
+    };
+    
+    // ATAJOS DE TECLADO para el índice de temas
+    function setupTopicsIndexKeyboard() {
+        document.addEventListener('keydown', function(e) {
+            if (state.currentTab !== 'topics-index') return;
+            
+            switch(e.key) {
+                case 'n':
+                case 'N':
+                    if (e.ctrlKey || e.metaKey) {
                         e.preventDefault();
+                        addNewTopic();
+                    }
+                    break;
+                case 's':
+                case 'S':
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        if (topicsIndexState.showingStats) {
+                            backFromStats();
+                        } else {
+                            showTopicsStats();
+                        }
+                    }
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    if (topicsIndexState.showingStats) {
+                        backFromStats();
+                    } else {
                         backToMainMenuFromTopics();
-                        break;
-                }
-            });
+                    }
+                    break;
+            }
+        });
+    }
+    
+    setupTopicsIndexKeyboard();
+    
+    // Agregar eventos drag & drop globales
+    document.addEventListener('DOMContentLoaded', function() {
+        setupDragAndDropEvents();
+    });
+    
+    function setupDragAndDropEvents() {
+        // Los eventos se configuran inline en el HTML para mejor compatibilidad
+        console.log('Eventos drag & drop configurados');
+    }
+    
+    // Exponer funciones necesarias al contexto global
+    window.handleDragStart = handleDragStart;
+    window.handleDragEnd = handleDragEnd;
+    window.handleDragOver = handleDragOver;
+    window.handleDragLeave = handleDragLeave;
+    window.handleDrop = handleDrop;
+    window.showTopicsStats = showTopicsStats;
+    window.backFromStats = backFromStats;
+    
+    // FUNCIÓN para incluir datos de temas en la exportación
+    const originalExportUserDataComplete = window.exportUserDataComplete;
+    window.exportUserDataComplete = function() {
+        if (!state.currentUser) {
+            showMessage('❌ Error: No hay usuario logueado', 'error');
+            return;
         }
         
-        setupTopicsIndexKeyboard();
-        
-        // FUNCIÓN para incluir datos de temas en la exportación
-        const originalExportUserDataComplete = window.exportUserDataComplete;
-        window.exportUserDataComplete = function() {
-            if (!state.currentUser) {
-                showMessage('❌ Error: No hay usuario logueado', 'error');
+        try {
+            const username = state.currentUser.username;
+            
+            // Obtener datos de la cuenta desde localStorage
+            const allUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+            const accountData = allUsers[username];
+            
+            if (!accountData) {
+                showMessage('❌ Error: No se encontraron datos de la cuenta', 'error');
                 return;
             }
             
-            try {
-                const username = state.currentUser.username;
-                
-                // Obtener datos de la cuenta desde localStorage
-                const allUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
-                const accountData = allUsers[username];
-                
-                if (!accountData) {
-                    showMessage('❌ Error: No se encontraron datos de la cuenta', 'error');
-                    return;
+            // Obtener datos de temas
+            const topicsData = localStorage.getItem(`topics_index_${username}`);
+            const parsedTopicsData = topicsData ? JSON.parse(topicsData) : { topics: [], nextId: 1 };
+            
+            // Crear backup completo con cuenta + datos + temas
+            const completeBackup = {
+                version: "2.1",
+                exportDate: new Date().toISOString(),
+                exportTimestamp: Date.now(),
+                username: username,
+                accountData: {
+                    password: accountData.password,
+                    name: accountData.name,
+                    securityQuestion: accountData.securityQuestion,
+                    securityAnswer: accountData.securityAnswer,
+                    createdAt: accountData.createdAt
+                },
+                userData: {
+                    questions: state.questions || [],
+                    topics: state.topics || [],
+                    testResults: state.testResults || [],
+                    summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
+                    savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
+                    apiKey: state.apiKey || '',
+                    topicsIndex: parsedTopicsData
+                },
+                stats: {
+                    totalQuestions: state.questions ? state.questions.length : 0,
+                    totalTopics: state.topics ? state.topics.length : 0,
+                    totalTests: state.testResults ? state.testResults.length : 0,
+                    totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0,
+                    totalIndexTopics: parsedTopicsData.topics ? parsedTopicsData.topics.length : 0
                 }
-                
-                // Obtener datos de temas
-                const topicsData = localStorage.getItem(`topics_index_${username}`);
-                const parsedTopicsData = topicsData ? JSON.parse(topicsData) : { topics: [], nextId: 1 };
-                
-                // Crear backup completo con cuenta + datos + temas
-                const completeBackup = {
-                    version: "2.1",
-                    exportDate: new Date().toISOString(),
-                    exportTimestamp: Date.now(),
-                    username: username,
-                    accountData: {
-                        password: accountData.password,
-                        name: accountData.name,
-                        securityQuestion: accountData.securityQuestion,
-                        securityAnswer: accountData.securityAnswer,
-                        createdAt: accountData.createdAt
-                    },
-                    userData: {
-                        questions: state.questions || [],
-                        topics: state.topics || [],
-                        testResults: state.testResults || [],
-                        summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
-                        savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
-                        apiKey: state.apiKey || '',
-                        topicsIndex: parsedTopicsData
-                    },
-                    stats: {
-                        totalQuestions: state.questions ? state.questions.length : 0,
-                        totalTopics: state.topics ? state.topics.length : 0,
-                        totalTests: state.testResults ? state.testResults.length : 0,
-                        totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0,
-                        totalIndexTopics: parsedTopicsData.topics ? parsedTopicsData.topics.length : 0
-                    }
-                };
-                
-                // Mostrar estadísticas antes de descargar
-                const statsMessage = `
-    📊 BACKUP COMPLETO GENERADO:
-    • Preguntas: ${completeBackup.stats.totalQuestions}
-    • Temas: ${completeBackup.stats.totalTopics}
-    • Tests realizados: ${completeBackup.stats.totalTests}
-    • Resúmenes: ${completeBackup.stats.totalSummaries}
-    • Temas de índice: ${completeBackup.stats.totalIndexTopics}
-    • Datos de cuenta: ✅ Incluidos
-                `;
-                
-                showMessage(statsMessage, 'success');
-                
-                // Crear archivo para descarga
-                const blob = new Blob([JSON.stringify(completeBackup, null, 2)], { 
-                    type: 'application/json' 
-                });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                
-                const dateStr = new Date().toISOString().split('T')[0];
-                const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
-                a.href = url;
-                a.download = `backup_completo_${username}_${dateStr}_${timeStr}.json`;
-                
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                // Mensaje de confirmación con instrucciones
-                setTimeout(() => {
-                    showMessage(`
-    ✅ BACKUP DESCARGADO EXITOSAMENTE
-    📁 Archivo: backup_completo_${username}_${dateStr}_${timeStr}.json
+            };
+            
+            // Mostrar estadísticas antes de descargar
+            const statsMessage = `
+📊 BACKUP COMPLETO GENERADO:
+- Preguntas: ${completeBackup.stats.totalQuestions}
+- Temas: ${completeBackup.stats.totalTopics}
+- Tests realizados: ${completeBackup.stats.totalTests}
+- Resúmenes: ${completeBackup.stats.totalSummaries}
+- Temas de índice: ${completeBackup.stats.totalIndexTopics}
+- Datos de cuenta: ✅ Incluidos
+            `;
+            
+            showMessage(statsMessage, 'success');
+            
+            // Crear archivo para descarga
+            const blob = new Blob([JSON.stringify(completeBackup, null, 2)], { 
+                type: 'application/json' 
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            const dateStr = new Date().toISOString().split('T')[0];
+            const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
+            a.href = url;
+            a.download = `backup_completo_${username}_${dateStr}_${timeStr}.json`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            // Mensaje de confirmación con instrucciones
+            setTimeout(() => {
+                showMessage(`
+✅ BACKUP DESCARGADO EXITOSAMENTE
+📁 Archivo: backup_completo_${username}_${dateStr}_${timeStr}.json
 
-    💡 INSTRUCCIONES:
-    • Guarda este archivo en un lugar seguro
-    • Para usar en otro dispositivo: Login + Importar este archivo
-    • Incluye tanto tu cuenta como todos tus datos
-                    `, 'success');
-                }, 1000);
-                
-                console.log('✅ Backup completo exportado para:', username);
-                
-            } catch (error) {
-                console.error('❌ Error exportando backup:', error);
-                showMessage('❌ Error al exportar datos: ' + error.message, 'error');
+💡 INSTRUCCIONES:
+- Guarda este archivo en un lugar seguro
+- Para usar en otro dispositivo: Login + Importar este archivo
+- Incluye tanto tu cuenta como todos tus datos
+                `, 'success');
+            }, 1000);
+            
+            console.log('✅ Backup completo exportado para:', username);
+            
+        } catch (error) {
+            console.error('❌ Error exportando backup:', error);
+            showMessage('❌ Error al exportar datos: ' + error.message, 'error');
+        }
+    };
+    
+    console.log('✅ Sistema de Índice de Temas MEJORADO v2 implementado');
+    console.log('📖 Nuevas funcionalidades:');
+    console.log('   ⚡ Sincronización automática con temas de "Realizar Test"');
+    console.log('   🖱️ Drag & Drop para reordenar temas arrastrando');
+    console.log('   📝 Contador automático de preguntas respondidas por tema');
+    console.log('   📊 Vista de estadísticas con gráficos de barras');
+    console.log('   🎨 Botón "Ver Estadísticas" en lugar de "Recargar"');
+    console.log('   🔄 Integrado con sistema de exportación');
+    console.log('   ⌨️ Atajos: Ctrl+N (nuevo), Ctrl+S (estadísticas), Esc (volver)');
+    console.log('   📱 Diseño totalmente responsive');
+    console.log('   🎯 Lógica mejorada para completar vueltas');
+    
+    // Forzar sincronización y re-renderizado inmediato
+    setTimeout(() => {
+        if (state.currentUser && typeof window.render === 'function') {
+            if (state.currentTab === 'topics-index') {
+                syncWithTestTopics();
             }
-        };
-        
-        console.log('✅ Sistema de Índice de Temas implementado');
-        console.log('📖 Funcionalidades:');
-        console.log('   - Botón "📖 Índice de Temas" en menú principal');
-        console.log('   - Crear/eliminar temas dinámicamente');
-        console.log('   - Sistema de 3 fases: Leído, Memorizado, Practicado');
-        console.log('   - Sistema de vueltas con colores:');
-        console.log('     • Blanco: Primera vuelta');
-        console.log('     • Verde: Segunda vuelta');  
-        console.log('     • Azul: Tercera vuelta');
-        console.log('     • Dorado: Cuarta vuelta y más');
-        console.log('   - Función deshacer para revertir progreso');
-        console.log('   - Persistencia por usuario en localStorage');
-        console.log('   - Incluido en sistema de exportación');
-        console.log('   - Atajos de teclado: Ctrl+N (nuevo), Ctrl+R (recargar), Esc (salir)');
-        console.log('   - Interfaz responsive con animaciones');
-        
-        // Forzar re-renderizado inmediato
-        setTimeout(() => {
-            if (state.currentUser && typeof window.render === 'function') {
-                render();
-            }
-        }, 100);
-    </script>
+            render();
+        }
+    }, 100);
+    
+</script>
 </body>
 </html>
+
 
 
 
