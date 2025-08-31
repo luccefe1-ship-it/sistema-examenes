@@ -7570,8 +7570,8 @@ Versión corregida con botón en header y diseño mejorado
 -->
 
 <script>
-    // ========== PARCHE CORREGIDO: SISTEMA DE TARJETAS DE MEMORIA ==========
-    console.log('🃏 Implementando sistema de tarjetas de memoria corregido...');
+    // ========== PARCHE CORREGIDO: SISTEMA DE TARJETAS DE MEMORIA + EXPORTAR ==========
+    console.log('🃏 Implementando sistema de tarjetas de memoria corregido con exportación...');
     
     // Estado para las tarjetas de memoria
     let memoryCardsState = {
@@ -7657,6 +7657,104 @@ Versión corregida con botón en header y diseño mejorado
         memoryCardsState.showAnswer = false;
         render();
         showMessage('Tarjetas mezcladas aleatoriamente', 'success');
+    }
+    
+    // FUNCIÓN para EXPORTAR datos completos
+    function exportUserDataComplete() {
+        if (!state.currentUser) {
+            showMessage('❌ Error: No hay usuario logueado', 'error');
+            return;
+        }
+        
+        try {
+            const username = state.currentUser.username;
+            
+            // Obtener datos de la cuenta desde localStorage
+            const allUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+            const accountData = allUsers[username];
+            
+            if (!accountData) {
+                showMessage('❌ Error: No se encontraron datos de la cuenta', 'error');
+                return;
+            }
+            
+            // Crear backup completo con cuenta + datos
+            const completeBackup = {
+                version: "2.0",
+                exportDate: new Date().toISOString(),
+                exportTimestamp: Date.now(),
+                username: username,
+                accountData: {
+                    password: accountData.password,
+                    name: accountData.name,
+                    securityQuestion: accountData.securityQuestion,
+                    securityAnswer: accountData.securityAnswer,
+                    createdAt: accountData.createdAt
+                },
+                userData: {
+                    questions: state.questions || [],
+                    topics: state.topics || [],
+                    testResults: state.testResults || [],
+                    summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
+                    savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
+                    apiKey: state.apiKey || ''
+                },
+                stats: {
+                    totalQuestions: state.questions ? state.questions.length : 0,
+                    totalTopics: state.topics ? state.topics.length : 0,
+                    totalTests: state.testResults ? state.testResults.length : 0,
+                    totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0
+                }
+            };
+            
+            // Mostrar estadísticas antes de descargar
+            const statsMessage = `
+📊 BACKUP COMPLETO GENERADO:
+• Preguntas: ${completeBackup.stats.totalQuestions}
+• Temas: ${completeBackup.stats.totalTopics}
+• Tests realizados: ${completeBackup.stats.totalTests}
+• Resúmenes: ${completeBackup.stats.totalSummaries}
+• Datos de cuenta: ✅ Incluidos
+            `;
+            
+            showMessage(statsMessage, 'success');
+            
+            // Crear archivo para descarga
+            const blob = new Blob([JSON.stringify(completeBackup, null, 2)], { 
+                type: 'application/json' 
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            const dateStr = new Date().toISOString().split('T')[0];
+            const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
+            a.href = url;
+            a.download = `backup_completo_${username}_${dateStr}_${timeStr}.json`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            // Mensaje de confirmación con instrucciones
+            setTimeout(() => {
+                showMessage(`
+✅ BACKUP DESCARGADO EXITOSAMENTE
+📁 Archivo: backup_completo_${username}_${dateStr}_${timeStr}.json
+
+💡 INSTRUCCIONES:
+• Guarda este archivo en un lugar seguro
+• Para usar en otro dispositivo: Login + Importar este archivo
+• Incluye tanto tu cuenta como todos tus datos
+                `, 'success');
+            }, 1000);
+            
+            console.log('✅ Backup completo exportado para:', username);
+            
+        } catch (error) {
+            console.error('❌ Error exportando backup:', error);
+            showMessage('❌ Error al exportar datos: ' + error.message, 'error');
+        }
     }
     
     // FUNCIÓN para renderizar la sección de tarjetas de memoria
@@ -7834,7 +7932,7 @@ Versión corregida con botón en header y diseño mejorado
         `;
     }
     
-    // INTERCEPTAR la función renderIntermediateScreen para añadir la tercera opción
+    // INTERCEPTAR la función renderIntermediateScreen para añadir la tercera opción y exportar
     const originalRenderIntermediateScreen = renderIntermediateScreen;
     window.renderIntermediateScreen = function() {
     return `
@@ -7895,6 +7993,17 @@ Versión corregida con botón en header y diseño mejorado
                                 <div style="text-align: left;">
                                     <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Duelo de Preguntas</div>
                                     <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Compete con otros usuarios</div>
+                                </div>
+                            </div>
+                        </button>
+                        
+                        <!-- BOTÓN EXPORTAR DATOS -->
+                        <button onclick="exportUserDataComplete()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                <span style="font-size: 1.5rem;">💾</span>
+                                <div style="text-align: left;">
+                                    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Exportar Mis Datos</div>
+                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Descargar backup completo</div>
                                 </div>
                             </div>
                         </button>
@@ -8044,13 +8153,13 @@ Versión corregida con botón en header y diseño mejorado
     
     setupMemoryCardsKeyboard();
     
-    console.log('✅ Sistema de Tarjetas de Memoria CORREGIDO implementado');
+    console.log('✅ Sistema de Tarjetas de Memoria + EXPORTAR implementado');
     console.log('🃏 Funcionalidades:');
-    console.log('   - Botón "🏠 Menú" en header (más corto)');
-    console.log('   - Tarjeta con animación flotante sutil');
-    console.log('   - Tema dentro de la tarjeta');
-    console.log('   - Solo respuesta correcta');
-    console.log('   - Diseño limpio y funcional');
+    console.log('   - Botón "🏠 Menú" en header');
+    console.log('   - Tarjeta con animación flotante');
+    console.log('   - Botón "💾 Exportar Mis Datos" en menú principal');
+    console.log('   - Backup completo: cuenta + datos');
+    console.log('   - Compatible con sistema de importación');
     
     setTimeout(() => {
         if (state.currentUser && typeof window.render === 'function') {
@@ -16997,6 +17106,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 
 </body>
 </html>
+
 
 
 
