@@ -13322,7 +13322,7 @@ window.renderDuelInterface = function() {
             <div style="flex: 1; padding: 25px; overflow: hidden;">
                 
                 <!-- Interfaz de 3 franjas MÁS ANCHAS -->
-                <div style="display: grid; grid-template-columns: 380px 1fr 380px; gap: 20px; height: calc(100vh - 120px);">
+                <div style="display: grid; grid-template-columns: 450px 1fr 450px; gap: 20px; height: calc(100vh - 120px);">
                     
                     <!-- FRANJA IZQUIERDA: Usuario con colores dinámicos - SOLO MIS TEMAS (sin selección) -->
                     <div style="background: ${userFrameBg}; border: 2px solid ${userFrameBorder}; 
@@ -13550,6 +13550,83 @@ console.log('   - Franja izquierda: MIS temas (solo visualización)');
 console.log('   - Franja derecha: TEMAS DEL OPONENTE (seleccionables solo en mi turno)');
 console.log('   - La función renderOpponentTopicsForSelection maneja los clickables');
 console.log('   - Imposible preguntarse a uno mismo');
+console.log('   - Franjas más anchas (450px) para preguntas completas');
+
+// MEJORAR LA FUNCIÓN renderOpponentTopicsForSelection EXISTENTE
+// Esta función sobrescribe la versión existente para mostrar preguntas completas
+window.renderOpponentTopicsForSelection = function(questionBank, canSelect) {
+    if (!questionBank || Object.keys(questionBank).length === 0) {
+        return `
+            <div style="text-align: center; padding: 50px 20px; color: #bfdbfe;">
+                <div style="font-size: 4rem; margin-bottom: 20px;">⏳</div>
+                <p style="margin: 0; font-size: 18px; font-weight: bold;">Esperando temas del oponente...</p>
+                <p style="margin: 15px 0 0 0; font-size: 14px; opacity: 0.8;">La sincronización puede tardar unos segundos</p>
+            </div>
+        `;
+    }
+
+    let html = '';
+    Object.keys(questionBank).forEach(topicKey => {
+        const topic = questionBank[topicKey];
+        if (topic.questions && topic.questions.length > 0) {
+            html += `
+                <div style="margin-bottom: 15px; border: 2px solid ${canSelect ? '#fbbf24' : 'rgba(255,255,255,0.2)'}; 
+                            border-radius: 12px; overflow: hidden; background: rgba(255,255,255,0.1);
+                            ${canSelect ? 'box-shadow: 0 4px 12px rgba(251,191,36,0.4);' : 'box-shadow: 0 2px 8px rgba(0,0,0,0.1);'}">
+                    
+                    <div style="background: ${canSelect ? 'linear-gradient(135deg, #fbbf24, #f59e0b)' : 'rgba(255,255,255,0.1)'}; 
+                                padding: 15px; border-bottom: 1px solid ${canSelect ? '#f59e0b' : 'rgba(255,255,255,0.2)'}; 
+                                cursor: pointer;" onclick="toggleTopicQuestions('opponent-${topicKey}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 700; color: ${canSelect ? '#92400e' : '#bfdbfe'}; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                ${topic.name}
+                            </span>
+                            <span style="background: ${canSelect ? '#f59e0b' : 'rgba(255,255,255,0.2)'}; 
+                                         color: ${canSelect ? 'white' : '#bfdbfe'}; padding: 4px 10px; border-radius: 14px; 
+                                         font-size: 13px; font-weight: bold;">
+                                ${topic.questions.length}
+                            </span>
+                        </div>
+                        ${canSelect ? `<div style="margin-top: 8px; font-size: 12px; color: #92400e; opacity: 0.9; font-weight: 600;">👆 Clic para expandir y seleccionar preguntas</div>` : ''}
+                    </div>
+                    
+                    <div id="opponent-questions-${topicKey}" style="display: none; max-height: 300px; overflow-y: auto; 
+                                background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);">
+                        ${topic.questions.map((question, index) => `
+                            <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; 
+                                       ${canSelect ? 'cursor: pointer; transition: all 0.2s;' : ''} 
+                                       font-size: 14px; line-height: 1.6; word-wrap: break-word; 
+                                       white-space: normal; max-width: 100%;"
+                                 ${canSelect ? `onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey}')" 
+                                               onmouseover="this.style.backgroundColor='#fef3c7'; this.style.transform='scale(1.02)';"
+                                               onmouseout="this.style.backgroundColor='transparent'; this.style.transform='scale(1)';"` : ''}>
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                    <div style="display: flex; align-items: flex-start; gap: 10px;">
+                                        <strong style="color: ${canSelect ? '#f59e0b' : '#6b7280'}; min-width: 30px; font-size: 13px;">
+                                            P${index + 1}:
+                                        </strong>
+                                        <span style="color: ${canSelect ? '#374151' : '#6b7280'}; flex: 1; 
+                                                     word-wrap: break-word; white-space: normal; line-height: 1.5;">
+                                            ${question.question}
+                                        </span>
+                                    </div>
+                                    ${canSelect ? `<div style="text-align: right; margin-top: 5px;">
+                                        <span style="background: #f59e0b; color: white; padding: 4px 8px; 
+                                                     border-radius: 6px; font-size: 11px; font-weight: bold;">
+                                            🎯 SELECCIONAR
+                                        </span>
+                                    </div>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    return html;
+};
 </script>
 <!-- 
 PARCHE DEFINITIVO: SUBIR ARCHIVOS WORD/TXT - VERSIÓN COMPLETA
@@ -16223,6 +16300,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
