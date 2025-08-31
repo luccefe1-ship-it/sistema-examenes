@@ -13106,9 +13106,17 @@ window.renderDuelInterface = function() {
     const showingResult = gameData?.showingResult;
     const canAnswer = currentQuestion && !myTurn && !showingResult && waitingForAnswer;
     
+    // ========== MANEJAR CRONÓMETRO DE RESPUESTA ==========
+    if (canAnswer && !window.multiplayerAnswerTimer) {
+        startAnswerTimer();
+    } else if (!canAnswer && window.multiplayerAnswerTimer) {
+        clearAnswerTimer();
+    }
+    
     // ========== VERIFICAR FIN DEL JUEGO ==========
     const gameEnded = gameData?.gameEnded || false;
     if (gameEnded) {
+        clearAnswerTimer(); // Limpiar cronómetro si termina el juego
         return renderGameEndedScreen(gameData);
     }
     
@@ -13147,7 +13155,10 @@ window.renderDuelInterface = function() {
         const isCorrect = gameData.currentResponse.isCorrect;
         statusMessage = `${isCorrect ? '✅ CORRECTO' : '❌ INCORRECTO'} - Cambiando turno...`;
     } else if (canAnswer) {
-        statusMessage = 'RESPONDER';
+        // Mostrar cronómetro si es mi turno de responder
+        const timeLeft = window.multiplayerTimeLeft || 60;
+        const timeColor = timeLeft <= 10 ? '#dc2626' : timeLeft <= 30 ? '#f59e0b' : '#22c55e';
+        statusMessage = `RESPONDER - <span style="color: ${timeColor}; font-weight: bold;">⏰ ${timeLeft}s</span>`;
     } else if (currentQuestion && waitingForAnswer) {
         statusMessage = '⏳ ESPERANDO RESPUESTA - Tu oponente está respondiendo';
     } else if (myTurn) {
@@ -13308,10 +13319,10 @@ window.renderDuelInterface = function() {
                     ⚔️ DUELO
                 </div>
                 
-                <!-- Mensaje central -->
-                <div style="text-align: center; flex: 1;">
-                    <p style="margin: 0; font-size: ${statusMessage === 'PREGUNTAR' || statusMessage === 'RESPONDER' ? '2.5rem' : '18px'}; 
-                              font-weight: bold;">
+                <!-- Mensaje central con HTML habilitado para el cronómetro -->
+                <div style="text-align: center; flex: 1;" id="status-message">
+                    <p style="margin: 0; font-size: ${statusMessage.includes('PREGUNTAR') || statusMessage.includes('RESPONDER') ? '2.5rem' : '18px'}; 
+                              font-weight: bold;" id="status-text">
                         ${statusMessage}
                     </p>
                 </div>
@@ -16637,6 +16648,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
