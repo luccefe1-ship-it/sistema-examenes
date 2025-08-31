@@ -17103,10 +17103,768 @@ window.renderViewSummaryWithEditor = renderViewSummaryFixed;
 console.log('✅ Botón "Editar Texto" configurado para opciones completas');
 console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>
+<!-- 
+PARCHE: SISTEMA DE ÍNDICE DE TEMAS DE OPOSICIÓN
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Sistema completo para gestionar progreso de temas de estudio
+-->
 
+<script>
+    // ========== PARCHE: SISTEMA DE ÍNDICE DE TEMAS DE OPOSICIÓN ==========
+    console.log('📖 Implementando sistema de índice de temas...');
+    
+    // Estado global para los temas de oposición
+    let topicsIndexState = {
+        topics: [],
+        nextId: 1
+    };
+    
+    // Colores para las vueltas
+    const ROUND_COLORS = {
+        1: '#ffffff', // Blanco - primera vuelta
+        2: '#22c55e', // Verde - segunda vuelta
+        3: '#3b82f6', // Azul - tercera vuelta
+        4: '#f59e0b'  // Dorado - cuarta vuelta o más
+    };
+    
+    // Nombres de las fases
+    const PHASES = ['leido', 'memorizado', 'practicado'];
+    const PHASE_NAMES = ['Leído', 'Memorizado', 'Practicado'];
+    const PHASE_ICONS = ['📖', '🧠', '✍️'];
+    
+    // FUNCIÓN para ir al índice de temas desde el menú principal
+    window.goToTopicsIndex = function() {
+        console.log('📖 Cambiando a Índice de Temas...');
+        
+        showIntermediateScreen = false;
+        state.currentTab = 'topics-index';
+        
+        // Cargar temas del usuario
+        loadUserTopics();
+        
+        render();
+    };
+    
+    // FUNCIÓN para volver al menú desde el índice
+    window.backToMainMenuFromTopics = function() {
+        console.log('🏠 Volviendo al menú principal desde índice...');
+        showIntermediateScreen = true;
+        state.currentTab = 'upload';
+        render();
+    };
+    
+    // FUNCIÓN para cargar temas del usuario
+    function loadUserTopics() {
+        if (!state.currentUser) return;
+        
+        const saved = localStorage.getItem(`topics_index_${state.currentUser.username}`);
+        if (saved) {
+            const data = JSON.parse(saved);
+            topicsIndexState.topics = data.topics || [];
+            topicsIndexState.nextId = data.nextId || 1;
+        } else {
+            topicsIndexState.topics = [];
+            topicsIndexState.nextId = 1;
+        }
+    }
+    
+    // FUNCIÓN para guardar temas del usuario
+    function saveUserTopics() {
+        if (!state.currentUser) return;
+        
+        const data = {
+            topics: topicsIndexState.topics,
+            nextId: topicsIndexState.nextId
+        };
+        
+        localStorage.setItem(`topics_index_${state.currentUser.username}`, JSON.stringify(data));
+    }
+    
+    // FUNCIÓN para añadir nuevo tema
+    function addNewTopic() {
+        const topicName = prompt('Introduce el nombre del tema (ej: "Tema 1: Constitución Española"):');
+        
+        if (!topicName || topicName.trim() === '') {
+            return;
+        }
+        
+        const newTopic = {
+            id: topicsIndexState.nextId++,
+            name: topicName.trim(),
+            phases: {
+                leido: false,
+                memorizado: false,
+                practicado: false
+            },
+            completedRounds: 0,
+            currentRound: 1
+        };
+        
+        topicsIndexState.topics.push(newTopic);
+        saveUserTopics();
+        render();
+        
+        showMessage(`✅ Tema "${topicName}" añadido correctamente`, 'success');
+    }
+    
+    // FUNCIÓN para eliminar tema
+    function deleteTopic(topicId) {
+        const topic = topicsIndexState.topics.find(t => t.id === topicId);
+        if (!topic) return;
+        
+        if (!confirm(`¿Seguro que quieres eliminar "${topic.name}"?`)) return;
+        
+        topicsIndexState.topics = topicsIndexState.topics.filter(t => t.id !== topicId);
+        saveUserTopics();
+        render();
+        
+        showMessage(`🗑️ Tema "${topic.name}" eliminado`, 'info');
+    }
+    
+    // FUNCIÓN para marcar/desmarcar fase
+    function togglePhase(topicId, phase) {
+        const topic = topicsIndexState.topics.find(t => t.id === topicId);
+        if (!topic) return;
+        
+        // Toggle la fase
+        topic.phases[phase] = !topic.phases[phase];
+        
+        // Si se desmarca una fase, desmarcar las siguientes también
+        const phaseIndex = PHASES.indexOf(phase);
+        for (let i = phaseIndex + 1; i < PHASES.length; i++) {
+            topic.phases[PHASES[i]] = false;
+        }
+        
+        // Verificar si se completó una vuelta
+        checkRoundCompletion(topic);
+        
+        saveUserTopics();
+        render();
+    }
+    
+    // FUNCIÓN para verificar si se completó una vuelta
+    function checkRoundCompletion(topic) {
+        const allCompleted = PHASES.every(phase => topic.phases[phase]);
+        
+        if (allCompleted && topic.phases.leido && topic.phases.memorizado && topic.phases.practicado) {
+            // Completó una vuelta
+            topic.completedRounds++;
+            topic.currentRound = topic.completedRounds + 1;
+            
+            // Reset fases para la próxima vuelta
+            topic.phases = {
+                leido: false,
+                memorizado: false,
+                practicado: false
+            };
+            
+            const roundText = getOrdinalText(topic.completedRounds + 1);
+            showMessage(`🎉 ¡Has completado la ${getOrdinalText(topic.completedRounds)} vuelta de "${topic.name}"! Ahora en ${roundText} vuelta`, 'success');
+        }
+    }
+    
+    // FUNCIÓN para obtener texto ordinal
+    function getOrdinalText(num) {
+        switch(num) {
+            case 1: return 'primera';
+            case 2: return 'segunda';
+            case 3: return 'tercera';
+            case 4: return 'cuarta';
+            case 5: return 'quinta';
+            default: return num + 'ª';
+        }
+    }
+    
+    // FUNCIÓN para deshacer progreso
+    function undoTopicProgress(topicId) {
+        const topic = topicsIndexState.topics.find(t => t.id === topicId);
+        if (!topic) return;
+        
+        // Buscar la última fase marcada para desmarcar
+        for (let i = PHASES.length - 1; i >= 0; i--) {
+            if (topic.phases[PHASES[i]]) {
+                topic.phases[PHASES[i]] = false;
+                saveUserTopics();
+                render();
+                showMessage(`↶ Desmarcada fase "${PHASE_NAMES[i]}" de "${topic.name}"`, 'info');
+                return;
+            }
+        }
+        
+        // Si no hay fases marcadas, intentar revertir vuelta anterior
+        if (topic.completedRounds > 0) {
+            topic.completedRounds--;
+            topic.currentRound = topic.completedRounds + 1;
+            
+            // Marcar todas las fases como completadas para simular vuelta anterior
+            topic.phases = {
+                leido: true,
+                memorizado: true,
+                practicado: true
+            };
+            
+            saveUserTopics();
+            render();
+            showMessage(`↶ Revertida a ${getOrdinalText(topic.currentRound)} vuelta de "${topic.name}"`, 'info');
+        } else {
+            showMessage(`⚠️ No hay progreso que deshacer en "${topic.name}"`, 'warning');
+        }
+    }
+    
+    // FUNCIÓN para obtener color de la vuelta
+    function getRoundColor(completedRounds) {
+        if (completedRounds === 0) return ROUND_COLORS[1];
+        if (completedRounds === 1) return ROUND_COLORS[2];
+        if (completedRounds === 2) return ROUND_COLORS[3];
+        return ROUND_COLORS[4];
+    }
+    
+    // FUNCIÓN para renderizar el índice de temas
+    function renderTopicsIndexTab() {
+        const hasTopics = topicsIndexState.topics.length > 0;
+        
+        return `
+            <div style="max-width: 1000px; margin: 0 auto; padding: 20px;">
+                
+                <!-- Header -->
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                        <span>📖</span> Índice de Temas
+                    </h1>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                        Gestiona tu progreso de estudio por temas
+                    </p>
+                </div>
+                
+                <!-- Controles superiores -->
+                <div style="display: flex; justify-content: center; gap: 15px; margin-bottom: 40px; flex-wrap: wrap;">
+                    <button onclick="addNewTopic()" class="btn btn-success" style="padding: 12px 20px; display: flex; align-items: center; gap: 8px;">
+                        <span>➕</span> Añadir Tema
+                    </button>
+                    <button onclick="loadUserTopics(); render();" class="btn btn-info" style="padding: 12px 20px; display: flex; align-items: center; gap: 8px;">
+                        <span>🔄</span> Recargar
+                    </button>
+                    ${hasTopics ? `
+                        <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 12px 20px; border-radius: 20px; font-weight: 600; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
+                            Total: ${topicsIndexState.topics.length} tema${topicsIndexState.topics.length !== 1 ? 's' : ''}
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <!-- Lista de temas -->
+                ${hasTopics ? `
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        ${topicsIndexState.topics.map(topic => {
+                            const roundColor = getRoundColor(topic.completedRounds);
+                            const currentRoundText = topic.completedRounds > 0 ? 
+                                `${getOrdinalText(topic.currentRound).charAt(0).toUpperCase()}${getOrdinalText(topic.currentRound).slice(1)} vuelta` : 
+                                'Primera vuelta';
+                                
+                            return `
+                                <div style="
+                                    background: ${roundColor}; 
+                                    border: 2px solid #e2e8f0; 
+                                    border-radius: 15px; 
+                                    padding: 25px; 
+                                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                                    transition: all 0.3s ease;
+                                    ${topic.completedRounds > 0 ? 'border-color: ' + roundColor.replace('0.1', '0.3') + ';' : ''}
+                                " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                                    
+                                    <!-- Header del tema -->
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                                        <h3 style="color: #1f2937; margin: 0; font-size: 1.3rem; font-weight: 600; flex: 1; min-width: 200px;">
+                                            ${topic.name}
+                                        </h3>
+                                        
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <!-- Indicador de vuelta -->
+                                            ${topic.completedRounds > 0 ? `
+                                                <div style="background: ${roundColor === '#ffffff' ? '#4f46e5' : '#ffffff'}; color: ${roundColor === '#ffffff' ? '#ffffff' : roundColor}; padding: 6px 12px; border-radius: 15px; font-size: 12px; font-weight: 700; border: 2px solid ${roundColor === '#ffffff' ? '#4f46e5' : roundColor};">
+                                                    🏆 ${topic.completedRounds} vuelta${topic.completedRounds !== 1 ? 's' : ''}
+                                                </div>
+                                            ` : ''}
+                                            
+                                            <div style="background: #f3f4f6; color: #6b7280; padding: 6px 12px; border-radius: 15px; font-size: 12px; font-weight: 600;">
+                                                ${currentRoundText}
+                                            </div>
+                                            
+                                            <!-- Botones de control -->
+                                            <button onclick="undoTopicProgress(${topic.id})" class="btn btn-warning" style="padding: 8px 12px; font-size: 12px; min-width: auto;" title="Deshacer último avance">
+                                                ↶
+                                            </button>
+                                            <button onclick="deleteTopic(${topic.id})" class="btn btn-danger" style="padding: 8px 12px; font-size: 12px; min-width: auto;" title="Eliminar tema">
+                                                🗑️
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Franjas de progreso -->
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; border-radius: 10px; overflow: hidden; border: 2px solid #d1d5db; background: #d1d5db;">
+                                        ${PHASES.map((phase, index) => `
+                                            <div onclick="togglePhase(${topic.id}, '${phase}')" style="
+                                                background: ${topic.phases[phase] ? '#10b981' : '#f9fafb'}; 
+                                                color: ${topic.phases[phase] ? '#ffffff' : '#6b7280'}; 
+                                                padding: 20px 15px; 
+                                                text-align: center; 
+                                                cursor: pointer; 
+                                                transition: all 0.2s ease;
+                                                font-weight: ${topic.phases[phase] ? '700' : '500'};
+                                                font-size: 14px;
+                                            " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                                                <div style="font-size: 1.5rem; margin-bottom: 5px;">${PHASE_ICONS[index]}</div>
+                                                <div>${PHASE_NAMES[index]}</div>
+                                                ${topic.phases[phase] ? '<div style="font-size: 1.2rem; margin-top: 5px;">✅</div>' : ''}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                    
+                                    <!-- Progreso visual -->
+                                    <div style="margin-top: 15px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                            <span style="font-size: 13px; color: #6b7280; font-weight: 600;">Progreso actual:</span>
+                                            <span style="font-size: 13px; color: #1f2937; font-weight: 700;">${PHASES.filter(phase => topic.phases[phase]).length}/3 fases</span>
+                                        </div>
+                                        <div style="background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden;">
+                                            <div style="background: linear-gradient(90deg, #10b981, #059669); height: 100%; width: ${(PHASES.filter(phase => topic.phases[phase]).length / 3) * 100}%; transition: width 0.3s ease; border-radius: 4px;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                ` : `
+                    <!-- Estado vacío -->
+                    <div style="text-align: center; padding: 80px 20px;">
+                        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); width: 120px; height: 120px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);">
+                            <span style="font-size: 4rem; color: white;">📖</span>
+                        </div>
+                        <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 2.5rem;">No hay temas añadidos</h2>
+                        <p style="color: #6b7280; margin: 0 0 30px 0; font-size: 1.2rem; line-height: 1.6; max-width: 500px; margin-left: auto; margin-right: auto;">
+                            Crea tu primer tema de estudio para comenzar a organizar tu progreso de oposición.
+                        </p>
+                        
+                        <div style="background: #f0f9ff; border: 2px solid #3b82f6; border-radius: 12px; padding: 25px; margin: 0 auto 30px; text-align: left; max-width: 500px;">
+                            <h3 style="color: #1e40af; margin: 0 0 15px 0; font-size: 1.1rem;">📝 ¿Cómo funciona?</h3>
+                            <ol style="color: #1e3a8a; margin: 0; padding-left: 20px; line-height: 1.8;">
+                                <li>Añade un tema (ej: "Tema 1: Constitución")</li>
+                                <li>Marca las fases: Leído → Memorizado → Practicado</li>
+                                <li>Al completar las 3 fases, empieza una nueva vuelta</li>
+                                <li>Los colores cambian: verde (2ª), azul (3ª), dorado (4ª+)</li>
+                            </ol>
+                        </div>
+                        
+                        <button onclick="addNewTopic()" class="btn btn-success" style="padding: 15px 25px; font-size: 16px;">
+                            ➕ Crear mi primer tema
+                        </button>
+                    </div>
+                `}
+                
+                <!-- Leyenda -->
+                ${hasTopics ? `
+                    <div style="margin-top: 40px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;">
+                        <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 1rem; font-weight: 600; text-align: center;">
+                            📊 Leyenda del Sistema
+                        </h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; text-align: center;">
+                            <div>
+                                <div style="background: #ffffff; border: 2px solid #e2e8f0; height: 40px; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #6b7280;">
+                                    Primera vuelta
+                                </div>
+                                <span style="font-size: 12px; color: #6b7280;">Blanco</span>
+                            </div>
+                            <div>
+                                <div style="background: #22c55e; color: white; height: 40px; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                                    Segunda vuelta
+                                </div>
+                                <span style="font-size: 12px; color: #6b7280;">Verde</span>
+                            </div>
+                            <div>
+                                <div style="background: #3b82f6; color: white; height: 40px; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                                    Tercera vuelta
+                                </div>
+                                <span style="font-size: 12px; color: #6b7280;">Azul</span>
+                            </div>
+                            <div>
+                                <div style="background: #f59e0b; color: white; height: 40px; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                                    Cuarta vuelta+
+                                </div>
+                                <span style="font-size: 12px; color: #6b7280;">Dorado</span>
+                            </div>
+                        </div>
+                        <div style="text-align: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0; color: #6b7280; font-size: 13px;">
+                            💡 Haz clic en las fases para marcar tu progreso • Usa ↶ para deshacer el último avance
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+    
+    // INTERCEPTAR renderIntermediateScreen para añadir el nuevo botón
+    const originalRenderIntermediateScreenTopics = renderIntermediateScreen;
+    window.renderIntermediateScreen = function() {
+        return `
+            <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: -30px; border-radius: 20px;">
+                <div style="background: white; border-radius: 24px; padding: 60px; box-shadow: 0 25px 50px rgba(0,0,0,0.15); max-width: 600px; width: 100%; text-align: center; position: relative; overflow: hidden;">
+                    
+                    <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: linear-gradient(135deg, #667eea20, #764ba220); border-radius: 50%; z-index: 0;"></div>
+                    <div style="position: absolute; bottom: -30px; left: -30px; width: 100px; height: 100px; background: linear-gradient(135deg, #764ba220, #667eea20); border-radius: 50%; z-index: 0;"></div>
+                    
+                    <div style="position: relative; z-index: 1;">
+                        <div style="background: linear-gradient(135deg, #667eea, #764ba2); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);">
+                            <span style="font-size: 2.5rem; filter: drop-shadow(0 2px 4px rgba(255,255,255,0.3));">🎯</span>
+                        </div>
+                        
+                        <h1 style="font-size: 2.8rem; font-weight: 700; margin: 0 0 15px 0; background: linear-gradient(135deg, #2d3748, #4a5568); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                            ¡Bienvenid@!
+                        </h1>
+                        
+                        <p style="font-size: 1.3rem; color: #6b7280; margin: 0 0 50px 0; font-weight: 400; line-height: 1.5;">
+                            Selecciona qué te gustaría hacer hoy
+                        </p>
+                        
+                        <div style="display: grid; gap: 15px; margin-bottom: 40px;">
+                            
+                            <button onclick="goToTests()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📚</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Realizar Tests</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Crear y gestionar exámenes</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button onclick="goToSummaries()" style="background: linear-gradient(135deg, #059669, #0ea5e9); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📊</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Ver Resúmenes</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Analizar resultados y estadísticas</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button onclick="goToMemoryCards()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">🃏</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Tarjetas de Memoria</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Repasar con tarjetas interactivas</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <!-- NUEVO BOTÓN: ÍNDICE DE TEMAS -->
+                            <button onclick="goToTopicsIndex()" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📖</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Índice de Temas</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Organizar progreso de estudio</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button onclick="goToMultiplayer()" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">⚔️</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Duelo de Preguntas</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Compete con otros usuarios</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <!-- BOTÓN EXPORTAR DATOS -->
+                            <button onclick="exportUserDataComplete()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">💾</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Exportar Mis Datos</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Descargar backup completo</div>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                        
+                        <div style="border-top: 1px solid #e5e7eb; padding-top: 25px; color: #9ca3af; font-size: 0.9rem;">
+                            <p style="margin: 0;">Sistema de Exámenes • Usuario: ${state.currentUser.name}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    };
+        
+        // EXTENDER renderTabContent para incluir topics-index
+        const originalRenderTabContentTopics = renderTabContent;
+        renderTabContent = function() {
+            switch(state.currentTab) {
+                case 'upload':
+                    return renderUploadTab();
+                case 'questions':
+                    return renderQuestionsTab();
+                case 'test':
+                    return renderTestTab();
+                case 'results':
+                    return renderResultsTab();
+                case 'summary':
+                    return renderSummaryTab();
+                case 'memory-cards':
+                    return renderMemoryCardsTab();
+                case 'topics-index':
+                    return renderTopicsIndexTab();
+                default:
+                    return '<div>Error: Pestaña no encontrada - ' + state.currentTab + '</div>';
+            }
+        };
+        
+        // EXTENDER render para mostrar botón en header cuando estamos en índice de temas
+        const originalRenderTopicsIndex = render;
+        render = function() {
+            if (showIntermediateScreen && state.currentUser) {
+                const app = document.getElementById('app');
+                app.innerHTML = `
+                    <div class="container">
+                        <div class="header">
+                            <div class="title">Sistema de Exámenes</div>
+                            <div>
+                                <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                                    ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                                </span>
+                                <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                                <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                                <button onclick="logout()" class="btn btn-danger">Salir</button>
+                            </div>
+                        </div>
+                        ${renderIntermediateScreen()}
+                    </div>
+                `;
+            } else if (state.currentUser) {
+                const app = document.getElementById('app');
+                
+                let pageTitle = 'Sistema de Exámenes';
+                if (state.currentTab === 'questions') pageTitle = 'Banco de Preguntas';
+                else if (state.currentTab === 'results') pageTitle = 'Resultados del Test';
+                else if (state.currentTab === 'summary') pageTitle = 'Generador de Resúmenes';
+                else if (state.currentTab === 'memory-cards') pageTitle = 'Tarjetas de Memoria';
+                else if (state.currentTab === 'topics-index') pageTitle = 'Índice de Temas';
+                
+                const showNavTabs = state.currentTab !== 'summary' && state.currentTab !== 'memory-cards' && state.currentTab !== 'topics-index';
+                
+                app.innerHTML = `
+                    <div class="container">
+                        <div class="header">
+                            <div class="title">${pageTitle}</div>
+                            <div>
+                                <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                                    ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                                </span>
+                                <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                                ${state.currentTab === 'memory-cards' ? `
+                                    <button onclick="backToMainMenuFromCards()" class="btn btn-info">🏠 Menú</button>
+                                ` : ''}
+                                ${state.currentTab === 'topics-index' ? `
+                                    <button onclick="backToMainMenuFromTopics()" class="btn btn-info">🏠 Menú</button>
+                                ` : ''}
+                                <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                                <button onclick="logout()" class="btn btn-danger">Salir</button>
+                            </div>
+                        </div>
+
+                        ${showNavTabs ? `
+                            <div class="nav-tabs">
+                                <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
+                                    📤 Subir Test
+                                </button>
+                                <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
+                                    📋 Banco de Preguntas (${getFilteredQuestions().length})
+                                </button>
+                                <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
+                                    🎯 Test Aleatorio
+                                </button>
+                                <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                                    📊 Resultados (${state.testResults.length})
+                                </button>
+                            </div>
+                        ` : ''}
+
+                        <div id="messages"></div>
+
+                        ${renderTabContent()}
+                    </div>
+                `;
+            } else {
+                originalRenderTopicsIndex.call(this);
+            }
+        };
+        
+        // ATAJOS DE TECLADO para el índice de temas
+        function setupTopicsIndexKeyboard() {
+            document.addEventListener('keydown', function(e) {
+                if (state.currentTab !== 'topics-index') return;
+                
+                switch(e.key) {
+                    case 'n':
+                    case 'N':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            addNewTopic();
+                        }
+                        break;
+                    case 'r':
+                    case 'R':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            loadUserTopics();
+                            render();
+                        }
+                        break;
+                    case 'Escape':
+                        e.preventDefault();
+                        backToMainMenuFromTopics();
+                        break;
+                }
+            });
+        }
+        
+        setupTopicsIndexKeyboard();
+        
+        // FUNCIÓN para incluir datos de temas en la exportación
+        const originalExportUserDataComplete = window.exportUserDataComplete;
+        window.exportUserDataComplete = function() {
+            if (!state.currentUser) {
+                showMessage('❌ Error: No hay usuario logueado', 'error');
+                return;
+            }
+            
+            try {
+                const username = state.currentUser.username;
+                
+                // Obtener datos de la cuenta desde localStorage
+                const allUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+                const accountData = allUsers[username];
+                
+                if (!accountData) {
+                    showMessage('❌ Error: No se encontraron datos de la cuenta', 'error');
+                    return;
+                }
+                
+                // Obtener datos de temas
+                const topicsData = localStorage.getItem(`topics_index_${username}`);
+                const parsedTopicsData = topicsData ? JSON.parse(topicsData) : { topics: [], nextId: 1 };
+                
+                // Crear backup completo con cuenta + datos + temas
+                const completeBackup = {
+                    version: "2.1",
+                    exportDate: new Date().toISOString(),
+                    exportTimestamp: Date.now(),
+                    username: username,
+                    accountData: {
+                        password: accountData.password,
+                        name: accountData.name,
+                        securityQuestion: accountData.securityQuestion,
+                        securityAnswer: accountData.securityAnswer,
+                        createdAt: accountData.createdAt
+                    },
+                    userData: {
+                        questions: state.questions || [],
+                        topics: state.topics || [],
+                        testResults: state.testResults || [],
+                        summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
+                        savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
+                        apiKey: state.apiKey || '',
+                        topicsIndex: parsedTopicsData
+                    },
+                    stats: {
+                        totalQuestions: state.questions ? state.questions.length : 0,
+                        totalTopics: state.topics ? state.topics.length : 0,
+                        totalTests: state.testResults ? state.testResults.length : 0,
+                        totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0,
+                        totalIndexTopics: parsedTopicsData.topics ? parsedTopicsData.topics.length : 0
+                    }
+                };
+                
+                // Mostrar estadísticas antes de descargar
+                const statsMessage = `
+    📊 BACKUP COMPLETO GENERADO:
+    • Preguntas: ${completeBackup.stats.totalQuestions}
+    • Temas: ${completeBackup.stats.totalTopics}
+    • Tests realizados: ${completeBackup.stats.totalTests}
+    • Resúmenes: ${completeBackup.stats.totalSummaries}
+    • Temas de índice: ${completeBackup.stats.totalIndexTopics}
+    • Datos de cuenta: ✅ Incluidos
+                `;
+                
+                showMessage(statsMessage, 'success');
+                
+                // Crear archivo para descarga
+                const blob = new Blob([JSON.stringify(completeBackup, null, 2)], { 
+                    type: 'application/json' 
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                
+                const dateStr = new Date().toISOString().split('T')[0];
+                const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
+                a.href = url;
+                a.download = `backup_completo_${username}_${dateStr}_${timeStr}.json`;
+                
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                // Mensaje de confirmación con instrucciones
+                setTimeout(() => {
+                    showMessage(`
+    ✅ BACKUP DESCARGADO EXITOSAMENTE
+    📁 Archivo: backup_completo_${username}_${dateStr}_${timeStr}.json
+
+    💡 INSTRUCCIONES:
+    • Guarda este archivo en un lugar seguro
+    • Para usar en otro dispositivo: Login + Importar este archivo
+    • Incluye tanto tu cuenta como todos tus datos
+                    `, 'success');
+                }, 1000);
+                
+                console.log('✅ Backup completo exportado para:', username);
+                
+            } catch (error) {
+                console.error('❌ Error exportando backup:', error);
+                showMessage('❌ Error al exportar datos: ' + error.message, 'error');
+            }
+        };
+        
+        console.log('✅ Sistema de Índice de Temas implementado');
+        console.log('📖 Funcionalidades:');
+        console.log('   - Botón "📖 Índice de Temas" en menú principal');
+        console.log('   - Crear/eliminar temas dinámicamente');
+        console.log('   - Sistema de 3 fases: Leído, Memorizado, Practicado');
+        console.log('   - Sistema de vueltas con colores:');
+        console.log('     • Blanco: Primera vuelta');
+        console.log('     • Verde: Segunda vuelta');  
+        console.log('     • Azul: Tercera vuelta');
+        console.log('     • Dorado: Cuarta vuelta y más');
+        console.log('   - Función deshacer para revertir progreso');
+        console.log('   - Persistencia por usuario en localStorage');
+        console.log('   - Incluido en sistema de exportación');
+        console.log('   - Atajos de teclado: Ctrl+N (nuevo), Ctrl+R (recargar), Esc (salir)');
+        console.log('   - Interfaz responsive con animaciones');
+        
+        // Forzar re-renderizado inmediato
+        setTimeout(() => {
+            if (state.currentUser && typeof window.render === 'function') {
+                render();
+            }
+        }, 100);
+    </script>
 
 </body>
 </html>
+
 
 
 
