@@ -13106,6 +13106,12 @@ window.renderDuelInterface = function() {
     const showingResult = gameData?.showingResult;
     const canAnswer = currentQuestion && !myTurn && !showingResult && waitingForAnswer;
     
+    // ========== VERIFICAR FIN DEL JUEGO ==========
+    const gameEnded = gameData?.gameEnded || false;
+    if (gameEnded) {
+        return renderGameEndedScreen(gameData);
+    }
+    
     // ========== SISTEMA DE COLORES DINÁMICO ==========
     // VERDE: Turno de preguntar (myTurn = true)
     // ROJO: Turno de responder (canAnswer = true o esperando)
@@ -13491,7 +13497,16 @@ window.answerCurrentQuestion = function(optionIndex) {
             (multiplayerState.myFailures || 0) : 
             (multiplayerState.myFailures || 0);
         
-        responseData[failuresPath] = currentFailures + 1;
+        const newFailures = currentFailures + 1;
+        responseData[failuresPath] = newFailures;
+        
+        // VERIFICAR SI EL JUEGO TERMINA (3 fallos)
+        if (newFailures >= 3) {
+            responseData['gameData/gameEnded'] = true;
+            responseData['gameData/winner'] = multiplayerState.isHost ? 'guest' : 'host'; // El que NO falló gana
+            responseData['gameData/loser'] = multiplayerState.isHost ? 'host' : 'guest';
+            responseData['gameData/endReason'] = 'maxFailures';
+        }
     }
     
     // Actualizar Firebase con la respuesta
@@ -13504,6 +13519,12 @@ window.answerCurrentQuestion = function(optionIndex) {
         
         // Después de 5 segundos, cambiar el turno y limpiar la pregunta
         setTimeout(() => {
+            // Verificar si el juego terminó antes de cambiar turno
+            const updatedGameData = multiplayerState.currentRoomData?.gameData;
+            if (updatedGameData?.gameEnded) {
+                console.log('🏁 Juego terminado - No cambiar turno');
+                return;
+            }
             changeToNextTurn();
         }, 5000);
         
@@ -13626,6 +13647,153 @@ window.renderOpponentTopicsForSelection = function(questionBank, canSelect) {
     });
 
     return html;
+};
+
+// FUNCIÓN PARA MOSTRAR PANTALLA DE FINAL DEL JUEGO
+function renderGameEndedScreen(gameData) {
+    const winner = gameData.winner;
+    const loser = gameData.loser;
+    const myRole = multiplayerState.isHost ? 'host' : 'guest';
+    const opponent = multiplayerState.opponent;
+    
+    const iAmWinner = winner === myRole;
+    const winnerName = winner === 'host' 
+        ? (multiplayerState.isHost ? state.currentUser?.name || 'Tú' : opponent?.name || 'Anfitrión')
+        : (multiplayerState.isHost ? opponent?.name || 'Invitado' : state.currentUser?.name || 'Tú');
+    
+    const loserName = loser === 'host'
+        ? (multiplayerState.isHost ? state.currentUser?.name || 'Tú' : opponent?.name || 'Anfitrión')
+        : (multiplayerState.isHost ? opponent?.name || 'Invitado' : state.currentUser?.name || 'Tú');
+
+    // Aplicar estilo anti-scroll
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+
+    return `
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; 
+                    background: linear-gradient(135deg, ${iAmWinner ? '#10b981, #059669' : '#dc2626, #991b1b'}); 
+                    display: flex; align-items: center; justify-content: center; color: white;">
+            
+            <div style="text-align: center; max-width: 600px; padding: 40px;">
+                
+                <!-- Emoji y resultado principal -->
+                <div style="font-size: 8rem; margin-bottom: 30px;">
+                    ${iAmWinner ? '🏆' : '💔'}
+                </div>
+                
+                <!-- Mensaje principal -->
+                <h1 style="font-size: 4rem; font-weight: bold; margin: 0 0 20px 0; text-shadow: 0 4px 8px rgba(0,0,0,0.3);">
+                    ${iAmWinner ? '¡VICTORIA!' : 'DERROTA'}
+                </h1>
+                
+                <!-- Subtítulo -->
+                <h2 style="font-size: 2rem; font-weight: 600; margin: 0 0 30px 0; opacity: 0.9;">
+                    ${iAmWinner ? 'Has ganado el duelo' : 'Has perdido el duelo'}
+                </h2>
+                
+                <!-- Detalles del resultado -->
+                <div style="background: rgba(255,255,255,0.1); border-radius: 16px; padding: 30px; margin-bottom: 40px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 1.5rem; margin-bottom: 15px; font-weight: 600;">
+                        📊 Resultado Final
+                    </div>
+                    <div style="font-size: 1.2rem; line-height: 1.6;">
+                        <div style="margin-bottom: 10px;">
+                            🏆 <strong>Ganador:</strong> ${winnerName}
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            💔 <strong>Perdedor:</strong> ${loserName}
+                        </div>
+                        <div>
+                            ❌ <strong>Motivo:</strong> 3 respuestas incorrectas
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Estadísticas -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px;">
+                    <div style="background: rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; backdrop-filter: blur(5px);">
+                        <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 8px;">
+                            ${multiplayerState.isHost ? '👑 Anfitrión' : '👤 Invitado'} (Tú)
+                        </div>
+                        <div style="font-size: 2rem; font-weight: bold;">
+                            ${multiplayerState.myFailures || 0}/3
+                        </div>
+                        <div style="font-size: 0.9rem; opacity: 0.8;">Fallos</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; backdrop-filter: blur(5px);">
+                        <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 8px;">
+                            ${!multiplayerState.isHost ? '👑 Anfitrión' : '👤 Invitado'}
+                        </div>
+                        <div style="font-size: 2rem; font-weight: bold;">
+                            ${multiplayerState.opponentFailures || 0}/3
+                        </div>
+                        <div style="font-size: 0.9rem; opacity: 0.8;">Fallos</div>
+                    </div>
+                </div>
+                
+                <!-- Botones -->
+                <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                    <button onclick="restartGame()" style="background: rgba(255,255,255,0.2); color: white; 
+                            border: 2px solid rgba(255,255,255,0.4); padding: 15px 30px; border-radius: 12px; 
+                            cursor: pointer; font-weight: bold; font-size: 16px; transition: all 0.2s;
+                            backdrop-filter: blur(10px);">
+                        🔄 Jugar de Nuevo
+                    </button>
+                    <button onclick="exitToMainMenu()" style="background: rgba(255,255,255,0.2); color: white; 
+                            border: 2px solid rgba(255,255,255,0.4); padding: 15px 30px; border-radius: 12px; 
+                            cursor: pointer; font-weight: bold; font-size: 16px; transition: all 0.2s;
+                            backdrop-filter: blur(10px);">
+                        🏠 Menú Principal
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// FUNCIÓN PARA REINICIAR EL JUEGO
+window.restartGame = function() {
+    const restartData = {
+        'gameData/hostFailures': 0,
+        'gameData/guestFailures': 0,
+        'gameData/currentQuestionData': null,
+        'gameData/currentResponse': null,
+        'gameData/showingResult': false,
+        'gameData/waitingForAnswer': false,
+        'gameData/gameEnded': false,
+        'gameData/winner': null,
+        'gameData/loser': null,
+        'gameData/endReason': null,
+        'gameData/currentTurn': 'host', // El anfitrión empieza
+        lastActivity: firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    database.ref('rooms/' + multiplayerState.currentRoom).update(restartData).then(() => {
+        showMessage('🎮 Juego reiniciado - ¡Nueva partida!', 'success');
+    }).catch(error => {
+        console.error('❌ Error reiniciando juego:', error);
+        showMessage('Error al reiniciar el juego', 'error');
+    });
+};
+
+// FUNCIÓN PARA SALIR AL MENÚ PRINCIPAL
+window.exitToMainMenu = function() {
+    // Restaurar scroll normal
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    
+    // Salir de la sala completamente
+    if (typeof exitMultiplayerMode === 'function') {
+        exitMultiplayerMode();
+    } else {
+        multiplayerState.gameState = 'idle';
+        multiplayerState.roomCode = null;
+        multiplayerState.currentRoom = null;
+        multiplayerState.opponent = null;
+        render();
+    }
+    
+    showMessage('👋 Has salido del duelo', 'info');
 };
 </script>
 <!-- 
@@ -16300,6 +16468,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
