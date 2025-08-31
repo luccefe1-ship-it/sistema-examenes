@@ -16635,9 +16635,384 @@ window.renderViewSummaryWithEditor = renderViewSummaryFixed;
 
 console.log('✅ Botón "Editar Texto" configurado para opciones completas');
 console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
-</script>        
+</script>
+<!-- 
+PARCHE: SISTEMA DE EXPORTACIÓN/IMPORTACIÓN DE DATOS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche implementa exportación/importación completa de datos de usuario
+-->
+
+<script>
+    // ========== PARCHE: SISTEMA DE EXPORTACIÓN/IMPORTACIÓN ==========
+    console.log('💾 Implementando sistema de exportación/importación...');
+    
+    // GESTOR DE EXPORTACIÓN/IMPORTACIÓN
+    const DataBackupManager = {
+        // Obtener todos los datos del usuario actual
+        getAllUserData(username) {
+            const userData = {
+                // Metadatos del backup
+                metadata: {
+                    username: username,
+                    exportDate: new Date().toISOString(),
+                    exportTime: new Date().toLocaleString('es-ES'),
+                    version: '1.0',
+                    appName: 'Sistema de Exámenes'
+                },
+                
+                // Datos principales
+                questions: JSON.parse(localStorage.getItem(`realUser_${username}_questions`) || '[]'),
+                topics: JSON.parse(localStorage.getItem(`realUser_${username}_topics`) || '[]'),
+                testResults: JSON.parse(localStorage.getItem(`realUser_${username}_testResults`) || '[]'),
+                summaryTopics: JSON.parse(localStorage.getItem(`realUser_${username}_summaryTopics`) || '[]'),
+                savedSummaries: JSON.parse(localStorage.getItem(`realUser_${username}_savedSummaries`) || '[]'),
+                apiKey: localStorage.getItem(`realUser_${username}_apiKey`) || '',
+                
+                // Información del usuario
+                userInfo: this.getUserInfo(username),
+                
+                // Estadísticas
+                stats: this.generateStats(username)
+            };
+            
+            return userData;
+        },
+        
+        // Obtener información del usuario
+        getUserInfo(username) {
+            const users = RealUserManager.getAllUsers();
+            const user = users[username];
+            return user ? {
+                name: user.name,
+                createdAt: user.createdAt,
+                lastLogin: user.lastLogin
+            } : null;
+        },
+        
+        // Generar estadísticas
+        generateStats(username) {
+            const questions = JSON.parse(localStorage.getItem(`realUser_${username}_questions`) || '[]');
+            const testResults = JSON.parse(localStorage.getItem(`realUser_${username}_testResults`) || '[]');
+            const topics = JSON.parse(localStorage.getItem(`realUser_${username}_topics`) || '[]');
+            
+            return {
+                totalQuestions: questions.length,
+                verifiedQuestions: questions.filter(q => q.isVerified).length,
+                totalTopics: topics.length,
+                totalTests: testResults.length,
+                averageScore: testResults.length > 0 ? 
+                    (testResults.reduce((sum, test) => sum + test.score, 0) / testResults.length).toFixed(1) : 0
+            };
+        },
+        
+        // Exportar datos a archivo JSON
+        exportUserData(username) {
+            try {
+                const userData = this.getAllUserData(username);
+                const jsonData = JSON.stringify(userData, null, 2);
+                
+                // Crear nombre de archivo
+                const timestamp = new Date().toISOString().split('T')[0];
+                const filename = `backup_${username}_${timestamp}.json`;
+                
+                // Crear y descargar archivo
+                const blob = new Blob([jsonData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showMessage(`✅ Backup exportado: ${filename}`, 'success');
+                console.log('📤 Datos exportados:', userData.stats);
+                
+                return true;
+            } catch (error) {
+                showMessage(`❌ Error al exportar: ${error.message}`, 'error');
+                console.error('Error en exportación:', error);
+                return false;
+            }
+        },
+        
+        // Importar datos desde archivo JSON
+        importUserData(username, fileContent) {
+            try {
+                const userData = JSON.parse(fileContent);
+                
+                // Validar estructura del backup
+                if (!userData.metadata || !userData.metadata.appName) {
+                    throw new Error('Archivo de backup inválido');
+                }
+                
+                // Confirmar importación
+                const confirmMsg = `¿Importar datos del backup?\n\n` +
+                    `Usuario original: ${userData.metadata.username}\n` +
+                    `Fecha: ${userData.metadata.exportTime}\n` +
+                    `Preguntas: ${userData.stats.totalQuestions}\n` +
+                    `Tests: ${userData.stats.totalTests}\n\n` +
+                    `⚠️ ESTO SOBRESCRIBIRÁ TODOS TUS DATOS ACTUALES`;
+                
+                if (!confirm(confirmMsg)) {
+                    return false;
+                }
+                
+                // Importar datos
+                this.restoreUserData(username, userData);
+                
+                // Recargar datos en la aplicación
+                if (state.currentUser && state.currentUser.username === username) {
+                    RealDataManager.loadIntoGlobalData(username);
+                }
+                
+                showMessage(`✅ Datos importados correctamente`, 'success');
+                showMessage(`📊 ${userData.stats.totalQuestions} preguntas, ${userData.stats.totalTests} tests restaurados`, 'info');
+                
+                // Renderizar para mostrar datos actualizados
+                render();
+                
+                return true;
+            } catch (error) {
+                showMessage(`❌ Error al importar: ${error.message}`, 'error');
+                console.error('Error en importación:', error);
+                return false;
+            }
+        },
+        
+        // Restaurar datos en localStorage
+        restoreUserData(username, userData) {
+            // Guardar cada tipo de dato
+            localStorage.setItem(`realUser_${username}_questions`, JSON.stringify(userData.questions || []));
+            localStorage.setItem(`realUser_${username}_topics`, JSON.stringify(userData.topics || []));
+            localStorage.setItem(`realUser_${username}_testResults`, JSON.stringify(userData.testResults || []));
+            localStorage.setItem(`realUser_${username}_summaryTopics`, JSON.stringify(userData.summaryTopics || []));
+            localStorage.setItem(`realUser_${username}_savedSummaries`, JSON.stringify(userData.savedSummaries || []));
+            localStorage.setItem(`realUser_${username}_apiKey`, userData.apiKey || '');
+            
+            console.log('💾 Datos restaurados en localStorage');
+        }
+    };
+    
+    // FUNCIONES PÚBLICAS PARA LA INTERFAZ
+    window.exportCurrentUserData = function() {
+        if (!state.currentUser) {
+            showMessage('❌ No hay usuario logueado', 'error');
+            return;
+        }
+        
+        DataBackupManager.exportUserData(state.currentUser.username);
+    };
+    
+    window.importUserData = function() {
+        if (!state.currentUser) {
+            showMessage('❌ No hay usuario logueado', 'error');
+            return;
+        }
+        
+        // Crear input file oculto
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.style.display = 'none';
+        
+        input.onchange = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (!file.name.endsWith('.json')) {
+                showMessage('❌ Selecciona un archivo JSON válido', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                DataBackupManager.importUserData(state.currentUser.username, e.target.result);
+            };
+            reader.readAsText(file);
+        };
+        
+        document.body.appendChild(input);
+        input.click();
+        document.body.removeChild(input);
+    };
+    
+    window.showBackupInfo = function() {
+        if (!state.currentUser) {
+            showMessage('❌ No hay usuario logueado', 'error');
+            return;
+        }
+        
+        const userData = DataBackupManager.getAllUserData(state.currentUser.username);
+        const info = `📊 INFORMACIÓN DE TU CUENTA\n\n` +
+            `Usuario: ${userData.metadata.username}\n` +
+            `Nombre: ${userData.userInfo?.name || 'N/A'}\n` +
+            `Creada: ${userData.userInfo?.createdAt ? new Date(userData.userInfo.createdAt).toLocaleDateString('es-ES') : 'N/A'}\n\n` +
+            `📈 ESTADÍSTICAS:\n` +
+            `• Preguntas totales: ${userData.stats.totalQuestions}\n` +
+            `• Preguntas verificadas: ${userData.stats.verifiedQuestions}\n` +
+            `• Temas: ${userData.stats.totalTopics}\n` +
+            `• Tests realizados: ${userData.stats.totalTests}\n` +
+            `• Puntuación promedio: ${userData.stats.averageScore}%\n\n` +
+            `💾 Puedes exportar estos datos para hacer backup`;
+        
+        alert(info);
+    };
+    
+    // INTERCEPCIÓN DEL RENDERIZADO PARA AÑADIR BOTONES
+    const originalRender = window.render;
+    window.render = function() {
+        // Llamar al render original
+        originalRender();
+        
+        // Añadir botones de backup si estamos logueados
+        if (state.currentUser && !showIntermediateScreen) {
+            addBackupButtons();
+        }
+    };
+    
+    // FUNCIÓN PARA AÑADIR BOTONES DE BACKUP
+    function addBackupButtons() {
+        const header = document.querySelector('.header');
+        if (!header) return;
+        
+        // Verificar si ya existen los botones
+        if (header.querySelector('.backup-buttons')) return;
+        
+        // Crear contenedor de botones de backup
+        const backupContainer = document.createElement('div');
+        backupContainer.className = 'backup-buttons';
+        backupContainer.style.cssText = `
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-left: 10px;
+        `;
+        
+        // Botón de información
+        const infoBtn = document.createElement('button');
+        infoBtn.innerHTML = '📊';
+        infoBtn.title = 'Ver información de la cuenta';
+        infoBtn.className = 'btn btn-secondary';
+        infoBtn.style.cssText = `
+            padding: 6px 10px;
+            font-size: 14px;
+            min-width: auto;
+        `;
+        infoBtn.onclick = showBackupInfo;
+        
+        // Botón de exportar
+        const exportBtn = document.createElement('button');
+        exportBtn.innerHTML = '📤';
+        exportBtn.title = 'Exportar datos (backup)';
+        exportBtn.className = 'btn btn-primary';
+        exportBtn.style.cssText = `
+            padding: 6px 10px;
+            font-size: 14px;
+            min-width: auto;
+            background: #10b981;
+            border-color: #10b981;
+        `;
+        exportBtn.onclick = exportCurrentUserData;
+        
+        // Botón de importar
+        const importBtn = document.createElement('button');
+        importBtn.innerHTML = '📥';
+        importBtn.title = 'Importar datos desde backup';
+        importBtn.className = 'btn btn-warning';
+        importBtn.style.cssText = `
+            padding: 6px 10px;
+            font-size: 14px;
+            min-width: auto;
+            background: #f59e0b;
+            border-color: #f59e0b;
+        `;
+        importBtn.onclick = importUserData;
+        
+        // Añadir botones al contenedor
+        backupContainer.appendChild(infoBtn);
+        backupContainer.appendChild(exportBtn);
+        backupContainer.appendChild(importBtn);
+        
+        // Insertar en el header (después del usuario)
+        const userSpan = header.querySelector('span[style*="color: #f59e0b"]');
+        if (userSpan) {
+            userSpan.parentNode.insertBefore(backupContainer, userSpan.nextSibling);
+        }
+    }
+    
+    // AUTO-BACKUP OPCIONAL (cada 24 horas)
+    function setupAutoBackup() {
+        const AUTO_BACKUP_KEY = 'lastAutoBackup';
+        const BACKUP_INTERVAL = 24 * 60 * 60 * 1000; // 24 horas
+        
+        function checkAutoBackup() {
+            if (!state.currentUser) return;
+            
+            const lastBackup = localStorage.getItem(AUTO_BACKUP_KEY);
+            const now = Date.now();
+            
+            if (!lastBackup || (now - parseInt(lastBackup)) > BACKUP_INTERVAL) {
+                const userData = DataBackupManager.getAllUserData(state.currentUser.username);
+                
+                // Solo hacer auto-backup si hay datos significativos
+                if (userData.stats.totalQuestions > 10 || userData.stats.totalTests > 5) {
+                    try {
+                        const jsonData = JSON.stringify(userData);
+                        localStorage.setItem(`autoBackup_${state.currentUser.username}`, jsonData);
+                        localStorage.setItem(AUTO_BACKUP_KEY, now.toString());
+                        console.log('🔄 Auto-backup realizado');
+                    } catch (error) {
+                        console.error('Error en auto-backup:', error);
+                    }
+                }
+            }
+        }
+        
+        // Verificar auto-backup cada 10 minutos
+        setInterval(checkAutoBackup, 10 * 60 * 1000);
+    }
+    
+    // Inicializar auto-backup
+    setupAutoBackup();
+    
+    console.log('✅ Sistema de exportación/importación implementado correctamente');
+    console.log('🎯 Funciones disponibles:');
+    console.log('   - exportCurrentUserData(): Exportar datos del usuario actual');
+    console.log('   - importUserData(): Importar datos desde archivo');
+    console.log('   - showBackupInfo(): Ver información de la cuenta');
+    console.log('📊 Botones añadidos automáticamente en la interfaz');
+</script>
+
+<style>
+/* ESTILOS PARA LOS BOTONES DE BACKUP */
+.backup-buttons button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: all 0.2s ease;
+}
+
+.backup-buttons button:active {
+    transform: translateY(0);
+}
+
+/* Responsive para botones de backup */
+@media (max-width: 768px) {
+    .backup-buttons {
+        flex-direction: column;
+        gap: 4px !important;
+    }
+    
+    .backup-buttons button {
+        font-size: 12px !important;
+        padding: 4px 8px !important;
+    }
+}
+</style>
 </body>
 </html>
+
 
 
 
