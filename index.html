@@ -13500,6 +13500,9 @@ window.answerCurrentQuestion = function(optionIndex) {
         const newFailures = currentFailures + 1;
         responseData[failuresPath] = newFailures;
         
+        // ✅ GUARDAR PREGUNTA FALLADA EN EL SISTEMA DE REPASO
+        saveMultiplayerFailedQuestion(currentQuestion, selectedOption);
+        
         // VERIFICAR SI EL JUEGO TERMINA (3 fallos)
         if (newFailures >= 3) {
             responseData['gameData/gameEnded'] = true;
@@ -13805,6 +13808,54 @@ window.exitToMainMenu = function() {
     
     showMessage('👋 Has salido del duelo', 'info');
 };
+
+// ✅ FUNCIÓN PARA GUARDAR PREGUNTAS FALLADAS DEL MULTIJUGADOR
+function saveMultiplayerFailedQuestion(question, userAnswer) {
+    try {
+        console.log('💾 Guardando pregunta fallada del duelo multijugador:', question.question.substring(0, 50) + '...');
+        
+        // Crear un resultado de test simulado para el sistema de preguntas falladas
+        const now = new Date();
+        const timestamp = now.getTime();
+        
+        const multiplayerTestResult = {
+            id: timestamp,
+            name: `Duelo Multijugador - ${now.toLocaleDateString('es-ES')} ${now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`,
+            date: now.toISOString(),
+            score: 0, // Marcamos como fallada
+            totalQuestions: 1,
+            correctAnswers: 0,
+            detailedResults: [{
+                question: question,
+                userAnswer: userAnswer,
+                correctAnswer: question.options[question.correctAnswer],
+                isCorrect: false,
+                timeSpent: 0
+            }],
+            isMultiplayerResult: true // Marcador para identificar que viene del multijugador
+        };
+        
+        // Añadir al historial de tests para que sea detectado por el sistema de preguntas falladas
+        if (!state.testResults) {
+            state.testResults = [];
+        }
+        
+        state.testResults.push(multiplayerTestResult);
+        
+        // Guardar en localStorage
+        localStorage.setItem('testResults', JSON.stringify(state.testResults));
+        
+        console.log('✅ Pregunta fallada guardada correctamente en el sistema de repaso');
+        
+        // Mostrar notificación al usuario
+        setTimeout(() => {
+            showMessage('📝 Pregunta fallada añadida al test de repaso', 'info');
+        }, 6000); // Mostrar después del resultado de la pregunta
+        
+    } catch (error) {
+        console.error('❌ Error guardando pregunta fallada:', error);
+    }
+}
 
 // FUNCIÓN PARA REPRODUCIR SONIDOS CON FALLBACK VISUAL
 function playVictorySound() {
@@ -16586,6 +16637,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
