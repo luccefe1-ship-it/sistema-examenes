@@ -13669,6 +13669,15 @@ function renderGameEndedScreen(gameData) {
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
 
+    // REPRODUCIR SONIDO según el resultado
+    if (iAmWinner) {
+        // Sonido de victoria opcional
+        playVictorySound();
+    } else {
+        // Sonido de derrota personalizado
+        playDefeatSound();
+    }
+
     return `
         <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; 
                     background: linear-gradient(135deg, ${iAmWinner ? '#10b981, #059669' : '#dc2626, #991b1b'}); 
@@ -13678,7 +13687,7 @@ function renderGameEndedScreen(gameData) {
                 
                 <!-- Emoji y resultado principal -->
                 <div style="font-size: 8rem; margin-bottom: 30px;">
-                    ${iAmWinner ? '🏆' : '💔'}
+                    ${iAmWinner ? '🏆' : '💩'}
                 </div>
                 
                 <!-- Mensaje principal -->
@@ -13795,6 +13804,69 @@ window.exitToMainMenu = function() {
     
     showMessage('👋 Has salido del duelo', 'info');
 };
+
+// FUNCIÓN PARA REPRODUCIR SONIDOS CON FALLBACK VISUAL
+function playVictorySound() {
+    try {
+        // Intentar sonido de aplausos
+        const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.wav');
+        audio.volume = 0.4;
+        audio.play().then(() => {
+            console.log('👏 ¡Aplausos de victoria!');
+        }).catch(error => {
+            // Si no hay sonido, al menos mostrar efecto visual
+            showSoundEffect('🎉👏🎉', '¡APLAUSOS!');
+        });
+    } catch (error) {
+        showSoundEffect('🎉👏🎉', '¡APLAUSOS!');
+    }
+}
+
+function playDefeatSound() {
+    try {
+        // Intentar sonido de pedo/fail
+        const audio = new Audio('https://www.soundjay.com/misc/sounds/fail-trombone-01.wav');
+        audio.volume = 0.5;
+        audio.playbackRate = 0.8;
+        
+        audio.play().then(() => {
+            console.log('💨💩 ¡PEDO DE LA DERROTA!');
+        }).catch(error => {
+            // Si no hay sonido, efecto visual divertido
+            showSoundEffect('💨💩💨', '¡PPPPRRRRRR!');
+        });
+    } catch (error) {
+        showSoundEffect('💨💩💨', '¡PPPPRRRRRR!');
+    }
+}
+
+// EFECTO VISUAL CUANDO NO HAY SONIDO
+function showSoundEffect(emoji, text) {
+    const effect = document.createElement('div');
+    effect.style.cssText = `
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        font-size: 4rem; z-index: 99999; color: yellow; text-shadow: 2px 2px 4px black;
+        animation: bounce 0.5s ease-in-out 3; pointer-events: none;
+    `;
+    effect.innerHTML = `${emoji}<br><span style="font-size: 2rem;">${text}</span>`;
+    
+    // Agregar animación CSS
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes bounce {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.2); }
+        }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(effect);
+    
+    // Quitar después de 2 segundos
+    setTimeout(() => {
+        if (effect.parentNode) effect.parentNode.removeChild(effect);
+        if (style.parentNode) style.parentNode.removeChild(style);
+    }, 2000);
+}
 </script>
 <!-- 
 PARCHE DEFINITIVO: SUBIR ARCHIVOS WORD/TXT - VERSIÓN COMPLETA
@@ -16468,6 +16540,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
