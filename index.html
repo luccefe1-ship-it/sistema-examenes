@@ -13669,13 +13669,12 @@ function renderGameEndedScreen(gameData) {
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
 
-    // REPRODUCIR SONIDO según el resultado
+    // REPRODUCIR SONIDOS INMEDIATAMENTE AL MOSTRAR LA PANTALLA
+    // Los sonidos se ejecutan en paralelo (al mismo tiempo)
     if (iAmWinner) {
-        // Sonido de victoria opcional
-        playVictorySound();
+        playVictorySound(); // Ejecutar inmediatamente
     } else {
-        // Sonido de derrota personalizado
-        playDefeatSound();
+        playDefeatSound(); // Ejecutar inmediatamente
     }
 
     return `
@@ -13807,35 +13806,80 @@ window.exitToMainMenu = function() {
 
 // FUNCIÓN PARA REPRODUCIR SONIDOS CON FALLBACK VISUAL
 function playVictorySound() {
+    // REPRODUCIR OVACIÓN INMEDIATAMENTE - SIN ESPERAS
     try {
-        // Intentar sonido de aplausos
-        const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.wav');
-        audio.volume = 0.4;
-        audio.play().then(() => {
-            console.log('👏 ¡Aplausos de victoria!');
-        }).catch(error => {
-            // Si no hay sonido, al menos mostrar efecto visual
-            showSoundEffect('🎉👏🎉', '¡APLAUSOS!');
+        // PRIMER SONIDO - Ovación de multitud - INMEDIATO
+        const audio1 = new Audio('https://www.myinstants.com/media/sounds/applause-01.mp3');
+        audio1.volume = 0.7;
+        audio1.play().catch(() => {
+            console.log('Primer sonido de victoria falló');
         });
+
+        // SEGUNDO SONIDO EN PARALELO - Gritos de victoria - INMEDIATO
+        const audio2 = new Audio('https://www.freesoundslibrary.com/wp-content/uploads/2017/11/crowd-cheering-sound-effect.mp3');
+        audio2.volume = 0.6;
+        audio2.play().catch(() => {
+            console.log('Segundo sonido de victoria falló');
+        });
+
+        // TERCER SONIDO DE BACKUP - INMEDIATO
+        setTimeout(() => {
+            try {
+                const audio3 = new Audio('https://www.soundboard.com/handler/DownLoadTrack.ashx?cliptitle=Crowd+Cheering&filename=mz/Mzg1ODIxNTIzMzg1ODI3_JzthsfvUY24.MP3');
+                audio3.volume = 0.5;
+                audio3.play().catch(() => {
+                    // Si todos fallan, efecto visual inmediato
+                    showSoundEffect('🎉👏🎉', '¡OVACIÓN!');
+                });
+            } catch (error) {
+                showSoundEffect('🎉👏🎉', '¡OVACIÓN!');
+            }
+        }, 0); // Sin delay - inmediato
+
+        console.log('🎉👏 ¡OVACIÓN ÉPICA ACTIVADA!');
+        
     } catch (error) {
-        showSoundEffect('🎉👏🎉', '¡APLAUSOS!');
+        // Fallback visual inmediato
+        showSoundEffect('🎉👏🎉', '¡OVACIÓN!');
     }
 }
 
 function playDefeatSound() {
+    // REPRODUCIR SONIDO DE PEDO INMEDIATAMENTE - SIN ESPERAS
     try {
-        // Intentar sonido de pedo/fail
-        const audio = new Audio('https://www.soundjay.com/misc/sounds/fail-trombone-01.wav');
-        audio.volume = 0.5;
-        audio.playbackRate = 0.8;
-        
-        audio.play().then(() => {
-            console.log('💨💩 ¡PEDO DE LA DERROTA!');
-        }).catch(error => {
-            // Si no hay sonido, efecto visual divertido
-            showSoundEffect('💨💩💨', '¡PPPPRRRRRR!');
+        // PRIMER SONIDO - Trombón de derrota (tipo pedo) - INMEDIATO
+        const audio1 = new Audio('https://www.soundjay.com/misc/sounds/fail-trombone-01.wav');
+        audio1.volume = 0.6;
+        audio1.playbackRate = 0.7; // Más grave = más cómico
+        audio1.play().catch(() => {
+            console.log('Primer sonido de derrota falló');
         });
+
+        // SEGUNDO SONIDO EN PARALELO - Sonido de "fail" cómico - INMEDIATO
+        const audio2 = new Audio('https://www.myinstants.com/media/sounds/sad-trombone.mp3');
+        audio2.volume = 0.5;
+        audio2.play().catch(() => {
+            console.log('Segundo sonido de derrota falló');
+        });
+
+        // TERCER SONIDO DE BACKUP - INMEDIATO
+        setTimeout(() => {
+            try {
+                const audio3 = new Audio('https://www.freesoundslibrary.com/wp-content/uploads/2018/01/fart-sound-effect.mp3');
+                audio3.volume = 0.4;
+                audio3.play().catch(() => {
+                    // Si todos fallan, efecto visual inmediato
+                    showSoundEffect('💨💩💨', '¡PPPPRRRRRR!');
+                });
+            } catch (error) {
+                showSoundEffect('💨💩💨', '¡PPPPRRRRRR!');
+            }
+        }, 0); // Sin delay - inmediato
+
+        console.log('💨💩 ¡PEDOS DE LA DERROTA ACTIVADOS!');
+        
     } catch (error) {
+        // Fallback visual inmediato
         showSoundEffect('💨💩💨', '¡PPPPRRRRRR!');
     }
 }
@@ -16540,6 +16584,7 @@ console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>        
 </body>
 </html>
+
 
 
 
