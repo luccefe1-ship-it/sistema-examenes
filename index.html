@@ -7567,609 +7567,937 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
         }
     }, 100);
 </script>
-   <!-- 
+<!-- 
 PARCHE CORREGIDO: SISTEMA DE TARJETAS DE MEMORIA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 Versión corregida con botón en header y diseño mejorado
 -->
 
 <script>
-    // ========== PARCHE CORREGIDO: SISTEMA DE TARJETAS DE MEMORIA + EXPORTAR ==========
-    console.log('🃏 Implementando sistema de tarjetas de memoria corregido con exportación...');
-    
-    // Estado para las tarjetas de memoria
-    let memoryCardsState = {
-        currentCard: null,
-        cardIndex: 0,
-        verifiedQuestions: [],
-        showAnswer: false
-    };
-    
-    // FUNCIÓN para ir a tarjetas de memoria desde el menú principal
-    window.goToMemoryCards = function() {
-        console.log('🃏 Cambiando a Tarjetas de Memoria...');
-        
-        showIntermediateScreen = false;
-        state.currentTab = 'memory-cards';
-        
-        // Cargar preguntas verificadas
-        loadVerifiedQuestions();
-        
-        render();
-        
-    };
-    
-    // FUNCIÓN para volver al menú desde tarjetas
-    window.backToMainMenuFromCards = function() {
-        console.log('🏠 Volviendo al menú principal desde tarjetas...');
-        showIntermediateScreen = true;
-        state.currentTab = 'upload';
-        render();
-        
-    };
-    
-    // FUNCIÓN para cargar preguntas verificadas
-    function loadVerifiedQuestions() {
-        memoryCardsState.verifiedQuestions = state.questions.filter(q => q.isVerified);
-        
-        if (memoryCardsState.verifiedQuestions.length > 0) {
-            // Mezclar preguntas aleatoriamente
-            memoryCardsState.verifiedQuestions = [...memoryCardsState.verifiedQuestions].sort(() => Math.random() - 0.5);
-            memoryCardsState.cardIndex = 0;
-            memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[0];
-            memoryCardsState.showAnswer = false;
-        } else {
-            memoryCardsState.currentCard = null;
-        }
-    }
-    
-    // FUNCIÓN para mostrar/ocultar respuesta
-    function toggleAnswer() {
-        memoryCardsState.showAnswer = !memoryCardsState.showAnswer;
-        render();
-    }
-    
-    // FUNCIÓN para siguiente tarjeta
-    function nextCard() {
-        if (memoryCardsState.verifiedQuestions.length === 0) return;
-        
-        memoryCardsState.cardIndex = (memoryCardsState.cardIndex + 1) % memoryCardsState.verifiedQuestions.length;
-        memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[memoryCardsState.cardIndex];
-        memoryCardsState.showAnswer = false;
-        render();
-    }
-    
-    // FUNCIÓN para tarjeta anterior
-    function previousCard() {
-        if (memoryCardsState.verifiedQuestions.length === 0) return;
-        
-        memoryCardsState.cardIndex = memoryCardsState.cardIndex === 0 
-            ? memoryCardsState.verifiedQuestions.length - 1 
-            : memoryCardsState.cardIndex - 1;
-        memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[memoryCardsState.cardIndex];
-        memoryCardsState.showAnswer = false;
-        render();
-    }
-    
-    // FUNCIÓN para mezclar tarjetas
-    function shuffleCards() {
-        if (memoryCardsState.verifiedQuestions.length === 0) return;
-        
-        memoryCardsState.verifiedQuestions = [...memoryCardsState.verifiedQuestions].sort(() => Math.random() - 0.5);
-        memoryCardsState.cardIndex = 0;
-        memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[0];
-        memoryCardsState.showAnswer = false;
-        render();
-        showMessage('Tarjetas mezcladas aleatoriamente', 'success');
-    }
-    
-    // FUNCIÓN para EXPORTAR datos completos
-    function exportUserDataComplete() {
-        if (!state.currentUser) {
-            showMessage('❌ Error: No hay usuario logueado', 'error');
-            return;
-        }
-        
-        try {
-            const username = state.currentUser.username;
-            
-            // Obtener datos de la cuenta desde localStorage
-            const allUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
-            const accountData = allUsers[username];
-            
-            if (!accountData) {
-                showMessage('❌ Error: No se encontraron datos de la cuenta', 'error');
-                return;
-            }
-            
-            // Crear backup completo con cuenta + datos
-            const completeBackup = {
-                version: "2.0",
-                exportDate: new Date().toISOString(),
-                exportTimestamp: Date.now(),
-                username: username,
-                accountData: {
-                    password: accountData.password,
-                    name: accountData.name,
-                    securityQuestion: accountData.securityQuestion,
-                    securityAnswer: accountData.securityAnswer,
-                    createdAt: accountData.createdAt
-                },
-                userData: {
-                    questions: state.questions || [],
-                    topics: state.topics || [],
-                    testResults: state.testResults || [],
-                    summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
-                    savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
-                    apiKey: state.apiKey || ''
-                },
-                stats: {
-                    totalQuestions: state.questions ? state.questions.length : 0,
-                    totalTopics: state.topics ? state.topics.length : 0,
-                    totalTests: state.testResults ? state.testResults.length : 0,
-                    totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0
-                }
-            };
-            
-            // Mostrar estadísticas antes de descargar
-            const statsMessage = `
+   // ========== PARCHE CORREGIDO: SISTEMA DE TARJETAS DE MEMORIA + EXPORTAR ==========
+   console.log('🃏 Implementando sistema de tarjetas de memoria corregido con exportación...');
+   
+   // Estado para las tarjetas de memoria
+   let memoryCardsState = {
+       currentCard: null,
+       cardIndex: 0,
+       verifiedQuestions: [],
+       showAnswer: false
+   };
+   
+   // Estado del sistema de temario
+   let temarioState = {
+       currentView: 'list',
+       temas: JSON.parse(localStorage.getItem('temarioTemas') || '[]'),
+       editingTema: null,
+       showCompleted: false
+   };
+   
+   // FUNCIÓN para ir a tarjetas de memoria desde el menú principal
+   window.goToMemoryCards = function() {
+       console.log('🃏 Cambiando a Tarjetas de Memoria...');
+       
+       showIntermediateScreen = false;
+       state.currentTab = 'memory-cards';
+       
+       // Cargar preguntas verificadas
+       loadVerifiedQuestions();
+       
+       render();
+       
+   };
+   
+   // FUNCIÓN para ir al temario desde el menú principal
+   window.goToTemario = function() {
+       console.log('📚 Navegando a Ver Temario...');
+       showIntermediateScreen = false;
+       state.currentTab = 'temario';
+       render();
+   };
+   
+   // FUNCIÓN para volver al menú desde tarjetas
+   window.backToMainMenuFromCards = function() {
+       console.log('🏠 Volviendo al menú principal desde tarjetas...');
+       showIntermediateScreen = true;
+       state.currentTab = 'upload';
+       render();
+       
+   };
+   
+   // FUNCIÓN para cargar preguntas verificadas
+   function loadVerifiedQuestions() {
+       memoryCardsState.verifiedQuestions = state.questions.filter(q => q.isVerified);
+       
+       if (memoryCardsState.verifiedQuestions.length > 0) {
+           // Mezclar preguntas aleatoriamente
+           memoryCardsState.verifiedQuestions = [...memoryCardsState.verifiedQuestions].sort(() => Math.random() - 0.5);
+           memoryCardsState.cardIndex = 0;
+           memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[0];
+           memoryCardsState.showAnswer = false;
+       } else {
+           memoryCardsState.currentCard = null;
+       }
+   }
+   
+   // FUNCIÓN para mostrar/ocultar respuesta
+   function toggleAnswer() {
+       memoryCardsState.showAnswer = !memoryCardsState.showAnswer;
+       render();
+   }
+   
+   // FUNCIÓN para siguiente tarjeta
+   function nextCard() {
+       if (memoryCardsState.verifiedQuestions.length === 0) return;
+       
+       memoryCardsState.cardIndex = (memoryCardsState.cardIndex + 1) % memoryCardsState.verifiedQuestions.length;
+       memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[memoryCardsState.cardIndex];
+       memoryCardsState.showAnswer = false;
+       render();
+   }
+   
+   // FUNCIÓN para tarjeta anterior
+   function previousCard() {
+       if (memoryCardsState.verifiedQuestions.length === 0) return;
+       
+       memoryCardsState.cardIndex = memoryCardsState.cardIndex === 0 
+           ? memoryCardsState.verifiedQuestions.length - 1 
+           : memoryCardsState.cardIndex - 1;
+       memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[memoryCardsState.cardIndex];
+       memoryCardsState.showAnswer = false;
+       render();
+   }
+   
+   // FUNCIÓN para mezclar tarjetas
+   function shuffleCards() {
+       if (memoryCardsState.verifiedQuestions.length === 0) return;
+       
+       memoryCardsState.verifiedQuestions = [...memoryCardsState.verifiedQuestions].sort(() => Math.random() - 0.5);
+       memoryCardsState.cardIndex = 0;
+       memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[0];
+       memoryCardsState.showAnswer = false;
+       render();
+       showMessage('Tarjetas mezcladas aleatoriamente', 'success');
+   }
+   
+   // FUNCIÓN para EXPORTAR datos completos
+   function exportUserDataComplete() {
+       if (!state.currentUser) {
+           showMessage('❌ Error: No hay usuario logueado', 'error');
+           return;
+       }
+       
+       try {
+           const username = state.currentUser.username;
+           
+           // Obtener datos de la cuenta desde localStorage
+           const allUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+           const accountData = allUsers[username];
+           
+           if (!accountData) {
+               showMessage('❌ Error: No se encontraron datos de la cuenta', 'error');
+               return;
+           }
+           
+           // Crear backup completo con cuenta + datos
+           const completeBackup = {
+               version: "2.0",
+               exportDate: new Date().toISOString(),
+               exportTimestamp: Date.now(),
+               username: username,
+               accountData: {
+                   password: accountData.password,
+                   name: accountData.name,
+                   securityQuestion: accountData.securityQuestion,
+                   securityAnswer: accountData.securityAnswer,
+                   createdAt: accountData.createdAt
+               },
+               userData: {
+                   questions: state.questions || [],
+                   topics: state.topics || [],
+                   testResults: state.testResults || [],
+                   summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
+                   savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
+                   apiKey: state.apiKey || '',
+                   temarioTemas: temarioState.temas || []
+               },
+               stats: {
+                   totalQuestions: state.questions ? state.questions.length : 0,
+                   totalTopics: state.topics ? state.topics.length : 0,
+                   totalTests: state.testResults ? state.testResults.length : 0,
+                   totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0,
+                   totalTemarioTemas: temarioState.temas ? temarioState.temas.length : 0
+               }
+           };
+           
+           // Mostrar estadísticas antes de descargar
+           const statsMessage = `
 📊 BACKUP COMPLETO GENERADO:
-• Preguntas: ${completeBackup.stats.totalQuestions}
-• Temas: ${completeBackup.stats.totalTopics}
-• Tests realizados: ${completeBackup.stats.totalTests}
-• Resúmenes: ${completeBackup.stats.totalSummaries}
-• Datos de cuenta: ✅ Incluidos
-            `;
-            
-            showMessage(statsMessage, 'success');
-            
-            // Crear archivo para descarga
-            const blob = new Blob([JSON.stringify(completeBackup, null, 2)], { 
-                type: 'application/json' 
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            
-            const dateStr = new Date().toISOString().split('T')[0];
-            const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
-            a.href = url;
-            a.download = `backup_completo_${username}_${dateStr}_${timeStr}.json`;
-            
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            // Mensaje de confirmación con instrucciones
-            setTimeout(() => {
-                showMessage(`
+- Preguntas: ${completeBackup.stats.totalQuestions}
+- Temas: ${completeBackup.stats.totalTopics}
+- Tests realizados: ${completeBackup.stats.totalTests}
+- Resúmenes: ${completeBackup.stats.totalSummaries}
+- Temas del temario: ${completeBackup.stats.totalTemarioTemas}
+- Datos de cuenta: ✅ Incluidos
+           `;
+           
+           showMessage(statsMessage, 'success');
+           
+           // Crear archivo para descarga
+           const blob = new Blob([JSON.stringify(completeBackup, null, 2)], { 
+               type: 'application/json' 
+           });
+           const url = URL.createObjectURL(blob);
+           const a = document.createElement('a');
+           
+           const dateStr = new Date().toISOString().split('T')[0];
+           const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
+           a.href = url;
+           a.download = `backup_completo_${username}_${dateStr}_${timeStr}.json`;
+           
+           document.body.appendChild(a);
+           a.click();
+           document.body.removeChild(a);
+           URL.revokeObjectURL(url);
+           
+           // Mensaje de confirmación con instrucciones
+           setTimeout(() => {
+               showMessage(`
 ✅ BACKUP DESCARGADO EXITOSAMENTE
 📁 Archivo: backup_completo_${username}_${dateStr}_${timeStr}.json
 
 💡 INSTRUCCIONES:
-• Guarda este archivo en un lugar seguro
-• Para usar en otro dispositivo: Login + Importar este archivo
-• Incluye tanto tu cuenta como todos tus datos
-                `, 'success');
-            }, 1000);
-            
-            console.log('✅ Backup completo exportado para:', username);
-            
-        } catch (error) {
-            console.error('❌ Error exportando backup:', error);
-            showMessage('❌ Error al exportar datos: ' + error.message, 'error');
-        }
-    }
-    
-    // FUNCIÓN para renderizar la sección de tarjetas de memoria
-    function renderMemoryCardsTab() {
-        if (memoryCardsState.verifiedQuestions.length === 0) {
-            return `
-                <div style="max-width: 800px; margin: 0 auto; text-align: center; padding: 80px 20px;">
-                    <div style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 120px; height: 120px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(245, 158, 11, 0.3);">
-                        <span style="font-size: 4rem; color: white;">🃏</span>
-                    </div>
-                    <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 2.5rem;">No hay tarjetas disponibles</h2>
-                    <p style="color: #6b7280; margin: 0 0 30px 0; font-size: 1.2rem; line-height: 1.6;">
-                        Para usar las tarjetas de memoria necesitas tener preguntas <strong>verificadas</strong> (⭐) en tu banco de preguntas.
-                    </p>
-                    <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 12px; padding: 25px; margin-bottom: 30px; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
-                        <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 1.1rem;">📝 ¿Cómo verificar preguntas?</h3>
-                        <ol style="color: #78350f; margin: 0; padding-left: 20px; line-height: 1.8;">
-                            <li>Ve a "Banco de Preguntas"</li>
-                            <li>Busca el botón ☆ junto a cada pregunta</li>
-                            <li>Haz clic para convertirlo en ⭐ (verificada)</li>
-                            <li>Vuelve aquí para practicar con tarjetas</li>
-                        </ol>
-                    </div>
-                    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-                        <button onclick="goToTestsFromSummary()" class="btn btn-primary" style="padding: 15px 25px; font-size: 16px;">
-                            📋 Ir al Banco de Preguntas
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
-        
-        const currentCard = memoryCardsState.currentCard;
-        const cardNumber = memoryCardsState.cardIndex + 1;
-        const totalCards = memoryCardsState.verifiedQuestions.length;
-        const topicName = currentCard.topicId ? getTopicName(currentCard.topicId) : 'General';
-        
-        return `
-            <div style="max-width: 900px; margin: 0 auto; padding: 20px;">
-                
-                <!-- Header simple -->
-                <div style="text-align: center; margin-bottom: 30px;">
-                    <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; gap: 15px;">
-                        <span>🃏</span> Tarjetas de Memoria
-                    </h1>
-                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
-                        Tarjeta ${cardNumber} de ${totalCards} preguntas verificadas
-                    </p>
-                </div>
-                
-                <!-- Controles superiores -->
-                <div style="display: flex; justify-content: center; gap: 15px; margin-bottom: 40px;">
-                    <button onclick="shuffleCards()" class="btn btn-warning" style="padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
-                        <span>🔀</span> Mezclar
-                    </button>
-                    <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 600; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
-                        ${cardNumber} / ${totalCards}
-                    </div>
-                    <button onclick="loadVerifiedQuestions()" class="btn btn-info" style="padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
-                        <span>🔄</span> Recargar
-                    </button>
-                </div>
-                
-                <!-- Tarjeta principal mejorada -->
-                <div style="perspective: 1000px; margin-bottom: 40px;">
-                    <div class="memory-card" style="
-                        background: linear-gradient(145deg, #ffffff, #f8fafc); 
-                        border-radius: 20px; 
-                        box-shadow: 
-                            0 20px 40px rgba(0,0,0,0.12),
-                            0 1px 0 rgba(255,255,255,0.8),
-                            inset 0 1px 3px rgba(255,255,255,0.9);
-                        margin: 0 auto; 
-                        max-width: 650px; 
-                        min-height: 400px; 
-                        position: relative; 
-                        border: 2px solid #e2e8f0;
-                        transform: rotateX(1deg) rotateY(-1deg);
-                        transition: all 0.4s ease;
-                        animation: cardFloat 4s ease-in-out infinite;
-                    ">
-                    
-                        <!-- Badge de verificada -->
-                        <div style="position: absolute; top: -8px; right: 15px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); z-index: 10;">
-                            ⭐ Verificada
-                        </div>
-                        
-                        <!-- Contenido de la tarjeta -->
-                        <div style="padding: 35px;">
-                            
-                            <!-- Tema y Pregunta -->
-                            <div style="margin-bottom: 30px;">
-                                <!-- Badge del tema -->
-                                <div style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 6px 14px; border-radius: 15px; font-size: 13px; font-weight: 600; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);">
-                                    📁 ${topicName}
-                                </div>
-                                
-                                <!-- Pregunta -->
-                                <h3 style="color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">
-                                    📝 PREGUNTA
-                                </h3>
-                                <div style="font-size: 1.3rem; line-height: 1.6; color: #1f2937; font-weight: 500; background: linear-gradient(135deg, #f8fafc, #f1f5f9); padding: 25px; border-radius: 12px; border-left: 4px solid #4f46e5; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
-                                    ${currentCard.question}
-                                </div>
-                            </div>
-                            
-                            <!-- Área de respuesta -->
-                            <div style="margin-bottom: 20px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                    <h3 style="color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin: 0;">
-                                        ✅ RESPUESTA CORRECTA
-                                    </h3>
-                                    <button onclick="toggleAnswer()" class="btn ${memoryCardsState.showAnswer ? 'btn-secondary' : 'btn-success'}" style="padding: 8px 16px; font-size: 14px; font-weight: 600; border-radius: 20px;">
-                                        ${memoryCardsState.showAnswer ? '🙈 Ocultar' : '👁️ Ver Respuesta'}
-                                    </button>
-                                </div>
-                                
-                                <div style="min-height: 80px; background: ${memoryCardsState.showAnswer ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : 'linear-gradient(135deg, #f9fafb, #f3f4f6)'}; border: 2px ${memoryCardsState.showAnswer ? 'solid #22c55e' : 'dashed #d1d5db'}; border-radius: 12px; padding: 25px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
-                                    
-                                    ${memoryCardsState.showAnswer ? `
-                                        <div style="text-align: center;">
-                                            <div style="font-size: 1.3rem; font-weight: 700; color: #166534; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                                                <span style="font-size: 1.5rem;">✅</span>
-                                                <span>${String.fromCharCode(97 + currentCard.correctAnswer).toUpperCase()}) ${currentCard.options[currentCard.correctAnswer]}</span>
-                                            </div>
-                                            <div style="font-size: 14px; color: #16a34a; font-weight: 500;">
-                                                Esta es la respuesta correcta
-                                            </div>
-                                        </div>
-                                    ` : `
-                                        <div style="color: #9ca3af; font-style: italic; text-align: center;">
-                                            <div style="font-size: 2.5rem; margin-bottom: 10px;">🤔</div>
-                                            <div style="font-size: 16px;">Haz clic en "Ver Respuesta" para revelar la solución</div>
-                                        </div>
-                                    `}
-                                </div>
-                            </div>
-                            
-                            <!-- Consejo -->
-                            <div style="text-align: center; margin-top: 25px; padding: 12px; background: rgba(79, 70, 229, 0.05); border-radius: 10px; border: 1px solid rgba(79, 70, 229, 0.1);">
-                                <div style="color: #6b7280; font-size: 13px; font-weight: 500;">
-                                    💡 Intenta responder mentalmente antes de ver la respuesta
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Controles de navegación -->
-                <div style="display: flex; justify-content: center; align-items: center; gap: 25px;">
-                    <button onclick="previousCard()" class="btn btn-secondary" style="padding: 12px 25px; font-size: 16px; border-radius: 25px; display: flex; align-items: center; gap: 10px; min-width: 140px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
-                        <span style="font-size: 18px;">←</span>
-                        <span>Anterior</span>
-                    </button>
-                    
-                    <button onclick="nextCard()" class="btn btn-primary" style="padding: 12px 25px; font-size: 16px; border-radius: 25px; display: flex; align-items: center; gap: 10px; min-width: 140px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
-                        <span>Siguiente</span>
-                        <span style="font-size: 18px;">→</span>
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Estilos CSS -->
-            <style>
-                @keyframes cardFloat {
-                    0%, 100% { transform: rotateX(1deg) rotateY(-1deg) translateY(0px); }
-                    50% { transform: rotateX(1deg) rotateY(-1deg) translateY(-2px); }
-                }
-                
-                .memory-card:hover {
-                    transform: rotateX(0deg) rotateY(0deg) translateY(-3px) !important;
-                    box-shadow: 0 25px 50px rgba(0,0,0,0.15) !important;
-                }
-            </style>
-        `;
-    }
-    
-    // INTERCEPTAR la función renderIntermediateScreen para añadir la tercera opción y exportar
-    const originalRenderIntermediateScreen = renderIntermediateScreen;
-    window.renderIntermediateScreen = function() {
-    return `
-        <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: -30px; border-radius: 20px;">
-            <div style="background: white; border-radius: 24px; padding: 60px; box-shadow: 0 25px 50px rgba(0,0,0,0.15); max-width: 600px; width: 100%; text-align: center; position: relative; overflow: hidden;">
-                
-                <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: linear-gradient(135deg, #667eea20, #764ba220); border-radius: 50%; z-index: 0;"></div>
-                <div style="position: absolute; bottom: -30px; left: -30px; width: 100px; height: 100px; background: linear-gradient(135deg, #764ba220, #667eea20); border-radius: 50%; z-index: 0;"></div>
-                
-                <div style="position: relative; z-index: 1;">
-                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);">
-                        <span style="font-size: 2.5rem; filter: drop-shadow(0 2px 4px rgba(255,255,255,0.3));">🎯</span>
-                    </div>
-                    
-                    <h1 style="font-size: 2.8rem; font-weight: 700; margin: 0 0 15px 0; background: linear-gradient(135deg, #2d3748, #4a5568); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
-                        ¡Bienvenid@!
-                    </h1>
-                    
-                    <p style="font-size: 1.3rem; color: #6b7280; margin: 0 0 50px 0; font-weight: 400; line-height: 1.5;">
-                        Selecciona qué te gustaría hacer hoy
-                    </p>
-                    
-                    <div style="display: grid; gap: 15px; margin-bottom: 40px;">
-                        
-                        <button onclick="goToTests()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                                <span style="font-size: 1.5rem;">📚</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Realizar Tests</div>
-                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Crear y gestionar exámenes</div>
-                                </div>
-                            </div>
-                        </button>
-                        
-                        <button onclick="goToSummaries()" style="background: linear-gradient(135deg, #059669, #0ea5e9); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                                <span style="font-size: 1.5rem;">📊</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Ver Resúmenes</div>
-                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Analizar resultados y estadísticas</div>
-                                </div>
-                            </div>
-                        </button>
-                        
-                        <button onclick="goToMemoryCards()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                                <span style="font-size: 1.5rem;">🃏</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Tarjetas de Memoria</div>
-                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Repasar con tarjetas interactivas</div>
-                                </div>
-                            </div>
-                        </button>
-                        
-                        <button onclick="goToMultiplayer()" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                                <span style="font-size: 1.5rem;">⚔️</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Duelo de Preguntas</div>
-                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Compete con otros usuarios</div>
-                                </div>
-                            </div>
-                        </button>
-                        
-                        <!-- BOTÓN EXPORTAR DATOS -->
-                        <button onclick="exportUserDataComplete()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                                <span style="font-size: 1.5rem;">💾</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Exportar Mis Datos</div>
-                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Descargar backup completo</div>
-                                </div>
-                            </div>
-                        </button>
-                    </div>
-                    
-                    <div style="border-top: 1px solid #e5e7eb; padding-top: 25px; color: #9ca3af; font-size: 0.9rem;">
-                        <p style="margin: 0;">Sistema de Exámenes • Usuario: ${state.currentUser.name}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+- Guarda este archivo en un lugar seguro
+- Para usar en otro dispositivo: Login + Importar este archivo
+- Incluye tanto tu cuenta como todos tus datos
+               `, 'success');
+           }, 1000);
+           
+           console.log('✅ Backup completo exportado para:', username);
+           
+       } catch (error) {
+           console.error('❌ Error exportando backup:', error);
+           showMessage('❌ Error al exportar datos: ' + error.message, 'error');
+       }
+   }
+   
+   // FUNCIONES DEL TEMARIO
+   function renderTemarioPage() {
+       if (temarioState.currentView === 'create') {
+           return renderCreateTema();
+       } else {
+           return renderTemarioList();
+       }
+   }
+   
+   function renderTemarioList() {
+       const totalTemas = temarioState.temas.length;
+       const temasCompletos = temarioState.temas.filter(t => t.vueltas > 0).length;
+       const totalPaginas = temarioState.temas.reduce((sum, t) => sum + (t.paginas || 0), 0);
+       
+       return `
+           <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden;">
+               <!-- Header del Temario -->
+               <div style="background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%); color: white; padding: 30px;">
+                   <h2 style="margin: 0 0 10px 0; font-size: 28px; font-weight: 700;">📚 Mi Temario</h2>
+                   <p style="margin: 0; opacity: 0.9; font-size: 16px;">Gestiona tu progreso de estudio</p>
+                   
+                   <!-- Estadísticas -->
+                   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-top: 20px;">
+                       <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 10px; text-align: center;">
+                           <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px;">${totalTemas}</div>
+                           <div style="font-size: 13px; opacity: 0.9;">Total Temas</div>
+                       </div>
+                       <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 10px; text-align: center;">
+                           <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px;">${temasCompletos}</div>
+                           <div style="font-size: 13px; opacity: 0.9;">Estudiados</div>
+                       </div>
+                       <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 10px; text-align: center;">
+                           <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px;">${totalPaginas}</div>
+                           <div style="font-size: 13px; opacity: 0.9;">Total Páginas</div>
+                       </div>
+                       <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 10px; text-align: center;">
+                           <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px;">${Math.round(totalTemas > 0 ? (temasCompletos / totalTemas) * 100 : 0)}%</div>
+                           <div style="font-size: 13px; opacity: 0.9;">Progreso</div>
+                       </div>
+                   </div>
+               </div>
+               
+               <!-- Contenido Principal -->
+               <div style="padding: 25px;">
+                   <!-- Botones de Acción -->
+                   <div style="display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap;">
+                       <button onclick="showCreateTema()" class="btn btn-primary" style="padding: 12px 24px; font-weight: 600;">
+                           ➕ Añadir Tema
+                       </button>
+                       <button onclick="toggleShowCompleted()" class="btn btn-outline-secondary" style="padding: 12px 24px;">
+                           ${temarioState.showCompleted ? '👁️ Mostrar Todos' : '✅ Solo Completados'}
+                       </button>
+                   </div>
+                   
+                   <!-- Lista de Temas -->
+                   <div style="background: #f8fafc; border-radius: 10px; padding: 20px;">
+                       ${temarioState.temas.length === 0 ? `
+                           <div style="text-align: center; padding: 60px 20px; color: #6b7280;">
+                               <div style="font-size: 64px; margin-bottom: 20px; opacity: 0.5;">📚</div>
+                               <h3 style="color: #374151; margin-bottom: 10px;">No tienes temas en tu temario</h3>
+                               <p style="margin-bottom: 25px;">Empieza añadiendo los primeros temas de tu oposición</p>
+                               <button onclick="showCreateTema()" class="btn btn-primary" style="padding: 12px 24px;">
+                                   ➕ Añadir Primer Tema
+                               </button>
+                           </div>
+                       ` : `
+                           <div style="display: grid; gap: 15px;">
+                               ${getFilteredTemas().map((tema, index) => `
+                                   <div style="background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px;">
+                                       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                                           <div style="flex: 1;">
+                                               <h4 style="margin: 0 0 8px 0; color: #1f2937; font-size: 18px; font-weight: 600;">${tema.nombre}</h4>
+                                               <div style="display: flex; gap: 15px; margin-bottom: 10px;">
+                                                   <span style="background: #dbeafe; color: #1e40af; padding: 4px 10px; border-radius: 12px; font-size: 12px;">
+                                                       📄 ${tema.paginas || 0} páginas
+                                                   </span>
+                                                   <span style="background: ${tema.vueltas > 0 ? '#dcfce7' : '#fef3c7'}; color: ${tema.vueltas > 0 ? '#166534' : '#92400e'}; padding: 4px 10px; border-radius: 12px; font-size: 12px;">
+                                                       🔄 ${tema.vueltas || 0} ${tema.vueltas === 1 ? 'vuelta' : 'vueltas'}
+                                                   </span>
+                                               </div>
+                                           </div>
+                                           
+                                           <div style="display: flex; gap: 8px;">
+                                               <button onclick="editTema(${index})" class="btn btn-sm btn-warning" style="padding: 6px 12px; font-size: 12px;">
+                                                   ✏️
+                                               </button>
+                                               <button onclick="deleteTema(${index})" class="btn btn-sm btn-danger" style="padding: 6px 12px; font-size: 12px;">
+                                                   🗑️
+                                               </button>
+                                           </div>
+                                       </div>
+                                       
+                                       <!-- Progreso visual -->
+                                       <div style="background: #f3f4f6; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
+                                           <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                               <span style="font-size: 13px; color: #6b7280;">Progreso del Tema</span>
+                                               <span style="font-size: 13px; color: #374151; font-weight: 500;">${tema.vueltas || 0} ${tema.vueltas === 1 ? 'vuelta' : 'vueltas'}</span>
+                                           </div>
+                                           <div style="width: 100%; background: #e5e7eb; border-radius: 6px; height: 6px; overflow: hidden;">
+                                               <div style="width: ${Math.min((tema.vueltas || 0) * 33.33, 100)}%; background: linear-gradient(90deg, #3b82f6, #1d4ed8); height: 100%; border-radius: 6px;"></div>
+                                           </div>
+                                       </div>
+                                       
+                                       <!-- Acciones rápidas -->
+                                       <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                           <button onclick="incrementVueltas(${index})" class="btn btn-sm btn-success" style="padding: 6px 12px; font-size: 12px;">
+                                               ➕ Añadir Vuelta
+                                           </button>
+                                           ${tema.vueltas > 0 ? `
+                                               <button onclick="decrementVueltas(${index})" class="btn btn-sm btn-outline-warning" style="padding: 6px 12px; font-size: 12px;">
+                                                   ➖ Quitar Vuelta
+                                               </button>
+                                           ` : ''}
+                                           <button onclick="editPaginas(${index})" class="btn btn-sm btn-info" style="padding: 6px 12px; font-size: 12px;">
+                                               📄 Editar Páginas
+                                           </button>
+                                       </div>
+                                   </div>
+                               `).join('')}
+                           </div>
+                       `}
+                   </div>
+               </div>
+           </div>
+       `;
+   }
+   
+   function renderCreateTema() {
+       const editingTema = temarioState.editingTema;
+       const isEditing = editingTema !== null && editingTema !== undefined;
+       const tema = isEditing ? temarioState.temas[editingTema] : null;
+       
+       return `
+           <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; max-width: 600px; margin: 0 auto;">
+               <!-- Header -->
+               <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 25px;">
+                   <h2 style="margin: 0 0 10px 0; font-size: 24px; font-weight: 700;">
+                       ${isEditing ? '✏️ Editar Tema' : '➕ Añadir Nuevo Tema'}
+                   </h2>
+                   <p style="margin: 0; opacity: 0.9;">
+                       ${isEditing ? 'Modifica la información del tema' : 'Completa los datos del tema de tu oposición'}
+                   </p>
+               </div>
+               
+               <!-- Formulario -->
+               <div style="padding: 30px;">
+                   <div style="margin-bottom: 25px;">
+                       <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Nombre del Tema *</label>
+                       <input type="text" id="tema-nombre" placeholder="Ej: Derecho Constitucional - Título Preliminar" 
+                              value="${tema ? tema.nombre : ''}"
+                              style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                   </div>
+                   
+                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+                       <div>
+                           <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Número de Páginas</label>
+                           <input type="number" id="tema-paginas" min="0" placeholder="0" 
+                                  value="${tema ? tema.paginas || '' : ''}"
+                                  style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                       </div>
+                       
+                       <div>
+                           <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Vueltas Dadas</label>
+                           <input type="number" id="tema-vueltas" min="0" placeholder="0" 
+                                  value="${tema ? tema.vueltas || '' : ''}"
+                                  style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                       </div>
+                   </div>
+                   
+                   <div style="margin-bottom: 25px;">
+                       <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Notas (Opcional)</label>
+                       <textarea id="tema-notas" rows="3" placeholder="Ej: Tema difícil, repasar artículos 1-9..."
+                                 style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; resize: vertical;">${tema ? tema.notas || '' : ''}</textarea>
+                   </div>
+                   
+                   <!-- Botones -->
+                   <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                       <button onclick="saveTema()" class="btn btn-primary" style="padding: 12px 24px; font-weight: 600; flex: 1;">
+                           ${isEditing ? '💾 Guardar Cambios' : '➕ Añadir Tema'}
+                       </button>
+                       <button onclick="cancelCreateTema()" class="btn btn-secondary" style="padding: 12px 24px; flex: 1;">
+                           ❌ Cancelar
+                       </button>
+                   </div>
+               </div>
+           </div>
+       `;
+   }
+   
+   // FUNCIONES DE GESTIÓN DEL TEMARIO
+   window.showCreateTema = function() {
+       temarioState.currentView = 'create';
+       temarioState.editingTema = null;
+       render();
+   };
+   
+   window.cancelCreateTema = function() {
+       temarioState.currentView = 'list';
+       temarioState.editingTema = null;
+       render();
+   };
+   
+   window.saveTema = function() {
+       const nombre = document.getElementById('tema-nombre').value.trim();
+       const paginas = parseInt(document.getElementById('tema-paginas').value) || 0;
+       const vueltas = parseInt(document.getElementById('tema-vueltas').value) || 0;
+       const notas = document.getElementById('tema-notas').value.trim();
+       
+       if (!nombre) {
+           showMessage('El nombre del tema es obligatorio', 'error');
+           document.getElementById('tema-nombre').focus();
+           return;
+       }
+       
+       const nuevoTema = {
+           nombre,
+           paginas,
+           vueltas,
+           notas,
+           fechaCreacion: temarioState.editingTema !== null ? temarioState.temas[temarioState.editingTema].fechaCreacion : new Date().toISOString(),
+           fechaModificacion: new Date().toISOString()
+       };
+       
+       if (temarioState.editingTema !== null) {
+           temarioState.temas[temarioState.editingTema] = nuevoTema;
+           showMessage('Tema actualizado correctamente', 'success');
+       } else {
+           temarioState.temas.push(nuevoTema);
+           showMessage('Tema añadido correctamente', 'success');
+       }
+       
+       localStorage.setItem('temarioTemas', JSON.stringify(temarioState.temas));
+       
+       temarioState.currentView = 'list';
+       temarioState.editingTema = null;
+       render();
+   };
+   
+   window.editTema = function(index) {
+       temarioState.editingTema = index;
+       temarioState.currentView = 'create';
+       render();
+   };
+   
+   window.deleteTema = function(index) {
+       const tema = temarioState.temas[index];
+       if (confirm(`¿Estás seguro de que quieres eliminar el tema "${tema.nombre}"?`)) {
+           temarioState.temas.splice(index, 1);
+           localStorage.setItem('temarioTemas', JSON.stringify(temarioState.temas));
+           showMessage('Tema eliminado correctamente', 'success');
+           render();
+       }
+   };
+   
+   window.incrementVueltas = function(index) {
+       temarioState.temas[index].vueltas = (temarioState.temas[index].vueltas || 0) + 1;
+       temarioState.temas[index].fechaModificacion = new Date().toISOString();
+       localStorage.setItem('temarioTemas', JSON.stringify(temarioState.temas));
+       showMessage(`Vuelta añadida a "${temarioState.temas[index].nombre}"`, 'success');
+       render();
+   };
+   
+   window.decrementVueltas = function(index) {
+       if (temarioState.temas[index].vueltas > 0) {
+           temarioState.temas[index].vueltas--;
+           temarioState.temas[index].fechaModificacion = new Date().toISOString();
+           localStorage.setItem('temarioTemas', JSON.stringify(temarioState.temas));
+           showMessage(`Vuelta quitada de "${temarioState.temas[index].nombre}"`, 'success');
+           render();
+       }
+   };
+   
+   window.editPaginas = function(index) {
+       const tema = temarioState.temas[index];
+       const nuevasPaginas = prompt(`Número de páginas para "${tema.nombre}":`, tema.paginas || 0);
+       if (nuevasPaginas !== null && !isNaN(nuevasPaginas) && parseInt(nuevasPaginas) >= 0) {
+           tema.paginas = parseInt(nuevasPaginas);
+           tema.fechaModificacion = new Date().toISOString();
+           localStorage.setItem('temarioTemas', JSON.stringify(temarioState.temas));
+           showMessage('Páginas actualizadas correctamente', 'success');
+           render();
+       }
+   };
+   
+   window.toggleShowCompleted = function() {
+       temarioState.showCompleted = !temarioState.showCompleted;
+       render();
+   };
+   
+   function getFilteredTemas() {
+       if (temarioState.showCompleted) {
+           return temarioState.temas.filter(tema => tema.vueltas > 0);
+       }
+       return temarioState.temas;
+   }
+   
+   // FUNCIÓN para renderizar la sección de tarjetas de memoria
+   function renderMemoryCardsTab() {
+       if (memoryCardsState.verifiedQuestions.length === 0) {
+           return `
+               <div style="max-width: 800px; margin: 0 auto; text-align: center; padding: 80px 20px;">
+                   <div style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 120px; height: 120px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(245, 158, 11, 0.3);">
+                       <span style="font-size: 4rem; color: white;">🃏</span>
+                   </div>
+                   <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 2.5rem;">No hay tarjetas disponibles</h2>
+                   <p style="color: #6b7280; margin: 0 0 30px 0; font-size: 1.2rem; line-height: 1.6;">
+                       Para usar las tarjetas de memoria necesitas tener preguntas <strong>verificadas</strong> (⭐) en tu banco de preguntas.
+                   </p>
+                   <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 12px; padding: 25px; margin-bottom: 30px; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
+                       <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 1.1rem;">📝 ¿Cómo verificar preguntas?</h3>
+                       <ol style="color: #78350f; margin: 0; padding-left: 20px; line-height: 1.8;">
+                           <li>Ve a "Banco de Preguntas"</li>
+                           <li>Busca el botón ☆ junto a cada pregunta</li>
+                           <li>Haz clic para convertirlo en ⭐ (verificada)</li>
+                           <li>Vuelve aquí para practicar con tarjetas</li>
+                       </ol>
+                   </div>
+                   <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                       <button onclick="goToTestsFromSummary()" class="btn btn-primary" style="padding: 15px 25px; font-size: 16px;">
+                           📋 Ir al Banco de Preguntas
+                       </button>
+                   </div>
+               </div>
+           `;
+       }
+html       const currentCard = memoryCardsState.currentCard;
+       const cardNumber = memoryCardsState.cardIndex + 1;
+       const totalCards = memoryCardsState.verifiedQuestions.length;
+       const topicName = currentCard.topicId ? getTopicName(currentCard.topicId) : 'General';
+       
+       return `
+           <div style="max-width: 900px; margin: 0 auto; padding: 20px;">
+               
+               <!-- Header simple -->
+               <div style="text-align: center; margin-bottom: 30px;">
+                   <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                       <span>🃏</span> Tarjetas de Memoria
+                   </h1>
+                   <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                       Tarjeta ${cardNumber} de ${totalCards} preguntas verificadas
+                   </p>
+               </div>
+               
+               <!-- Controles superiores -->
+               <div style="display: flex; justify-content: center; gap: 15px; margin-bottom: 40px;">
+                   <button onclick="shuffleCards()" class="btn btn-warning" style="padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
+                       <span>🔀</span> Mezclar
+                   </button>
+                   <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 600; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
+                       ${cardNumber} / ${totalCards}
+                   </div>
+                   <button onclick="loadVerifiedQuestions()" class="btn btn-info" style="padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
+                       <span>🔄</span> Recargar
+                   </button>
+               </div>
+               
+               <!-- Tarjeta principal mejorada -->
+               <div style="perspective: 1000px; margin-bottom: 40px;">
+                   <div class="memory-card" style="
+                       background: linear-gradient(145deg, #ffffff, #f8fafc); 
+                       border-radius: 20px; 
+                       box-shadow: 
+                           0 20px 40px rgba(0,0,0,0.12),
+                           0 1px 0 rgba(255,255,255,0.8),
+                           inset 0 1px 3px rgba(255,255,255,0.9);
+                       margin: 0 auto; 
+                       max-width: 650px; 
+                       min-height: 400px; 
+                       position: relative; 
+                       border: 2px solid #e2e8f0;
+                       transform: rotateX(1deg) rotateY(-1deg);
+                       transition: all 0.4s ease;
+                       animation: cardFloat 4s ease-in-out infinite;
+                   ">
+                   
+                       <!-- Badge de verificada -->
+                       <div style="position: absolute; top: -8px; right: 15px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); z-index: 10;">
+                           ⭐ Verificada
+                       </div>
+                       
+                       <!-- Contenido de la tarjeta -->
+                       <div style="padding: 35px;">
+                           
+                           <!-- Tema y Pregunta -->
+                           <div style="margin-bottom: 30px;">
+                               <!-- Badge del tema -->
+                               <div style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 6px 14px; border-radius: 15px; font-size: 13px; font-weight: 600; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);">
+                                   📁 ${topicName}
+                               </div>
+                               
+                               <!-- Pregunta -->
+                               <h3 style="color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">
+                                   📝 PREGUNTA
+                               </h3>
+                               <div style="font-size: 1.3rem; line-height: 1.6; color: #1f2937; font-weight: 500; background: linear-gradient(135deg, #f8fafc, #f1f5f9); padding: 25px; border-radius: 12px; border-left: 4px solid #4f46e5; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
+                                   ${currentCard.question}
+                               </div>
+                           </div>
+                           
+                           <!-- Área de respuesta -->
+                           <div style="margin-bottom: 20px;">
+                               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                   <h3 style="color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin: 0;">
+                                       ✅ RESPUESTA CORRECTA
+                                   </h3>
+                                   <button onclick="toggleAnswer()" class="btn ${memoryCardsState.showAnswer ? 'btn-secondary' : 'btn-success'}" style="padding: 8px 16px; font-size: 14px; font-weight: 600; border-radius: 20px;">
+                                       ${memoryCardsState.showAnswer ? '🙈 Ocultar' : '👁️ Ver Respuesta'}
+                                   </button>
+                               </div>
+                               
+                               <div style="min-height: 80px; background: ${memoryCardsState.showAnswer ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : 'linear-gradient(135deg, #f9fafb, #f3f4f6)'}; border: 2px ${memoryCardsState.showAnswer ? 'solid #22c55e' : 'dashed #d1d5db'}; border-radius: 12px; padding: 25px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
+                                   
+                                   ${memoryCardsState.showAnswer ? `
+                                       <div style="text-align: center;">
+                                           <div style="font-size: 1.3rem; font-weight: 700; color: #166534; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                               <span style="font-size: 1.5rem;">✅</span>
+                                               <span>${String.fromCharCode(97 + currentCard.correctAnswer).toUpperCase()}) ${currentCard.options[currentCard.correctAnswer]}</span>
+                                           </div>
+                                           <div style="font-size: 14px; color: #16a34a; font-weight: 500;">
+                                               Esta es la respuesta correcta
+                                           </div>
+                                       </div>
+                                   ` : `
+                                       <div style="color: #9ca3af; font-style: italic; text-align: center;">
+                                           <div style="font-size: 2.5rem; margin-bottom: 10px;">🤔</div>
+                                           <div style="font-size: 16px;">Haz clic en "Ver Respuesta" para revelar la solución</div>
+                                       </div>
+                                   `}
+                               </div>
+                           </div>
+                           
+                           <!-- Consejo -->
+                           <div style="text-align: center; margin-top: 25px; padding: 12px; background: rgba(79, 70, 229, 0.05); border-radius: 10px; border: 1px solid rgba(79, 70, 229, 0.1);">
+                               <div style="color: #6b7280; font-size: 13px; font-weight: 500;">
+                                   💡 Intenta responder mentalmente antes de ver la respuesta
+                               </div>
+                           </div>
+                       </div>
+                   </div>
+               </div>
+               
+               <!-- Controles de navegación -->
+               <div style="display: flex; justify-content: center; align-items: center; gap: 25px;">
+                   <button onclick="previousCard()" class="btn btn-secondary" style="padding: 12px 25px; font-size: 16px; border-radius: 25px; display: flex; align-items: center; gap: 10px; min-width: 140px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
+                       <span style="font-size: 18px;">←</span>
+                       <span>Anterior</span>
+                   </button>
+                   
+                   <button onclick="nextCard()" class="btn btn-primary" style="padding: 12px 25px; font-size: 16px; border-radius: 25px; display: flex; align-items: center; gap: 10px; min-width: 140px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
+                       <span>Siguiente</span>
+                       <span style="font-size: 18px;">→</span>
+                   </button>
+               </div>
+           </div>
+           
+           <!-- Estilos CSS -->
+           <style>
+               @keyframes cardFloat {
+                   0%, 100% { transform: rotateX(1deg) rotateY(-1deg) translateY(0px); }
+                   50% { transform: rotateX(1deg) rotateY(-1deg) translateY(-2px); }
+               }
+               
+               .memory-card:hover {
+                   transform: rotateX(0deg) rotateY(0deg) translateY(-3px) !important;
+                   box-shadow: 0 25px 50px rgba(0,0,0,0.15) !important;
+               }
+           </style>
+       `;
+   }
+   
+   // INTERCEPTAR la función renderIntermediateScreen para añadir la tercera opción y exportar
+   const originalRenderIntermediateScreen = renderIntermediateScreen;
+   window.renderIntermediateScreen = function() {
+   return `
+       <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: -30px; border-radius: 20px;">
+           <div style="background: white; border-radius: 24px; padding: 60px; box-shadow: 0 25px 50px rgba(0,0,0,0.15); max-width: 600px; width: 100%; text-align: center; position: relative; overflow: hidden;">
+               
+               <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: linear-gradient(135deg, #667eea20, #764ba220); border-radius: 50%; z-index: 0;"></div>
+               <div style="position: absolute; bottom: -30px; left: -30px; width: 100px; height: 100px; background: linear-gradient(135deg, #764ba220, #667eea20); border-radius: 50%; z-index: 0;"></div>
+               
+               <div style="position: relative; z-index: 1;">
+                   <div style="background: linear-gradient(135deg, #667eea, #764ba2); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);">
+                       <span style="font-size: 2.5rem; filter: drop-shadow(0 2px 4px rgba(255,255,255,0.3));">🎯</span>
+                   </div>
+                   
+                   <h1 style="font-size: 2.8rem; font-weight: 700; margin: 0 0 15px 0; background: linear-gradient(135deg, #2d3748, #4a5568); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                       ¡Bienvenid@!
+                   </h1>
+                   
+                   <p style="font-size: 1.3rem; color: #6b7280; margin: 0 0 50px 0; font-weight: 400; line-height: 1.5;">
+                       Selecciona qué te gustaría hacer hoy
+                   </p>
+                   
+                   <div style="display: grid; gap: 15px; margin-bottom: 40px;">
+                       
+                       <button onclick="goToTests()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                           <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                               <span style="font-size: 1.5rem;">📚</span>
+                               <div style="text-align: left;">
+                                   <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Realizar Tests</div>
+                                   <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Crear y gestionar exámenes</div>
+                               </div>
+                           </div>
+                       </button>
+                       
+                       <button onclick="goToSummaries()" style="background: linear-gradient(135deg, #059669, #0ea5e9); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                           <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                               <span style="font-size: 1.5rem;">📊</span>
+                               <div style="text-align: left;">
+                                   <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Ver Resúmenes</div>
+                                   <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Analizar resultados y estadísticas</div>
+                               </div>
+                           </div>
+                       </button>
+                       
+                       <button onclick="goToMemoryCards()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                           <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                               <span style="font-size: 1.5rem;">🃏</span>
+                               <div style="text-align: left;">
+                                   <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Tarjetas de Memoria</div>
+                                   <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Repasar con tarjetas interactivas</div>
+                               </div>
+                           </div>
+                       </button>
+                       
+                       <button onclick="goToTemario()" style="background: linear-gradient(135deg, #8b5cf6, #a855f7); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                           <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                               <span style="font-size: 1.5rem;">📚</span>
+                               <div style="text-align: left;">
+                                   <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Ver Temario</div>
+                                   <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Gestiona tu índice de temas y progreso</div>
+                               </div>
+                           </div>
+                       </button>
+                       
+                       <button onclick="goToMultiplayer()" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                           <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                               <span style="font-size: 1.5rem;">⚔️</span>
+                               <div style="text-align: left;">
+                                   <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Duelo de Preguntas</div>
+                                   <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Compete con otros usuarios</div>
+                               </div>
+                           </div>
+                       </button>
+                       
+                       <!-- BOTÓN EXPORTAR DATOS -->
+                       <button onclick="exportUserDataComplete()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                           <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                               <span style="font-size: 1.5rem;">💾</span>
+                               <div style="text-align: left;">
+                                   <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Exportar Mis Datos</div>
+                                   <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Descargar backup completo</div>
+                               </div>
+                           </div>
+                       </button>
+                   </div>
+                   
+                   <div style="border-top: 1px solid #e5e7eb; padding-top: 25px; color: #9ca3af; font-size: 0.9rem;">
+                       <p style="margin: 0;">Sistema de Exámenes • Usuario: ${state.currentUser.name}</p>
+                   </div>
+               </div>
+           </div>
+       </div>
+   `;
 };
-    
-    // EXTENDER renderTabContent para incluir memory-cards
-    const originalRenderTabContentMemory = renderTabContent;
-    renderTabContent = function() {
-        switch(state.currentTab) {
-            case 'upload':
-                return renderUploadTab();
-            case 'questions':
-                return renderQuestionsTab();
-            case 'test':
-                return renderTestTab();
-            case 'results':
-                return renderResultsTab();
-            case 'summary':
-                return renderSummaryTab();
-            case 'memory-cards':
-                return renderMemoryCardsTab();
-            default:
-                return '<div>Error: Pestaña no encontrada - ' + state.currentTab + '</div>';
-        }
-    };
-    
-    // EXTENDER render para mostrar botón en header cuando estamos en tarjetas
-    const originalRenderMemoryCards = render;
-    render = function() {
-        if (showIntermediateScreen && state.currentUser) {
-            const app = document.getElementById('app');
-            app.innerHTML = `
-                <div class="container">
-                    <div class="header">
-                        <div class="title">Sistema de Exámenes</div>
-                        <div>
-                            <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
-                                ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
-                            </span>
-                            <button onclick="configureAPI()" class="btn btn-secondary">API</button>
-                            <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
-                            <button onclick="logout()" class="btn btn-danger">Salir</button>
-                        </div>
-                    </div>
-                    ${renderIntermediateScreen()}
-                </div>
-            `;
-        } else if (state.currentUser) {
-            const app = document.getElementById('app');
-            
-            let pageTitle = 'Sistema de Exámenes';
-            if (state.currentTab === 'questions') pageTitle = 'Banco de Preguntas';
-            else if (state.currentTab === 'results') pageTitle = 'Resultados del Test';
-            else if (state.currentTab === 'summary') pageTitle = 'Generador de Resúmenes';
-            else if (state.currentTab === 'memory-cards') pageTitle = 'Tarjetas de Memoria';
-            
-            const showNavTabs = state.currentTab !== 'summary' && state.currentTab !== 'memory-cards';
-            
-            app.innerHTML = `
-                <div class="container">
-                    <div class="header">
-                        <div class="title">${pageTitle}</div>
-                        <div>
-                            <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
-                                ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
-                            </span>
-                            <button onclick="configureAPI()" class="btn btn-secondary">API</button>
-                            ${state.currentTab === 'memory-cards' ? `
-                                <button onclick="backToMainMenuFromCards()" class="btn btn-info">🏠 Menú</button>
-                            ` : ''}
-                            <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
-                            <button onclick="logout()" class="btn btn-danger">Salir</button>
-                        </div>
-                    </div>
+   
+   // EXTENDER renderTabContent para incluir memory-cards y temario
+   const originalRenderTabContentMemory = renderTabContent;
+   renderTabContent = function() {
+       switch(state.currentTab) {
+           case 'upload':
+               return renderUploadTab();
+           case 'questions':
+               return renderQuestionsTab();
+           case 'test':
+               return renderTestTab();
+           case 'results':
+               return renderResultsTab();
+           case 'summary':
+               return renderSummaryTab();
+           case 'memory-cards':
+               return renderMemoryCardsTab();
+           case 'temario':
+               return renderTemarioPage();
+           default:
+               return '<div>Error: Pestaña no encontrada - ' + state.currentTab + '</div>';
+       }
+   };
+   
+   // EXTENDER render para mostrar botón en header cuando estamos en tarjetas o temario
+   const originalRenderMemoryCards = render;
+   render = function() {
+       if (showIntermediateScreen && state.currentUser) {
+           const app = document.getElementById('app');
+           app.innerHTML = `
+               <div class="container">
+                   <div class="header">
+                       <div class="title">Sistema de Exámenes</div>
+                       <div>
+                           <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                               ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                           </span>
+                           <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                           <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                           <button onclick="logout()" class="btn btn-danger">Salir</button>
+                       </div>
+                   </div>
+                   ${renderIntermediateScreen()}
+               </div>
+           `;
+       } else if (state.currentUser) {
+           const app = document.getElementById('app');
+           
+           let pageTitle = 'Sistema de Exámenes';
+           if (state.currentTab === 'questions') pageTitle = 'Banco de Preguntas';
+           else if (state.currentTab === 'results') pageTitle = 'Resultados del Test';
+           else if (state.currentTab === 'summary') pageTitle = 'Generador de Resúmenes';
+           else if (state.currentTab === 'memory-cards') pageTitle = 'Tarjetas de Memoria';
+           else if (state.currentTab === 'temario') pageTitle = 'Mi Temario';
+           
+           const showNavTabs = state.currentTab !== 'summary' && state.currentTab !== 'memory-cards' && state.currentTab !== 'temario';
+           
+           app.innerHTML = `
+               <div class="container">
+                   <div class="header">
+                       <div class="title">${pageTitle}</div>
+                       <div>
+                           <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                               ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                           </span>
+                           <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                           ${state.currentTab === 'memory-cards' || state.currentTab === 'temario' ? `
+                               <button onclick="backToMainMenuFromCards()" class="btn btn-info">🏠 Menú</button>
+                           ` : ''}
+                           <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                           <button onclick="logout()" class="btn btn-danger">Salir</button>
+                       </div>
+                   </div>
 
-                    ${showNavTabs ? `
-                        <div class="nav-tabs">
-                            <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
-                                📤 Subir Test
-                            </button>
-                            <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
-                                📋 Banco de Preguntas (${getFilteredQuestions().length})
-                            </button>
-                            <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
-                                🎯 Test Aleatorio
-                            </button>
-                            <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
-                                📊 Resultados (${state.testResults.length})
-                            </button>
-                        </div>
-                    ` : ''}
+                   ${showNavTabs ? `
+                       <div class="nav-tabs">
+                           <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
+                               📤 Subir Test
+                           </button>
+                           <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
+                               📋 Banco de Preguntas (${getFilteredQuestions().length})
+                           </button>
+                           <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
+                               🎯 Test Aleatorio
+                           </button>
+                           <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                               📊 Resultados (${state.testResults.length})
+                           </button>
+                       </div>
+                   ` : ''}
 
-                    <div id="messages"></div>
+                   <div id="messages"></div>
 
-                    ${renderTabContent()}
-                </div>
-            `;
-        } else {
-            originalRenderMemoryCards.call(this);
-        }
-    };
-    
-    // ATAJOS DE TECLADO
-    function setupMemoryCardsKeyboard() {
-        document.addEventListener('keydown', function(e) {
-            if (state.currentTab !== 'memory-cards') return;
-            
-            switch(e.key) {
-                case 'ArrowLeft':
-                case 'a':
-                case 'A':
-                    e.preventDefault();
-                    previousCard();
-                    break;
-                case 'ArrowRight':
-                case 'd':
-                case 'D':
-                    e.preventDefault();
-                    nextCard();
-                    break;
-                case ' ':
-                case 'Enter':
-                    e.preventDefault();
-                    toggleAnswer();
-                    break;
-                case 's':
-                case 'S':
-                    e.preventDefault();
-                    shuffleCards();
-                    break;
-                case 'Escape':
-                    e.preventDefault();
-                    backToMainMenuFromCards();
-                    break;
-            }
-        });
-    }
-    
-    setupMemoryCardsKeyboard();
-    
-    console.log('✅ Sistema de Tarjetas de Memoria + EXPORTAR implementado');
-    console.log('🃏 Funcionalidades:');
-    console.log('   - Botón "🏠 Menú" en header');
-    console.log('   - Tarjeta con animación flotante');
-    console.log('   - Botón "💾 Exportar Mis Datos" en menú principal');
-    console.log('   - Backup completo: cuenta + datos');
-    console.log('   - Compatible con sistema de importación');
-    
-    setTimeout(() => {
-        if (state.currentUser && typeof window.render === 'function') {
-            render();
-        }
-    }, 100);
+                   ${renderTabContent()}
+               </div>
+           `;
+       } else {
+           originalRenderMemoryCards.call(this);
+       }
+   };
+   
+   // ATAJOS DE TECLADO
+   function setupMemoryCardsKeyboard() {
+       document.addEventListener('keydown', function(e) {
+           if (state.currentTab !== 'memory-cards') return;
+           
+           switch(e.key) {
+               case 'ArrowLeft':
+               case 'a':
+               case 'A':
+                   e.preventDefault();
+                   previousCard();
+                   break;
+               case 'ArrowRight':
+               case 'd':
+               case 'D':
+                   e.preventDefault();
+                   nextCard();
+                   break;
+               case ' ':
+               case 'Enter':
+                   e.preventDefault();
+                   toggleAnswer();
+                   break;
+               case 's':
+               case 'S':
+                   e.preventDefault();
+                   shuffleCards();
+                   break;
+               case 'Escape':
+                   e.preventDefault();
+                   backToMainMenuFromCards();
+                   break;
+           }
+       });
+   }
+   
+   setupMemoryCardsKeyboard();
+   
+   console.log('✅ Sistema de Tarjetas de Memoria + TEMARIO + EXPORTAR implementado');
+   console.log('🃏 Funcionalidades:');
+   console.log('   - Botón "🏠 Menú" en header');
+   console.log('   - Tarjeta con animación flotante');
+   console.log('   - Botón "📚 Ver Temario" en menú principal');
+   console.log('   - Gestión completa de temario con vueltas y páginas');
+   console.log('   - Botón "💾 Exportar Mis Datos" incluye temario');
+   console.log('   - Compatible con sistema de importación');
+   
+   setTimeout(() => {
+       if (state.currentUser && typeof window.render === 'function') {
+           render();
+       }
+   }, 100);
 </script>
    <!-- 
 PARCHE: BOTÓN MENÚ UNIVERSAL EN TODAS LAS PANTALLAS
@@ -18092,439 +18420,10 @@ console.log('   - ✅ Resalta términos encontrados en amarillo');
 console.log('   - ✅ Combinable con filtro por tema');
 console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
 </script>
-<!-- 
-PARCHE DIRECTO: BOTÓN VER TEMARIO
-Añadir este código AL FINAL del archivo index.html, justo antes de </body>
--->
 
-<script>
-// ========== PARCHE DIRECTO - VER TEMARIO ==========
-
-// Estado del temario
-let temarioState = {
-    currentView: 'list',
-    temas: JSON.parse(localStorage.getItem('temarioTemas') || '[]'),
-    editingTema: null,
-    showCompleted: false
-};
-
-// PASO 1: FUNCIÓN PARA AÑADIR EL BOTÓN AL MENÚ PRINCIPAL
-function addTemarioButtonDirectly() {
-    // Buscar el contenedor de botones del menú principal
-    const buttonContainer = document.querySelector('div[style*="display: flex; flex-direction: column; gap: 15px"]');
-    
-    if (buttonContainer && !document.getElementById('temario-button-added')) {
-        // Crear el botón de temario
-        const temarioButton = document.createElement('div');
-        temarioButton.id = 'temario-button-added';
-        temarioButton.onclick = () => goToTemario();
-        temarioButton.style.cssText = `
-            background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 16px;
-            cursor: pointer;
-            text-align: center;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
-        `;
-        
-        temarioButton.innerHTML = `
-            <div style="font-size: 32px; margin-bottom: 12px;">📚</div>
-            <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Ver Temario</div>
-            <div style="font-size: 13px; opacity: 0.9;">Gestiona tu índice de temas y progreso</div>
-        `;
-        
-        // Añadir efectos hover
-        temarioButton.addEventListener('mouseenter', function() {
-            this.style.transform = 'translateY(-3px)';
-            this.style.boxShadow = '0 8px 25px rgba(139, 92, 246, 0.4)';
-        });
-        
-        temarioButton.addEventListener('mouseleave', function() {
-            this.style.transform = 'translateY(0)';
-            this.style.boxShadow = '0 4px 15px rgba(139, 92, 246, 0.3)';
-        });
-        
-        // Insertar el botón después del botón "Exportar Mis Datos"
-        const exportButton = Array.from(buttonContainer.children).find(child => 
-            child.textContent.includes('Exportar Mis Datos')
-        );
-        
-        if (exportButton) {
-            buttonContainer.insertBefore(temarioButton, exportButton.nextSibling);
-        } else {
-            buttonContainer.appendChild(temarioButton);
-        }
-        
-        console.log('📚 Botón Ver Temario añadido correctamente');
-    }
-}
-
-// PASO 2: FUNCIÓN PARA IR AL TEMARIO
-window.goToTemario = function() {
-    console.log('📚 Navegando a Ver Temario...');
-    showIntermediateScreen = false;
-    state.currentTab = 'temario';
-    render();
-};
-
-// PASO 3: INTERCEPTAR LA FUNCIÓN RENDER PARA EL TEMARIO
-const originalRenderForTemario = window.render;
-if (typeof originalRenderForTemario === 'function') {
-    window.render = function() {
-        // Si estamos en la pestaña temario, renderizar esa página
-        if (state.currentTab === 'temario') {
-            const app = document.getElementById('app');
-            if (app) {
-                app.innerHTML = `
-                    <div class="container" style="padding: 0; max-width: none; margin: 0; border-radius: 0; box-shadow: none; background: transparent;">
-                        ${renderUnifiedHeader()}
-                        
-                        <div style="padding: 20px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); min-height: calc(100vh - 80px);">
-                            <div id="messages" style="max-width: 1400px; margin: 0 auto 20px auto;"></div>
-                            <div style="max-width: 1400px; margin: 0 auto;">
-                                ${renderTemarioPage()}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-            return;
-        }
-        
-        // Si no estamos en temario, usar la función render original
-        const result = originalRenderForTemario.call(this);
-        
-        // Intentar añadir el botón después del render
-        setTimeout(() => {
-            addTemarioButtonDirectly();
-        }, 100);
-        
-        return result;
-    };
-}
-
-// PASO 4: RENDERIZAR LA PÁGINA DE TEMARIO
-function renderTemarioPage() {
-    if (temarioState.currentView === 'create') {
-        return renderCreateTema();
-    } else {
-        return renderTemarioList();
-    }
-}
-
-// PASO 5: RENDERIZAR LISTA DE TEMAS
-function renderTemarioList() {
-    const totalTemas = temarioState.temas.length;
-    const temasCompletos = temarioState.temas.filter(t => t.vueltas > 0).length;
-    const totalPaginas = temarioState.temas.reduce((sum, t) => sum + (t.paginas || 0), 0);
-    
-    return `
-        <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden;">
-            <!-- Header del Temario -->
-            <div style="background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%); color: white; padding: 30px;">
-                <h2 style="margin: 0 0 10px 0; font-size: 28px; font-weight: 700;">📚 Mi Temario</h2>
-                <p style="margin: 0; opacity: 0.9; font-size: 16px;">Gestiona tu progreso de estudio</p>
-                
-                <!-- Estadísticas -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-top: 20px;">
-                    <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 10px; text-align: center;">
-                        <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px;">${totalTemas}</div>
-                        <div style="font-size: 13px; opacity: 0.9;">Total Temas</div>
-                    </div>
-                    <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 10px; text-align: center;">
-                        <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px;">${temasCompletos}</div>
-                        <div style="font-size: 13px; opacity: 0.9;">Estudiados</div>
-                    </div>
-                    <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 10px; text-align: center;">
-                        <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px;">${totalPaginas}</div>
-                        <div style="font-size: 13px; opacity: 0.9;">Total Páginas</div>
-                    </div>
-                    <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 10px; text-align: center;">
-                        <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px;">${Math.round(totalTemas > 0 ? (temasCompletos / totalTemas) * 100 : 0)}%</div>
-                        <div style="font-size: 13px; opacity: 0.9;">Progreso</div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Contenido Principal -->
-            <div style="padding: 25px;">
-                <!-- Botones de Acción -->
-                <div style="display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap;">
-                    <button onclick="showCreateTema()" class="btn btn-primary" style="padding: 12px 24px; font-weight: 600;">
-                        ➕ Añadir Tema
-                    </button>
-                    <button onclick="toggleShowCompleted()" class="btn btn-outline-secondary" style="padding: 12px 24px;">
-                        ${temarioState.showCompleted ? '👁️ Mostrar Todos' : '✅ Solo Completados'}
-                    </button>
-                </div>
-                
-                <!-- Lista de Temas -->
-                <div style="background: #f8fafc; border-radius: 10px; padding: 20px;">
-                    ${temarioState.temas.length === 0 ? `
-                        <div style="text-align: center; padding: 60px 20px; color: #6b7280;">
-                            <div style="font-size: 64px; margin-bottom: 20px; opacity: 0.5;">📚</div>
-                            <h3 style="color: #374151; margin-bottom: 10px;">No tienes temas en tu temario</h3>
-                            <p style="margin-bottom: 25px;">Empieza añadiendo los primeros temas de tu oposición</p>
-                            <button onclick="showCreateTema()" class="btn btn-primary" style="padding: 12px 24px;">
-                                ➕ Añadir Primer Tema
-                            </button>
-                        </div>
-                    ` : `
-                        <div style="display: grid; gap: 15px;">
-                            ${getFilteredTemas().map((tema, index) => `
-                                <div style="background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-                                        <div style="flex: 1;">
-                                            <h4 style="margin: 0 0 8px 0; color: #1f2937; font-size: 18px; font-weight: 600;">${tema.nombre}</h4>
-                                            <div style="display: flex; gap: 15px; margin-bottom: 10px;">
-                                                <span style="background: #dbeafe; color: #1e40af; padding: 4px 10px; border-radius: 12px; font-size: 12px;">
-                                                    📄 ${tema.paginas || 0} páginas
-                                                </span>
-                                                <span style="background: ${tema.vueltas > 0 ? '#dcfce7' : '#fef3c7'}; color: ${tema.vueltas > 0 ? '#166534' : '#92400e'}; padding: 4px 10px; border-radius: 12px; font-size: 12px;">
-                                                    🔄 ${tema.vueltas || 0} ${tema.vueltas === 1 ? 'vuelta' : 'vueltas'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        
-                                        <div style="display: flex; gap: 8px;">
-                                            <button onclick="editTema(${index})" class="btn btn-sm btn-warning" style="padding: 6px 12px; font-size: 12px;">
-                                                ✏️
-                                            </button>
-                                            <button onclick="deleteTema(${index})" class="btn btn-sm btn-danger" style="padding: 6px 12px; font-size: 12px;">
-                                                🗑️
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Progreso visual -->
-                                    <div style="background: #f3f4f6; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
-                                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                                            <span style="font-size: 13px; color: #6b7280;">Progreso del Tema</span>
-                                            <span style="font-size: 13px; color: #374151; font-weight: 500;">${tema.vueltas || 0} ${tema.vueltas === 1 ? 'vuelta' : 'vueltas'}</span>
-                                        </div>
-                                        <div style="width: 100%; background: #e5e7eb; border-radius: 6px; height: 6px; overflow: hidden;">
-                                            <div style="width: ${Math.min((tema.vueltas || 0) * 33.33, 100)}%; background: linear-gradient(90deg, #3b82f6, #1d4ed8); height: 100%; border-radius: 6px;"></div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Acciones rápidas -->
-                                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                        <button onclick="incrementVueltas(${index})" class="btn btn-sm btn-success" style="padding: 6px 12px; font-size: 12px;">
-                                            ➕ Añadir Vuelta
-                                        </button>
-                                        ${tema.vueltas > 0 ? `
-                                            <button onclick="decrementVueltas(${index})" class="btn btn-sm btn-outline-warning" style="padding: 6px 12px; font-size: 12px;">
-                                                ➖ Quitar Vuelta
-                                            </button>
-                                        ` : ''}
-                                        <button onclick="editPaginas(${index})" class="btn btn-sm btn-info" style="padding: 6px 12px; font-size: 12px;">
-                                            📄 Editar Páginas
-                                        </button>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    `}
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// PASO 6: RENDERIZAR FORMULARIO CREAR/EDITAR TEMA
-function renderCreateTema() {
-    const editingTema = temarioState.editingTema;
-    const isEditing = editingTema !== null && editingTema !== undefined;
-    const tema = isEditing ? temarioState.temas[editingTema] : null;
-    
-    return `
-        <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; max-width: 600px; margin: 0 auto;">
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 25px;">
-                <h2 style="margin: 0 0 10px 0; font-size: 24px; font-weight: 700;">
-                    ${isEditing ? '✏️ Editar Tema' : '➕ Añadir Nuevo Tema'}
-                </h2>
-                <p style="margin: 0; opacity: 0.9;">
-                    ${isEditing ? 'Modifica la información del tema' : 'Completa los datos del tema de tu oposición'}
-                </p>
-            </div>
-            
-            <!-- Formulario -->
-            <div style="padding: 30px;">
-                <div style="margin-bottom: 25px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Nombre del Tema *</label>
-                    <input type="text" id="tema-nombre" placeholder="Ej: Derecho Constitucional - Título Preliminar" 
-                           value="${tema ? tema.nombre : ''}"
-                           style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
-                    <div>
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Número de Páginas</label>
-                        <input type="number" id="tema-paginas" min="0" placeholder="0" 
-                               value="${tema ? tema.paginas || '' : ''}"
-                               style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
-                    </div>
-                    
-                    <div>
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Vueltas Dadas</label>
-                        <input type="number" id="tema-vueltas" min="0" placeholder="0" 
-                               value="${tema ? tema.vueltas || '' : ''}"
-                               style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: 25px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Notas (Opcional)</label>
-                    <textarea id="tema-notas" rows="3" placeholder="Ej: Tema difícil, repasar artículos 1-9..."
-                              style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; resize: vertical;">${tema ? tema.notas || '' : ''}</textarea>
-                </div>
-                
-                <!-- Botones -->
-                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                    <button onclick="saveTema()" class="btn btn-primary" style="padding: 12px 24px; font-weight: 600; flex: 1;">
-                        ${isEditing ? '💾 Guardar Cambios' : '➕ Añadir Tema'}
-                    </button>
-                    <button onclick="cancelCreateTema()" class="btn btn-secondary" style="padding: 12px 24px; flex: 1;">
-                        ❌ Cancelar
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// PASO 7: FUNCIONES DE GESTIÓN
-window.showCreateTema = function() {
-    temarioState.currentView = 'create';
-    temarioState.editingTema = null;
-    render();
-};
-
-window.cancelCreateTema = function() {
-    temarioState.currentView = 'list';
-    temarioState.editingTema = null;
-    render();
-};
-
-window.saveTema = function() {
-    const nombre = document.getElementById('tema-nombre').value.trim();
-    const paginas = parseInt(document.getElementById('tema-paginas').value) || 0;
-    const vueltas = parseInt(document.getElementById('tema-vueltas').value) || 0;
-    const notas = document.getElementById('tema-notas').value.trim();
-    
-    if (!nombre) {
-        showMessage('El nombre del tema es obligatorio', 'error');
-        document.getElementById('tema-nombre').focus();
-        return;
-    }
-    
-    const nuevoTema = {
-        nombre,
-        paginas,
-        vueltas,
-        notas,
-        fechaCreacion: temarioState.editingTema !== null ? temarioState.temas[temarioState.editingTema].fechaCreacion : new Date().toISOString(),
-        fechaModificacion: new Date().toISOString()
-    };
-    
-    if (temarioState.editingTema !== null) {
-        temarioState.temas[temarioState.editingTema] = nuevoTema;
-        showMessage('Tema actualizado correctamente', 'success');
-    } else {
-        temarioState.temas.push(nuevoTema);
-        showMessage('Tema añadido correctamente', 'success');
-    }
-    
-    localStorage.setItem('temarioTemas', JSON.stringify(temarioState.temas));
-    
-    temarioState.currentView = 'list';
-    temarioState.editingTema = null;
-    render();
-};
-
-window.editTema = function(index) {
-    temarioState.editingTema = index;
-    temarioState.currentView = 'create';
-    render();
-};
-
-window.deleteTema = function(index) {
-    const tema = temarioState.temas[index];
-    if (confirm(`¿Estás seguro de que quieres eliminar el tema "${tema.nombre}"?`)) {
-        temarioState.temas.splice(index, 1);
-        localStorage.setItem('temarioTemas', JSON.stringify(temarioState.temas));
-        showMessage('Tema eliminado correctamente', 'success');
-        render();
-    }
-};
-
-window.incrementVueltas = function(index) {
-    temarioState.temas[index].vueltas = (temarioState.temas[index].vueltas || 0) + 1;
-    temarioState.temas[index].fechaModificacion = new Date().toISOString();
-    localStorage.setItem('temarioTemas', JSON.stringify(temarioState.temas));
-    showMessage(`Vuelta añadida a "${temarioState.temas[index].nombre}"`, 'success');
-    render();
-};
-
-window.decrementVueltas = function(index) {
-    if (temarioState.temas[index].vueltas > 0) {
-        temarioState.temas[index].vueltas--;
-        temarioState.temas[index].fechaModificacion = new Date().toISOString();
-        localStorage.setItem('temarioTemas', JSON.stringify(temarioState.temas));
-        showMessage(`Vuelta quitada de "${temarioState.temas[index].nombre}"`, 'success');
-        render();
-    }
-};
-
-window.editPaginas = function(index) {
-    const tema = temarioState.temas[index];
-    const nuevasPaginas = prompt(`Número de páginas para "${tema.nombre}":`, tema.paginas || 0);
-    if (nuevasPaginas !== null && !isNaN(nuevasPaginas) && parseInt(nuevasPaginas) >= 0) {
-        tema.paginas = parseInt(nuevasPaginas);
-        tema.fechaModificacion = new Date().toISOString();
-        localStorage.setItem('temarioTemas', JSON.stringify(temarioState.temas));
-        showMessage('Páginas actualizadas correctamente', 'success');
-        render();
-    }
-};
-
-window.toggleShowCompleted = function() {
-    temarioState.showCompleted = !temarioState.showCompleted;
-    render();
-};
-
-// PASO 8: FUNCIÓN AUXILIAR
-function getFilteredTemas() {
-    if (temarioState.showCompleted) {
-        return temarioState.temas.filter(tema => tema.vueltas > 0);
-    }
-    return temarioState.temas;
-}
-
-// PASO 9: AÑADIR EL BOTÓN CUANDO CARGUE LA PÁGINA
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        addTemarioButtonDirectly();
-    }, 1000);
-});
-
-// PASO 10: INTENTAR AÑADIR EL BOTÓN CADA VEZ QUE SE RENDERIZA
-setInterval(() => {
-    if (showIntermediateScreen && !document.getElementById('temario-button-added')) {
-        addTemarioButtonDirectly();
-    }
-}, 2000);
-
-console.log('✅ PARCHE TEMARIO aplicado correctamente');
-console.log('📚 El botón "Ver Temario" se añadirá automáticamente al menú');
-console.log('🔄 Si no aparece, recarga la página');
-
-</script>
 </body>
 </html>
+
 
 
 
