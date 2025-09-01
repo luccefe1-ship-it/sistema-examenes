@@ -18148,9 +18148,233 @@ console.log('   - ✅ Estrella (⭐/☆) aparece junto a Editar/Eliminar');
 console.log('   - ✅ Funciona igual que en vista normal');
 console.log('   - ✅ Mantiene estado verificado al filtrar');
 </script>
+<!-- 
+PARCHE: EXPORTACIÓN UNIVERSAL DE DATOS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche hace que los datos exportados funcionen en cualquier sesión/ordenador
+-->
+
+<script>
+    // ========== PARCHE: EXPORTACIÓN UNIVERSAL ==========
+    console.log('🌍 Aplicando parche de exportación universal...');
     
+    // REEMPLAZAR función exportUserDataComplete para crear archivos UNIVERSALES
+    const originalExportUserDataComplete = window.exportUserDataComplete;
+    window.exportUserDataComplete = function() {
+        if (!state.currentUser) {
+            showMessage('❌ Error: No hay usuario logueado', 'error');
+            return;
+        }
+        
+        try {
+            const username = state.currentUser.username;
+            
+            // Crear backup UNIVERSAL (sin datos específicos de cuenta)
+            const universalBackup = {
+                version: "3.0", // Nueva versión para archivos universales
+                exportDate: new Date().toISOString(),
+                exportTimestamp: Date.now(),
+                exportType: "UNIVERSAL", // Marcador importante
+                originalUsername: username, // Solo para referencia
+                userData: {
+                    questions: state.questions || [],
+                    topics: state.topics || [],
+                    testResults: state.testResults || [],
+                    summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
+                    savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
+                    apiKey: state.apiKey || ''
+                },
+                stats: {
+                    totalQuestions: state.questions ? state.questions.length : 0,
+                    totalTopics: state.topics ? state.topics.length : 0,
+                    totalTests: state.testResults ? state.testResults.length : 0,
+                    totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0
+                }
+            };
+            
+            // Mostrar estadísticas antes de descargar
+            const statsMessage = `
+📊 BACKUP UNIVERSAL GENERADO:
+• Preguntas: ${universalBackup.stats.totalQuestions}
+• Temas: ${universalBackup.stats.totalTopics}
+• Tests realizados: ${universalBackup.stats.totalTests}
+• Resúmenes: ${universalBackup.stats.totalSummaries}
+• Tipo: 🌍 UNIVERSAL (funciona con cualquier sesión)
+            `;
+            
+            showMessage(statsMessage, 'success');
+            
+            // Crear archivo para descarga
+            const blob = new Blob([JSON.stringify(universalBackup, null, 2)], { 
+                type: 'application/json' 
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            const dateStr = new Date().toISOString().split('T')[0];
+            const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
+            a.href = url;
+            a.download = `datos_universales_${dateStr}_${timeStr}.json`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            // Mensaje de confirmación con instrucciones
+            setTimeout(() => {
+                showMessage(`
+✅ BACKUP UNIVERSAL DESCARGADO
+📁 Archivo: datos_universales_${dateStr}_${timeStr}.json
+
+🌍 VENTAJAS DEL ARCHIVO UNIVERSAL:
+• Funciona con CUALQUIER usuario
+• Compatible con CUALQUIER dispositivo
+• Se puede importar en CUALQUIER sesión
+• No requiere credenciales específicas
+
+💡 INSTRUCCIONES:
+1. Guarda el archivo en lugar seguro
+2. En otro dispositivo: Login con cualquier usuario
+3. Importar este archivo desde el menú de login
+4. ¡Todos tus datos estarán disponibles!
+                `, 'success');
+            }, 1000);
+            
+            console.log('✅ Backup UNIVERSAL exportado desde:', username);
+            
+        } catch (error) {
+            console.error('❌ Error exportando backup universal:', error);
+            showMessage('❌ Error al exportar datos: ' + error.message, 'error');
+        }
+    };
+    
+    // INTERCEPTAR importación para soportar archivos universales
+    const originalHandleImportFromLogin = window.handleImportFromLogin;
+    window.handleImportFromLogin = function() {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const rememberMe = document.getElementById('rememberMe').checked;
+        
+        if (!importFileSelected) {
+            showMessage('❌ Error: No se ha seleccionado archivo para importar', 'error');
+            return;
+        }
+        
+        if (!username || !password) {
+            showMessage('❌ Error: Usuario y contraseña son obligatorios', 'error');
+            return;
+        }
+        
+        try {
+            // DETECTAR si es archivo UNIVERSAL (nueva versión 3.0)
+            if (importFileSelected.version === "3.0" && importFileSelected.exportType === "UNIVERSAL") {
+                console.log('🌍 Detectado archivo UNIVERSAL - Importando a cualquier sesión');
+                
+                // IMPORTACIÓN UNIVERSAL - NO requiere validación de credenciales
+                const existingUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+                
+                // Si el usuario no existe, crear cuenta nueva automáticamente
+                if (!existingUsers[username]) {
+                    existingUsers[username] = {
+                        password: password,
+                        name: username, // Usar username como nombre por defecto
+                        securityQuestion: '',
+                        securityAnswer: '',
+                        createdAt: new Date().toLocaleString('es-ES'),
+                        lastLogin: new Date().toLocaleString('es-ES'),
+                        importedUniversalData: importFileSelected.exportDate
+                    };
+                    localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
+                    console.log('👤 Cuenta creada automáticamente para datos universales');
+                } else {
+                    // Verificar credenciales si el usuario ya existe
+                    if (existingUsers[username].password !== password) {
+                        showMessage('❌ Error: La contraseña no coincide con la cuenta existente', 'error');
+                        return;
+                    }
+                }
+                
+                // IMPORTAR datos universales al usuario actual
+                const userData = importFileSelected.userData;
+                localStorage.setItem(`realUser_${username}_questions`, JSON.stringify(userData.questions || []));
+                localStorage.setItem(`realUser_${username}_topics`, JSON.stringify(userData.topics || []));
+                localStorage.setItem(`realUser_${username}_testResults`, JSON.stringify(userData.testResults || []));
+                localStorage.setItem(`realUser_${username}_summaryTopics`, JSON.stringify(userData.summaryTopics || []));
+                localStorage.setItem(`realUser_${username}_savedSummaries`, JSON.stringify(userData.savedSummaries || []));
+                localStorage.setItem(`realUser_${username}_apiKey`, userData.apiKey || '');
+                
+                // Establecer usuario actual y cargar datos
+                state.currentUser = { 
+                    username: username, 
+                    name: existingUsers[username].name 
+                };
+                
+                // Cargar datos en variables globales
+                state.questions = userData.questions || [];
+                state.topics = userData.topics || [];
+                state.testResults = userData.testResults || [];
+                state.apiKey = userData.apiKey || '';
+                
+                // Cargar datos de resúmenes
+                if (typeof summarySystemState !== 'undefined') {
+                    summarySystemState.summaryTopics = userData.summaryTopics || [];
+                    summarySystemState.savedSummaries = userData.savedSummaries || [];
+                }
+                
+                // Configurar recordar credenciales
+                if (rememberMe) {
+                    localStorage.setItem('rememberedUsername', username);
+                    localStorage.setItem('rememberedPassword', password);
+                    localStorage.setItem('rememberExpiry', Date.now() + (30 * 24 * 60 * 60 * 1000));
+                }
+                
+                // Mostrar mensaje de éxito
+                const stats = importFileSelected.stats || {};
+                showMessage(`
+✅ ¡IMPORTACIÓN UNIVERSAL EXITOSA!
+
+🌍 DATOS UNIVERSALES IMPORTADOS:
+• Preguntas: ${stats.totalQuestions || userData.questions?.length || 0}
+• Temas: ${stats.totalTopics || userData.topics?.length || 0}
+• Tests: ${stats.totalTests || userData.testResults?.length || 0}
+• Resúmenes: ${stats.totalSummaries || userData.savedSummaries?.length || 0}
+
+🎉 ¡Bienvenido ${existingUsers[username].name}!
+Los datos ahora están disponibles en tu sesión.
+                `, 'success');
+                
+                // Limpiar archivo importado y cambiar vista
+                importFileSelected = null;
+                newLoginState.currentView = 'main';
+                render();
+                
+                console.log('✅ Importación universal completada para usuario:', username);
+                return;
+            }
+            
+            // Para archivos no universales, usar función original
+            if (originalHandleImportFromLogin) {
+                originalHandleImportFromLogin();
+            }
+            
+        } catch (error) {
+            console.error('❌ Error en importación:', error);
+            showMessage('❌ Error al importar datos: ' + error.message, 'error');
+        }
+    };
+    
+    console.log('✅ PARCHE DE EXPORTACIÓN UNIVERSAL APLICADO');
+    console.log('🌍 Funcionalidades añadidas:');
+    console.log('   • Exportación universal (sin datos de cuenta)');
+    console.log('   • Importación a cualquier sesión/usuario');
+    console.log('   • Auto-creación de cuentas si no existen');
+    console.log('   • Archivos compatibles entre dispositivos');
+    console.log('   • Versión 3.0 para archivos universales');
+</script>    
 </body>
 </html>
+
 
 
 
