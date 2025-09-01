@@ -17407,6 +17407,54 @@ Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 }
 </style>
 
+</script>
+<!-- 
+PARCHE: DETECTOR DE PREGUNTAS REPETIDAS + BÚSQUEDA MEJORADA + VERIFICACIÓN
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+-->
+
+<style>
+/* Estilos para la búsqueda */
+#search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+#search-input:hover {
+    border-color: #9ca3af;
+}
+
+/* Resaltar términos encontrados */
+.search-highlight {
+    background-color: #fef08a;
+    padding: 1px 2px;
+    border-radius: 2px;
+    font-weight: 600;
+}
+
+/* Mejorar disposición de filtros */
+.filter-container {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    .filter-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    #search-input {
+        width: 100% !important;
+    }
+}
+</style>
+
 <script>
 // ========== DETECTOR DE PREGUNTAS REPETIDAS ==========
 console.log('🔍 Aplicando detector de preguntas repetidas...');
@@ -18037,7 +18085,7 @@ window.renderQuestionsFilteredWithSearch = function(questions) {
     `;
 };
 
-// Función para renderizar pregunta individual con resaltado de búsqueda
+// CORREGIDA: Función para renderizar pregunta individual con resaltado de búsqueda Y BOTÓN VERIFICAR
 function renderSingleQuestionWithSearch(q, actualIndex) {
     const topicName = q.topicId ? getTopicName(q.topicId) : null;
     const searchTerm = state.searchQuery || '';
@@ -18071,6 +18119,9 @@ function renderSingleQuestionWithSearch(q, actualIndex) {
                 </ul>
             </div>
             <div style="display: flex; gap: 5px; flex-shrink: 0; margin-left: 15px;">
+                <button onclick="toggleVerified(${actualIndex})" class="btn ${q.isVerified ? 'btn-primary' : 'btn-secondary'}" style="padding: 5px 10px; font-size: 12px; ${q.isVerified ? 'background: linear-gradient(135deg, #3b82f6, #1d4ed8);' : ''}" title="${q.isVerified ? 'Pregunta verificada - Click para desmarcar' : 'Marcar como verificada'}">
+                    ${q.isVerified ? '⭐' : '☆'}
+                </button>
                 <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
                 <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
             </div>
@@ -18092,10 +18143,15 @@ console.log('   - ✅ Actualización suave sin render completo');
 console.log('   - ✅ Resalta términos encontrados en amarillo');
 console.log('   - ✅ Combinable con filtro por tema');
 console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
+console.log('⭐ AÑADIDO: Botón verificar en búsqueda filtrada');
+console.log('   - ✅ Estrella (⭐/☆) aparece junto a Editar/Eliminar');
+console.log('   - ✅ Funciona igual que en vista normal');
+console.log('   - ✅ Mantiene estado verificado al filtrar');
 </script>
     
 </body>
 </html>
+
 
 
 
