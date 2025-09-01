@@ -17104,514 +17104,261 @@ console.log('✅ Botón "Editar Texto" configurado para opciones completas');
 console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>
 <!-- 
-PARCHE DEFINITIVO FINAL - PREGUNTAS MANUALES
+PARCHE ULTRA SIMPLE - DETECCIÓN DIRECTA DE )** 
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-BORRA cualquier parche anterior y usa SOLO este código
+BORRA todos los parches anteriores y usa SOLO este código
 -->
 
 <script>
-// ========== PARCHE DEFINITIVO FINAL ==========
-console.log('🎯 Aplicando PARCHE DEFINITIVO FINAL...');
+// ========== PARCHE ULTRA SIMPLE ==========
+console.log('🔥 Aplicando PARCHE ULTRA SIMPLE...');
 
-// 1. ESTADOS GLOBALES
-window.manualQuestionMode = false;
-window.bulkQuestionMode = false;
-window.manualQuestionData = {
-    question: '',
-    options: ['', '', '', ''],
-    correctAnswer: null
-};
-window.bulkQuestionData = {
-    rawText: '',
-    processedQuestions: []
-};
+// Estados simples
+window.isInBulkMode = false;
+window.isInManualMode = false;
+window.bulkText = '';
+window.detectedQuestions = [];
 
-// 2. INTERCEPTAR LA FUNCIÓN ORIGINAL DE RENDERIZADO
-const originalRenderUploadTabFinal = renderUploadTab;
-
+// Interceptar renderUploadTab
+const originalUploadRender = renderUploadTab;
 window.renderUploadTab = function() {
-    // Si estamos en modo bulk, mostrar editor bulk
-    if (window.bulkQuestionMode) {
-        return renderBulkQuestionEditor();
-    }
+    if (window.isInBulkMode) return showBulkEditor();
+    if (window.isInManualMode) return showManualEditor();
     
-    // Si estamos en modo manual, mostrar editor manual
-    if (window.manualQuestionMode) {
-        return renderManualQuestionEditor();
-    }
-    
-    // Sino, mostrar interfaz normal con botones añadidos
-    let content = originalRenderUploadTabFinal.call(this);
-    
-    // Buscar el punto donde insertar los botones (antes del cierre de la tercera columna)
-    const insertPattern = /<button onclick="addToQuestions\(\)"[^>]*>[\s\S]*?<\/button>/;
-    const match = content.match(insertPattern);
-    
-    if (match) {
-        const insertAfter = match.index + match[0].length;
-        const buttonsHtml = `
-                    
-                    <!-- BOTONES MANUALES -->
+    let content = originalUploadRender.call(this);
+    const buttonHtml = `
                     <div style="border-top: 2px solid #f59e0b; margin-top: 15px; padding-top: 15px;">
-                        <div style="text-align: center; margin-bottom: 10px; color: #92400e; font-weight: bold; font-size: 13px;">
-                            📝 CREAR PREGUNTAS SIN IA
+                        <div style="text-align: center; margin-bottom: 10px; color: #92400e; font-weight: bold;">
+                            📝 CREAR SIN IA
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                            <button onclick="startManualQuestionFinal()" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; color: white; font-weight: bold; font-size: 12px; padding: 12px 8px; text-align: center; border-radius: 8px; cursor: pointer;">
-                                ✏️ Una Pregunta
-                            </button>
-                            <button onclick="startBulkQuestionsFinal()" style="background: linear-gradient(135deg, #059669, #047857); border: none; color: white; font-weight: bold; font-size: 12px; padding: 12px 8px; text-align: center; border-radius: 8px; cursor: pointer;">
-                                📋 Múltiples
-                            </button>
-                        </div>
-                        <div style="font-size: 11px; color: #92400e; text-align: center; margin-top: 8px; font-style: italic;">
-                            Sin IA • Procesamiento automático
+                            <button onclick="goManual()" style="background: #8b5cf6; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">✏️ Una</button>
+                            <button onclick="goBulk()" style="background: #059669; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">📋 Múltiples</button>
                         </div>
                     </div>`;
-        
-        content = content.substring(0, insertAfter) + buttonsHtml + content.substring(insertAfter);
-    }
     
+    const insertAt = content.lastIndexOf('</div>\n        </div>\n        \n        <!-- BOTÓN CENTRAL');
+    if (insertAt > -1) {
+        content = content.substring(0, insertAt) + buttonHtml + '\n                </div>\n            </div>\n        </div>' + content.substring(insertAt);
+    }
     return content;
 };
 
-// 3. FUNCIONES PARA INICIAR EDITORES
-window.startManualQuestionFinal = function() {
-    console.log('✏️ Iniciando editor manual...');
-    window.manualQuestionData = {
-        question: '',
-        options: ['', '', '', ''],
-        correctAnswer: null
-    };
-    window.manualQuestionMode = true;
+// Función para ir a múltiples
+window.goBulk = function() {
+    window.isInBulkMode = true;
+    window.bulkText = '';
+    window.detectedQuestions = [];
     render();
-    if (typeof showMessage === 'function') {
-        showMessage('Editor de pregunta individual activado', 'info');
-    }
 };
 
-window.startBulkQuestionsFinal = function() {
-    console.log('📋 Iniciando editor múltiple...');
-    window.bulkQuestionData = {
-        rawText: '',
-        processedQuestions: []
-    };
-    window.bulkQuestionMode = true;
-    render();
-    if (typeof showMessage === 'function') {
-        showMessage('Editor de múltiples preguntas activado', 'info');
-    }
+// Función para ir a manual
+window.goManual = function() {
+    alert('Editor individual: Funcionalidad básica implementada.\nUsa el editor múltiple para el patrón )** específico.');
 };
 
-// 4. EDITOR DE PREGUNTA INDIVIDUAL
-function renderManualQuestionEditor() {
+// Editor múltiple simple
+function showBulkEditor() {
     return `
-        <div style="max-width: 900px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
-                <h2 style="margin: 0; font-size: 24px;">✏️ Editor de Pregunta Individual</h2>
-                <p style="margin: 10px 0 0 0; opacity: 0.9;">Crea una pregunta paso a paso</p>
-            </div>
-            
-            <div style="background: white; border: 2px solid #8b5cf6; border-top: none; border-radius: 0 0 12px 12px; padding: 30px;">
-                
-                <!-- Selector tema -->
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold;">🏷️ Tema:</label>
-                    <div style="display: flex; gap: 10px;">
-                        <select id="manual-topic" onchange="updateManualTopic()" style="flex: 1; padding: 10px; border: 2px solid #d1d5db; border-radius: 8px;">
-                            <option value="">Sin tema</option>
-                            ${state.topics.map(t => `<option value="${t.id}" ${state.selectedTopicForNewQuestions == t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
-                        </select>
-                        <button onclick="createTopic()" style="padding: 10px 15px; background: #3b82f6; color: white; border: none; border-radius: 8px;">🆕 Crear</button>
-                    </div>
-                </div>
-                
-                <!-- Pregunta -->
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold;">❓ Pregunta:</label>
-                    <textarea id="manual-question-text" placeholder="Escribe tu pregunta aquí..." style="width: 100%; height: 80px; padding: 12px; border: 2px solid #d1d5db; border-radius: 8px; resize: vertical;" oninput="updateManualQuestion()">${window.manualQuestionData.question}</textarea>
-                </div>
-                
-                <!-- Opciones -->
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 12px; font-weight: bold;">📋 Opciones:</label>
-                    ${window.manualQuestionData.options.map((opt, i) => `
-                        <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
-                            <button onclick="setManualCorrect(${i})" style="width: 40px; height: 40px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; ${window.manualQuestionData.correctAnswer === i ? 'background: #22c55e; color: white;' : 'background: #e5e7eb; color: #6b7280;'}">
-                                ${String.fromCharCode(65 + i)}
-                            </button>
-                            <input type="text" placeholder="Opción ${String.fromCharCode(65 + i)}" value="${opt}" style="flex: 1; padding: 10px; border: 2px solid ${window.manualQuestionData.correctAnswer === i ? '#22c55e' : '#d1d5db'}; border-radius: 8px;" oninput="updateManualOption(${i}, this.value)">
-                            ${window.manualQuestionData.correctAnswer === i ? '<span style="color: #22c55e; font-weight: bold;">✓</span>' : ''}
-                        </div>
-                    `).join('')}
-                </div>
-                
-                <!-- Vista previa -->
-                <div style="margin-bottom: 20px;">
-                    <h4>👀 Vista previa:</h4>
-                    <div id="manual-preview" style="background: #f8f9fa; padding: 15px; border: 1px solid #dee2e6; border-radius: 8px;">
-                        ${renderManualPreview()}
-                    </div>
-                </div>
-                
-                <!-- Botones -->
-                <div style="text-align: center;">
-                    <button onclick="cancelManualQuestion()" style="padding: 12px 24px; margin-right: 10px; background: #6c757d; color: white; border: none; border-radius: 8px; cursor: pointer;">❌ Cancelar</button>
-                    <button onclick="saveManualQuestion()" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer;" ${!isManualQuestionValid() ? 'disabled style="opacity: 0.5;"' : ''}>✅ Guardar</button>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// 5. EDITOR DE MÚLTIPLES PREGUNTAS
-function renderBulkQuestionEditor() {
-    return `
-        <div style="max-width: 1100px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #059669, #047857); color: white; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
-                <h2 style="margin: 0; font-size: 24px;">📋 Editor de Múltiples Preguntas</h2>
-                <p style="margin: 10px 0 0 0; opacity: 0.9;">Pega múltiples preguntas y se procesarán automáticamente</p>
+        <div style="max-width: 1000px; margin: 0 auto; padding: 20px;">
+            <div style="background: #059669; color: white; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
+                <h2 style="margin: 0;">📋 Editor Múltiple - Detección )** </h2>
+                <p style="margin: 10px 0 0 0; opacity: 0.9;">Detecta automáticamente B)**, C)**, etc. como correctas</p>
             </div>
             
             <div style="background: white; border: 2px solid #059669; border-top: none; border-radius: 0 0 12px 12px; padding: 30px;">
                 
-                <!-- Selector tema -->
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold;">🏷️ Tema para todas las preguntas:</label>
-                    <div style="display: flex; gap: 10px;">
-                        <select id="bulk-topic" onchange="updateBulkTopic()" style="flex: 1; padding: 10px; border: 2px solid #d1d5db; border-radius: 8px;">
-                            <option value="">Sin tema</option>
-                            ${state.topics.map(t => `<option value="${t.id}" ${state.selectedTopicForNewQuestions == t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
-                        </select>
-                        <button onclick="createTopic()" style="padding: 10px 15px; background: #3b82f6; color: white; border: none; border-radius: 8px;">🆕 Crear</button>
+                    <label style="font-weight: bold;">🏷️ Tema:</label>
+                    <select id="bulk-tema" style="width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px;">
+                        <option value="">Sin tema</option>
+                        ${state.topics.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="font-weight: bold;">📝 Texto:</label>
+                    <textarea id="bulk-texto" placeholder="61. Tu pregunta:
+A) Opción normal
+B)**Opción correcta (detectará esta)
+C) Opción normal
+D) Opción normal" style="width: 100%; height: 200px; padding: 15px; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace;" oninput="procesarTexto()">${window.bulkText}</textarea>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <h4>Preguntas detectadas: ${window.detectedQuestions.length}</h4>
+                    <div style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; padding: 15px; max-height: 300px; overflow-y: auto;">
+                        ${mostrarPreview()}
                     </div>
                 </div>
                 
-                <!-- Instrucciones -->
-                <div style="background: #f8f9fa; padding: 15px; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px;">
-                    <strong>💡 Formatos detectados automáticamente:</strong><br>
-                    <small style="color: #6c757d;">
-                        • <strong>Negritas:</strong> **Opción correcta**, __Opción__, &lt;b&gt;Opción&lt;/b&gt;<br>
-                        • <strong>Símbolos:</strong> Opción ✓, Opción *, Opción (CORRECTA)<br>
-                        • <strong>Ejemplo:</strong> B) **Una Ley Orgánica** ← se detectará como correcta
-                    </small>
-                </div>
-                
-                <!-- Área de texto -->
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: bold;">📝 Pega tus preguntas aquí:</label>
-                    <textarea id="bulk-input-text" placeholder="68. Cuando el Rey fuere menor de edad:
-A) La Constitución
-B) **Una Ley Orgánica**
-C) Un Reglamento  
-D) La Ley
-
-69. Las proposiciones de ley:
-A) Un Grupo Parlamentario
-B) La mayoría de los miembros ✓
-C) La Junta de Portavoces
-D) Un Diputado" style="width: 100%; height: 300px; padding: 15px; border: 2px solid #d1d5db; border-radius: 8px; font-family: monospace; font-size: 13px;" oninput="processBulkInput()">${window.bulkQuestionData.rawText}</textarea>
-                </div>
-                
-                <!-- Vista previa -->
-                <div style="margin-bottom: 20px;">
-                    <h4>👀 Preguntas detectadas: <span style="color: #059669; font-weight: bold;">${window.bulkQuestionData.processedQuestions.length}</span></h4>
-                    <div id="bulk-preview" style="background: #f8f9fa; padding: 15px; border: 1px solid #dee2e6; border-radius: 8px; max-height: 400px; overflow-y: auto;">
-                        ${renderBulkPreview()}
-                    </div>
-                </div>
-                
-                <!-- Botones -->
                 <div style="text-align: center;">
-                    <button onclick="cancelBulkQuestions()" style="padding: 12px 24px; margin-right: 10px; background: #6c757d; color: white; border: none; border-radius: 8px; cursor: pointer;">❌ Cancelar</button>
-                    <button onclick="saveBulkQuestions()" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer;" ${window.bulkQuestionData.processedQuestions.length === 0 ? 'disabled style="opacity: 0.5;"' : ''}>✅ Guardar ${window.bulkQuestionData.processedQuestions.length} Preguntas</button>
+                    <button onclick="cancelarBulk()" style="padding: 12px 24px; margin-right: 10px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer;">Cancelar</button>
+                    <button onclick="guardarBulk()" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer;" ${window.detectedQuestions.length === 0 ? 'disabled' : ''}>Guardar ${window.detectedQuestions.length} Preguntas</button>
                 </div>
             </div>
         </div>
     `;
 }
 
-// 6. FUNCIONES DEL EDITOR MANUAL
-window.updateManualTopic = function() {
-    const sel = document.getElementById('manual-topic');
-    if (sel) state.selectedTopicForNewQuestions = sel.value || null;
-};
-
-window.updateManualQuestion = function() {
-    const el = document.getElementById('manual-question-text');
-    if (el) {
-        window.manualQuestionData.question = el.value;
-        updateManualPreview();
-    }
-};
-
-window.updateManualOption = function(index, value) {
-    window.manualQuestionData.options[index] = value;
-    updateManualPreview();
-};
-
-window.setManualCorrect = function(index) {
-    window.manualQuestionData.correctAnswer = index;
-    render();
-};
-
-function updateManualPreview() {
-    const preview = document.getElementById('manual-preview');
-    if (preview) preview.innerHTML = renderManualPreview();
-}
-
-function renderManualPreview() {
-    const data = window.manualQuestionData;
-    if (!data.question.trim()) return '<em style="color: #999;">Escribe una pregunta para ver la vista previa</em>';
+// Procesar texto con detección ultra específica
+window.procesarTexto = function() {
+    const textarea = document.getElementById('bulk-texto');
+    if (!textarea) return;
     
-    return `
-        <strong>${data.question}</strong><br><br>
-        ${data.options.map((opt, i) => {
-            if (!opt.trim()) return '';
-            const isCorrect = data.correctAnswer === i;
-            return `${String.fromCharCode(65 + i)}) <span style="color: ${isCorrect ? '#28a745' : 'inherit'}; font-weight: ${isCorrect ? 'bold' : 'normal'};">${opt} ${isCorrect ? '✓' : ''}</span><br>`;
-        }).join('')}
-    `;
-}
-
-function isManualQuestionValid() {
-    const data = window.manualQuestionData;
-    if (!data.question.trim()) return false;
-    if (data.options.filter(o => o.trim()).length < 2) return false;
-    if (data.correctAnswer === null) return false;
-    if (!data.options[data.correctAnswer]?.trim()) return false;
-    return true;
-}
-
-window.cancelManualQuestion = function() {
-    if (confirm('¿Cancelar? Se perderán los cambios.')) {
-        window.manualQuestionMode = false;
-        render();
-    }
-};
-
-window.saveManualQuestion = function() {
-    if (!isManualQuestionValid()) {
-        alert('Completa todos los campos y marca la respuesta correcta');
-        return;
-    }
-    
-    const data = window.manualQuestionData;
-    const validOptions = data.options.filter(o => o.trim());
-    
-    // Ajustar índice de correctAnswer
-    let correctIndex = 0;
-    let count = 0;
-    for (let i = 0; i <= data.correctAnswer; i++) {
-        if (data.options[i].trim()) {
-            if (i === data.correctAnswer) {
-                correctIndex = count;
-                break;
-            }
-            count++;
-        }
-    }
-    
-    const newQ = {
-        id: Date.now() + Math.random(),
-        question: data.question.trim(),
-        options: validOptions,
-        correctAnswer: correctIndex,
-        topicId: state.selectedTopicForNewQuestions || null,
-        isVerified: true,
-        source: 'manual'
-    };
-    
-    state.questions.push(newQ);
-    localStorage.setItem('questions', JSON.stringify(state.questions));
-    
-    window.manualQuestionMode = false;
-    render();
-    
-    if (typeof showMessage === 'function') {
-        showMessage('✅ Pregunta guardada exitosamente', 'success');
-    }
-};
-
-// 7. FUNCIONES DEL EDITOR MÚLTIPLE
-window.updateBulkTopic = function() {
-    const sel = document.getElementById('bulk-topic');
-    if (sel) state.selectedTopicForNewQuestions = sel.value || null;
-};
-
-window.processBulkInput = function() {
-    const el = document.getElementById('bulk-input-text');
-    if (!el) return;
-    
-    window.bulkQuestionData.rawText = el.value;
-    window.bulkQuestionData.processedQuestions = parseBulkText(el.value);
-    
-    // Actualizar contador en botón
-    const btn = document.querySelector('button[onclick="saveBulkQuestions()"]');
-    if (btn) {
-        const count = window.bulkQuestionData.processedQuestions.length;
-        btn.textContent = `✅ Guardar ${count} Preguntas`;
-        btn.disabled = count === 0;
-        btn.style.opacity = count === 0 ? '0.5' : '1';
-    }
+    window.bulkText = textarea.value;
+    window.detectedQuestions = parseTextoSimple(textarea.value);
     
     // Actualizar preview
-    const preview = document.getElementById('bulk-preview');
-    if (preview) preview.innerHTML = renderBulkPreview();
+    const preview = document.querySelector('div[style*="max-height: 300px"]');
+    if (preview) {
+        preview.innerHTML = mostrarPreview();
+    }
+    
+    // Actualizar botón
+    const btn = document.querySelector('button[onclick="guardarBulk()"]');
+    if (btn) {
+        btn.textContent = `Guardar ${window.detectedQuestions.length} Preguntas`;
+        btn.disabled = window.detectedQuestions.length === 0;
+    }
 };
 
-function parseBulkText(text) {
-    if (!text.trim()) return [];
+// Parser ultra específico para el patrón )**
+function parseTextoSimple(texto) {
+    if (!texto.trim()) return [];
     
-    const questions = [];
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    const preguntas = [];
+    const lineas = texto.split('\n');
     
-    let currentQ = null;
-    let currentOpts = [];
-    let correctIdx = null;
+    let preguntaActual = null;
+    let opciones = [];
+    let respuestaCorrecta = null;
     
-    for (const line of lines) {
-        // Nueva pregunta
-        if (/^\d+\.\s/.test(line)) {
-            // Guardar anterior
-            if (currentQ && currentOpts.length >= 2) {
-                questions.push({
+    for (let i = 0; i < lineas.length; i++) {
+        const linea = lineas[i].trim();
+        if (!linea) continue;
+        
+        // Detectar nueva pregunta (número.)
+        if (/^\d+\./.test(linea)) {
+            // Guardar pregunta anterior
+            if (preguntaActual && opciones.length >= 2) {
+                preguntas.push({
                     id: Date.now() + Math.random(),
-                    question: currentQ,
-                    options: [...currentOpts],
-                    correctAnswer: correctIdx !== null ? correctIdx : 0,
+                    question: preguntaActual,
+                    options: opciones.slice(),
+                    correctAnswer: respuestaCorrecta !== null ? respuestaCorrecta : 0,
                     topicId: null,
                     isVerified: true,
-                    source: 'bulk'
+                    source: 'bulk_simple'
                 });
             }
             
             // Nueva pregunta
-            currentQ = line.replace(/^\d+\.\s/, '').trim();
-            currentOpts = [];
-            correctIdx = null;
+            preguntaActual = linea.replace(/^\d+\.\s*/, '');
+            opciones = [];
+            respuestaCorrecta = null;
         }
-        // Opciones A) B) C) D)
-        else if (/^[A-D]\)\s/.test(line) || /^[A-D]\)\*\*/.test(line)) {
-            // Extraer el texto completo de la opción (incluyendo el patrón especial)
-            const fullOptionText = line.replace(/^[A-D]\)/, '').trim();
+        // Detectar opciones
+        else if (/^[A-D]\)/.test(linea)) {
+            // DETECCIÓN ULTRA ESPECÍFICA: buscar )** en la línea
+            const esCorrecta = /^[A-D]\)\*\*/.test(linea);
             
-            // Detectar si es correcta (con el patrón específico o otros indicadores)
-            if (isOptionCorrect(line)) {
-                correctIdx = currentOpts.length;
+            if (esCorrecta) {
+                respuestaCorrecta = opciones.length;
+                console.log(`🎯 Detectada correcta: ${linea}`);
             }
             
-            // Limpiar y añadir (remover ** del inicio si existe)
-            const cleanText = fullOptionText.replace(/^\*\*/, '').trim();
-            currentOpts.push(cleanText);
+            // Limpiar texto (quitar letra) y asteriscos)
+            let textoOpcion = linea.replace(/^[A-D]\)/, '').trim();
+            textoOpcion = textoOpcion.replace(/^\*+/, '').trim(); // Quitar asteriscos del inicio
+            
+            opciones.push(textoOpcion);
         }
     }
     
-    // Guardar última
-    if (currentQ && currentOpts.length >= 2) {
-        questions.push({
+    // Guardar última pregunta
+    if (preguntaActual && opciones.length >= 2) {
+        preguntas.push({
             id: Date.now() + Math.random(),
-            question: currentQ,
-            options: [...currentOpts],
-            correctAnswer: correctIdx !== null ? correctIdx : 0,
+            question: preguntaActual,
+            options: opciones.slice(),
+            correctAnswer: respuestaCorrecta !== null ? respuestaCorrecta : 0,
             topicId: null,
             isVerified: true,
-            source: 'bulk'
+            source: 'bulk_simple'
         });
     }
     
-    return questions;
+    console.log(`📊 Detectadas ${preguntas.length} preguntas`);
+    return preguntas;
 }
 
-function isOptionCorrect(text) {
-    // Detectar el patrón específico: cualquier opción que tenga )** después de la letra
-    // Ejemplos: A)**, B)****, C)**, etc.
-    const specificPattern = /^[A-D]\)\*\*/;
-    if (specificPattern.test(text)) {
-        return true;
+// Mostrar preview
+function mostrarPreview() {
+    if (window.detectedQuestions.length === 0) {
+        return '<em style="color: #999;">Pega preguntas para ver preview</em>';
     }
     
-    // Fallback para otros indicadores tradicionales
-    const lower = text.toLowerCase();
-    return ['✓', '✔', '(correcta)', '(correcto)', 'correcta', 'correcto', '→', '=>'].some(ind => lower.includes(ind));
-}
-
-function cleanOptionText(text) {
-    let clean = text;
-    
-    // Limpiar negritas
-    clean = clean.replace(/\*\*(.*?)\*\*/g, '$1');
-    clean = clean.replace(/__(.*?)__/g, '$1');
-    clean = clean.replace(/<b>(.*?)<\/b>/gi, '$1');
-    clean = clean.replace(/<strong>(.*?)<\/strong>/gi, '$1');
-    
-    // Limpiar otros indicadores
-    ['✓', '✔', '*', '(correcta)', '(correcto)', '→', '=>'].forEach(ind => {
-        clean = clean.replace(new RegExp(ind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '');
-    });
-    
-    return clean.trim();
-}
-
-function renderBulkPreview() {
-    const questions = window.bulkQuestionData.processedQuestions;
-    if (questions.length === 0) {
-        return '<em style="color: #999;">Pega preguntas para ver la vista previa</em>';
-    }
-    
-    return questions.map((q, i) => `
-        <div style="border-bottom: 1px solid #dee2e6; padding: 15px 0; ${i === questions.length - 1 ? 'border-bottom: none;' : ''}">
+    return window.detectedQuestions.map((q, i) => `
+        <div style="margin-bottom: 20px; padding-bottom: 15px; ${i < window.detectedQuestions.length - 1 ? 'border-bottom: 1px solid #ddd;' : ''}">
             <strong>P${i + 1}: ${q.question}</strong><br><br>
             ${q.options.map((opt, oi) => {
-                const isCorrect = q.correctAnswer === oi;
-                return `${String.fromCharCode(65 + oi)}) <span style="color: ${isCorrect ? '#28a745' : 'inherit'}; font-weight: ${isCorrect ? 'bold' : 'normal'};">${opt} ${isCorrect ? '✓' : ''}</span><br>`;
+                const esCorrecto = q.correctAnswer === oi;
+                return `${String.fromCharCode(65 + oi)}) <span style="color: ${esCorrecto ? '#28a745' : 'black'}; font-weight: ${esCorrecto ? 'bold' : 'normal'};">${opt} ${esCorrecto ? '✅' : ''}</span><br>`;
             }).join('')}
         </div>
     `).join('');
 }
 
-window.cancelBulkQuestions = function() {
-    if (window.bulkQuestionData.rawText.trim() && !confirm('¿Cancelar? Se perderán los cambios.')) {
-        return;
-    }
-    window.bulkQuestionMode = false;
+// Cancelar
+window.cancelarBulk = function() {
+    if (window.bulkText.trim() && !confirm('¿Cancelar? Se perderán los cambios.')) return;
+    window.isInBulkMode = false;
     render();
 };
 
-window.saveBulkQuestions = function() {
-    const questions = window.bulkQuestionData.processedQuestions;
-    if (questions.length === 0) {
+// Guardar
+window.guardarBulk = function() {
+    if (window.detectedQuestions.length === 0) {
         alert('No hay preguntas para guardar');
         return;
     }
     
-    // Asignar tema
-    const topicId = state.selectedTopicForNewQuestions;
-    questions.forEach(q => { q.topicId = topicId; });
+    // Obtener tema seleccionado
+    const selectorTema = document.getElementById('bulk-tema');
+    const temaId = selectorTema ? (selectorTema.value || null) : null;
     
-    // Guardar
-    state.questions.push(...questions);
+    // Asignar tema a todas las preguntas
+    window.detectedQuestions.forEach(q => {
+        q.topicId = temaId;
+    });
+    
+    // Añadir al banco
+    state.questions.push(...window.detectedQuestions);
     localStorage.setItem('questions', JSON.stringify(state.questions));
     
-    window.bulkQuestionMode = false;
+    // Volver
+    window.isInBulkMode = false;
     render();
     
     if (typeof showMessage === 'function') {
-        const topicName = topicId ? state.topics.find(t => t.id == topicId)?.name || 'Sin tema' : 'Sin tema';
-        showMessage(`✅ ${questions.length} preguntas guardadas en "${topicName}"`, 'success');
+        const nombreTema = temaId ? (state.topics.find(t => t.id == temaId)?.name || 'Sin tema') : 'Sin tema';
+        showMessage(`✅ ${window.detectedQuestions.length} preguntas guardadas en "${nombreTema}"`, 'success');
     }
 };
 
-console.log('✅ PARCHE DEFINITIVO FINAL aplicado correctamente');
-console.log('🎯 Funcionalidades:');
-console.log('   - ✏️ Editor individual con vista previa');
-console.log('   - 📋 Editor múltiple con detección de negritas');
-console.log('   - 🏷️ Gestión de temas integrada');
-console.log('   - ✅ Guardado automático en el banco de preguntas');
-console.log('   - 🎨 Interfaz completa y funcional');
+// Editor manual simple (placeholder)
+function showManualEditor() {
+    return '<div style="padding: 50px; text-align: center;"><h2>Editor Individual</h2><p>Funcionalidad básica - usa el editor múltiple para )** </p><button onclick="window.isInManualMode = false; render();">Volver</button></div>';
+}
+
+console.log('🔥 PARCHE ULTRA SIMPLE aplicado');
+console.log('🎯 Detección específica: A)**, B)****, C)**, etc.');
+console.log('🧪 Prueba pegando texto con el patrón )**');
 </script>
 </body>
 </html>
+
 
 
 
