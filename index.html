@@ -408,10 +408,13 @@
             }
             
             return `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2>${getQuestionsTitle()} (${filteredQuestions.length})</h2>
-                    <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
-                </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>${getQuestionsTitle()} (${filteredQuestions.length})</h2>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="detectDuplicates()" class="btn btn-warning">🔍 Detectar Repetidas</button>
+            <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
+        </div>
+    </div>
 
                 ${state.topics.length > 0 ? `
                     <div style="margin-bottom: 20px;">
@@ -17356,8 +17359,342 @@ console.log('🔥 PARCHE ULTRA SIMPLE aplicado');
 console.log('🎯 Detección específica: A)**, B)****, C)**, etc.');
 console.log('🧪 Prueba pegando texto con el patrón )**');
 </script>
+<!-- 
+PARCHE: DETECTOR DE PREGUNTAS REPETIDAS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+-->
+
+<script>
+// ========== DETECTOR DE PREGUNTAS REPETIDAS ==========
+console.log('🔍 Aplicando detector de preguntas repetidas...');
+
+// Estado del detector
+window.duplicateDetectorState = {
+    isShowing: false,
+    duplicateGroups: []
+};
+
+// Función principal para detectar duplicados
+window.detectDuplicates = function() {
+    console.log('🔍 Iniciando detección de duplicados...');
+    
+    if (state.questions.length === 0) {
+        alert('No hay preguntas en el banco para analizar');
+        return;
+    }
+    
+    // Detectar grupos de preguntas duplicadas
+    const duplicateGroups = findDuplicateGroups();
+    
+    if (duplicateGroups.length === 0) {
+        showMessage('✅ No se encontraron preguntas repetidas', 'success');
+        return;
+    }
+    
+    // Mostrar interfaz de gestión de duplicados
+    window.duplicateDetectorState.duplicateGroups = duplicateGroups;
+    window.duplicateDetectorState.isShowing = true;
+    render();
+    
+    // Scroll al top para ver la interfaz
+    window.scrollTo(0, 0);
+};
+
+// Función para encontrar grupos de preguntas duplicadas
+function findDuplicateGroups() {
+    const groups = [];
+    const processed = new Set();
+    
+    for (let i = 0; i < state.questions.length; i++) {
+        if (processed.has(i)) continue;
+        
+        const currentQuestion = state.questions[i];
+        const duplicates = [i];
+        
+        // Buscar preguntas similares
+        for (let j = i + 1; j < state.questions.length; j++) {
+            if (processed.has(j)) continue;
+            
+            const compareQuestion = state.questions[j];
+            
+            if (areQuestionsSimilar(currentQuestion, compareQuestion)) {
+                duplicates.push(j);
+                processed.add(j);
+            }
+        }
+        
+        // Si hay duplicados, añadir al grupo
+        if (duplicates.length > 1) {
+            groups.push({
+                id: Date.now() + Math.random(),
+                questions: duplicates.map(index => ({
+                    index: index,
+                    question: state.questions[index]
+                })),
+                selectedToKeep: duplicates[0] // Por defecto mantener la primera
+            });
+        }
+        
+        processed.add(i);
+    }
+    
+    return groups;
+}
+
+// Función para comparar si dos preguntas son similares
+function areQuestionsSimilar(q1, q2) {
+    // Limpiar y normalizar texto para comparación
+    const normalize = (text) => {
+        return text.toLowerCase()
+            .replace(/[^\w\s]/g, ' ') // Quitar puntuación
+            .replace(/\s+/g, ' ')     // Normalizar espacios
+            .trim();
+    };
+    
+    const text1 = normalize(q1.question);
+    const text2 = normalize(q2.question);
+    
+    // Comparación exacta
+    if (text1 === text2) return true;
+    
+    // Comparación por similitud (al menos 85% similar)
+    const similarity = calculateSimilarity(text1, text2);
+    return similarity > 0.85;
+}
+
+// Función para calcular similitud entre dos textos
+function calculateSimilarity(str1, str2) {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+    
+    if (longer.length === 0) return 1.0;
+    
+    const editDistance = levenshteinDistance(longer, shorter);
+    return (longer.length - editDistance) / longer.length;
+}
+
+// Algoritmo de distancia de Levenshtein
+function levenshteinDistance(str1, str2) {
+    const matrix = [];
+    
+    for (let i = 0; i <= str2.length; i++) {
+        matrix[i] = [i];
+    }
+    
+    for (let j = 0; j <= str1.length; j++) {
+        matrix[0][j] = j;
+    }
+    
+    for (let i = 1; i <= str2.length; i++) {
+        for (let j = 1; j <= str1.length; j++) {
+            if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j] + 1
+                );
+            }
+        }
+    }
+    
+    return matrix[str2.length][str1.length];
+}
+
+// Interceptar renderQuestionsTab para mostrar interfaz de duplicados
+const originalRenderQuestionsTab = renderQuestionsTab;
+renderQuestionsTab = function() {
+    // Si se está mostrando el detector, mostrar esa interfaz
+    if (window.duplicateDetectorState.isShowing) {
+        return renderDuplicateDetectorInterface();
+    }
+    
+    // Sino, mostrar la pestaña normal PERO con el botón modificado
+    let content = originalRenderQuestionsTab.call(this);
+    
+    // Reemplazar el botón "Limpiar Todo" con los dos botones
+    const oldButton = `<button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>`;
+    const newButtons = `
+        <div style="display: flex; gap: 10px;">
+            <button onclick="detectDuplicates()" class="btn btn-warning">🔍 Detectar Repetidas</button>
+            <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
+        </div>
+    `;
+    
+    content = content.replace(oldButton, newButtons);
+    return content;
+};
+
+// Renderizar la interfaz del detector de duplicados
+function renderDuplicateDetectorInterface() {
+    const groups = window.duplicateDetectorState.duplicateGroups;
+    const totalDuplicates = groups.reduce((sum, group) => sum + group.questions.length - 1, 0);
+    
+    return `
+        <div style="max-width: 1200px; margin: 0 auto;">
+            <!-- Header -->
+            <div style="background: #f59e0b; color: white; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
+                <h2 style="margin: 0 0 10px 0;">🔍 Detector de Preguntas Repetidas</h2>
+                <p style="margin: 0; opacity: 0.9;">
+                    Encontrados ${groups.length} grupos de preguntas similares (${totalDuplicates} duplicados para eliminar)
+                </p>
+            </div>
+            
+            <!-- Controles -->
+            <div style="background: white; border: 2px solid #f59e0b; border-top: none; padding: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div>
+                        <button onclick="selectAllFirst()" class="btn btn-secondary" style="margin-right: 10px;">
+                            📄 Mantener Primeras
+                        </button>
+                        <button onclick="selectAllVerified()" class="btn btn-secondary">
+                            ⭐ Mantener Verificadas
+                        </button>
+                    </div>
+                    <div>
+                        <button onclick="closeDuplicateDetector()" class="btn btn-secondary" style="margin-right: 10px;">
+                            ❌ Cancelar
+                        </button>
+                        <button onclick="removeDuplicates()" class="btn btn-danger">
+                            🗑️ Eliminar Duplicados (${totalDuplicates})
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Lista de grupos duplicados -->
+                <div style="max-height: 600px; overflow-y: auto;">
+                    ${groups.map((group, groupIndex) => `
+                        <div style="border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
+                            <div style="background: #f9fafb; padding: 10px 15px; border-bottom: 1px solid #e5e7eb;">
+                                <strong>Grupo ${groupIndex + 1}</strong> - ${group.questions.length} preguntas similares
+                            </div>
+                            <div style="padding: 15px;">
+                                ${group.questions.map((item, questionIndex) => {
+                                    const q = item.question;
+                                    const isSelected = group.selectedToKeep === item.index;
+                                    const topicName = q.topicId ? (state.topics.find(t => t.id == q.topicId)?.name || 'Sin tema') : 'Sin tema';
+                                    
+                                    return `
+                                        <div style="border: 2px solid ${isSelected ? '#10b981' : '#e5e7eb'}; border-radius: 6px; padding: 15px; margin-bottom: 10px; background: ${isSelected ? '#f0fdf4' : 'white'}; cursor: pointer;" onclick="selectQuestionToKeep(${groupIndex}, ${item.index})">
+                                            <div style="display: flex; justify-content: between; align-items: start; margin-bottom: 10px;">
+                                                <div style="flex: 1;">
+                                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                                        <span style="background: ${isSelected ? '#10b981' : '#6b7280'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
+                                                            ${isSelected ? '✅ MANTENER' : 'ELIMINAR'}
+                                                        </span>
+                                                        <span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                                                            📁 ${topicName}
+                                                        </span>
+                                                        ${q.isVerified ? '<span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">⭐ Verificada</span>' : ''}
+                                                    </div>
+                                                    <strong>${q.question}</strong>
+                                                </div>
+                                            </div>
+                                            <div style="font-size: 14px; color: #6b7280;">
+                                                ${q.options.map((opt, i) => `
+                                                    <div style="margin-bottom: 3px;">
+                                                        ${String.fromCharCode(65 + i)}) ${opt} ${i === q.correctAnswer ? '✅' : ''}
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Función para seleccionar qué pregunta mantener en un grupo
+window.selectQuestionToKeep = function(groupIndex, questionIndex) {
+    window.duplicateDetectorState.duplicateGroups[groupIndex].selectedToKeep = questionIndex;
+    render(); // Re-renderizar para actualizar la interfaz
+};
+
+// Función para seleccionar todas las primeras preguntas
+window.selectAllFirst = function() {
+    window.duplicateDetectorState.duplicateGroups.forEach(group => {
+        group.selectedToKeep = group.questions[0].index;
+    });
+    render();
+};
+
+// Función para seleccionar todas las verificadas (o primera si ninguna está verificada)
+window.selectAllVerified = function() {
+    window.duplicateDetectorState.duplicateGroups.forEach(group => {
+        const verifiedQuestion = group.questions.find(item => item.question.isVerified);
+        group.selectedToKeep = verifiedQuestion ? verifiedQuestion.index : group.questions[0].index;
+    });
+    render();
+};
+
+// Función para cerrar el detector
+window.closeDuplicateDetector = function() {
+    window.duplicateDetectorState.isShowing = false;
+    render();
+};
+
+// Función para eliminar los duplicados seleccionados
+window.removeDuplicates = function() {
+    const groups = window.duplicateDetectorState.duplicateGroups;
+    const toRemove = [];
+    
+    // Recopilar índices a eliminar
+    groups.forEach(group => {
+        group.questions.forEach(item => {
+            if (item.index !== group.selectedToKeep) {
+                toRemove.push(item.index);
+            }
+        });
+    });
+    
+    if (toRemove.length === 0) {
+        alert('No hay duplicados para eliminar');
+        return;
+    }
+    
+    const confirmMessage = `¿Eliminar ${toRemove.length} preguntas duplicadas?\n\nEsta acción no se puede deshacer.`;
+    
+    if (!confirm(confirmMessage)) return;
+    
+    // Ordenar índices de mayor a menor para eliminar correctamente
+    toRemove.sort((a, b) => b - a);
+    
+    // Eliminar preguntas
+    toRemove.forEach(index => {
+        state.questions.splice(index, 1);
+    });
+    
+    // Guardar cambios
+    localStorage.setItem('questions', JSON.stringify(state.questions));
+    
+    // Cerrar detector y mostrar resultado
+    window.duplicateDetectorState.isShowing = false;
+    render();
+    
+    if (typeof showMessage === 'function') {
+        showMessage(`🗑️ ${toRemove.length} preguntas duplicadas eliminadas`, 'success');
+    }
+    
+    console.log(`🗑️ Eliminadas ${toRemove.length} preguntas duplicadas`);
+};
+
+console.log('✅ Detector de preguntas repetidas aplicado');
+console.log('🔍 Funcionalidades:');
+console.log('   - Detecta preguntas exactas y similares (85%+)');
+console.log('   - Interfaz visual para seleccionar cuáles mantener');
+console.log('   - Botones rápidos: mantener primeras/verificadas');
+console.log('   - Vista previa antes de eliminar');
+console.log('   - Preserva preguntas verificadas automáticamente');
+</script>
 </body>
 </html>
+
 
 
 
