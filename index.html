@@ -17360,9 +17360,51 @@ console.log('🎯 Detección específica: A)**, B)****, C)**, etc.');
 console.log('🧪 Prueba pegando texto con el patrón )**');
 </script>
 <!-- 
-PARCHE: DETECTOR DE PREGUNTAS REPETIDAS
+PARCHE: DETECTOR DE PREGUNTAS REPETIDAS + BÚSQUEDA EN TIEMPO REAL
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 -->
+
+<style>
+/* Estilos para la búsqueda */
+#search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+#search-input:hover {
+    border-color: #9ca3af;
+}
+
+/* Resaltar términos encontrados */
+.search-highlight {
+    background-color: #fef08a;
+    padding: 1px 2px;
+    border-radius: 2px;
+    font-weight: 600;
+}
+
+/* Mejorar disposición de filtros */
+.filter-container {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    .filter-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    #search-input {
+        width: 100% !important;
+    }
+}
+</style>
 
 <script>
 // ========== DETECTOR DE PREGUNTAS REPETIDAS ==========
@@ -17516,8 +17558,90 @@ renderQuestionsTab = function() {
         return renderDuplicateDetectorInterface();
     }
     
-    // Sino, mostrar la pestaña normal sin modificar
-    return originalRenderQuestionsTab.call(this);
+    // AÑADIDO: Si no está el detector, mostrar con búsqueda
+    const filteredQuestions = getFilteredQuestions();
+    
+    function getQuestionsTitle() {
+        let title = '';
+        
+        // Determinar título base
+        if (state.selectedTopicFilter === 'all') {
+            title = 'TODAS LAS PREGUNTAS DEL BANCO';
+        } else {
+            const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
+            if (topic) {
+                title = `PREGUNTAS ${topic.name.toUpperCase()}`;
+            } else {
+                title = 'PREGUNTAS DEL TEMA SELECCIONADO';
+            }
+        }
+        
+        // Añadir información de búsqueda si está activa
+        if (state.searchQuery && state.searchQuery.length > 0) {
+            title += ` - BÚSQUEDA: "${state.searchQuery.toUpperCase()}"`;
+        }
+        
+        return `${title} (${filteredQuestions.length})`;
+    }
+    
+    return `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+            <h2>${getQuestionsTitle()}</h2>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="detectDuplicates()" class="btn btn-warning">🔍 Detectar Repetidas</button>
+                <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
+            </div>
+        </div>
+
+        <!-- SECCIÓN DE FILTROS CON BÚSQUEDA -->
+        <div class="filter-container">
+            <!-- Filtro por tema existente -->
+            ${state.topics.length > 0 ? `
+                <div>
+                    <label style="margin-right: 10px; font-weight: 500;">📁 Filtrar por tema:</label>
+                    <select onchange="filterByTopic(this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #d1d5db;">
+                        <option value="all" ${state.selectedTopicFilter === 'all' ? 'selected' : ''}>Todos los temas (${state.questions.length})</option>
+                        ${state.topics.map(topic => `
+                            <option value="${topic.id}" ${state.selectedTopicFilter == topic.id ? 'selected' : ''}>
+                                ${topic.name} (${getTopicQuestionCount(topic.id)})
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+            ` : ''}
+            
+            <!-- Input de búsqueda -->
+            <div>
+                <label style="margin-right: 10px; font-weight: 500;">🔍 Buscar:</label>
+                <input 
+                    type="text" 
+                    id="search-input" 
+                    placeholder="Escribe para buscar preguntas..." 
+                    oninput="searchQuestions(this.value)"
+                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; width: 250px; font-size: 14px;"
+                    value="${state.searchQuery || ''}"
+                />
+                ${state.searchQuery ? `
+                    <button onclick="clearSearch()" style="margin-left: 5px; padding: 6px 10px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Limpiar búsqueda">
+                        ✖
+                    </button>
+                ` : ''}
+            </div>
+            
+            <!-- Indicador de resultados -->
+            ${state.searchQuery ? `
+                <div style="color: #059669; font-weight: 500; font-size: 14px;">
+                    📊 ${filteredQuestions.length} resultado${filteredQuestions.length === 1 ? '' : 's'} encontrado${filteredQuestions.length === 1 ? '' : 's'}
+                </div>
+            ` : ''}
+        </div>
+
+        <!-- Mostrar preguntas filtradas -->
+        ${state.topics.length > 0 && state.selectedTopicFilter === 'all' && !state.searchQuery ? 
+            renderQuestionsByTopic() : 
+            renderQuestionsFilteredWithSearch(filteredQuestions)
+        }
+    `;
 };
 
 // Renderizar la interfaz del detector de duplicados
@@ -17644,6 +17768,7 @@ function getTopicNameForGroup(group) {
     const topic = state.topics.find(t => t.id == firstQuestion.topicId);
     return topic ? topic.name : 'Tema desconocido';
 }
+
 window.selectQuestionToKeep = function(groupIndex, questionIndex) {
     window.duplicateDetectorState.duplicateGroups[groupIndex].selectedToKeep = questionIndex;
     render(); // Re-renderizar para actualizar la interfaz
@@ -17717,73 +17842,14 @@ window.removeDuplicates = function() {
     console.log(`🗑️ Eliminadas ${toRemove.length} preguntas duplicadas`);
 };
 
-console.log('✅ Detector de preguntas repetidas aplicado');
-console.log('🔍 Funcionalidades:');
-console.log('   - Detecta preguntas exactas y similares (85%+)');
-console.log('   - Interfaz visual para seleccionar cuáles mantener');
-console.log('   - Botones rápidos: mantener primeras/verificadas');
-console.log('   - Vista previa antes de eliminar');
-console.log('   - Preserva preguntas verificadas automáticamente');
-</script>
-    <!-- 
-PARCHE: BÚSQUEDA EN TIEMPO REAL PARA BANCO DE PREGUNTAS
-Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche añade funcionalidad de búsqueda en tiempo real sin modificar código existente
--->
+// ========== FUNCIONALIDAD DE BÚSQUEDA AÑADIDA ==========
 
-<style>
-/* Estilos para la búsqueda */
-#search-input:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-}
-
-#search-input:hover {
-    border-color: #9ca3af;
-}
-
-/* Resaltar términos encontrados */
-.search-highlight {
-    background-color: #fef08a;
-    padding: 1px 2px;
-    border-radius: 2px;
-    font-weight: 600;
-}
-
-/* Mejorar disposición de filtros */
-.filter-container {
-    display: flex;
-    gap: 15px;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-}
-
-@media (max-width: 768px) {
-    .filter-container {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-    }
-    
-    #search-input {
-        width: 100% !important;
-    }
-}
-</style>
-
-<script>
-// ========== PARCHE: BÚSQUEDA EN TIEMPO REAL ==========
-console.log('🔍 Aplicando parche de búsqueda en tiempo real...');
-
-// PASO 1: Añadir variable de búsqueda al estado
+// Añadir variable de búsqueda al estado
 if (typeof state !== 'undefined') {
     state.searchQuery = state.searchQuery || '';
-    console.log('✅ Variable searchQuery añadida al estado');
 }
 
-// PASO 2: Funciones de búsqueda
+// Funciones de búsqueda
 window.searchQuestions = function(query) {
     if (typeof state !== 'undefined') {
         state.searchQuery = query.trim();
@@ -17808,7 +17874,7 @@ window.clearSearch = function() {
     }
 };
 
-// PASO 3: Función para resaltar texto encontrado
+// Función para resaltar texto encontrado
 window.highlightSearchTerm = function(text, searchTerm) {
     if (!searchTerm || !text) return text;
     
@@ -17816,7 +17882,7 @@ window.highlightSearchTerm = function(text, searchTerm) {
     return text.replace(regex, '<span class="search-highlight">$1</span>');
 };
 
-// PASO 4: Sobrescribir getFilteredQuestions para incluir búsqueda
+// Sobrescribir getFilteredQuestions para incluir búsqueda
 const originalGetFilteredQuestions = window.getFilteredQuestions;
 
 window.getFilteredQuestions = function() {
@@ -17857,99 +17923,44 @@ window.getFilteredQuestions = function() {
     return filtered;
 };
 
-// PASO 5: Sobrescribir renderQuestionsTab para añadir input de búsqueda
-const originalRenderQuestionsTab = window.renderQuestionsTab;
-
-window.renderQuestionsTab = function() {
-    const filteredQuestions = getFilteredQuestions();
-    
-    function getQuestionsTitle() {
-        let title = '';
+// Función mejorada para renderizar preguntas filtradas con búsqueda
+window.renderQuestionsFilteredWithSearch = function(questions) {
+    if (questions.length === 0) {
+        let message = 'No hay preguntas disponibles';
         
-        // Determinar título base
-        if (state.selectedTopicFilter === 'all') {
-            title = 'TODAS LAS PREGUNTAS DEL BANCO';
-        } else {
-            const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
-            if (topic) {
-                title = `PREGUNTAS ${topic.name.toUpperCase()}`;
-            } else {
-                title = 'PREGUNTAS DEL TEMA SELECCIONADO';
-            }
-        }
-        
-        // Añadir información de búsqueda si está activa
         if (state.searchQuery && state.searchQuery.length > 0) {
-            title += ` - BÚSQUEDA: "${state.searchQuery.toUpperCase()}"`;
+            message = `No se encontraron preguntas que contengan "${state.searchQuery}"`;
+        } else if (state.selectedTopicFilter !== 'all') {
+            const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
+            message = `No hay preguntas en el tema "${topic ? topic.name : 'seleccionado'}"`;
         }
         
-        return `${title} (${filteredQuestions.length})`;
-    }
-    
-    return `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-            <h2>${getQuestionsTitle()}</h2>
-            <div style="display: flex; gap: 10px;">
-                <button onclick="detectDuplicates()" class="btn btn-warning">🔍 Detectar Repetidas</button>
-                <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
-            </div>
-        </div>
-
-        <!-- SECCIÓN DE FILTROS MEJORADA -->
-        <div class="filter-container">
-            <!-- Filtro por tema existente -->
-            ${state.topics.length > 0 ? `
-                <div>
-                    <label style="margin-right: 10px; font-weight: 500;">📁 Filtrar por tema:</label>
-                    <select onchange="filterByTopic(this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #d1d5db;">
-                        <option value="all" ${state.selectedTopicFilter === 'all' ? 'selected' : ''}>Todos los temas (${state.questions.length})</option>
-                        ${state.topics.map(topic => `
-                            <option value="${topic.id}" ${state.selectedTopicFilter == topic.id ? 'selected' : ''}>
-                                ${topic.name} (${getTopicQuestionCount(topic.id)})
-                            </option>
-                        `).join('')}
-                    </select>
-                </div>
-            ` : ''}
-            
-            <!-- Input de búsqueda (NUEVO) -->
-            <div>
-                <label style="margin-right: 10px; font-weight: 500;">🔍 Buscar:</label>
-                <input 
-                    type="text" 
-                    id="search-input" 
-                    placeholder="Escribe para buscar preguntas..." 
-                    oninput="searchQuestions(this.value)"
-                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; width: 250px; font-size: 14px;"
-                    value="${state.searchQuery || ''}"
-                />
+        return `
+            <div style="text-align: center; padding: 60px 20px; color: #6b7280;">
+                <div style="font-size: 3rem; margin-bottom: 20px;">🔍</div>
+                <h3 style="margin: 0 0 10px 0; color: #374151;">${message}</h3>
                 ${state.searchQuery ? `
-                    <button onclick="clearSearch()" style="margin-left: 5px; padding: 6px 10px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Limpiar búsqueda">
-                        ✖
+                    <p style="margin: 10px 0; font-size: 14px;">Intenta con otros términos de búsqueda</p>
+                    <button onclick="clearSearch()" class="btn btn-primary" style="margin-top: 15px;">
+                        ✖ Limpiar Búsqueda
                     </button>
                 ` : ''}
             </div>
-            
-            <!-- Indicador de resultados -->
-            ${state.searchQuery ? `
-                <div style="color: #059669; font-weight: 500; font-size: 14px;">
-                    📊 ${filteredQuestions.length} resultado${filteredQuestions.length === 1 ? '' : 's'} encontrado${filteredQuestions.length === 1 ? '' : 's'}
-                </div>
-            ` : ''}
+        `;
+    }
+    
+    return `
+        <div style="border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
+            ${questions.map((q, index) => {
+                const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                return renderSingleQuestionWithSearch(q, actualIndex);
+            }).join('')}
         </div>
-
-        <!-- Mostrar preguntas filtradas -->
-        ${state.topics.length > 0 && state.selectedTopicFilter === 'all' && !state.searchQuery ? 
-            renderQuestionsByTopic() : 
-            renderQuestionsFiltered(filteredQuestions)
-        }
     `;
 };
 
-// PASO 6: Mejorar renderSingleQuestion para resaltar términos de búsqueda
-const originalRenderSingleQuestion = window.renderSingleQuestion;
-
-window.renderSingleQuestion = function(q, actualIndex) {
+// Función para renderizar pregunta individual con resaltado de búsqueda
+function renderSingleQuestionWithSearch(q, actualIndex) {
     const topicName = q.topicId ? getTopicName(q.topicId) : null;
     const searchTerm = state.searchQuery || '';
     
@@ -17987,72 +17998,26 @@ window.renderSingleQuestion = function(q, actualIndex) {
             </div>
         </div>
     `;
-};
-
-// PASO 7: Mejorar la función de renderizado filtrado
-const originalRenderQuestionsFiltered = window.renderQuestionsFiltered;
-
-window.renderQuestionsFiltered = function(questions) {
-    if (questions.length === 0) {
-        let message = 'No hay preguntas disponibles';
-        
-        if (state.searchQuery && state.searchQuery.length > 0) {
-            message = `No se encontraron preguntas que contengan "${state.searchQuery}"`;
-        } else if (state.selectedTopicFilter !== 'all') {
-            const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
-            message = `No hay preguntas en el tema "${topic ? topic.name : 'seleccionado'}"`;
-        }
-        
-        return `
-            <div style="text-align: center; padding: 60px 20px; color: #6b7280;">
-                <div style="font-size: 3rem; margin-bottom: 20px;">🔍</div>
-                <h3 style="margin: 0 0 10px 0; color: #374151;">${message}</h3>
-                ${state.searchQuery ? `
-                    <p style="margin: 10px 0; font-size: 14px;">Intenta con otros términos de búsqueda</p>
-                    <button onclick="clearSearch()" class="btn btn-primary" style="margin-top: 15px;">
-                        ✖ Limpiar Búsqueda
-                    </button>
-                ` : ''}
-            </div>
-        `;
-    }
-    
-    return `
-        <div style="border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
-            ${questions.map((q, index) => {
-                const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                return renderSingleQuestion(q, actualIndex);
-            }).join('')}
-        </div>
-    `;
-};
-
-// PASO 8: Función de inicialización automática
-function initializeSearchPatch() {
-    console.log('🔍 Parche de búsqueda inicializado correctamente');
-    console.log('📋 Funcionalidades añadidas:');
-    console.log('  - ✅ Input de búsqueda en tiempo real');
-    console.log('  - ✅ Búsqueda en preguntas, respuestas y temas');
-    console.log('  - ✅ Combinable con filtro por tema');
-    console.log('  - ✅ Resaltado de términos encontrados');
-    console.log('  - ✅ Botón limpiar búsqueda');
-    console.log('  - ✅ Contador de resultados');
-    console.log('  - ✅ Responsive para móviles');
-    
-    // Forzar renderizado si estamos en la pestaña correcta
-    if (typeof state !== 'undefined' && state.activeTab === 'questions' && typeof render === 'function') {
-        setTimeout(render, 100);
-    }
 }
 
-// Ejecutar inicialización
-document.addEventListener('DOMContentLoaded', initializeSearchPatch);
-setTimeout(initializeSearchPatch, 1000); // Backup
-
-console.log('🔍 PARCHE DE BÚSQUEDA APLICADO EXITOSAMENTE');
+console.log('✅ Detector de preguntas repetidas aplicado');
+console.log('🔍 Funcionalidades:');
+console.log('   - Detecta preguntas exactas y similares (85%+)');
+console.log('   - Interfaz visual para seleccionar cuáles mantener');
+console.log('   - Botones rápidos: mantener primeras/verificadas');
+console.log('   - Vista previa antes de eliminar');
+console.log('   - Preserva preguntas verificadas automáticamente');
+console.log('🔍 AÑADIDO: Búsqueda en tiempo real');
+console.log('   - Input de búsqueda al lado del filtro por tema');
+console.log('   - Busca en preguntas, respuestas y nombres de temas');
+console.log('   - Resalta términos encontrados en amarillo');
+console.log('   - Combinable con filtro por tema');
+console.log('   - Botón limpiar búsqueda');
 </script>
+    
 </body>
 </html>
+
 
 
 
