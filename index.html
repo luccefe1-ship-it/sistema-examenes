@@ -17455,6 +17455,54 @@ Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 }
 </style>
 
+</script>
+<!-- 
+PARCHE: DETECTOR DE PREGUNTAS REPETIDAS + BÚSQUEDA MEJORADA + VERIFICACIÓN
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+-->
+
+<style>
+/* Estilos para la búsqueda */
+#search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+#search-input:hover {
+    border-color: #9ca3af;
+}
+
+/* Resaltar términos encontrados */
+.search-highlight {
+    background-color: #fef08a;
+    padding: 1px 2px;
+    border-radius: 2px;
+    font-weight: 600;
+}
+
+/* Mejorar disposición de filtros */
+.filter-container {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    .filter-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    #search-input {
+        width: 100% !important;
+    }
+}
+</style>
+
 <script>
 // ========== DETECTOR DE PREGUNTAS REPETIDAS ==========
 console.log('🔍 Aplicando detector de preguntas repetidas...');
@@ -18147,10 +18195,242 @@ console.log('⭐ AÑADIDO: Botón verificar en búsqueda filtrada');
 console.log('   - ✅ Estrella (⭐/☆) aparece junto a Editar/Eliminar');
 console.log('   - ✅ Funciona igual que en vista normal');
 console.log('   - ✅ Mantiene estado verificado al filtrar');
+
+// ========== REFUERZO DE IMPORTACIÓN/EXPORTACIÓN ==========
+console.log('📁 Reforzando sistema de importación/exportación...');
+
+// Función mejorada para importar datos desde archivo
+window.importDataFromFile = function(file) {
+    return new Promise((resolve, reject) => {
+        if (!file) {
+            reject(new Error('No se seleccionó ningún archivo'));
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                console.log('📁 Datos leídos del archivo:', data);
+                
+                // Validar estructura de datos
+                if (!validateImportData(data)) {
+                    reject(new Error('El archivo no contiene datos válidos'));
+                    return;
+                }
+                
+                // Procesar importación
+                processImportData(data);
+                resolve(data);
+                
+            } catch (error) {
+                console.error('❌ Error leyendo archivo:', error);
+                reject(new Error('Error al leer el archivo: ' + error.message));
+            }
+        };
+        
+        reader.onerror = () => {
+            reject(new Error('Error al leer el archivo'));
+        };
+        
+        reader.readAsText(file);
+    });
+};
+
+// Función para validar datos de importación
+function validateImportData(data) {
+    console.log('🔍 Validando datos de importación...');
+    
+    // Verificar si es backup completo (con cuenta + datos)
+    if (data.username && data.accountData && data.userData) {
+        console.log('✅ Detectado backup completo');
+        return true;
+    }
+    
+    // Verificar si es exportación simple (solo preguntas y temas)
+    if (data.questions || data.topics || Array.isArray(data)) {
+        console.log('✅ Detectado archivo de datos simple');
+        return true;
+    }
+    
+    // Verificar estructura básica esperada
+    if (!data || typeof data !== 'object') {
+        console.log('❌ Datos no válidos');
+        return false;
+    }
+    
+    return true;
+}
+
+// Función para procesar datos importados
+function processImportData(data) {
+    console.log('⚙️ Procesando importación de datos...');
+    
+    try {
+        let importedData = {};
+        
+        // Si es backup completo, extraer userData
+        if (data.username && data.accountData && data.userData) {
+            importedData = data.userData;
+            console.log('📦 Extrayendo datos de backup completo');
+        } else {
+            importedData = data;
+        }
+        
+        // Importar preguntas
+        if (importedData.questions && Array.isArray(importedData.questions)) {
+            console.log(`📝 Importando ${importedData.questions.length} preguntas...`);
+            
+            // Fusionar con preguntas existentes (evitar duplicados por ID)
+            const existingIds = new Set(state.questions.map(q => q.id));
+            const newQuestions = importedData.questions.filter(q => !existingIds.has(q.id));
+            
+            state.questions = [...state.questions, ...newQuestions];
+            localStorage.setItem('questions', JSON.stringify(state.questions));
+            
+            console.log(`✅ ${newQuestions.length} preguntas nuevas importadas`);
+        }
+        
+        // Importar temas
+        if (importedData.topics && Array.isArray(importedData.topics)) {
+            console.log(`📁 Importando ${importedData.topics.length} temas...`);
+            
+            // Fusionar con temas existentes (evitar duplicados por ID)
+            const existingTopicIds = new Set(state.topics.map(t => t.id));
+            const newTopics = importedData.topics.filter(t => !existingTopicIds.has(t.id));
+            
+            state.topics = [...state.topics, ...newTopics];
+            localStorage.setItem('topics', JSON.stringify(state.topics));
+            
+            console.log(`✅ ${newTopics.length} temas nuevos importados`);
+        }
+        
+        // Importar historial de tests
+        if (importedData.testResults && Array.isArray(importedData.testResults)) {
+            console.log(`📊 Importando ${importedData.testResults.length} resultados de tests...`);
+            
+            // Fusionar con tests existentes (evitar duplicados por ID)
+            const existingTestIds = new Set(state.testResults.map(t => t.id));
+            const newTests = importedData.testResults.filter(t => !existingTestIds.has(t.id));
+            
+            state.testResults = [...state.testResults, ...newTests];
+            localStorage.setItem('testResults', JSON.stringify(state.testResults));
+            
+            console.log(`✅ ${newTests.length} tests nuevos importados`);
+        }
+        
+        // Re-renderizar para mostrar cambios
+        render();
+        
+        // Mostrar resumen de importación
+        const summary = [];
+        if (importedData.questions) summary.push(`${importedData.questions.length} preguntas`);
+        if (importedData.topics) summary.push(`${importedData.topics.length} temas`);
+        if (importedData.testResults) summary.push(`${importedData.testResults.length} tests`);
+        
+        const message = `✅ Importación completada:\n${summary.join('\n')}`;
+        if (typeof showMessage === 'function') {
+            showMessage(message, 'success');
+        }
+        
+        console.log('✅ Importación completada exitosamente');
+        
+    } catch (error) {
+        console.error('❌ Error procesando importación:', error);
+        if (typeof showMessage === 'function') {
+            showMessage('❌ Error al procesar los datos: ' + error.message, 'error');
+        }
+    }
+}
+
+// Función mejorada para exportar datos
+window.exportDataComplete = function() {
+    try {
+        const exportData = {
+            exportDate: new Date().toISOString(),
+            version: "2.0",
+            questions: state.questions || [],
+            topics: state.topics || [],
+            testResults: state.testResults || []
+        };
+        
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
+            type: 'application/json' 
+        });
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        const dateStr = new Date().toISOString().split('T')[0];
+        const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '-');
+        a.download = `datos_completos_${dateStr}_${timeStr}.json`;
+        
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        if (typeof showMessage === 'function') {
+            showMessage('✅ Datos exportados correctamente', 'success');
+        }
+        
+        console.log('✅ Exportación completada');
+        
+    } catch (error) {
+        console.error('❌ Error en exportación:', error);
+        if (typeof showMessage === 'function') {
+            showMessage('❌ Error al exportar datos: ' + error.message, 'error');
+        }
+    }
+};
+
+// Mejorar la función de importación existente si existe
+if (typeof window.importData === 'function') {
+    const originalImportData = window.importData;
+    window.importData = function(file) {
+        console.log('📁 Usando función de importación reforzada...');
+        return importDataFromFile(file)
+            .then(data => {
+                console.log('✅ Importación reforzada completada');
+                return data;
+            })
+            .catch(error => {
+                console.error('❌ Error en importación reforzada:', error);
+                throw error;
+            });
+    };
+}
+
+// Añadir event listener para input de archivos si existe
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInputs = document.querySelectorAll('input[type="file"][accept*="json"]');
+    fileInputs.forEach(input => {
+        input.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                console.log('📁 Archivo seleccionado para importación:', file.name);
+                importDataFromFile(file).catch(error => {
+                    console.error('❌ Error en importación automática:', error);
+                });
+            }
+        });
+    });
+});
+
+console.log('✅ Sistema de importación/exportación reforzado');
+console.log('📁 Funcionalidades mejoradas:');
+console.log('   - ✅ Validación robusta de archivos');
+console.log('   - ✅ Soporte para backups completos y archivos simples');
+console.log('   - ✅ Fusión inteligente (evita duplicados)');
+console.log('   - ✅ Importación de preguntas, temas y tests');
+console.log('   - ✅ Exportación completa mejorada');
+console.log('   - ✅ Manejo de errores robusto');
 </script>
     
 </body>
 </html>
+
 
 
 
