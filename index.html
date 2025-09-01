@@ -17492,16 +17492,18 @@ function parseBulkText(text) {
             correctIdx = null;
         }
         // Opciones A) B) C) D)
-        else if (/^[A-D]\)\s/.test(line)) {
-            const optText = line.replace(/^[A-D]\)\s/, '').trim();
+        else if (/^[A-D]\)\s/.test(line) || /^[A-D]\)\*\*/.test(line)) {
+            // Extraer el texto completo de la opción (incluyendo el patrón especial)
+            const fullOptionText = line.replace(/^[A-D]\)/, '').trim();
             
-            // Detectar si es correcta (negritas y otros indicadores)
-            if (isOptionCorrect(optText)) {
+            // Detectar si es correcta (con el patrón específico o otros indicadores)
+            if (isOptionCorrect(line)) {
                 correctIdx = currentOpts.length;
             }
             
-            // Limpiar y añadir
-            currentOpts.push(cleanOptionText(optText));
+            // Limpiar y añadir (remover ** del inicio si existe)
+            const cleanText = fullOptionText.replace(/^\*\*/, '').trim();
+            currentOpts.push(cleanText);
         }
     }
     
@@ -17522,20 +17524,16 @@ function parseBulkText(text) {
 }
 
 function isOptionCorrect(text) {
-    // Detectar negritas
-    const boldPatterns = [/\*\*(.*?)\*\*/g, /__(.*?)__/g, /<b>(.*?)<\/b>/gi, /<strong>(.*?)<\/strong>/gi];
-    for (const pattern of boldPatterns) {
-        if (pattern.test(text)) {
-            const matches = text.match(pattern);
-            if (matches && matches.join('').length / text.length > 0.6) {
-                return true;
-            }
-        }
+    // Detectar el patrón específico: cualquier opción que tenga )** después de la letra
+    // Ejemplos: A)**, B)****, C)**, etc.
+    const specificPattern = /^[A-D]\)\*\*/;
+    if (specificPattern.test(text)) {
+        return true;
     }
     
-    // Otros indicadores
+    // Fallback para otros indicadores tradicionales
     const lower = text.toLowerCase();
-    return ['✓', '✔', '*', '(correcta)', '(correcto)', 'correcta', 'correcto', '→', '=>'].some(ind => lower.includes(ind));
+    return ['✓', '✔', '(correcta)', '(correcto)', 'correcta', 'correcto', '→', '=>'].some(ind => lower.includes(ind));
 }
 
 function cleanOptionText(text) {
@@ -17614,6 +17612,7 @@ console.log('   - 🎨 Interfaz completa y funcional');
 </script>
 </body>
 </html>
+
 
 
 
