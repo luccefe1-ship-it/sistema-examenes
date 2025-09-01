@@ -17371,7 +17371,8 @@ console.log('🔍 Aplicando detector de preguntas repetidas...');
 // Estado del detector
 window.duplicateDetectorState = {
     isShowing: false,
-    duplicateGroups: []
+    duplicateGroups: [],
+    detectionMode: 'similar' // 'exact' o 'similar'
 };
 
 // Función principal para detectar duplicados
@@ -17457,7 +17458,12 @@ function areQuestionsSimilar(q1, q2) {
     // Comparación exacta
     if (text1 === text2) return true;
     
-    // Comparación por similitud (al menos 85% similar)
+    // Si está en modo exacto, solo devolver true para coincidencias exactas
+    if (window.duplicateDetectorState.detectionMode === 'exact') {
+        return false;
+    }
+    
+    // Comparación por similitud (al menos 85% similar) solo en modo 'similar'
     const similarity = calculateSimilarity(text1, text2);
     return similarity > 0.85;
 }
@@ -17510,26 +17516,15 @@ renderQuestionsTab = function() {
         return renderDuplicateDetectorInterface();
     }
     
-    // Sino, mostrar la pestaña normal PERO con el botón modificado
-    let content = originalRenderQuestionsTab.call(this);
-    
-    // Reemplazar el botón "Limpiar Todo" con los dos botones
-    const oldButton = `<button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>`;
-    const newButtons = `
-        <div style="display: flex; gap: 10px;">
-            <button onclick="detectDuplicates()" class="btn btn-warning">🔍 Detectar Repetidas</button>
-            <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
-        </div>
-    `;
-    
-    content = content.replace(oldButton, newButtons);
-    return content;
+    // Sino, mostrar la pestaña normal sin modificar
+    return originalRenderQuestionsTab.call(this);
 };
 
 // Renderizar la interfaz del detector de duplicados
 function renderDuplicateDetectorInterface() {
     const groups = window.duplicateDetectorState.duplicateGroups;
     const totalDuplicates = groups.reduce((sum, group) => sum + group.questions.length - 1, 0);
+    const mode = window.duplicateDetectorState.detectionMode;
     
     return `
         <div style="max-width: 1200px; margin: 0 auto;">
@@ -17537,12 +17532,24 @@ function renderDuplicateDetectorInterface() {
             <div style="background: #f59e0b; color: white; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
                 <h2 style="margin: 0 0 10px 0;">🔍 Detector de Preguntas Repetidas</h2>
                 <p style="margin: 0; opacity: 0.9;">
-                    Encontrados ${groups.length} grupos de preguntas similares (${totalDuplicates} duplicados para eliminar)
+                    Encontrados ${groups.length} ${groups.length === 1 ? 'tema con' : 'temas con'} preguntas ${mode === 'exact' ? 'exactas' : 'similares'} (${totalDuplicates} duplicados para eliminar)
                 </p>
             </div>
             
             <!-- Controles -->
             <div style="background: white; border: 2px solid #f59e0b; border-top: none; padding: 20px;">
+                <!-- Selector de modo -->
+                <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+                    <div style="background: #f3f4f6; border-radius: 8px; padding: 4px; display: flex; gap: 4px;">
+                        <button onclick="changeDetectionMode('exact')" style="padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; ${mode === 'exact' ? 'background: #3b82f6; color: white;' : 'background: transparent; color: #6b7280;'}">
+                            🎯 Solo Exactas
+                        </button>
+                        <button onclick="changeDetectionMode('similar')" style="padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; ${mode === 'similar' ? 'background: #3b82f6; color: white;' : 'background: transparent; color: #6b7280;'}">
+                            🔍 Similares (85%+)
+                        </button>
+                    </div>
+                </div>
+                
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <div>
                         <button onclick="selectAllFirst()" class="btn btn-secondary" style="margin-right: 10px;">
@@ -17562,18 +17569,19 @@ function renderDuplicateDetectorInterface() {
                     </div>
                 </div>
                 
-                <!-- Lista de grupos duplicados -->
+                <!-- Lista de grupos duplicados por tema -->
                 <div style="max-height: 600px; overflow-y: auto;">
-                    ${groups.map((group, groupIndex) => `
+                    ${groups.map((group, groupIndex) => {
+                        const topicName = getTopicNameForGroup(group);
+                        return `
                         <div style="border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
-                            <div style="background: #f9fafb; padding: 10px 15px; border-bottom: 1px solid #e5e7eb;">
-                                <strong>Grupo ${groupIndex + 1}</strong> - ${group.questions.length} preguntas similares
+                            <div style="background: #4f46e5; color: white; padding: 12px 15px; border-bottom: 1px solid #e5e7eb;">
+                                <strong>📁 ${topicName}</strong> - ${group.questions.length} preguntas ${mode === 'exact' ? 'idénticas' : 'similares'}
                             </div>
                             <div style="padding: 15px;">
                                 ${group.questions.map((item, questionIndex) => {
                                     const q = item.question;
                                     const isSelected = group.selectedToKeep === item.index;
-                                    const topicName = q.topicId ? (state.topics.find(t => t.id == q.topicId)?.name || 'Sin tema') : 'Sin tema';
                                     
                                     return `
                                         <div style="border: 2px solid ${isSelected ? '#10b981' : '#e5e7eb'}; border-radius: 6px; padding: 15px; margin-bottom: 10px; background: ${isSelected ? '#f0fdf4' : 'white'}; cursor: pointer;" onclick="selectQuestionToKeep(${groupIndex}, ${item.index})">
@@ -17582,9 +17590,6 @@ function renderDuplicateDetectorInterface() {
                                                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                                                         <span style="background: ${isSelected ? '#10b981' : '#6b7280'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
                                                             ${isSelected ? '✅ MANTENER' : 'ELIMINAR'}
-                                                        </span>
-                                                        <span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
-                                                            📁 ${topicName}
                                                         </span>
                                                         ${q.isVerified ? '<span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">⭐ Verificada</span>' : ''}
                                                     </div>
@@ -17603,14 +17608,42 @@ function renderDuplicateDetectorInterface() {
                                 }).join('')}
                             </div>
                         </div>
-                    `).join('')}
+                    `;}).join('')}
                 </div>
             </div>
         </div>
     `;
 }
 
-// Función para seleccionar qué pregunta mantener en un grupo
+// Función para cambiar el modo de detección
+window.changeDetectionMode = function(newMode) {
+    window.duplicateDetectorState.detectionMode = newMode;
+    
+    // Re-detectar con el nuevo modo
+    const duplicateGroups = findDuplicateGroups();
+    window.duplicateDetectorState.duplicateGroups = duplicateGroups;
+    
+    // Re-renderizar
+    render();
+    
+    if (typeof showMessage === 'function') {
+        const modeText = newMode === 'exact' ? 'solo exactas' : 'similares (85%+)';
+        showMessage(`Modo cambiado a: ${modeText}. Encontrados ${duplicateGroups.length} grupos.`, 'info');
+    }
+};
+
+// Función para obtener el nombre del tema de un grupo de duplicados
+function getTopicNameForGroup(group) {
+    // Obtener el tema de la primera pregunta del grupo
+    const firstQuestion = group.questions[0].question;
+    
+    if (!firstQuestion.topicId) {
+        return 'Sin tema asignado';
+    }
+    
+    const topic = state.topics.find(t => t.id == firstQuestion.topicId);
+    return topic ? topic.name : 'Tema desconocido';
+}
 window.selectQuestionToKeep = function(groupIndex, questionIndex) {
     window.duplicateDetectorState.duplicateGroups[groupIndex].selectedToKeep = questionIndex;
     render(); // Re-renderizar para actualizar la interfaz
@@ -17694,6 +17727,7 @@ console.log('   - Preserva preguntas verificadas automáticamente');
 </script>
 </body>
 </html>
+
 
 
 
