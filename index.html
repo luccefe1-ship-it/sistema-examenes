@@ -17214,19 +17214,24 @@ function renderBulkEditor() {
                 <!-- Instrucciones -->
                 <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; margin-bottom: 15px;">
                     <p style="margin: 0 0 8px 0; font-size: 13px; color: #6c757d; font-weight: bold;">
-                        💡 Formato soportado:
+                        💡 Formatos soportados para respuestas correctas:
                     </p>
+                    <div style="font-size: 12px; color: #6c757d; margin-bottom: 10px;">
+                        <strong>• Negritas:</strong> **Opción correcta**, __Opción correcta__, &lt;b&gt;Opción correcta&lt;/b&gt;<br>
+                        <strong>• Símbolos:</strong> Opción correcta ✓, Opción correcta *, Opción correcta →<br>
+                        <strong>• Texto:</strong> Opción correcta (CORRECTA), Opción correcta correcta
+                    </div>
                     <div style="font-size: 12px; color: #6c757d; font-family: monospace; background: white; padding: 10px; border-radius: 4px;">
-                        61. Tu pregunta aquí:<br>
-                        A) Opción A<br>
-                        B) Opción B correcta ✓<br>
-                        C) Opción C<br>
-                        D) Opción D<br><br>
-                        62. Segunda pregunta:<br>
-                        A) Opción A<br>
-                        B) Opción B<br>
-                        C) Opción C correcta (CORRECTA)<br>
-                        D) Opción D
+                        68. Cuando el Rey fuere menor de edad:<br>
+                        A) La Constitución<br>
+                        <strong>B) **Una Ley Orgánica** ← DETECTARÁ ESTA</strong><br>
+                        C) Un Reglamento<br>
+                        D) La Ley<br><br>
+                        69. Las proposiciones de ley:<br>
+                        A) Un Grupo Parlamentario<br>
+                        B) La mayoría de los miembros<br>
+                        C) La Junta de Portavoces<br>
+                        <strong>D) Un Diputado, con la firma... ✓ ← O ESTA</strong>
                     </div>
                 </div>
                 
@@ -17480,16 +17485,61 @@ function parseBulkText(text) {
 
 function isCorrectOption(text) {
     const lower = text.toLowerCase();
-    const indicators = ['✓', '✔', '*', '(correcta)', '(correcto)', 'correcta', 'correcto', '→', '=>'];
+    
+    // Detectar negritas en diferentes formatos
+    const boldPatterns = [
+        /\*\*(.*?)\*\*/g,           // **texto**
+        /__(.*?)__/g,              // __texto__
+        /<b>(.*?)<\/b>/gi,         // <b>texto</b>
+        /<strong>(.*?)<\/strong>/gi // <strong>texto</strong>
+    ];
+    
+    // Si todo el texto está en negrita, es probablemente la correcta
+    for (let pattern of boldPatterns) {
+        const matches = text.match(pattern);
+        if (matches) {
+            // Si la parte en negrita es más del 70% del texto, considerarla correcta
+            const boldText = matches.join('');
+            const plainText = text.replace(pattern, '$1');
+            if (boldText.length / text.length > 0.7) {
+                return true;
+            }
+        }
+    }
+    
+    // Otros indicadores tradicionales
+    const indicators = ['✓', '✔', '*', '(correcta)', '(correcto)', 'correcta', 'correcto', '→', '=>', '>>'];
     return indicators.some(ind => lower.includes(ind));
 }
 
 function cleanOptionText(text) {
     let clean = text;
+    
+    // Limpiar formatos de negrita primero
+    const boldPatterns = [
+        /\*\*(.*?)\*\*/g,           // **texto**
+        /__(.*?)__/g,              // __texto__
+        /<b>(.*?)<\/b>/gi,         // <b>texto</b>
+        /<strong>(.*?)<\/strong>/gi // <strong>texto</strong>
+    ];
+    
+    boldPatterns.forEach(pattern => {
+        clean = clean.replace(pattern, '$1');
+    });
+    
+    // Limpiar otros indicadores
+    const toRemove = ['✓', '✔', '*', '(correcta)', '(correcto)', '→', '=>', '>>'];
+    toRemove.forEach(rem => {
+        clean = clean.replace(new RegExp(rem.replace(/[.*+?^${}()|[\]\\]/g, '\\function cleanOptionText(text) {
+    let clean = text;
     const toRemove = ['✓', '✔', '*', '(correcta)', '(correcto)', '→', '=>'];
     toRemove.forEach(rem => {
         clean = clean.replace(new RegExp(rem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '');
     });
+    return clean.trim();
+}'), 'gi'), '');
+    });
+    
     return clean.trim();
 }
 
@@ -17682,6 +17732,7 @@ console.log('   - 🏷️ Gestión de temas integrada');
 </script>
 </body>
 </html>
+
 
 
 
