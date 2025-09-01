@@ -17503,6 +17503,54 @@ Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 }
 </style>
 
+</script>
+<!-- 
+PARCHE: DETECTOR DE PREGUNTAS REPETIDAS + BÚSQUEDA MEJORADA + VERIFICACIÓN
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+-->
+
+<style>
+/* Estilos para la búsqueda */
+#search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+#search-input:hover {
+    border-color: #9ca3af;
+}
+
+/* Resaltar términos encontrados */
+.search-highlight {
+    background-color: #fef08a;
+    padding: 1px 2px;
+    border-radius: 2px;
+    font-weight: 600;
+}
+
+/* Mejorar disposición de filtros */
+.filter-container {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    .filter-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    #search-input {
+        width: 100% !important;
+    }
+}
+</style>
+
 <script>
 // ========== DETECTOR DE PREGUNTAS REPETIDAS ==========
 console.log('🔍 Aplicando detector de preguntas repetidas...');
@@ -18613,25 +18661,28 @@ function processImportDataEnhanced(data) {
 // Reemplazar función de procesamiento
 processImportData = processImportDataEnhanced;
 
-// Añadir botón de exportación compartible al renderizado de pestañas
-if (typeof renderQuestionsTab !== 'undefined') {
-    const originalRenderQuestionsTabForSharing = renderQuestionsTab;
-    renderQuestionsTab = function() {
-        const originalContent = originalRenderQuestionsTabForSharing.call(this);
-        
-        // Si estamos en detector de duplicados, no modificar
-        if (window.duplicateDetectorState && window.duplicateDetectorState.isShowing) {
-            return originalContent;
-        }
-        
-        // Añadir botón de exportación compartible al header
-        return originalContent.replace(
-            '<button onclick="detectDuplicates()" class="btn btn-warning">🔍 Detectar Repetidas</button>',
-            `<button onclick="exportDataForSharing()" class="btn btn-success" style="margin-right: 10px;" title="Exportar datos para compartir con otros usuarios">🔄 Exportar Para Compartir</button>
-            <button onclick="detectDuplicates()" class="btn btn-warning">🔍 Detectar Repetidas</button>`
-        );
-    };
-}
+// FORZAR la adición del botón al renderizado existente
+document.addEventListener('DOMContentLoaded', function() {
+    // Interceptar cualquier función render para añadir el botón
+    if (typeof window.render === 'function') {
+        const originalRender = window.render;
+        window.render = function() {
+            originalRender.call(this);
+            
+            // Después del render, añadir botón si estamos en pestaña de preguntas
+            setTimeout(() => {
+                addShareButtonToQuestionsTab();
+            }, 100);
+        };
+    }
+});
+
+// Función para añadir el botón de compartir a la pestaña de preguntas
+function addShareButtonToQuestionsTab() {
+    // Solo ejecutar si estamos en la pestaña de preguntas
+    if (!state.currentTab || state.currentTab !== 'questions') return;
+    
+    // Bus
 
 console.log('🔄 SISTEMA DE COMPARTICIÓN ENTRE SESIONES ACTIVADO');
 console.log('📤 Funcionalidades nuevas:');
@@ -18642,10 +18693,300 @@ console.log('   - ✅ Detecta automáticamente archivos compartibles');
 console.log('   - ✅ Muestra quién exportó los datos y cuándo');
 console.log('   - ✅ Fusión inteligente sin duplicados');
 console.log('📋 FLUJO: LucianoOposición → Exportar Para Compartir → SandraOposición → Importar');
+
+// ========== CORREGIR IMPORTACIÓN EN LOGIN PARA ARCHIVOS COMPARTIBLES ==========
+console.log('🔧 Corrigiendo manejo de importación en login...');
+
+// Sobrescribir handleImportFileSelect para manejar archivos compartibles
+if (typeof window.handleImportFileSelect !== 'undefined') {
+    const originalHandleImportFileSelect = window.handleImportFileSelect;
+    
+    window.handleImportFileSelect = function(input) {
+        const file = input.files[0];
+        if (!file) {
+            document.getElementById('file-info').style.display = 'none';
+            if (typeof importFileSelected !== 'undefined') {
+                importFileSelected = null;
+            }
+            return;
+        }
+        
+        if (!file.name.endsWith('.json')) {
+            if (typeof showMessage === 'function') {
+                showMessage('❌ Por favor selecciona un archivo .json válido', 'error');
+            }
+            input.value = '';
+            if (typeof importFileSelected !== 'undefined') {
+                importFileSelected = null;
+            }
+            return;
+        }
+        
+        // Leer archivo para mostrar información básica
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const fileData = JSON.parse(e.target.result);
+                console.log('📁 Estructura del archivo:', fileData);
+                
+                // DETECTAR TIPO DE ARCHIVO
+                let fileType = 'unknown';
+                let displayInfo = '';
+                
+                if (fileData.username && fileData.accountData && fileData.userData) {
+                    // Backup completo (original)
+                    fileType = 'backup_completo';
+                    displayInfo = `
+                        📁 <strong>${file.name}</strong><br>
+                        💼 <strong>BACKUP COMPLETO</strong><br>
+                        👤 Usuario: <strong>${fileData.username}</strong><br>
+                        📊 Preguntas: <strong>${fileData.userData.questions?.length || 0}</strong><br>
+                        📅 Fecha: <strong>${new Date(fileData.exportDate).toLocaleDateString('es-ES')}</strong>
+                    `;
+                } else if (fileData.exportType === "shared_data") {
+                    // Datos compartibles (nuevo)
+                    fileType = 'datos_compartibles';
+                    displayInfo = `
+                        📁 <strong>${file.name}</strong><br>
+                        🔄 <strong>DATOS COMPARTIBLES</strong><br>
+                        👤 Exportado por: <strong>${fileData.exportedBy || 'Usuario desconocido'}</strong><br>
+                        📊 Preguntas: <strong>${fileData.questions?.length || 0}</strong><br>
+                        📁 Temas: <strong>${fileData.topics?.length || 0}</strong><br>
+                        📅 Fecha: <strong>${new Date(fileData.exportDate).toLocaleDateString('es-ES')}</strong>
+                    `;
+                } else {
+                    // Formato desconocido
+                    throw new Error('Formato de archivo no reconocido');
+                }
+                
+                // Mostrar información del archivo
+                document.getElementById('file-info').style.display = 'block';
+                document.getElementById('file-details').innerHTML = displayInfo;
+                
+                // Guardar datos según el tipo
+                if (typeof importFileSelected !== 'undefined') {
+                    importFileSelected = fileData;
+                    importFileSelected._fileType = fileType; // Marcar el tipo para uso posterior
+                }
+                
+                console.log(`✅ Archivo ${fileType} cargado:`, file.name);
+                
+            } catch (error) {
+                console.error('❌ Error leyendo archivo:', error);
+                if (typeof showMessage === 'function') {
+                    showMessage('❌ Error leyendo archivo: ' + error.message, 'error');
+                }
+                input.value = '';
+                if (typeof importFileSelected !== 'undefined') {
+                    importFileSelected = null;
+                }
+                document.getElementById('file-info').style.display = 'none';
+            }
+        };
+        
+        reader.readAsText(file);
+    };
+}
+
+// Sobrescribir función de login con importación para manejar datos compartibles
+if (typeof window.loginWithImport !== 'undefined') {
+    const originalLoginWithImport = window.loginWithImport;
+    
+    window.loginWithImport = function() {
+        if (typeof importFileSelected === 'undefined' || !importFileSelected) {
+            if (typeof showMessage === 'function') {
+                showMessage('❌ Error: No hay archivo seleccionado', 'error');
+            }
+            return;
+        }
+        
+        const username = document.getElementById('username')?.value?.trim();
+        const password = document.getElementById('password')?.value;
+        const rememberMe = document.getElementById('remember-me')?.checked;
+        
+        if (!username || !password) {
+            if (typeof showMessage === 'function') {
+                showMessage('❌ Error: Introduce usuario y contraseña', 'error');
+            }
+            return;
+        }
+        
+        try {
+            console.log('🔄 Procesando login con archivo tipo:', importFileSelected._fileType);
+            
+            if (importFileSelected._fileType === 'backup_completo') {
+                // FLUJO ORIGINAL: Backup completo
+                console.log('📦 Procesando backup completo...');
+                originalLoginWithImport.call(this);
+                return;
+                
+            } else if (importFileSelected._fileType === 'datos_compartibles') {
+                // NUEVO FLUJO: Datos compartibles
+                console.log('🔄 Procesando datos compartibles...');
+                
+                // Verificar que el usuario existe o crear uno básico
+                const existingUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+                
+                if (!existingUsers[username]) {
+                    if (typeof showMessage === 'function') {
+                        showMessage('❌ Error: El usuario no existe. Crea una cuenta primero.', 'error');
+                    }
+                    return;
+                }
+                
+                if (existingUsers[username].password !== password) {
+                    if (typeof showMessage === 'function') {
+                        showMessage('❌ Error: Contraseña incorrecta', 'error');
+                    }
+                    return;
+                }
+                
+                // Login exitoso - cargar datos del usuario
+                if (typeof state !== 'undefined') {
+                    state.currentUser = { 
+                        username: username, 
+                        name: existingUsers[username].name 
+                    };
+                    
+                    // Cargar datos existentes del usuario
+                    state.questions = JSON.parse(localStorage.getItem(`realUser_${username}_questions`) || '[]');
+                    state.topics = JSON.parse(localStorage.getItem(`realUser_${username}_topics`) || '[]');
+                    state.testResults = JSON.parse(localStorage.getItem(`realUser_${username}_testResults`) || '[]');
+                }
+                
+                // Importar datos compartibles usando la función mejorada
+                processImportData(importFileSelected);
+                
+                // Configurar recordar credenciales
+                if (rememberMe) {
+                    localStorage.setItem('rememberedUsername', username);
+                    localStorage.setItem('rememberedPassword', password);
+                    localStorage.setItem('rememberExpiry', Date.now() + (30 * 24 * 60 * 60 * 1000));
+                }
+                
+                // Actualizar último login
+                existingUsers[username].lastLogin = new Date().toLocaleString('es-ES');
+                localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
+                
+                // Mensaje de éxito
+                const exportedBy = importFileSelected.exportedBy || 'Usuario desconocido';
+                const exportDate = importFileSelected.exportDate ? new Date(importFileSelected.exportDate).toLocaleDateString('es-ES') : 'Fecha desconocida';
+                
+                if (typeof showMessage === 'function') {
+                    showMessage(`✅ ¡LOGIN E IMPORTACIÓN EXITOSA!
+
+🔄 DATOS COMPARTIBLES IMPORTADOS:
+👤 Exportado por: ${exportedBy}
+📅 Fecha: ${exportDate}
+📊 Preguntas: ${importFileSelected.questions?.length || 0}
+📁 Temas: ${importFileSelected.topics?.length || 0}
+
+🎉 ¡Bienvenido ${existingUsers[username].name}!`, 'success');
+                }
+                
+                console.log('✅ Login con datos compartibles completado');
+                
+                // Limpiar archivo importado
+                importFileSelected = null;
+                
+                // Cambiar a la interfaz principal
+                if (typeof showIntermediateScreen !== 'undefined') {
+                    showIntermediateScreen = true;
+                }
+                setTimeout(() => {
+                    if (typeof render === 'function') {
+                        render();
+                    }
+                }, 2000);
+                
+            } else {
+                throw new Error('Tipo de archivo no soportado');
+            }
+            
+        } catch (error) {
+            console.error('❌ Error en login con importación:', error);
+            if (typeof showMessage === 'function') {
+                showMessage('❌ Error al importar datos: ' + error.message, 'error');
+            }
+        }
+    };
+}
+
+// Agregar botón de importación rápida en la pestaña de preguntas para usuarios ya logueados
+function addQuickImportButton() {
+    if (!state.currentTab || state.currentTab !== 'questions') return;
+    
+    // Buscar si ya existe el botón
+    if (document.getElementById('quick-import-btn')) return;
+    
+    // Buscar el contenedor de botones
+    const buttonsContainer = document.querySelector('div[style*="justify-content: space-between"]');
+    if (!buttonsContainer) return;
+    
+    // Buscar el div con los botones del lado derecho
+    const rightButtons = buttonsContainer.querySelector('div:last-child');
+    if (!rightButtons) return;
+    
+    // Crear botón de importación rápida
+    const quickImportBtn = document.createElement('button');
+    quickImportBtn.id = 'quick-import-btn';
+    quickImportBtn.className = 'btn btn-info';
+    quickImportBtn.innerHTML = '📥 Importar Datos';
+    quickImportBtn.style.marginRight = '10px';
+    quickImportBtn.title = 'Importar datos compartibles de otros usuarios';
+    
+    // Crear input file oculto
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.json';
+    fileInput.style.display = 'none';
+    fileInput.onchange = function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            importDataFromFile(file).then(() => {
+                console.log('✅ Importación rápida completada');
+                e.target.value = ''; // Limpiar input
+            }).catch(error => {
+                console.error('❌ Error en importación rápida:', error);
+                e.target.value = ''; // Limpiar input
+            });
+        }
+    };
+    
+    quickImportBtn.onclick = function() {
+        fileInput.click();
+    };
+    
+    // Insertar botones
+    rightButtons.insertBefore(quickImportBtn, rightButtons.firstChild);
+    document.body.appendChild(fileInput);
+}
+
+// Ejecutar al renderizar
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof window.render === 'function') {
+        const originalRender = window.render;
+        window.render = function() {
+            originalRender.call(this);
+            setTimeout(() => {
+                addQuickImportButton();
+            }, 100);
+        };
+    }
+});
+
+console.log('🔧 CORRECCIÓN APLICADA PARA ARCHIVOS COMPARTIBLES');
+console.log('✅ Funcionalidades corregidas:');
+console.log('   - ✅ Login reconoce archivos compartibles y backups completos');
+console.log('   - ✅ Importación funciona desde login para ambos tipos');
+console.log('   - ✅ Botón "Importar Datos" añadido en Banco de Preguntas');
+console.log('   - ✅ Validación de archivos mejorada');
+console.log('   - ✅ Mensajes específicos según tipo de archivo');
 </script>
     
 </body>
 </html>
+
 
 
 
