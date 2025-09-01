@@ -18426,10 +18426,227 @@ console.log('   - ✅ Fusión inteligente (evita duplicados)');
 console.log('   - ✅ Importación de preguntas, temas y tests');
 console.log('   - ✅ Exportación completa mejorada');
 console.log('   - ✅ Manejo de errores robusto');
+
+// ========== EXPORTACIÓN COMPARTIBLE ENTRE SESIONES ==========
+console.log('🔄 Añadiendo exportación compartible entre sesiones...');
+
+// Función para exportar SOLO datos (sin credenciales) - COMPARTIBLE
+window.exportDataForSharing = function() {
+    try {
+        console.log('📤 Exportando datos compartibles...');
+        
+        const shareableData = {
+            exportType: "shared_data",
+            exportDate: new Date().toISOString(),
+            exportedBy: state.currentUser ? state.currentUser.username : 'Usuario anónimo',
+            version: "2.1",
+            // SOLO datos, no credenciales
+            questions: state.questions || [],
+            topics: state.topics || [],
+            testResults: state.testResults || [],
+            // Metadatos para mostrar al importar
+            stats: {
+                totalQuestions: (state.questions || []).length,
+                totalTopics: (state.topics || []).length,
+                totalTests: (state.testResults || []).length
+            }
+        };
+        
+        const blob = new Blob([JSON.stringify(shareableData, null, 2)], { 
+            type: 'application/json' 
+        });
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        const dateStr = new Date().toISOString().split('T')[0];
+        const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '-');
+        const exportedBy = state.currentUser ? state.currentUser.username : 'anonimo';
+        a.download = `datos_compartibles_${exportedBy}_${dateStr}_${timeStr}.json`;
+        
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        const message = `🔄 DATOS COMPARTIBLES EXPORTADOS
+
+📊 Contenido exportado:
+• ${shareableData.stats.totalQuestions} preguntas
+• ${shareableData.stats.totalTopics} temas  
+• ${shareableData.stats.totalTests} tests
+
+💡 INSTRUCCIONES:
+• Este archivo puede usarlo cualquier usuario
+• Al importar se combinarán con sus datos existentes
+• No incluye información personal/credenciales`;
+
+        if (typeof showMessage === 'function') {
+            showMessage(message, 'success');
+        }
+        
+        console.log('✅ Exportación compartible completada:', shareableData.stats);
+        
+    } catch (error) {
+        console.error('❌ Error en exportación compartible:', error);
+        if (typeof showMessage === 'function') {
+            showMessage('❌ Error al exportar datos compartibles: ' + error.message, 'error');
+        }
+    }
+};
+
+// Mejorar la función de importación para detectar datos compartibles
+const originalProcessImportData = processImportData;
+function processImportDataEnhanced(data) {
+    console.log('⚙️ Procesando importación mejorada...');
+    
+    try {
+        let importedData = {};
+        let isSharedData = false;
+        
+        // Detectar tipo de archivo
+        if (data.exportType === "shared_data") {
+            console.log('🔄 Detectado archivo de datos compartibles');
+            importedData = data;
+            isSharedData = true;
+        } else if (data.username && data.accountData && data.userData) {
+            console.log('📦 Detectado backup completo - extrayendo solo datos');
+            importedData = data.userData;
+        } else {
+            console.log('📄 Detectado archivo de datos simple');
+            importedData = data;
+        }
+        
+        let importStats = {
+            questions: 0,
+            topics: 0,
+            tests: 0
+        };
+        
+        // Importar preguntas
+        if (importedData.questions && Array.isArray(importedData.questions)) {
+            console.log(`📝 Importando ${importedData.questions.length} preguntas...`);
+            
+            // Fusionar evitando duplicados por ID
+            const existingIds = new Set((state.questions || []).map(q => q.id));
+            const newQuestions = importedData.questions.filter(q => !existingIds.has(q.id));
+            
+            state.questions = [...(state.questions || []), ...newQuestions];
+            localStorage.setItem('questions', JSON.stringify(state.questions));
+            importStats.questions = newQuestions.length;
+            
+            console.log(`✅ ${newQuestions.length} preguntas nuevas importadas`);
+        }
+        
+        // Importar temas
+        if (importedData.topics && Array.isArray(importedData.topics)) {
+            console.log(`📁 Importando ${importedData.topics.length} temas...`);
+            
+            // Fusionar evitando duplicados por ID
+            const existingTopicIds = new Set((state.topics || []).map(t => t.id));
+            const newTopics = importedData.topics.filter(t => !existingTopicIds.has(t.id));
+            
+            state.topics = [...(state.topics || []), ...newTopics];
+            localStorage.setItem('topics', JSON.stringify(state.topics));
+            importStats.topics = newTopics.length;
+            
+            console.log(`✅ ${newTopics.length} temas nuevos importados`);
+        }
+        
+        // Importar tests (opcional para datos compartibles)
+        if (importedData.testResults && Array.isArray(importedData.testResults)) {
+            console.log(`📊 Importando ${importedData.testResults.length} tests...`);
+            
+            // Fusionar evitando duplicados por ID
+            const existingTestIds = new Set((state.testResults || []).map(t => t.id));
+            const newTests = importedData.testResults.filter(t => !existingTestIds.has(t.id));
+            
+            state.testResults = [...(state.testResults || []), ...newTests];
+            localStorage.setItem('testResults', JSON.stringify(state.testResults));
+            importStats.tests = newTests.length;
+            
+            console.log(`✅ ${newTests.length} tests nuevos importados`);
+        }
+        
+        // Re-renderizar para mostrar cambios
+        render();
+        
+        // Mensaje personalizado según el tipo
+        let message = '';
+        if (isSharedData) {
+            const exportedBy = importedData.exportedBy || 'Usuario desconocido';
+            const exportDate = importedData.exportDate ? new Date(importedData.exportDate).toLocaleDateString('es-ES') : 'Fecha desconocida';
+            
+            message = `🔄 DATOS COMPARTIBLES IMPORTADOS
+
+📤 Exportado por: ${exportedBy}
+📅 Fecha: ${exportDate}
+
+📊 Importado a tu sesión:
+• ${importStats.questions} preguntas nuevas
+• ${importStats.topics} temas nuevos
+• ${importStats.tests} tests nuevos
+
+✅ Los datos se han combinado con los tuyos`;
+        } else {
+            message = `✅ Importación completada:
+• ${importStats.questions} preguntas nuevas
+• ${importStats.topics} temas nuevos  
+• ${importStats.tests} tests nuevos`;
+        }
+        
+        if (typeof showMessage === 'function') {
+            showMessage(message, 'success');
+        }
+        
+        console.log('✅ Importación mejorada completada:', importStats);
+        
+    } catch (error) {
+        console.error('❌ Error procesando importación mejorada:', error);
+        if (typeof showMessage === 'function') {
+            showMessage('❌ Error al procesar los datos: ' + error.message, 'error');
+        }
+    }
+}
+
+// Reemplazar función de procesamiento
+processImportData = processImportDataEnhanced;
+
+// Añadir botón de exportación compartible al renderizado de pestañas
+if (typeof renderQuestionsTab !== 'undefined') {
+    const originalRenderQuestionsTabForSharing = renderQuestionsTab;
+    renderQuestionsTab = function() {
+        const originalContent = originalRenderQuestionsTabForSharing.call(this);
+        
+        // Si estamos en detector de duplicados, no modificar
+        if (window.duplicateDetectorState && window.duplicateDetectorState.isShowing) {
+            return originalContent;
+        }
+        
+        // Añadir botón de exportación compartible al header
+        return originalContent.replace(
+            '<button onclick="detectDuplicates()" class="btn btn-warning">🔍 Detectar Repetidas</button>',
+            `<button onclick="exportDataForSharing()" class="btn btn-success" style="margin-right: 10px;" title="Exportar datos para compartir con otros usuarios">🔄 Exportar Para Compartir</button>
+            <button onclick="detectDuplicates()" class="btn btn-warning">🔍 Detectar Repetidas</button>`
+        );
+    };
+}
+
+console.log('🔄 SISTEMA DE COMPARTICIÓN ENTRE SESIONES ACTIVADO');
+console.log('📤 Funcionalidades nuevas:');
+console.log('   - ✅ Exportar datos compartibles (sin credenciales)');
+console.log('   - ✅ Importar desde cualquier usuario a cualquier sesión');
+console.log('   - ✅ Botón "Exportar Para Compartir" en Banco de Preguntas');
+console.log('   - ✅ Detecta automáticamente archivos compartibles');
+console.log('   - ✅ Muestra quién exportó los datos y cuándo');
+console.log('   - ✅ Fusión inteligente sin duplicados');
+console.log('📋 FLUJO: LucianoOposición → Exportar Para Compartir → SandraOposición → Importar');
 </script>
     
 </body>
 </html>
+
 
 
 
