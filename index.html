@@ -17103,6 +17103,7 @@ window.renderViewSummaryWithEditor = renderViewSummaryFixed;
 console.log('✅ Botón "Editar Texto" configurado para opciones completas');
 console.log('🎯 Ahora lleva al editor de frases o modal con opciones');
 </script>
+
 <!-- 
 PARCHE DEFINITIVO: SUBIR ARCHIVOS WORD/TXT + PREGUNTAS MANUALES - VERSIÓN COMPLETA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
@@ -17130,11 +17131,27 @@ if (!state.manualQuestionData) {
     };
 }
 
+if (!state.bulkQuestionMode) {
+    state.bulkQuestionMode = false;
+}
+
+if (!state.bulkQuestionData) {
+    state.bulkQuestionData = {
+        rawText: '',
+        processedQuestions: []
+    };
+}
+
 // 2. GUARDAR FUNCIÓN ORIGINAL Y REEMPLAZAR CON VERSIÓN EXTENDIDA
 const originalRenderUploadTabManual = renderUploadTab;
 
 renderUploadTab = function() {
-    // Si estamos en modo pregunta manual, mostrar editor
+    // Si estamos en modo preguntas múltiples, mostrar editor múltiple
+    if (state.bulkQuestionMode) {
+        return renderBulkQuestionEditor();
+    }
+    
+    // Si estamos en modo pregunta manual individual, mostrar editor individual
     if (state.manualQuestionMode) {
         return renderManualQuestionEditor();
     }
@@ -17226,13 +17243,18 @@ renderUploadTab = function() {
                         ${getAddButtonTextManual()}
                     </button>
                     
-                    <!-- NUEVO BOTÓN: CREAR PREGUNTA MANUAL -->
+                    <!-- NUEVOS BOTONES: CREAR PREGUNTAS MANUALES -->
                     <div style="border-top: 1px solid #f59e0b; margin-top: 10px; padding-top: 10px;">
-                        <button onclick="startManualQuestion()" class="btn btn-warning" style="width: 100%; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; color: white; font-weight: bold;">
-                            ✏️ Crear Pregunta Manual
-                        </button>
-                        <div style="font-size: 11px; color: #92400e; text-align: center; margin-top: 5px;">
-                            Sin IA - Escribe directamente
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                            <button onclick="startManualQuestion()" class="btn btn-warning" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; color: white; font-weight: bold; font-size: 12px; padding: 8px;">
+                                ✏️ Una Pregunta
+                            </button>
+                            <button onclick="startBulkQuestions()" class="btn btn-warning" style="background: linear-gradient(135deg, #059669, #047857); border: none; color: white; font-weight: bold; font-size: 12px; padding: 8px;">
+                                📋 Múltiples
+                            </button>
+                        </div>
+                        <div style="font-size: 11px; color: #92400e; text-align: center;">
+                            Sin IA - Procesa automáticamente
                         </div>
                     </div>
                 </div>
@@ -17254,7 +17276,101 @@ renderUploadTab = function() {
     `;
 };
 
-// 3. FUNCIÓN PARA MOSTRAR EL EDITOR DE PREGUNTAS MANUALES
+// 3. FUNCIÓN PARA MOSTRAR EL EDITOR DE PREGUNTAS MÚLTIPLES
+function renderBulkQuestionEditor() {
+    return `
+        <div style="max-width: 1000px; margin: 0 auto; padding: 20px;">
+            <!-- Cabecera del editor -->
+            <div style="background: linear-gradient(135deg, #059669, #047857); color: white; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
+                <h2 style="margin: 0 0 10px 0; font-size: 24px;">📋 Editor de Múltiples Preguntas</h2>
+                <p style="margin: 0; font-size: 14px; opacity: 0.9;">Pega varias preguntas y se procesarán automáticamente</p>
+            </div>
+            
+            <!-- Cuerpo del editor -->
+            <div style="background: white; border: 2px solid #059669; border-top: none; border-radius: 0 0 12px 12px; padding: 30px;">
+                
+                <!-- Selector de tema -->
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #374151;">🏷️ Tema para todas las preguntas:</label>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="bulk-topic-selector" onchange="updateBulkQuestionTopic()" style="flex: 1; padding: 10px; border: 2px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                            <option value="">Sin tema asignado</option>
+                            ${state.topics.map(topic => `
+                                <option value="${topic.id}" ${state.selectedTopicForNewQuestions === topic.id ? 'selected' : ''}>
+                                    ${topic.name}
+                                </option>
+                            `).join('')}
+                        </select>
+                        <button onclick="createTopic()" class="btn btn-info" style="padding: 10px 15px; white-space: nowrap;">
+                            🆕 Nuevo Tema
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Área de texto para pegar preguntas -->
+                <div style="margin-bottom: 25px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #374151;">📝 Pega aquí tus preguntas:</label>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; margin-bottom: 10px;">
+                        <p style="margin: 0 0 8px 0; font-size: 13px; color: #6c757d;">
+                            💡 <strong>Formatos soportados:</strong>
+                        </p>
+                        <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #6c757d;">
+                            <li>Preguntas numeradas (61., 62., etc.)</li>
+                            <li>Opciones A) B) C) D)</li>
+                            <li>Se detecta automáticamente cuál es correcta por el contexto</li>
+                        </ul>
+                    </div>
+                    <textarea id="bulk-questions-input" placeholder="Ejemplo:
+
+61. Para el nombramiento del tutor del Rey:
+A) Las cámaras se podrán reunir...
+B) El procedimiento se iniciará...
+C) Las cámaras se reunirán... (CORRECTA)
+D) El procedimiento se iniciará...
+
+62. Señale la respuesta correcta:
+A) No podrá entenderse... (CORRECTA)
+B) La delegación podrá...
+C) No es necesario...
+D) La delegación podrá..." style="width: 100%; height: 300px; padding: 12px; border: 2px solid #d1d5db; border-radius: 8px; font-size: 13px; font-family: monospace; resize: vertical;" oninput="processBulkQuestions()">${state.bulkQuestionData.rawText}</textarea>
+                </div>
+                
+                <!-- Vista previa -->
+                <div style="margin-bottom: 25px;">
+                    <h4 style="color: #374151; margin-bottom: 10px;">
+                        👀 Vista previa: 
+                        <span style="color: #059669; font-size: 14px;">
+                            ${state.bulkQuestionData.processedQuestions.length} pregunta${state.bulkQuestionData.processedQuestions.length !== 1 ? 's' : ''} detectada${state.bulkQuestionData.processedQuestions.length !== 1 ? 's' : ''}
+                        </span>
+                    </h4>
+                    <div style="background: #f1f5f9; border: 2px solid #cbd5e1; border-radius: 8px; padding: 15px; max-height: 400px; overflow-y: auto;">
+                        ${renderBulkQuestionPreview()}
+                    </div>
+                </div>
+                
+                <!-- Botones de acción -->
+                <div style="display: flex; gap: 15px; justify-content: center;">
+                    <button onclick="cancelBulkQuestions()" class="btn btn-secondary" style="padding: 12px 24px; font-size: 16px;">
+                        ❌ Cancelar
+                    </button>
+                    <button onclick="saveBulkQuestions()" class="btn btn-success" style="padding: 12px 24px; font-size: 16px; font-weight: bold;" ${state.bulkQuestionData.processedQuestions.length === 0 ? 'disabled' : ''}>
+                        ✅ Guardar ${state.bulkQuestionData.processedQuestions.length} Pregunta${state.bulkQuestionData.processedQuestions.length !== 1 ? 's' : ''}
+                    </button>
+                </div>
+                
+                ${state.bulkQuestionData.processedQuestions.length === 0 && state.bulkQuestionData.rawText.trim() ? `
+                    <div style="margin-top: 15px; padding: 10px; background: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; text-align: center;">
+                        <span style="color: #dc2626; font-size: 13px;">
+                            ⚠️ No se detectaron preguntas válidas. Revisa el formato.
+                        </span>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// 4. FUNCIÓN PARA MOSTRAR EL EDITOR DE PREGUNTA INDIVIDUAL
 function renderManualQuestionEditor() {
     return `
         <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
@@ -17377,7 +17493,232 @@ function getTopicNameManual(topicId) {
     return topic ? topic.name : 'Tema no encontrado';
 }
 
-// 5. FUNCIONES DEL EDITOR MANUAL
+// 5. FUNCIONES DEL EDITOR MÚLTIPLE
+window.startBulkQuestions = function() {
+    // Limpiar datos previos
+    state.bulkQuestionData = {
+        rawText: '',
+        processedQuestions: []
+    };
+    
+    // Activar modo múltiple
+    state.bulkQuestionMode = true;
+    render();
+    
+    if (typeof showMessage === 'function') {
+        showMessage('Editor de múltiples preguntas activado', 'info');
+    }
+};
+
+window.cancelBulkQuestions = function() {
+    if (state.bulkQuestionData.rawText.trim() && !confirm('¿Seguro que quieres cancelar? Se perderán todos los cambios.')) {
+        return;
+    }
+    
+    state.bulkQuestionMode = false;
+    state.bulkQuestionData = {
+        rawText: '',
+        processedQuestions: []
+    };
+    render();
+    if (typeof showMessage === 'function') {
+        showMessage('Editor cancelado', 'info');
+    }
+};
+
+window.updateBulkQuestionTopic = function() {
+    const selector = document.getElementById('bulk-topic-selector');
+    if (selector) {
+        const value = selector.value;
+        state.selectedTopicForNewQuestions = value || null;
+    }
+};
+
+window.processBulkQuestions = function() {
+    const textarea = document.getElementById('bulk-questions-input');
+    if (!textarea) return;
+    
+    const rawText = textarea.value;
+    state.bulkQuestionData.rawText = rawText;
+    
+    // Procesar el texto automáticamente
+    state.bulkQuestionData.processedQuestions = parseQuestionsFromText(rawText);
+    
+    // Actualizar vista previa
+    const preview = document.querySelector('.bulk-question-preview');
+    if (preview) {
+        preview.innerHTML = renderBulkQuestionPreview();
+    }
+};
+
+function parseQuestionsFromText(text) {
+    if (!text.trim()) return [];
+    
+    const questions = [];
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+    
+    let currentQuestion = null;
+    let currentOptions = [];
+    let correctAnswer = null;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Detectar inicio de nueva pregunta (número seguido de punto)
+        if (/^\d+\.\s/.test(line)) {
+            // Guardar pregunta anterior si existe
+            if (currentQuestion && currentOptions.length >= 2) {
+                questions.push({
+                    id: Date.now() + Math.random(),
+                    question: currentQuestion,
+                    options: [...currentOptions],
+                    correctAnswer: correctAnswer !== null ? correctAnswer : 0,
+                    topicId: null,
+                    isVerified: true,
+                    source: 'bulk_manual'
+                });
+            }
+            
+            // Iniciar nueva pregunta
+            currentQuestion = line.replace(/^\d+\.\s/, '').trim();
+            currentOptions = [];
+            correctAnswer = null;
+        }
+        // Detectar opciones A) B) C) D)
+        else if (/^[A-D]\)\s/.test(line)) {
+            const optionText = line.replace(/^[A-D]\)\s/, '').trim();
+            
+            // Detectar si es la opción correcta (buscando indicadores)
+            const isCorrect = detectCorrectOption(optionText);
+            
+            if (isCorrect) {
+                correctAnswer = currentOptions.length;
+            }
+            
+            // Limpiar texto de la opción (quitar indicadores)
+            const cleanText = cleanOptionText(optionText);
+            currentOptions.push(cleanText);
+        }
+        // Si la línea no empieza con número o letra, podría ser continuación
+        else if (currentQuestion && !currentQuestion.includes('?') && line.includes('?')) {
+            currentQuestion += ' ' + line;
+        }
+    }
+    
+    // Guardar última pregunta
+    if (currentQuestion && currentOptions.length >= 2) {
+        questions.push({
+            id: Date.now() + Math.random(),
+            question: currentQuestion,
+            options: [...currentOptions],
+            correctAnswer: correctAnswer !== null ? correctAnswer : 0,
+            topicId: null,
+            isVerified: true,
+            source: 'bulk_manual'
+        });
+    }
+    
+    return questions;
+}
+
+function detectCorrectOption(optionText) {
+    const text = optionText.toLowerCase();
+    
+    // Buscar indicadores de respuesta correcta
+    const correctIndicators = [
+        '(correcta)', '(correcto)', '✓', '✔', '*', 
+        'correcta', 'correcto', '(c)', '[correcta]', '[correcto]',
+        'verdadera', 'verdadero', '→', '=>', '>>',
+        '(✓)', '[✓]', '(√)', '[√]'
+    ];
+    
+    return correctIndicators.some(indicator => text.includes(indicator));
+}
+
+function cleanOptionText(optionText) {
+    // Eliminar indicadores de respuesta correcta
+    let cleanText = optionText;
+    
+    const indicatorsToRemove = [
+        '(correcta)', '(correcto)', '✓', '✔', '*',
+        '(c)', '[correcta]', '[correcto]',
+        'verdadera', 'verdadero', '→', '=>', '>>',
+        '(✓)', '[✓]', '(√)', '[√]'
+    ];
+    
+    indicatorsToRemove.forEach(indicator => {
+        const regex = new RegExp(indicator.replace(/[.*+?^${}()|[\]\\]/g, '\\// 5. FUNCIONES DEL EDITOR MANUAL
+window.startManualQuestion = function() {'), 'gi');
+        cleanText = cleanText.replace(regex, '');
+    });
+    
+    return cleanText.trim();
+}
+
+function renderBulkQuestionPreview() {
+    const questions = state.bulkQuestionData.processedQuestions;
+    
+    if (questions.length === 0) {
+        return '<p style="color: #9ca3af; text-align: center; font-style: italic;">Pega preguntas en el formato especificado para ver la vista previa</p>';
+    }
+    
+    return questions.map((q, index) => `
+        <div style="border-bottom: 1px solid #e5e7eb; padding: 15px 0; ${index === questions.length - 1 ? 'border-bottom: none;' : ''}">
+            <h5 style="color: #374151; margin: 0 0 10px 0; font-size: 14px;">
+                <strong>Pregunta ${index + 1}:</strong> ${q.question}
+            </h5>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+                ${q.options.map((option, optIndex) => {
+                    const isCorrect = q.correctAnswer === optIndex;
+                    return `
+                        <li style="padding: 3px 0; color: ${isCorrect ? '#22c55e' : '#374151'}; font-weight: ${isCorrect ? 'bold' : 'normal'}; font-size: 13px;">
+                            ${String.fromCharCode(65 + optIndex)}) ${option} ${isCorrect ? '✓' : ''}
+                        </li>
+                    `;
+                }).join('')}
+            </ul>
+        </div>
+    `).join('');
+}
+
+window.saveBulkQuestions = function() {
+    const questions = state.bulkQuestionData.processedQuestions;
+    
+    if (questions.length === 0) {
+        if (typeof showMessage === 'function') {
+            showMessage('No se detectaron preguntas válidas', 'error');
+        }
+        return;
+    }
+    
+    // Asignar tema si está seleccionado
+    const topicId = state.selectedTopicForNewQuestions;
+    questions.forEach(q => {
+        q.topicId = topicId;
+    });
+    
+    // Añadir al banco de preguntas
+    state.questions.push(...questions);
+    
+    // Guardar en localStorage
+    localStorage.setItem('questions', JSON.stringify(state.questions));
+    
+    // Volver al modo normal
+    state.bulkQuestionMode = false;
+    state.bulkQuestionData = {
+        rawText: '',
+        processedQuestions: []
+    };
+    
+    render();
+    
+    if (typeof showMessage === 'function') {
+        const topicName = topicId ? getTopicNameManual(topicId) : 'Sin tema';
+        showMessage(`✅ ${questions.length} pregunta${questions.length !== 1 ? 's' : ''} añadida${questions.length !== 1 ? 's' : ''} al tema "${topicName}"`, 'success');
+    }
+};
+
+// 6. FUNCIONES DEL EDITOR INDIVIDUAL
 window.startManualQuestion = function() {
     // Limpiar datos previos
     state.manualQuestionData = {
@@ -17629,6 +17970,11 @@ if (typeof goToMainMenuUnified === 'function') {
             options: ['', '', '', ''],
             correctAnswer: null
         };
+        state.bulkQuestionMode = false;
+        state.bulkQuestionData = {
+            rawText: '',
+            processedQuestions: []
+        };
         originalGoToMainMenuUnifiedManual();
     };
 }
@@ -17652,6 +17998,7 @@ console.log('📁 Sistema completo listo para usar');
 </script>
 </body>
 </html>
+
 
 
 
