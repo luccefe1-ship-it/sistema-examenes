@@ -18373,70 +18373,105 @@ Los datos ahora están disponibles en tu sesión.
     console.log('   • Versión 3.0 para archivos universales');
 </script>
 <!-- 
-PARCHE: ARREGLO DE IMPORTACIÓN DE ARCHIVOS
+PARCHE: CORRECCIÓN DEFINITIVA DE IMPORTACIÓN
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche corrige el problema de selección e importación de archivos
+Este parche corrige todos los errores de importación
 -->
 
 <script>
-    // ========== PARCHE: ARREGLO DE IMPORTACIÓN ==========
-    console.log('🔧 Aplicando parche de arreglo de importación...');
+    // ========== PARCHE: CORRECCIÓN DEFINITIVA ==========
+    console.log('🛠️ Aplicando corrección definitiva de importación...');
     
-    // Variable global para archivo importado (por si acaso)
+    // Variable global para archivo importado
     window.importFileSelected = null;
+    
+    // FUNCIÓN AUXILIAR para mostrar mensajes (por si no existe)
+    function safeShowMessage(message, type) {
+        if (typeof showMessage === 'function') {
+            showMessage(message, type);
+        } else {
+            console.log(`${type.toUpperCase()}: ${message}`);
+            // Fallback visual
+            alert(message);
+        }
+    }
     
     // REEMPLAZAR completamente la función handleImportFileSelect
     window.handleImportFileSelect = function(input) {
+        console.log('📁 handleImportFileSelect llamada');
+        
         const file = input.files[0];
         if (!file) {
+            console.log('❌ No hay archivo seleccionado');
             const fileInfo = document.getElementById('file-info');
             if (fileInfo) fileInfo.style.display = 'none';
             window.importFileSelected = null;
             return;
         }
         
+        console.log('📁 Archivo seleccionado:', file.name, 'Tipo:', file.type);
+        
         if (!file.name.endsWith('.json')) {
-            showMessage('❌ Por favor selecciona un archivo .json válido', 'error');
+            safeShowMessage('❌ Por favor selecciona un archivo .json válido', 'error');
             input.value = '';
             window.importFileSelected = null;
             return;
         }
         
-        console.log('📁 Archivo seleccionado:', file.name);
-        
         // Leer archivo
         const reader = new FileReader();
         reader.onload = function(e) {
+            console.log('🔄 Leyendo contenido del archivo...');
+            
             try {
                 const backupData = JSON.parse(e.target.result);
-                console.log('🔍 Datos del archivo:', backupData);
+                console.log('📋 Estructura del archivo:', Object.keys(backupData));
+                console.log('🔍 Versión:', backupData.version);
+                console.log('🔍 Tipo export:', backupData.exportType);
                 
-                // DETECTAR tipo de archivo
+                // VALIDACIÓN MÁS FLEXIBLE
                 let fileType = 'UNKNOWN';
                 let isValid = false;
                 
-                // Archivo UNIVERSAL (versión 3.0)
+                // 1. Archivo UNIVERSAL (versión 3.0)
                 if (backupData.version === "3.0" && backupData.exportType === "UNIVERSAL") {
                     fileType = 'UNIVERSAL';
-                    isValid = backupData.userData && 
-                             Array.isArray(backupData.userData.questions) && 
-                             Array.isArray(backupData.userData.topics);
+                    isValid = backupData.userData && typeof backupData.userData === 'object';
+                    console.log('🌍 Detectado archivo UNIVERSAL');
                 }
-                // Archivo COMPLETO (versión 2.0)
-                else if (backupData.version === "2.0" && backupData.username && backupData.accountData) {
+                // 2. Archivo COMPLETO (versión 2.0)
+                else if (backupData.version === "2.0" && backupData.accountData) {
                     fileType = 'COMPLETO';
-                    isValid = backupData.accountData.password && 
-                             backupData.userData && 
-                             Array.isArray(backupData.userData.questions);
+                    isValid = backupData.userData && typeof backupData.userData === 'object';
+                    console.log('📦 Detectado archivo COMPLETO');
                 }
-                // Archivo ANTIGUO (sin versión específica pero con estructura correcta)
-                else if (backupData.username && backupData.accountData && backupData.userData) {
+                // 3. Archivo con datos pero sin versión clara
+                else if (backupData.userData && typeof backupData.userData === 'object') {
+                    fileType = 'DATOS';
+                    isValid = true;
+                    console.log('📊 Detectado archivo con DATOS');
+                }
+                // 4. Cualquier estructura con questions/topics
+                else if (backupData.questions || backupData.topics) {
                     fileType = 'LEGACY';
                     isValid = true;
+                    console.log('📜 Detectado archivo LEGACY');
+                    // Convertir a estructura estándar
+                    backupData.userData = {
+                        questions: backupData.questions || [],
+                        topics: backupData.topics || [],
+                        testResults: backupData.testResults || [],
+                        summaryTopics: backupData.summaryTopics || [],
+                        savedSummaries: backupData.savedSummaries || [],
+                        apiKey: backupData.apiKey || ''
+                    };
                 }
                 
+                console.log('✅ Archivo válido:', isValid, 'Tipo:', fileType);
+                
                 if (!isValid) {
-                    throw new Error('Archivo de backup inválido o corrupto');
+                    console.error('❌ Estructura no reconocida:', backupData);
+                    throw new Error('Archivo no contiene datos válidos de backup');
                 }
                 
                 // Mostrar información del archivo
@@ -18446,38 +18481,43 @@ Este parche corrige el problema de selección e importación de archivos
                 if (fileInfo && fileDetails) {
                     fileInfo.style.display = 'block';
                     
-                    let detailsHTML = '';
+                    const userData = backupData.userData || backupData;
+                    const questionsCount = (userData.questions || []).length;
+                    const topicsCount = (userData.topics || []).length;
+                    const testsCount = (userData.testResults || []).length;
+                    const summariesCount = (userData.savedSummaries || []).length;
+                    
+                    let detailsHTML = `
+                        📁 <strong>${file.name}</strong><br>
+                        🔧 Tipo: <strong>${fileType}</strong><br>
+                        📊 Preguntas: <strong>${questionsCount}</strong><br>
+                        📚 Temas: <strong>${topicsCount}</strong><br>
+                        🎯 Tests: <strong>${testsCount}</strong><br>
+                        📝 Resúmenes: <strong>${summariesCount}</strong><br>
+                    `;
+                    
+                    if (backupData.exportDate) {
+                        detailsHTML += `📅 Fecha: <strong>${new Date(backupData.exportDate).toLocaleDateString('es-ES')}</strong><br>`;
+                    }
+                    
                     if (fileType === 'UNIVERSAL') {
-                        detailsHTML = `
-                            📁 <strong>${file.name}</strong><br>
-                            🌍 Tipo: <strong>UNIVERSAL</strong> (funciona con cualquier usuario)<br>
-                            📊 Preguntas: <strong>${backupData.userData.questions?.length || 0}</strong><br>
-                            📚 Temas: <strong>${backupData.userData.topics?.length || 0}</strong><br>
-                            🎯 Tests: <strong>${backupData.userData.testResults?.length || 0}</strong><br>
-                            📅 Exportado: <strong>${new Date(backupData.exportDate).toLocaleDateString('es-ES')}</strong>
-                        `;
-                    } else {
-                        detailsHTML = `
-                            📁 <strong>${file.name}</strong><br>
-                            👤 Usuario original: <strong>${backupData.username || 'Desconocido'}</strong><br>
-                            📊 Preguntas: <strong>${backupData.userData.questions?.length || 0}</strong><br>
-                            📚 Temas: <strong>${backupData.userData.topics?.length || 0}</strong><br>
-                            📅 Fecha: <strong>${new Date(backupData.exportDate || Date.now()).toLocaleDateString('es-ES')}</strong>
-                        `;
+                        detailsHTML += `<div style="color: #059669; font-weight: bold; margin-top: 5px;">🌍 Compatible con cualquier usuario</div>`;
                     }
                     
                     fileDetails.innerHTML = detailsHTML;
+                    console.log('📋 Información mostrada en UI');
                 }
                 
                 // Guardar archivo para importación
                 window.importFileSelected = backupData;
-                console.log('✅ Archivo listo para importar:', fileType);
+                window.importFileSelected.detectedType = fileType;
                 
-                showMessage(`✅ Archivo ${fileType} cargado correctamente`, 'success');
+                safeShowMessage(`✅ Archivo ${fileType} cargado (${(backupData.userData?.questions || backupData.questions || []).length} preguntas)`, 'success');
+                console.log('✅ Archivo preparado para importación');
                 
             } catch (error) {
-                console.error('❌ Error leyendo archivo:', error);
-                showMessage('❌ Error leyendo archivo: ' + error.message, 'error');
+                console.error('❌ Error procesando archivo:', error);
+                safeShowMessage('❌ Error leyendo archivo: ' + error.message, 'error');
                 input.value = '';
                 window.importFileSelected = null;
                 const fileInfo = document.getElementById('file-info');
@@ -18486,7 +18526,8 @@ Este parche corrige el problema de selección e importación de archivos
         };
         
         reader.onerror = function() {
-            showMessage('❌ Error al leer el archivo', 'error');
+            console.error('❌ Error del FileReader');
+            safeShowMessage('❌ Error al leer el archivo', 'error');
             input.value = '';
             window.importFileSelected = null;
         };
@@ -18494,171 +18535,148 @@ Este parche corrige el problema de selección e importación de archivos
         reader.readAsText(file);
     };
     
-    // MEJORAR función handleImportFromLogin para manejar archivos universales
-    const originalHandleImportFromLogin = window.handleImportFromLogin;
+    // FUNCIÓN DE IMPORTACIÓN UNIVERSAL
     window.handleImportFromLogin = function() {
+        console.log('🔄 Iniciando proceso de importación...');
+        
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value.trim();
         const rememberMe = document.getElementById('remember-me') ? document.getElementById('remember-me').checked : false;
         
         if (!window.importFileSelected) {
-            showMessage('❌ Error: No se ha seleccionado archivo para importar', 'error');
+            safeShowMessage('❌ Error: No se ha seleccionado archivo para importar', 'error');
             return;
         }
         
         if (!username || !password) {
-            showMessage('❌ Error: Usuario y contraseña son obligatorios', 'error');
+            safeShowMessage('❌ Error: Usuario y contraseña son obligatorios', 'error');
             return;
         }
         
-        console.log('🔄 Iniciando importación para usuario:', username);
+        console.log('👤 Usuario:', username, 'Archivo tipo:', window.importFileSelected.detectedType);
         
         try {
             const backupData = window.importFileSelected;
+            const userData = backupData.userData || backupData;
             
-            // MANEJAR ARCHIVOS UNIVERSALES (versión 3.0)
-            if (backupData.version === "3.0" && backupData.exportType === "UNIVERSAL") {
-                console.log('🌍 Procesando archivo UNIVERSAL');
-                
-                const existingUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
-                
-                // Si el usuario no existe, crear cuenta automáticamente
-                if (!existingUsers[username]) {
-                    existingUsers[username] = {
-                        password: password,
-                        name: username,
-                        securityQuestion: '',
-                        securityAnswer: '',
-                        createdAt: new Date().toLocaleString('es-ES'),
-                        lastLogin: new Date().toLocaleString('es-ES'),
-                        importedUniversalData: backupData.exportDate
-                    };
-                    localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
-                    console.log('👤 Cuenta creada automáticamente para datos universales');
-                } else {
-                    // Verificar credenciales si el usuario ya existe
-                    if (existingUsers[username].password !== password) {
-                        showMessage('❌ Error: La contraseña no coincide con la cuenta existente', 'error');
-                        return;
-                    }
-                    existingUsers[username].lastLogin = new Date().toLocaleString('es-ES');
-                    localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
-                }
-                
-                // IMPORTAR datos universales
-                const userData = backupData.userData;
-                localStorage.setItem(`realUser_${username}_questions`, JSON.stringify(userData.questions || []));
-                localStorage.setItem(`realUser_${username}_topics`, JSON.stringify(userData.topics || []));
-                localStorage.setItem(`realUser_${username}_testResults`, JSON.stringify(userData.testResults || []));
-                localStorage.setItem(`realUser_${username}_summaryTopics`, JSON.stringify(userData.summaryTopics || []));
-                localStorage.setItem(`realUser_${username}_savedSummaries`, JSON.stringify(userData.savedSummaries || []));
-                localStorage.setItem(`realUser_${username}_apiKey`, userData.apiKey || '');
-                
-                // Establecer usuario actual y cargar datos
-                state.currentUser = { 
-                    username: username, 
-                    name: existingUsers[username].name 
+            // Obtener o crear usuario
+            const existingUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+            
+            // Crear o actualizar usuario
+            if (!existingUsers[username]) {
+                console.log('👤 Creando nueva cuenta para:', username);
+                existingUsers[username] = {
+                    password: password,
+                    name: username,
+                    securityQuestion: '',
+                    securityAnswer: '',
+                    createdAt: new Date().toLocaleString('es-ES'),
+                    lastLogin: new Date().toLocaleString('es-ES'),
+                    importedData: true
                 };
-                
-                // Cargar datos en variables globales
-                state.questions = userData.questions || [];
-                state.topics = userData.topics || [];
-                state.testResults = userData.testResults || [];
-                state.apiKey = userData.apiKey || '';
-                
-                // Cargar datos de resúmenes
-                if (typeof summarySystemState !== 'undefined') {
-                    summarySystemState.summaryTopics = userData.summaryTopics || [];
-                    summarySystemState.savedSummaries = userData.savedSummaries || [];
+            } else {
+                // Verificar contraseña solo si el archivo no es universal
+                if (backupData.detectedType !== 'UNIVERSAL' && existingUsers[username].password !== password) {
+                    safeShowMessage('❌ Error: La contraseña no coincide con la cuenta existente', 'error');
+                    return;
                 }
-                
-                // Configurar recordar credenciales
-                if (rememberMe) {
-                    localStorage.setItem('rememberedUsername', username);
-                    localStorage.setItem('rememberedPassword', password);
-                    localStorage.setItem('rememberExpiry', Date.now() + (30 * 24 * 60 * 60 * 1000));
-                }
-                
-                // Mostrar mensaje de éxito
-                const stats = backupData.stats || {};
-                showMessage(`
-✅ ¡IMPORTACIÓN UNIVERSAL EXITOSA!
-
-🌍 DATOS UNIVERSALES IMPORTADOS:
-• Preguntas: ${stats.totalQuestions || userData.questions?.length || 0}
-• Temas: ${stats.totalTopics || userData.topics?.length || 0}
-• Tests: ${stats.totalTests || userData.testResults?.length || 0}
-• Resúmenes: ${stats.totalSummaries || userData.savedSummaries?.length || 0}
-
-🎉 ¡Bienvenido ${existingUsers[username].name}!
-Los datos ahora están disponibles en tu sesión.
-                `, 'success');
-                
-                // Limpiar y cambiar vista
-                window.importFileSelected = null;
-                if (typeof newLoginState !== 'undefined') {
-                    newLoginState.currentView = 'main';
-                }
-                
-                // Esperar un momento y renderizar
-                setTimeout(() => {
-                    if (typeof render === 'function') {
-                        render();
-                    }
-                }, 2000);
-                
-                console.log('✅ Importación universal completada');
-                return;
+                existingUsers[username].lastLogin = new Date().toLocaleString('es-ES');
             }
             
-            // Para archivos no universales, usar función original si existe
-            if (originalHandleImportFromLogin) {
-                originalHandleImportFromLogin();
-            } else {
-                // Fallback para archivos completos estándar
-                const userData = backupData.userData;
-                if (!userData) {
-                    throw new Error('Datos de usuario no encontrados en el archivo');
-                }
-                
-                showMessage('⚠️ Archivo de formato antiguo - importando como completo', 'warning');
-                // Aquí podrías implementar lógica adicional si es necesario
+            localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
+            
+            // IMPORTAR TODOS LOS DATOS
+            console.log('💾 Guardando datos para usuario:', username);
+            localStorage.setItem(`realUser_${username}_questions`, JSON.stringify(userData.questions || []));
+            localStorage.setItem(`realUser_${username}_topics`, JSON.stringify(userData.topics || []));
+            localStorage.setItem(`realUser_${username}_testResults`, JSON.stringify(userData.testResults || []));
+            localStorage.setItem(`realUser_${username}_summaryTopics`, JSON.stringify(userData.summaryTopics || []));
+            localStorage.setItem(`realUser_${username}_savedSummaries`, JSON.stringify(userData.savedSummaries || []));
+            localStorage.setItem(`realUser_${username}_apiKey`, userData.apiKey || '');
+            
+            // ESTABLECER USUARIO ACTUAL
+            state.currentUser = { 
+                username: username, 
+                name: existingUsers[username].name 
+            };
+            
+            // CARGAR DATOS EN VARIABLES GLOBALES
+            state.questions = userData.questions || [];
+            state.topics = userData.topics || [];
+            state.testResults = userData.testResults || [];
+            state.apiKey = userData.apiKey || '';
+            
+            // Cargar resúmenes si existe el sistema
+            if (typeof summarySystemState !== 'undefined') {
+                summarySystemState.summaryTopics = userData.summaryTopics || [];
+                summarySystemState.savedSummaries = userData.savedSummaries || [];
             }
+            
+            // Recordar credenciales
+            if (rememberMe) {
+                localStorage.setItem('rememberedUsername', username);
+                localStorage.setItem('rememberedPassword', password);
+                localStorage.setItem('rememberExpiry', Date.now() + (30 * 24 * 60 * 60 * 1000));
+            }
+            
+            // MENSAJE DE ÉXITO
+            const successMessage = `
+✅ ¡IMPORTACIÓN EXITOSA!
+
+👤 Usuario: ${username}
+📊 Datos importados:
+• Preguntas: ${(userData.questions || []).length}
+• Temas: ${(userData.topics || []).length}
+• Tests: ${(userData.testResults || []).length}
+• Resúmenes: ${(userData.savedSummaries || []).length}
+
+🎉 ¡Bienvenido! Todos tus datos están listos.
+            `;
+            
+            safeShowMessage(successMessage, 'success');
+            
+            // LIMPIAR Y RENDERIZAR
+            window.importFileSelected = null;
+            
+            // Cambiar vista si existe el estado
+            if (typeof newLoginState !== 'undefined') {
+                newLoginState.currentView = 'main';
+            }
+            
+            console.log('✅ Importación completada, renderizando...');
+            
+            // Renderizar después de un breve delay
+            setTimeout(() => {
+                if (typeof render === 'function') {
+                    render();
+                }
+            }, 1500);
             
         } catch (error) {
             console.error('❌ Error en importación:', error);
-            showMessage('❌ Error al importar datos: ' + error.message, 'error');
+            safeShowMessage('❌ Error al importar datos: ' + error.message, 'error');
         }
     };
     
-    // MEJORAR el event listener para el input de archivos
-    document.addEventListener('DOMContentLoaded', function() {
-        // Asegurarse de que el event listener esté activo
-        const importInput = document.getElementById('import-file');
-        if (importInput) {
-            importInput.addEventListener('change', function() {
-                handleImportFileSelect(this);
-            });
-        }
-    });
-    
-    // También asegurar que funcione si se crea dinámicamente
+    // ASEGURAR EVENT LISTENERS
     document.addEventListener('change', function(e) {
         if (e.target && e.target.id === 'import-file') {
+            console.log('📁 Input detectado, procesando...');
             handleImportFileSelect(e.target);
         }
     });
     
-    console.log('✅ PARCHE DE IMPORTACIÓN APLICADO');
-    console.log('🔧 Funcionalidades arregladas:');
-    console.log('   • Selección de archivos corregida');
-    console.log('   • Soporte para archivos universales');
-    console.log('   • Auto-creación de cuentas');
-    console.log('   • Validación mejorada de archivos');
-    console.log('   • Event listeners robustos');
+    console.log('✅ CORRECCIÓN DEFINITIVA APLICADA');
+    console.log('🛠️ Funcionalidades:');
+    console.log('   • Detección flexible de archivos');
+    console.log('   • Soporte para múltiples formatos');
+    console.log('   • Creación automática de cuentas');
+    console.log('   • Manejo robusto de errores');
+    console.log('   • Importación universal mejorada');
 </script>
 </body>
 </html>
+
 
 
 
