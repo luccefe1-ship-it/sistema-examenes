@@ -17360,7 +17360,7 @@ console.log('🎯 Detección específica: A)**, B)****, C)**, etc.');
 console.log('🧪 Prueba pegando texto con el patrón )**');
 </script>
 <!-- 
-PARCHE: DETECTOR DE PREGUNTAS REPETIDAS + BÚSQUEDA EN TIEMPO REAL
+PARCHE: DETECTOR DE PREGUNTAS REPETIDAS + BÚSQUEDA MEJORADA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 -->
 
@@ -17617,12 +17617,12 @@ renderQuestionsTab = function() {
                     type="text" 
                     id="search-input" 
                     placeholder="Escribe para buscar preguntas..." 
-                    oninput="searchQuestions(this.value)"
+                    oninput="searchQuestionsSmooth(this.value)"
                     style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; width: 250px; font-size: 14px;"
                     value="${state.searchQuery || ''}"
                 />
                 ${state.searchQuery ? `
-                    <button onclick="clearSearch()" style="margin-left: 5px; padding: 6px 10px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Limpiar búsqueda">
+                    <button onclick="clearSearchSmooth()" style="margin-left: 5px; padding: 6px 10px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Limpiar búsqueda">
                         ✖
                     </button>
                 ` : ''}
@@ -17630,17 +17630,19 @@ renderQuestionsTab = function() {
             
             <!-- Indicador de resultados -->
             ${state.searchQuery ? `
-                <div style="color: #059669; font-weight: 500; font-size: 14px;">
+                <div id="search-results-indicator" style="color: #059669; font-weight: 500; font-size: 14px;">
                     📊 ${filteredQuestions.length} resultado${filteredQuestions.length === 1 ? '' : 's'} encontrado${filteredQuestions.length === 1 ? '' : 's'}
                 </div>
             ` : ''}
         </div>
 
-        <!-- Mostrar preguntas filtradas -->
-        ${state.topics.length > 0 && state.selectedTopicFilter === 'all' && !state.searchQuery ? 
-            renderQuestionsByTopic() : 
-            renderQuestionsFilteredWithSearch(filteredQuestions)
-        }
+        <!-- Contenedor de preguntas que se actualiza sin render completo -->
+        <div id="questions-container">
+            ${state.topics.length > 0 && state.selectedTopicFilter === 'all' && !state.searchQuery ? 
+                renderQuestionsByTopic() : 
+                renderQuestionsFilteredWithSearch(filteredQuestions)
+            }
+        </div>
     `;
 };
 
@@ -17842,47 +17844,122 @@ window.removeDuplicates = function() {
     console.log(`🗑️ Eliminadas ${toRemove.length} preguntas duplicadas`);
 };
 
-// ========== FUNCIONALIDAD DE BÚSQUEDA AÑADIDA ==========
+// ========== FUNCIONALIDAD DE BÚSQUEDA MEJORADA ==========
 
 // Añadir variable de búsqueda al estado
 if (typeof state !== 'undefined') {
     state.searchQuery = state.searchQuery || '';
 }
 
-// Funciones de búsqueda
-window.searchQuestions = function(query) {
+// NUEVA: Función de búsqueda suave (sin render completo)
+window.searchQuestionsSmooth = function(query) {
     if (typeof state !== 'undefined') {
         state.searchQuery = query.trim();
         console.log('🔍 Buscando:', query);
-        if (typeof render === 'function') {
-            render();
-        }
+        
+        // Actualizar solo el contenido, no re-renderizar todo
+        updateQuestionsContent();
+        updateSearchIndicator();
+        updatePageTitle();
     }
 };
 
-window.clearSearch = function() {
+// NUEVA: Función de limpiar búsqueda suave
+window.clearSearchSmooth = function() {
     if (typeof state !== 'undefined') {
         state.searchQuery = '';
         const searchInput = document.getElementById('search-input');
         if (searchInput) {
             searchInput.value = '';
+            searchInput.focus(); // Mantener foco
         }
         console.log('🔍 Búsqueda limpiada');
-        if (typeof render === 'function') {
-            render();
-        }
+        
+        // Actualizar contenido sin render completo
+        updateQuestionsContent();
+        updateSearchIndicator();
+        updatePageTitle();
     }
 };
+
+// NUEVA: Actualizar solo el contenido de preguntas
+function updateQuestionsContent() {
+    const questionsContainer = document.getElementById('questions-container');
+    if (questionsContainer) {
+        const filteredQuestions = getFilteredQuestions();
+        
+        const newContent = state.topics.length > 0 && state.selectedTopicFilter === 'all' && !state.searchQuery ? 
+            renderQuestionsByTopic() : 
+            renderQuestionsFilteredWithSearch(filteredQuestions);
+            
+        questionsContainer.innerHTML = newContent;
+    }
+}
+
+// NUEVA: Actualizar solo el indicador de resultados
+function updateSearchIndicator() {
+    const indicator = document.getElementById('search-results-indicator');
+    const filteredQuestions = getFilteredQuestions();
+    
+    if (state.searchQuery && state.searchQuery.length > 0) {
+        if (!indicator) {
+            // Crear indicador si no existe
+            const filterContainer = document.querySelector('.filter-container');
+            if (filterContainer) {
+                const indicatorDiv = document.createElement('div');
+                indicatorDiv.id = 'search-results-indicator';
+                indicatorDiv.style.cssText = 'color: #059669; font-weight: 500; font-size: 14px;';
+                filterContainer.appendChild(indicatorDiv);
+            }
+        }
+        const indicatorElement = document.getElementById('search-results-indicator');
+        if (indicatorElement) {
+            indicatorElement.innerHTML = `📊 ${filteredQuestions.length} resultado${filteredQuestions.length === 1 ? '' : 's'} encontrado${filteredQuestions.length === 1 ? '' : 's'}`;
+        }
+    } else {
+        if (indicator) {
+            indicator.remove();
+        }
+    }
+}
+
+// NUEVA: Actualizar solo el título de la página
+function updatePageTitle() {
+    const titleElement = document.querySelector('h2');
+    if (titleElement) {
+        const filteredQuestions = getFilteredQuestions();
+        let title = '';
+        
+        if (state.selectedTopicFilter === 'all') {
+            title = 'TODAS LAS PREGUNTAS DEL BANCO';
+        } else {
+            const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
+            if (topic) {
+                title = `PREGUNTAS ${topic.name.toUpperCase()}`;
+            } else {
+                title = 'PREGUNTAS DEL TEMA SELECCIONADO';
+            }
+        }
+        
+        if (state.searchQuery && state.searchQuery.length > 0) {
+            title += ` - BÚSQUEDA: "${state.searchQuery.toUpperCase()}"`;
+        }
+        
+        titleElement.textContent = `${title} (${filteredQuestions.length})`;
+    }
+}
 
 // Función para resaltar texto encontrado
 window.highlightSearchTerm = function(text, searchTerm) {
     if (!searchTerm || !text) return text;
     
-    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    // Escapar caracteres especiales para regex
+    const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedTerm})`, 'gi');
     return text.replace(regex, '<span class="search-highlight">$1</span>');
 };
 
-// Sobrescribir getFilteredQuestions para incluir búsqueda
+// MEJORADA: Sobrescribir getFilteredQuestions para búsqueda secuencial
 const originalGetFilteredQuestions = window.getFilteredQuestions;
 
 window.getFilteredQuestions = function() {
@@ -17895,20 +17972,21 @@ window.getFilteredQuestions = function() {
         });
     }
     
-    // 2. Filtrar por búsqueda (NUEVO)
+    // 2. MEJORADO: Filtrar por búsqueda secuencial
     if (state.searchQuery && state.searchQuery.length > 0) {
-        const searchTerm = state.searchQuery.toLowerCase();
+        const searchTerm = state.searchQuery.toLowerCase().trim();
         
         filtered = filtered.filter(q => {
-            // Buscar en la pregunta
-            const questionMatch = q.question && q.question.toLowerCase().includes(searchTerm);
+            // Buscar la frase completa en orden secuencial
+            const questionText = q.question ? q.question.toLowerCase() : '';
+            const questionMatch = questionText.includes(searchTerm);
             
-            // Buscar en las opciones de respuesta
+            // Buscar en las opciones de respuesta (también secuencial)
             const optionsMatch = q.options && q.options.some(option => 
                 option && option.toLowerCase().includes(searchTerm)
             );
             
-            // Buscar en el nombre del tema (si tiene)
+            // Buscar en el nombre del tema (también secuencial)
             let topicMatch = false;
             if (q.topicId) {
                 const topic = state.topics.find(t => t.id == q.topicId);
@@ -17919,7 +17997,6 @@ window.getFilteredQuestions = function() {
         });
     }
     
-    console.log('🔍 Preguntas filtradas:', filtered.length);
     return filtered;
 };
 
@@ -17941,7 +18018,7 @@ window.renderQuestionsFilteredWithSearch = function(questions) {
                 <h3 style="margin: 0 0 10px 0; color: #374151;">${message}</h3>
                 ${state.searchQuery ? `
                     <p style="margin: 10px 0; font-size: 14px;">Intenta con otros términos de búsqueda</p>
-                    <button onclick="clearSearch()" class="btn btn-primary" style="margin-top: 15px;">
+                    <button onclick="clearSearchSmooth()" class="btn btn-primary" style="margin-top: 15px;">
                         ✖ Limpiar Búsqueda
                     </button>
                 ` : ''}
@@ -18007,16 +18084,18 @@ console.log('   - Interfaz visual para seleccionar cuáles mantener');
 console.log('   - Botones rápidos: mantener primeras/verificadas');
 console.log('   - Vista previa antes de eliminar');
 console.log('   - Preserva preguntas verificadas automáticamente');
-console.log('🔍 AÑADIDO: Búsqueda en tiempo real');
-console.log('   - Input de búsqueda al lado del filtro por tema');
-console.log('   - Busca en preguntas, respuestas y nombres de temas');
-console.log('   - Resalta términos encontrados en amarillo');
-console.log('   - Combinable con filtro por tema');
-console.log('   - Botón limpiar búsqueda');
+console.log('🔍 MEJORADO: Búsqueda fluida y secuencial');
+console.log('   - ✅ Cursor NO se sale del input al escribir');
+console.log('   - ✅ Búsqueda secuencial respeta orden de palabras');
+console.log('   - ✅ Actualización suave sin render completo');
+console.log('   - ✅ Resalta términos encontrados en amarillo');
+console.log('   - ✅ Combinable con filtro por tema');
+console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
 </script>
     
 </body>
 </html>
+
 
 
 
