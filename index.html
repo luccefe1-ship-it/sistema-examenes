@@ -18238,9 +18238,226 @@ console.log('   - ✅ Resalta términos encontrados en amarillo');
 console.log('   - ✅ Combinable con filtro por tema');
 console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
 </script>
+<!-- 
+PARCHE CORREGIDO: QUITAR IMPORTAR DEL LOGIN + VERIFICACIÓN EN FILTROS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Corrige: 1) Elimina "Importar Mis Datos" del login 2) Permite verificar preguntas filtradas
+-->
+
+<script>
+    // ========== CORRECCIÓN 1: ELIMINAR IMPORTAR DEL LOGIN ==========
+    console.log('🔧 Eliminando sección "Importar Mis Datos" del login...');
     
+    // Interceptar y reemplazar renderLogin para quitar la sección de importar
+    const originalRenderLogin = window.renderLogin || function() { return ''; };
+    
+    window.renderLogin = function() {
+        return `
+            <div class="container">
+                <div class="login-form" style="max-width: 450px;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);">
+                            <span style="font-size: 2.5rem; filter: drop-shadow(0 2px 4px rgba(255,255,255,0.3));">🎓</span>
+                        </div>
+                        <h1 style="font-size: 2rem; font-weight: 700; margin: 0 0 10px 0; color: #1f2937;">PRIII Sistema</h1>
+                        <p style="color: #6b7280; margin: 0; font-size: 1rem;">Accede con tus credenciales</p>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-weight: 600; color: #374151; font-size: 14px;">
+                            👤 Usuario
+                        </label>
+                        <input type="text" id="username" placeholder="Nombre de usuario" 
+                               style="width: 100%; padding: 12px 15px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 16px; box-sizing: border-box; transition: border-color 0.2s;"
+                               onfocus="this.style.borderColor='#4f46e5'"
+                               onblur="this.style.borderColor='#e5e7eb'">
+                    </div>
+
+                    <div style="margin-bottom: 25px;">
+                        <label style="display: block; margin-bottom: 6px; font-weight: 600; color: #374151; font-size: 14px;">
+                            🔒 Contraseña
+                        </label>
+                        <input type="password" id="password" placeholder="••••••••••••" 
+                               style="width: 100%; padding: 12px 15px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 16px; box-sizing: border-box; transition: border-color 0.2s;"
+                               onfocus="this.style.borderColor='#4f46e5'"
+                               onblur="this.style.borderColor='#e5e7eb'"
+                               onkeypress="if(event.key==='Enter') login()">
+                    </div>
+
+                    <div style="margin-bottom: 25px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #4f46e5;">
+                            <input type="checkbox" id="remember-me" style="margin: 0;">
+                            <span>Recordar usuario</span>
+                        </label>
+                    </div>
+                    
+                    <button onclick="login()" class="btn btn-primary" style="width: 100%; margin-bottom: 15px; padding: 15px; font-size: 16px; font-weight: 600;">
+                        🚀 ACCEDER AL SISTEMA
+                    </button>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                        <button onclick="showRegisterForm()" class="btn btn-success" style="padding: 12px; font-size: 14px;">
+                            👤 Crear Cuenta
+                        </button>
+                        <button onclick="showForgotPassword()" style="
+                            padding: 12px; background: linear-gradient(45deg, #f59e0b, #d97706); 
+                            color: white; border: none; border-radius: 8px; font-size: 14px; 
+                            cursor: pointer; font-weight: 600;
+                        ">
+                            🔑 Recuperar
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                        <div style="text-align: center; margin-bottom: 10px;">
+                            <strong style="color: #374151; font-size: 14px;">🔐 Sistema Seguro</strong>
+                        </div>
+                        <ul style="margin: 0; padding-left: 20px; color: #6b7280; font-size: 12px; line-height: 1.5;">
+                            <li>Datos privados por usuario</li>
+                            <li>Recuperación por pregunta de seguridad</li>
+                            <li>Opción de recordar credenciales</li>
+                            <li>Exportar/Importar desde el menú principal</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+    };
+    
+    // ========== CORRECCIÓN 2: VERIFICACIÓN EN PREGUNTAS FILTRADAS ==========
+    console.log('⭐ Añadiendo verificación a preguntas filtradas...');
+    
+    // Reemplazar renderSingleQuestion para asegurar botón de verificar siempre presente
+    const originalRenderSingleQuestion = window.renderSingleQuestion;
+    
+    window.renderSingleQuestion = function(q, actualIndex) {
+        const topicName = q.topicId ? getTopicName(q.topicId) : null;
+        const searchTerm = state.searchQuery || '';
+        
+        // Resaltar términos en pregunta y opciones si hay búsqueda activa
+        let displayQuestion = q.question;
+        let displayOptions = q.options;
+        
+        if (searchTerm.length > 0 && typeof highlightSearchTerm === 'function') {
+            displayQuestion = highlightSearchTerm(q.question, searchTerm);
+            displayOptions = q.options.map(opt => highlightSearchTerm(opt, searchTerm));
+        }
+        
+        return `
+            <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
+                <div style="flex: 1; display: flex; gap: 8px;">
+                    ${q.isVerified ? '<span style="color: #3b82f6; font-size: 16px; filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5)); flex-shrink: 0; margin-top: 2px;" title="Pregunta verificada">⭐</span>' : '<span style="width: 16px; flex-shrink: 0;"></span>'}
+                    <div style="flex: 1;">
+                        <div style="margin-bottom: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
+                            <strong style="color: #1f2937;">P${actualIndex + 1}:</strong>
+                            ${topicName && state.selectedTopicFilter === 'all' && state.selectedTopicFilter !== q.topicId ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px; margin-left: 8px;">${topicName}</span>` : ''}
+                            ${q.isVerified ? '<span style="background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 8px; font-size: 11px;">✓ Verificada</span>' : ''}
+                        </div>
+                        <div style="font-weight: 500; margin-bottom: 8px; color: #374151; line-height: 1.4;">
+                            ${displayQuestion}
+                        </div>
+                        <ul style="list-style: none; margin: 0; padding: 0;">
+                            ${displayOptions.map((opt, optIndex) => `
+                                <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'};">
+                                    ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✅' : ''}
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 5px; flex-shrink: 0; margin-left: 15px; align-items: flex-start;">
+                    <button onclick="toggleVerifyQuestion(${actualIndex})" 
+                            class="btn ${q.isVerified ? 'btn-warning' : 'btn-info'}" 
+                            style="padding: 5px 10px; font-size: 12px; min-width: 70px;"
+                            title="${q.isVerified ? 'Desverificar pregunta' : 'Verificar pregunta'}">
+                        ${q.isVerified ? '⭐→☆' : '☆→⭐'}
+                    </button>
+                    <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
+                    <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
+                </div>
+            </div>
+        `;
+    };
+    
+    // Asegurar que la función toggleVerifyQuestion existe globalmente
+    if (typeof window.toggleVerifyQuestion === 'undefined') {
+        window.toggleVerifyQuestion = function(index) {
+            if (!state.questions[index]) return;
+            
+            const question = state.questions[index];
+            const wasVerified = question.isVerified;
+            
+            // Cambiar estado de verificación
+            state.questions[index].isVerified = !wasVerified;
+            
+            // Guardar cambios
+            localStorage.setItem('questions', JSON.stringify(state.questions));
+            
+            // Actualizar datos del usuario si existe RealDataManager
+            if (typeof RealDataManager !== 'undefined' && state.currentUser) {
+                RealDataManager.saveFromGlobalData(state.currentUser.username);
+            }
+            
+            // Mostrar mensaje
+            const action = wasVerified ? 'desverificada' : 'verificada';
+            const icon = wasVerified ? '☆' : '⭐';
+            showMessage(`Pregunta ${action} ${icon}`, wasVerified ? 'info' : 'success');
+            
+            // Re-renderizar solo si estamos en la pestaña de preguntas
+            if (state.currentTab === 'questions') {
+                render();
+            }
+        };
+    }
+    
+    // Reemplazar renderQuestionsFilteredWithSearch para asegurar verificación en filtros
+    const originalRenderQuestionsFilteredWithSearch = window.renderQuestionsFilteredWithSearch;
+    
+    window.renderQuestionsFilteredWithSearch = function(questions) {
+        if (questions.length === 0) {
+            let message = 'No hay preguntas disponibles';
+            
+            if (state.searchQuery && state.searchQuery.length > 0) {
+                message = `No se encontraron preguntas que contengan "${state.searchQuery}"`;
+            } else if (state.selectedTopicFilter !== 'all') {
+                const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
+                message = `No hay preguntas en el tema "${topic ? topic.name : 'seleccionado'}"`;
+            }
+            
+            return `
+                <div style="text-align: center; padding: 60px 20px; color: #6b7280;">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">🔍</div>
+                    <h3 style="margin: 0 0 10px 0; color: #374151;">${message}</h3>
+                    ${state.searchQuery ? `
+                        <p style="margin: 10px 0; font-size: 14px;">Intenta con otros términos de búsqueda</p>
+                        <button onclick="clearSearchSmooth()" class="btn btn-primary" style="margin-top: 15px;">
+                            ✖ Limpiar Búsqueda
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        return `
+            <div style="border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
+                ${questions.map((q, index) => {
+                    const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                    return renderSingleQuestion(q, actualIndex);
+                }).join('')}
+            </div>
+        `;
+    };
+    
+    console.log('✅ CORRECCIONES APLICADAS:');
+    console.log('  1. ❌ Eliminada sección "Importar Mis Datos" del login');
+    console.log('  2. ⭐ Botón verificar disponible en preguntas filtradas');
+    console.log('  3. 🔄 Función toggleVerifyQuestion disponible globalmente');
+    console.log('  4. 💾 Guardado automático en localStorage y RealDataManager');
+    
+</script>    
 </body>
 </html>
+
 
 
 
