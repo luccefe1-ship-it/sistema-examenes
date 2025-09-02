@@ -7017,27 +7017,18 @@ Este parche añade navegación entre Tests y Resúmenes, y botón de vuelta al m
     }, 200);
 </script>
 <!-- 
-PARCHE ULTRA SIMPLE: RECORDAR USUARIO
+PARCHE ULTRA SIMPLE: RECORDAR USUARIO + EXPORTAR DATOS
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Sin preguntas, sin confirmaciones. Solo recordar datos del login.
+Sin preguntas, sin confirmaciones. Solo recordar datos del login + exportar.
 -->
 
 <script>
-    // ========== SISTEMA COMPLETO: LOGIN + BACKUP INTELIGENTE ==========
-    console.log('🔐 Implementando sistema completo de login con backup...');
-    
-    // Variables globales para importación
-    let importFileSelected = null;
+    // ========== SISTEMA COMPLETO: LOGIN + BACKUP ==========
+    console.log('🔐 Implementando sistema de login con recordar credenciales...');
     
     // INTERCEPTAR función de login MEJORADA
     const originalUltraLogin = window.login;
     window.login = function() {
-        // Si hay archivo seleccionado, usar login inteligente
-        if (importFileSelected) {
-            return smartLoginWithImport();
-        }
-        
-        // Login normal
         const username = document.getElementById('username')?.value?.trim() || '';
         const password = document.getElementById('password')?.value || '';
         const rememberMe = document.getElementById('remember-me')?.checked || false;
@@ -7084,170 +7075,6 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
             showMessage(loginResult.message, 'error');
         }
     };
-    
-    // FUNCIÓN para LOGIN INTELIGENTE con importación
-    function smartLoginWithImport() {
-        const username = document.getElementById('username')?.value?.trim() || '';
-        const password = document.getElementById('password')?.value || '';
-        const rememberMe = document.getElementById('remember-me')?.checked || false;
-        
-        if (!username || !password) {
-            showMessage('Completa todos los campos', 'error');
-            return;
-        }
-        
-        if (!importFileSelected) {
-            showMessage('Error: No hay archivo seleccionado', 'error');
-            return;
-        }
-        
-        console.log('📂 Procesando login con importación...');
-        
-        try {
-            // Validar que las credenciales coincidan con las del archivo
-            if (importFileSelected.username !== username) {
-                showMessage(`❌ Error: El archivo es del usuario "${importFileSelected.username}", pero intentas acceder como "${username}"`, 'error');
-                return;
-            }
-            
-            if (importFileSelected.accountData.password !== password) {
-                showMessage('❌ Error: La contraseña no coincide con la del archivo de backup', 'error');
-                return;
-            }
-            
-            console.log('✅ Credenciales validadas con el archivo');
-            
-            // Obtener usuarios existentes
-            const existingUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
-            
-            // CREAR O ACTUALIZAR la cuenta con datos del backup
-            existingUsers[username] = {
-                password: importFileSelected.accountData.password,
-                name: importFileSelected.accountData.name,
-                securityQuestion: importFileSelected.accountData.securityQuestion,
-                securityAnswer: importFileSelected.accountData.securityAnswer,
-                createdAt: importFileSelected.accountData.createdAt,
-                lastLogin: new Date().toLocaleString('es-ES'),
-                importedFrom: importFileSelected.exportDate
-            };
-            
-            // Guardar cuenta
-            localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
-            
-            // IMPORTAR todos los datos del usuario
-            const userData = importFileSelected.userData;
-            localStorage.setItem(`realUser_${username}_questions`, JSON.stringify(userData.questions || []));
-            localStorage.setItem(`realUser_${username}_topics`, JSON.stringify(userData.topics || []));
-            localStorage.setItem(`realUser_${username}_testResults`, JSON.stringify(userData.testResults || []));
-            localStorage.setItem(`realUser_${username}_summaryTopics`, JSON.stringify(userData.summaryTopics || []));
-            localStorage.setItem(`realUser_${username}_savedSummaries`, JSON.stringify(userData.savedSummaries || []));
-            localStorage.setItem(`realUser_${username}_apiKey`, userData.apiKey || '');
-            
-            // Establecer usuario actual y cargar datos en variables globales
-            state.currentUser = { 
-                username: username, 
-                name: existingUsers[username].name 
-            };
-            
-            // Cargar datos en variables globales
-            state.questions = userData.questions || [];
-            state.topics = userData.topics || [];
-            state.testResults = userData.testResults || [];
-            state.apiKey = userData.apiKey || '';
-            
-            // Cargar datos de resúmenes si existen
-            if (typeof summarySystemState !== 'undefined') {
-                summarySystemState.summaryTopics = userData.summaryTopics || [];
-                summarySystemState.savedSummaries = userData.savedSummaries || [];
-            }
-            
-            // Configurar recordar credenciales
-            if (rememberMe) {
-                localStorage.setItem('rememberedUsername', username);
-                localStorage.setItem('rememberedPassword', password);
-                localStorage.setItem('rememberExpiry', Date.now() + (30 * 24 * 60 * 60 * 1000));
-            }
-            
-            // Mostrar mensaje de éxito con estadísticas
-            const stats = importFileSelected.stats || {};
-            showMessage(`
-✅ ¡LOGIN E IMPORTACIÓN EXITOSA!
-
-📊 DATOS IMPORTADOS:
-• Preguntas: ${stats.totalQuestions || userData.questions?.length || 0}
-• Temas: ${stats.totalTopics || userData.topics?.length || 0}
-• Tests: ${stats.totalTests || userData.testResults?.length || 0}
-• Resúmenes: ${stats.totalSummaries || userData.savedSummaries?.length || 0}
-
-🎉 ¡Bienvenido ${existingUsers[username].name}!
-            `, 'success');
-            
-            console.log('✅ Login con importación completado');
-            
-            // Limpiar archivo importado
-            importFileSelected = null;
-            
-            // Cambiar a la interfaz principal
-            showIntermediateScreen = true;
-            setTimeout(() => {
-                render();
-            }, 2000);
-            
-        } catch (error) {
-            console.error('❌ Error en login con importación:', error);
-            showMessage('❌ Error al importar datos: ' + error.message, 'error');
-        }
-    }
-    
-    // FUNCIÓN para manejar selección de archivo
-    function handleImportFileSelect(input) {
-        const file = input.files[0];
-        if (!file) {
-            document.getElementById('file-info').style.display = 'none';
-            importFileSelected = null;
-            return;
-        }
-        
-        if (!file.name.endsWith('.json')) {
-            showMessage('❌ Por favor selecciona un archivo .json válido', 'error');
-            input.value = '';
-            importFileSelected = null;
-            return;
-        }
-        
-        // Leer archivo para mostrar información básica
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const backupData = JSON.parse(e.target.result);
-                
-                // Validar estructura básica
-                if (!backupData.username || !backupData.accountData || !backupData.userData) {
-                    throw new Error('Archivo de backup inválido');
-                }
-                
-                // Mostrar información del archivo
-                document.getElementById('file-info').style.display = 'block';
-                document.getElementById('file-details').innerHTML = `
-                    📁 <strong>${file.name}</strong><br>
-                    👤 Usuario: <strong>${backupData.username}</strong><br>
-                    📊 Preguntas: <strong>${backupData.userData.questions?.length || 0}</strong><br>
-                    📅 Fecha: <strong>${new Date(backupData.exportDate).toLocaleDateString('es-ES')}</strong>
-                `;
-                
-                importFileSelected = backupData;
-                console.log('✅ Archivo de backup cargado:', backupData.username);
-                
-            } catch (error) {
-                showMessage('❌ Error leyendo archivo: ' + error.message, 'error');
-                input.value = '';
-                importFileSelected = null;
-                document.getElementById('file-info').style.display = 'none';
-            }
-        };
-        
-        reader.readAsText(file);
-    }
     
     // FUNCIÓN para llenar datos recordados
     function fillRememberedCredentials() {
@@ -7363,8 +7190,8 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
 
 💡 INSTRUCCIONES:
 • Guarda este archivo en un lugar seguro
-• Para usar en otro dispositivo: Login + Importar este archivo
 • Incluye tanto tu cuenta como todos tus datos
+• Útil para respaldos y migración de datos
                 `, 'success');
             }, 1000);
             
@@ -7389,7 +7216,6 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
         showIntermediateScreen = false;
         state.currentTab = 'upload';
         newLoginState.currentView = 'login';
-        importFileSelected = null; // Limpiar archivo importado
         
         render();
         showMessage('Sesión cerrada correctamente', 'success');
@@ -7441,17 +7267,17 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
         tabsContainer.appendChild(exportButton);
     }
     
-    // ACTUALIZAR render para incluir importación y exportación
+    // ACTUALIZAR render para incluir recordar credenciales
     const previousUltraRender = window.render;
     window.render = function() {
         const app = document.getElementById('app');
         
         if (!state.currentUser) {
             if (newLoginState.currentView === 'login') {
-                // Pantalla de login CON IMPORTACIÓN
+                // Pantalla de login CON RECORDAR CREDENCIALES
                 app.innerHTML = `
                     <div class="container">
-                        <div class="login-form" style="max-width: 500px; margin: 50px auto; padding: 40px; background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+                        <div class="login-form" style="max-width: 450px; margin: 50px auto; padding: 40px; background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
                             
                             <!-- HEADER -->
                             <div style="text-align: center; margin-bottom: 35px;">
@@ -7472,32 +7298,11 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
                                 <input type="password" id="password" class="form-input" placeholder="Tu contraseña" style="font-size: 15px; padding: 12px;">
                             </div>
                             
-                            <!-- SECCIÓN DE IMPORTAR DATOS -->
-                            <div style="background: #f8fafc; border: 2px dashed #cbd5e0; border-radius: 12px; padding: 20px; margin: 25px 0;">
-                                <div style="text-align: center; margin-bottom: 15px;">
-                                    <span style="font-size: 2rem;">📂</span>
-                                    <h3 style="margin: 8px 0 5px 0; color: #374151; font-size: 1rem;">Importar Mis Datos (Opcional)</h3>
-                                    <p style="color: #6b7280; font-size: 13px; margin: 0; line-height: 1.4;">
-                                        Si tienes un archivo de backup, selecciónalo para recuperar todos tus datos
-                                    </p>
-                                </div>
-                                
-                                <input type="file" id="import-file" accept=".json" style="
-                                    width: 100%; padding: 12px; border: 2px solid #cbd5e0; border-radius: 8px; 
-                                    background: white; font-size: 14px; cursor: pointer; box-sizing: border-box;
-                                " onchange="handleImportFileSelect(this)">
-                                
-                                <div id="file-info" style="margin-top: 10px; padding: 10px; background: #ecfdf5; border-radius: 6px; display: none;">
-                                    <div style="color: #065f46; font-size: 14px; font-weight: 600;">✅ Archivo seleccionado</div>
-                                    <div id="file-details" style="color: #059669; font-size: 12px; margin-top: 5px;"></div>
-                                </div>
-                            </div>
-                            
-                            <!-- Checkbox simple -->
+                            <!-- Checkbox recordar usuario -->
                             <div style="margin-bottom: 20px;">
                                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; color: #374151;">
                                     <input type="checkbox" id="remember-me" style="transform: scale(1.2); accent-color: #4f46e5;">
-                                    <span>Recordar usuario</span>
+                                    <span>Recordar usuario por 30 días</span>
                                 </label>
                             </div>
                             
@@ -7526,7 +7331,7 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
                                     <li>Datos privados por usuario</li>
                                     <li>Recuperación por pregunta de seguridad</li>
                                     <li>Opción de recordar credenciales</li>
-                                    <li>Importar/Exportar datos completos</li>
+                                    <li>Exportar datos completos desde el sistema</li>
                                 </ul>
                             </div>
                         </div>
@@ -7553,14 +7358,12 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
         }
     };
     
-    console.log('✅ SISTEMA COMPLETO IMPLEMENTADO: Login + Backup Inteligente');
+    console.log('✅ SISTEMA IMPLEMENTADO: Login + Recordar Credenciales');
     console.log('🎯 Funcionalidades:');
-    console.log('  • Login normal con recordar credenciales');  
-    console.log('  • Importación inteligente de backup en login');
+    console.log('  • Login normal con recordar credenciales por 30 días');  
     console.log('  • Exportación completa desde menú principal');
-    console.log('  • Validación de credenciales con archivo');
-    console.log('  • Auto-creación de cuentas desde backup');
-    console.log('  • Portabilidad total entre dispositivos');
+    console.log('  • Logout ultra simple sin confirmaciones');
+    console.log('  • Auto-llenado de campos si están guardados');
     
     // Forzar re-renderizado si no hay usuario logueado
     setTimeout(() => {
@@ -18400,6 +18203,7 @@ console.log('   - Compatible con todos los filtros y búsquedas');
 </script>   
 </body>
 </html>
+
 
 
 
