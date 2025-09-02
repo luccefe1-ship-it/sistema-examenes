@@ -18633,6 +18633,25 @@ function renderProgressScreen() {
     // Calcular progreso general considerando vueltas completadas
     const totalCompletedRounds = progressState.studyTopics.reduce((sum, topic) => sum + topic.completedRounds, 0);
     
+    // NUEVA LÓGICA: Calcular vuelta general basada en páginas totales estudiadas
+    const totalAccumulatedPages = progressState.studyTopics.reduce((sum, topic) => {
+        // Páginas de la primera vuelta
+        let topicTotal = topic.firstRoundPages;
+        // Añadir páginas de vueltas completadas adicionales
+        if (topic.completedRounds > 1) {
+            topicTotal += (topic.completedRounds - 1) * topic.totalPages;
+        }
+        // Añadir páginas de la vuelta actual (si no es la primera)
+        if (topic.currentRound > 1) {
+            topicTotal += topic.studiedPages;
+        }
+        return sum + topicTotal;
+    }, 0);
+    
+    // Determinar vuelta general
+    const generalRoundNumber = totalPages > 0 ? Math.floor(totalAccumulatedPages / totalPages) + 1 : 1;
+    const generalRoundInfo = getRoundColor(generalRoundNumber);
+    
     return `
         <div style="max-width: 1200px; margin: 0 auto;">
             <!-- Header -->
@@ -18692,7 +18711,7 @@ function renderProgressScreen() {
                                 <button onclick="changeManualTestCount('${topic.id}', -1)" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 20px; height: 20px; cursor: pointer; font-size: 10px; font-weight: bold;">-</button>
                                 <div style="text-align: center; min-width: 35px;">
                                     <span style="font-weight: 600; color: #059669; display: block; font-size: 14px;">${totalTests}</span>
-                                    ${automaticTests > 0 && manualTests > 0 ? `<span style="font-size: 10px; color: #6b7280;">${automaticTests}+${manualTests}</span>` : ''}
+                                    ${automaticTests > 0 && manualTests > 0 ? `<span style="font-size: 9px; color: #6b7280; background: #f3f4f6; padding: 1px 4px; border-radius: 8px; display: inline-block; margin-top: 2px;">${automaticTests}+${manualTests}</span>` : ''}
                                 </div>
                                 <button onclick="changeManualTestCount('${topic.id}', 1)" style="background: #22c55e; color: white; border: none; border-radius: 4px; width: 20px; height: 20px; cursor: pointer; font-size: 10px; font-weight: bold;">+</button>
                             </div>
@@ -18732,8 +18751,8 @@ function renderProgressScreen() {
                     <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: #059669;">
                         ${totalTests}
                     </div>
-                    <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: #6b7280;">
-                        Mixta
+                    <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: ${generalRoundInfo.color}; font-weight: 600;">
+                        ${generalRoundInfo.name}
                     </div>
                     <div style="padding: 15px; border-right: 1px solid #e5e7eb; display: flex; align-items: center; gap: 10px;">
                         <div style="flex: 1; background: #f3f4f6; border-radius: 8px; height: 20px; overflow: hidden;">
@@ -19093,6 +19112,7 @@ console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
