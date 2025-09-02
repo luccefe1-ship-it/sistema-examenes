@@ -18633,27 +18633,14 @@ function renderProgressScreen() {
     // Calcular progreso general considerando vueltas completadas
     const totalCompletedRounds = progressState.studyTopics.reduce((sum, topic) => sum + topic.completedRounds, 0);
     
-    // NUEVA LÓGICA: Calcular vuelta general basada en páginas totales estudiadas
-    const totalAccumulatedPages = progressState.studyTopics.reduce((sum, topic) => {
-        // Páginas de la primera vuelta
-        let topicTotal = topic.firstRoundPages;
-        // Añadir páginas de vueltas completadas adicionales
-        if (topic.completedRounds > 1) {
-            topicTotal += (topic.completedRounds - 1) * topic.totalPages;
-        }
-        // Añadir páginas de la vuelta actual (si no es la primera)
-        if (topic.currentRound > 1) {
-            topicTotal += topic.studiedPages;
-        }
-        return sum + topicTotal;
-    }, 0);
-    
-    // Determinar vuelta general
-    const generalRoundNumber = totalPages > 0 ? Math.floor(totalAccumulatedPages / totalPages) + 1 : 1;
+    // NUEVA LÓGICA CORREGIDA: Calcular vuelta general basada en completitud de todas las páginas
+    // La vuelta general solo avanza cuando TODOS los temas han completado al menos una vuelta completa
+    const minCompletedRounds = Math.min(...progressState.studyTopics.map(topic => topic.completedRounds));
+    const generalRoundNumber = minCompletedRounds + 1; // La vuelta actual es las completadas + 1
     const generalRoundInfo = getRoundColor(generalRoundNumber);
     
     return `
-        <div style="max-width: 1200px; margin: 0 auto;">
+        <div style="max-width: 1300px; margin: 0 auto;">
             <!-- Header -->
             <div style="text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
                 <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem;">📊 Progreso de Estudio</h1>
@@ -19112,6 +19099,7 @@ console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
