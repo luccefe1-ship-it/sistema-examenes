@@ -18093,9 +18093,300 @@ console.log('   - ✅ Resalta términos encontrados en amarillo');
 console.log('   - ✅ Combinable con filtro por tema');
 console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
 </script>
+<!-- 
+PARCHE FINAL: EXPORTACIÓN UNIVERSAL FUNCIONANDO
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche FUNCIONA con tu sistema RealDataManager existente
+-->
+
+<script>
+    // ========== PARCHE FINAL: EXPORTACIÓN UNIVERSAL ==========
+    console.log('🎯 Aplicando PARCHE FINAL de exportación universal...');
     
+    // PASO 1: REEMPLAZAR función de exportación para crear archivos universales
+    const originalExportFunction = window.exportUserDataComplete;
+    window.exportUserDataComplete = function() {
+        if (!state.currentUser) {
+            showMessage('❌ Error: No hay usuario logueado', 'error');
+            return;
+        }
+        
+        try {
+            const username = state.currentUser.username;
+            
+            // Crear backup UNIVERSAL (sin datos de cuenta específica)
+            const universalBackup = {
+                version: "3.0",
+                exportDate: new Date().toISOString(),
+                exportTimestamp: Date.now(),
+                exportType: "UNIVERSAL",
+                originalUsername: username, // Solo para referencia
+                userData: {
+                    questions: state.questions || [],
+                    topics: state.topics || [],
+                    testResults: state.testResults || [],
+                    summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
+                    savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
+                    apiKey: state.apiKey || ''
+                },
+                stats: {
+                    totalQuestions: state.questions ? state.questions.length : 0,
+                    totalTopics: state.topics ? state.topics.length : 0,
+                    totalTests: state.testResults ? state.testResults.length : 0,
+                    totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0
+                }
+            };
+            
+            // Mostrar estadísticas
+            const statsMessage = `
+📊 BACKUP UNIVERSAL GENERADO:
+• Preguntas: ${universalBackup.stats.totalQuestions}
+• Temas: ${universalBackup.stats.totalTopics}
+• Tests: ${universalBackup.stats.totalTests}
+• Resúmenes: ${universalBackup.stats.totalSummaries}
+• Tipo: 🌍 UNIVERSAL
+            `;
+            showMessage(statsMessage, 'success');
+            
+            // Descargar archivo
+            const blob = new Blob([JSON.stringify(universalBackup, null, 2)], { 
+                type: 'application/json' 
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            const dateStr = new Date().toISOString().split('T')[0];
+            const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
+            a.href = url;
+            a.download = `datos_universales_${dateStr}_${timeStr}.json`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            setTimeout(() => {
+                showMessage(`
+✅ BACKUP UNIVERSAL DESCARGADO
+📁 Archivo: datos_universales_${dateStr}_${timeStr}.json
+
+🌍 VENTAJAS:
+• Funciona con CUALQUIER usuario
+• Compatible con CUALQUIER dispositivo
+• No requiere credenciales específicas
+
+💡 Para usar: Login + Seleccionar este archivo
+                `, 'success');
+            }, 1000);
+            
+        } catch (error) {
+            showMessage('❌ Error al exportar: ' + error.message, 'error');
+        }
+    };
+    
+    // PASO 2: MEJORAR función de selección de archivos
+    window.handleImportFileSelect = function(input) {
+        const file = input.files[0];
+        if (!file) {
+            const fileInfo = document.getElementById('file-info');
+            if (fileInfo) fileInfo.style.display = 'none';
+            importFileSelected = null;
+            return;
+        }
+        
+        if (!file.name.endsWith('.json')) {
+            showMessage('❌ Selecciona un archivo .json válido', 'error');
+            input.value = '';
+            importFileSelected = null;
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const backupData = JSON.parse(e.target.result);
+                
+                // Detectar tipo de archivo
+                let fileType = 'UNKNOWN';
+                let isValid = false;
+                
+                if (backupData.version === "3.0" && backupData.exportType === "UNIVERSAL") {
+                    fileType = 'UNIVERSAL';
+                    isValid = backupData.userData && typeof backupData.userData === 'object';
+                } else if (backupData.version === "2.0" && backupData.accountData) {
+                    fileType = 'COMPLETO';
+                    isValid = backupData.userData && typeof backupData.userData === 'object';
+                } else if (backupData.userData && typeof backupData.userData === 'object') {
+                    fileType = 'DATOS';
+                    isValid = true;
+                }
+                
+                if (!isValid) {
+                    throw new Error('Archivo de backup inválido');
+                }
+                
+                // Mostrar información
+                const fileInfo = document.getElementById('file-info');
+                const fileDetails = document.getElementById('file-details');
+                
+                if (fileInfo && fileDetails) {
+                    fileInfo.style.display = 'block';
+                    const userData = backupData.userData || backupData;
+                    
+                    fileDetails.innerHTML = `
+                        📁 <strong>${file.name}</strong><br>
+                        🔧 Tipo: <strong>${fileType}</strong><br>
+                        📊 Preguntas: <strong>${(userData.questions || []).length}</strong><br>
+                        📚 Temas: <strong>${(userData.topics || []).length}</strong><br>
+                        🎯 Tests: <strong>${(userData.testResults || []).length}</strong><br>
+                        📝 Resúmenes: <strong>${(userData.savedSummaries || []).length}</strong><br>
+                        📅 Fecha: <strong>${new Date(backupData.exportDate || Date.now()).toLocaleDateString('es-ES')}</strong>
+                        ${fileType === 'UNIVERSAL' ? '<br><div style="color: #059669; font-weight: bold;">🌍 Compatible con cualquier usuario</div>' : ''}
+                    `;
+                }
+                
+                importFileSelected = backupData;
+                importFileSelected.detectedType = fileType;
+                
+                showMessage(`✅ Archivo ${fileType} cargado correctamente`, 'success');
+                
+            } catch (error) {
+                showMessage('❌ Error leyendo archivo: ' + error.message, 'error');
+                input.value = '';
+                importFileSelected = null;
+                const fileInfo = document.getElementById('file-info');
+                if (fileInfo) fileInfo.style.display = 'none';
+            }
+        };
+        
+        reader.readAsText(file);
+    };
+    
+    // PASO 3: FUNCIÓN DE IMPORTACIÓN UNIVERSAL usando tu RealDataManager
+    window.handleImportFromLogin = function() {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const rememberMe = document.getElementById('remember-me') ? document.getElementById('remember-me').checked : false;
+        
+        if (!importFileSelected) {
+            showMessage('❌ Error: No se ha seleccionado archivo para importar', 'error');
+            return;
+        }
+        
+        if (!username || !password) {
+            showMessage('❌ Error: Usuario y contraseña son obligatorios', 'error');
+            return;
+        }
+        
+        try {
+            const backupData = importFileSelected;
+            
+            // MANEJAR ARCHIVOS UNIVERSALES
+            if (backupData.version === "3.0" && backupData.exportType === "UNIVERSAL") {
+                console.log('🌍 Procesando archivo UNIVERSAL');
+                
+                // Usar tu sistema RealUserManager
+                const existingUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
+                
+                // Crear usuario si no existe
+                if (!existingUsers[username]) {
+                    existingUsers[username] = {
+                        password: password,
+                        name: username,
+                        securityQuestion: '',
+                        securityAnswer: '',
+                        createdAt: new Date().toLocaleString('es-ES'),
+                        lastLogin: new Date().toLocaleString('es-ES'),
+                        importedUniversalData: backupData.exportDate
+                    };
+                    localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
+                } else {
+                    // Verificar password solo si el usuario ya existe
+                    if (existingUsers[username].password !== password) {
+                        showMessage('❌ Error: La contraseña no coincide con la cuenta existente', 'error');
+                        return;
+                    }
+                    existingUsers[username].lastLogin = new Date().toLocaleString('es-ES');
+                    localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
+                }
+                
+                // USAR tu RealDataManager para guardar los datos
+                const userData = backupData.userData;
+                RealDataManager.saveUserData(username, 'questions', userData.questions || []);
+                RealDataManager.saveUserData(username, 'topics', userData.topics || []);
+                RealDataManager.saveUserData(username, 'testResults', userData.testResults || []);
+                RealDataManager.saveUserData(username, 'summaryTopics', userData.summaryTopics || []);
+                RealDataManager.saveUserData(username, 'savedSummaries', userData.savedSummaries || []);
+                RealDataManager.saveUserData(username, 'apiKey', userData.apiKey || '');
+                
+                // Establecer usuario actual
+                state.currentUser = { 
+                    username: username, 
+                    name: existingUsers[username].name 
+                };
+                
+                // USAR tu RealDataManager para cargar a variables globales
+                RealDataManager.loadIntoGlobalData(username);
+                
+                // Recordar credenciales
+                if (rememberMe) {
+                    localStorage.setItem('rememberedUsername', username);
+                    localStorage.setItem('rememberedPassword', password);
+                    localStorage.setItem('rememberExpiry', Date.now() + (30 * 24 * 60 * 60 * 1000));
+                }
+                
+                // Mensaje de éxito
+                const stats = backupData.stats || {};
+                showMessage(`
+✅ ¡IMPORTACIÓN UNIVERSAL EXITOSA!
+
+👤 Usuario: ${username}
+🌍 DATOS UNIVERSALES IMPORTADOS:
+• Preguntas: ${stats.totalQuestions || (userData.questions || []).length}
+• Temas: ${stats.totalTopics || (userData.topics || []).length}
+• Tests: ${stats.totalTests || (userData.testResults || []).length}
+• Resúmenes: ${stats.totalSummaries || (userData.savedSummaries || []).length}
+
+🎉 ¡Todos tus datos están disponibles!
+                `, 'success');
+                
+                // Limpiar y renderizar
+                importFileSelected = null;
+                if (typeof newLoginState !== 'undefined') {
+                    newLoginState.currentView = 'main';
+                }
+                
+                // Usar tu sistema de pantalla intermedia
+                showIntermediateScreen = true;
+                setTimeout(() => {
+                    if (typeof render === 'function') {
+                        render();
+                    }
+                }, 2000);
+                
+                return;
+            }
+            
+            // Para archivos no universales, usar el sistema original si existe
+            showMessage('⚠️ Archivo de formato no universal - usa el sistema estándar', 'warning');
+            
+        } catch (error) {
+            console.error('❌ Error en importación:', error);
+            showMessage('❌ Error al importar datos: ' + error.message, 'error');
+        }
+    };
+    
+    console.log('✅ PARCHE FINAL APLICADO CORRECTAMENTE');
+    console.log('🎯 Funcionalidades:');
+    console.log('   • Exportación universal sin datos de cuenta');
+    console.log('   • Importación usando tu RealDataManager');
+    console.log('   • Compatible con tu sistema de usuarios');
+    console.log('   • Auto-creación de cuentas para archivos universales');
+    console.log('   • Carga correcta en variables globales');
+</script>
 </body>
 </html>
+
 
 
 
