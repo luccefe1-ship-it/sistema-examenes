@@ -16048,6 +16048,49 @@ window.toggleTopicVisibility = function(topicId) {
     }
 };
 
+// FUNCIÓN PARA EDITAR TEMA
+window.editTopicSimple = function(topicId) {
+    // Encontrar el tema
+    const topicToEdit = state.topics.find(t => t.id == topicId);
+    if (!topicToEdit) {
+        if (typeof showMessage === 'function') {
+            showMessage('Tema no encontrado', 'error');
+        }
+        return;
+    }
+    
+    // Solicitar nuevo nombre
+    const newName = prompt('Nuevo nombre del tema:', topicToEdit.name);
+    
+    if (!newName) return; // Cancelado
+    
+    if (newName.trim().length === 0) {
+        alert('El nombre no puede estar vacío');
+        return;
+    }
+    
+    // Verificar si ya existe otro tema con ese nombre
+    const existingTopic = state.topics.find(t => t.id != topicId && t.name.toLowerCase() === newName.trim().toLowerCase());
+    if (existingTopic) {
+        alert('Ya existe un tema con ese nombre');
+        return;
+    }
+    
+    // Actualizar el nombre
+    topicToEdit.name = newName.trim();
+    
+    // Guardar cambios
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    
+    // Re-renderizar
+    render();
+    
+    // Mensaje de éxito
+    if (typeof showMessage === 'function') {
+        showMessage(`Tema renombrado a "${newName.trim()}"`, 'success');
+    }
+};
+
 // REEMPLAZAR renderQuestionsByTopic manteniendo eliminar tema
 renderQuestionsByTopic = function() {
     const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
@@ -16071,6 +16114,9 @@ renderQuestionsByTopic = function() {
                                     style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
                                     title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
                                 ${isCollapsed ? '▶' : '▼'}
+                            </button>
+                            <button onclick="editTopicSimple('${topic.id}')" class="btn btn-warning" style="padding: 4px 8px; font-size: 12px; background: #f59e0b; border: none; border-radius: 4px; color: white; cursor: pointer;" title="Editar tema">
+                                ✏️
                             </button>
                             <button onclick="deleteTopicSimple('${topic.id}')" class="btn btn-danger" style="padding: 4px 8px; font-size: 12px; background: #dc2626; border: none; border-radius: 4px; color: white; cursor: pointer;" title="Eliminar tema">
                                 🗑️
@@ -16125,6 +16171,7 @@ renderQuestionsByTopic = function() {
 };
 
 console.log('✅ Triangulito colapsar añadido + botón eliminar tema mantenido');
+console.log('✏️ Botón editar tema añadido con sincronización automática');
 </script>
 <script>
 
@@ -18204,6 +18251,7 @@ console.log('   - Compatible con todos los filtros y búsquedas');
 </script>   
 </body>
 </html>
+
 
 
 
