@@ -17309,754 +17309,261 @@ console.log('🔥 PARCHE ULTRA SIMPLE aplicado');
 console.log('🎯 Detección específica: A)**, B)****, C)**, etc.');
 console.log('🧪 Prueba pegando texto con el patrón )**');
 </script>
-<!-- 
-PARCHE: DETECTOR DE PREGUNTAS REPETIDAS + BÚSQUEDA MEJORADA + EDICIÓN DE NOMBRES DE TEMAS
-Añadir este código AL FINAL del archivo index.html, justo antes de </body>
--->
+<script>
+// ========== DIAGNÓSTICO Y CORRECCIÓN CREATETOPIC ==========
+console.log('🔧 Aplicando diagnóstico y corrección de createTopic...');
 
-<style>
-/* Estilos para la búsqueda */
-#search-input:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-}
+// PASO 1: VERIFICAR QUE LA FUNCIÓN EXISTE
+console.log('📋 Estado inicial:');
+console.log('- createTopic existe?', typeof window.createTopic);
+console.log('- state.topics:', state.topics ? state.topics.length : 'undefined');
+console.log('- render existe?', typeof window.render);
 
-#search-input:hover {
-    border-color: #9ca3af;
-}
+// PASO 2: FUNCIÓN createTopic CORREGIDA Y ROBUSTA
+window.createTopic = function() {
+    console.log('🎯 Ejecutando createTopic...');
+    
+    try {
+        // Solicitar nombre del tema
+        const name = prompt('Nombre del nuevo tema:');
+        
+        if (!name) {
+            console.log('❌ Cancelado - No se proporcionó nombre');
+            return;
+        }
+        
+        if (name.trim().length === 0) {
+            alert('El nombre no puede estar vacío');
+            console.log('❌ Nombre vacío');
+            return;
+        }
+        
+        // Verificar que state.topics existe
+        if (!state.topics) {
+            console.log('⚠️ state.topics no existe, inicializando...');
+            state.topics = [];
+        }
+        
+        // Verificar si ya existe un tema con ese nombre
+        const existingTopic = state.topics.find(t => t.name.toLowerCase() === name.trim().toLowerCase());
+        if (existingTopic) {
+            alert('Ya existe un tema con ese nombre');
+            console.log('❌ Tema duplicado:', name);
+            return;
+        }
+        
+        // Generar ID único
+        const newId = Date.now();
+        
+        // Crear nuevo tema
+        const newTopic = {
+            id: newId,
+            name: name.trim(),
+            createdAt: new Date().toISOString()
+        };
+        
+        console.log('✅ Creando tema:', newTopic);
+        
+        // Agregar al array de temas
+        state.topics.push(newTopic);
+        
+        // Guardar en localStorage
+        try {
+            localStorage.setItem('topics', JSON.stringify(state.topics));
+            console.log('💾 Guardado en localStorage exitoso');
+        } catch (error) {
+            console.error('❌ Error guardando en localStorage:', error);
+        }
+        
+        // Seleccionar automáticamente el nuevo tema
+        state.selectedTopicForNewQuestions = newId;
+        console.log('🎯 Tema seleccionado automáticamente:', newId);
+        
+        // Re-renderizar
+        if (typeof window.render === 'function') {
+            console.log('🔄 Ejecutando render...');
+            render();
+        } else {
+            console.error('❌ Función render no existe');
+        }
+        
+        // Mostrar mensaje de éxito
+        if (typeof showMessage === 'function') {
+            showMessage(`Tema "${name}" creado exitosamente`, 'success');
+        }
+        
+        console.log('✅ Tema creado exitosamente');
+        console.log('📊 Total de temas ahora:', state.topics.length);
+        
+    } catch (error) {
+        console.error('❌ Error en createTopic:', error);
+        alert('Error al crear el tema: ' + error.message);
+    }
+};
 
-/* Resaltar términos encontrados */
-.search-highlight {
-    background-color: #fef08a;
-    padding: 1px 2px;
-    border-radius: 2px;
-    font-weight: 600;
-}
+// PASO 3: VERIFICAR Y CORREGIR updateSelectedTopic
+window.updateSelectedTopic = function() {
+    console.log('🔄 Ejecutando updateSelectedTopic...');
+    
+    try {
+        const selector = document.getElementById('topic-selector');
+        console.log('📋 Selector encontrado:', !!selector);
+        
+        if (!selector) {
+            console.error('❌ No se encontró el selector topic-selector');
+            return;
+        }
+        
+        console.log('🎯 Valor seleccionado:', selector.value);
+        
+        if (selector.value) {
+            const selectedValue = selector.value;
+            const selectedTopic = state.topics.find(t => t.id == selectedValue);
+            
+            if (selectedTopic) {
+                state.selectedTopicForNewQuestions = selectedTopic.id;
+                console.log('✅ Tema seleccionado:', selectedTopic.name);
+                
+                if (typeof showMessage === 'function') {
+                    showMessage(`Tema "${selectedTopic.name}" seleccionado`, 'success');
+                }
+            } else {
+                state.selectedTopicForNewQuestions = selectedValue;
+                console.log('⚠️ Tema no encontrado, usando valor directo:', selectedValue);
+            }
+        } else {
+            state.selectedTopicForNewQuestions = null;
+            console.log('🚫 Ningún tema seleccionado');
+        }
+        
+        // Re-renderizar
+        if (typeof window.render === 'function') {
+            render();
+        }
+        
+    } catch (error) {
+        console.error('❌ Error en updateSelectedTopic:', error);
+    }
+};
 
-/* Mejorar disposición de filtros */
-.filter-container {
-    display: flex;
-    gap: 15px;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-}
-
-@media (max-width: 768px) {
-    .filter-container {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
+// PASO 4: FUNCIÓN DE DIAGNÓSTICO COMPLETO
+window.debugTopicSystem = function() {
+    console.log('🔍 DIAGNÓSTICO COMPLETO DEL SISTEMA DE TEMAS:');
+    console.log('==========================================');
+    
+    // Estado general
+    console.log('📊 Estado general:');
+    console.log('  - state definido:', typeof state);
+    console.log('  - state.topics:', state.topics ? state.topics.length + ' temas' : 'undefined');
+    console.log('  - selectedTopicForNewQuestions:', state.selectedTopicForNewQuestions);
+    
+    // Funciones
+    console.log('🔧 Funciones disponibles:');
+    console.log('  - createTopic:', typeof window.createTopic);
+    console.log('  - updateSelectedTopic:', typeof window.updateSelectedTopic);
+    console.log('  - render:', typeof window.render);
+    console.log('  - showMessage:', typeof window.showMessage);
+    
+    // DOM
+    console.log('🌐 Elementos DOM:');
+    const createBtn = document.querySelector('button[onclick="createTopic()"]');
+    const selector = document.getElementById('topic-selector');
+    console.log('  - Botón crear tema:', !!createBtn);
+    console.log('  - Selector tema:', !!selector);
+    
+    if (selector) {
+        console.log('  - Opciones en selector:', selector.options.length);
+        console.log('  - Selector habilitado:', !selector.disabled);
+        console.log('  - Valor actual:', selector.value);
     }
     
-    #search-input {
-        width: 100% !important;
+    // LocalStorage
+    console.log('💾 LocalStorage:');
+    try {
+        const storedTopics = localStorage.getItem('topics');
+        console.log('  - topics en localStorage:', storedTopics ? 'Sí (' + JSON.parse(storedTopics).length + ')' : 'No');
+    } catch (error) {
+        console.log('  - Error leyendo localStorage:', error.message);
     }
-}
-</style>
+    
+    // Lista de temas
+    if (state.topics && state.topics.length > 0) {
+        console.log('📋 Temas actuales:');
+        state.topics.forEach((topic, index) => {
+            console.log(`  ${index + 1}. ${topic.name} (ID: ${topic.id})`);
+        });
+    }
+    
+    console.log('==========================================');
+    console.log('💡 Para probar: debugTopicSystem() en la consola');
+};
+
+// PASO 5: EJECUTAR DIAGNÓSTICO INICIAL
+setTimeout(() => {
+    console.log('🚀 Ejecutando diagnóstico inicial...');
+    debugTopicSystem();
+    
+    // Verificar si el problema persiste
+    console.log('🧪 PRUEBA RÁPIDA:');
+    console.log('Ejecuta createTopic() en la consola para probar manualmente');
+}, 1000);
+
+console.log('✅ Diagnóstico y corrección aplicados');
+console.log('🔧 Funciones de debugging disponibles:');
+console.log('   - debugTopicSystem() - Diagnóstico completo');
+console.log('   - createTopic() - Crear tema manualmente');
+</script>
 
 <script>
-// ========== DETECTOR DE PREGUNTAS REPETIDAS ==========
-console.log('🔍 Aplicando detector de preguntas repetidas...');
+// Estado simple para carpetas colapsadas
+let collapsedTopics = JSON.parse(localStorage.getItem('collapsedTopics') || '{}');
 
-// Estado del detector
-window.duplicateDetectorState = {
-    isShowing: false,
-    duplicateGroups: [],
-    detectionMode: 'similar' // 'exact' o 'similar'
-};
-
-// Función principal para detectar duplicados
-window.detectDuplicates = function() {
-    console.log('🔍 Iniciando detección de duplicados...');
+// Función para alternar visibilidad de un tema
+window.toggleTopicVisibility = function(topicId) {
+    collapsedTopics[topicId] = !collapsedTopics[topicId];
+    localStorage.setItem('collapsedTopics', JSON.stringify(collapsedTopics));
     
-    if (state.questions.length === 0) {
-        alert('No hay preguntas en el banco para analizar');
-        return;
-    }
+    // Cambiar visibilidad del div
+    const contentDiv = document.getElementById('topic-content-' + topicId);
+    const button = document.getElementById('toggle-btn-' + topicId);
     
-    // Detectar grupos de preguntas duplicadas
-    const duplicateGroups = findDuplicateGroups();
-    
-    if (duplicateGroups.length === 0) {
-        showMessage('✅ No se encontraron preguntas repetidas', 'success');
-        return;
-    }
-    
-    // Mostrar interfaz de gestión de duplicados
-    window.duplicateDetectorState.duplicateGroups = duplicateGroups;
-    window.duplicateDetectorState.isShowing = true;
-    render();
-    
-    // Scroll al top para ver la interfaz
-    window.scrollTo(0, 0);
-};
-
-// Función para encontrar grupos de preguntas duplicadas
-function findDuplicateGroups() {
-    const groups = [];
-    const processed = new Set();
-    
-    for (let i = 0; i < state.questions.length; i++) {
-        if (processed.has(i)) continue;
-        
-        const currentQuestion = state.questions[i];
-        const duplicates = [i];
-        
-        // Buscar preguntas similares
-        for (let j = i + 1; j < state.questions.length; j++) {
-            if (processed.has(j)) continue;
-            
-            const compareQuestion = state.questions[j];
-            
-            if (areQuestionsSimilar(currentQuestion, compareQuestion)) {
-                duplicates.push(j);
-                processed.add(j);
-            }
-        }
-        
-        // Si hay duplicados, añadir al grupo
-        if (duplicates.length > 1) {
-            groups.push({
-                id: Date.now() + Math.random(),
-                questions: duplicates.map(index => ({
-                    index: index,
-                    question: state.questions[index]
-                })),
-                selectedToKeep: duplicates[0] // Por defecto mantener la primera
-            });
-        }
-        
-        processed.add(i);
-    }
-    
-    return groups;
-}
-
-// Función para comparar si dos preguntas son similares
-function areQuestionsSimilar(q1, q2) {
-    // Limpiar y normalizar texto para comparación
-    const normalize = (text) => {
-        return text.toLowerCase()
-            .replace(/[^\w\s]/g, ' ') // Quitar puntuación
-            .replace(/\s+/g, ' ')     // Normalizar espacios
-            .trim();
-    };
-    
-    const text1 = normalize(q1.question);
-    const text2 = normalize(q2.question);
-    
-    // Comparación exacta
-    if (text1 === text2) return true;
-    
-    // Si está en modo exacto, solo devolver true para coincidencias exactas
-    if (window.duplicateDetectorState.detectionMode === 'exact') {
-        return false;
-    }
-    
-    // Comparación por similitud (al menos 85% similar) solo en modo 'similar'
-    const similarity = calculateSimilarity(text1, text2);
-    return similarity > 0.85;
-}
-
-// Función para calcular similitud entre dos textos
-function calculateSimilarity(str1, str2) {
-    const longer = str1.length > str2.length ? str1 : str2;
-    const shorter = str1.length > str2.length ? str2 : str1;
-    
-    if (longer.length === 0) return 1.0;
-    
-    const editDistance = levenshteinDistance(longer, shorter);
-    return (longer.length - editDistance) / longer.length;
-}
-
-// Algoritmo de distancia de Levenshtein
-function levenshteinDistance(str1, str2) {
-    const matrix = [];
-    
-    for (let i = 0; i <= str2.length; i++) {
-        matrix[i] = [i];
-    }
-    
-    for (let j = 0; j <= str1.length; j++) {
-        matrix[0][j] = j;
-    }
-    
-    for (let i = 1; i <= str2.length; i++) {
-        for (let j = 1; j <= str1.length; j++) {
-            if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-                matrix[i][j] = matrix[i - 1][j - 1];
-            } else {
-                matrix[i][j] = Math.min(
-                    matrix[i - 1][j - 1] + 1,
-                    matrix[i][j - 1] + 1,
-                    matrix[i - 1][j] + 1
-                );
-            }
-        }
-    }
-    
-    return matrix[str2.length][str1.length];
-}
-
-// Interceptar renderQuestionsTab para mostrar interfaz de duplicados
-const originalRenderQuestionsTab = renderQuestionsTab;
-renderQuestionsTab = function() {
-    // Si se está mostrando el detector, mostrar esa interfaz
-    if (window.duplicateDetectorState.isShowing) {
-        return renderDuplicateDetectorInterface();
-    }
-    
-    // AÑADIDO: Si no está el detector, mostrar con búsqueda
-    const filteredQuestions = getFilteredQuestions();
-    
-    function getQuestionsTitle() {
-        let title = '';
-        
-        // Determinar título base
-        if (state.selectedTopicFilter === 'all') {
-            title = 'TODAS LAS PREGUNTAS DEL BANCO';
+    if (contentDiv) {
+        if (collapsedTopics[topicId]) {
+            contentDiv.style.display = 'none';
+            button.textContent = '▶';
+            button.title = 'Mostrar preguntas';
         } else {
-            const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
-            if (topic) {
-                title = `PREGUNTAS ${topic.name.toUpperCase()}`;
-            } else {
-                title = 'PREGUNTAS DEL TEMA SELECCIONADO';
-            }
-        }
-        
-        // Añadir información de búsqueda si está activa
-        if (state.searchQuery && state.searchQuery.length > 0) {
-            title += ` - BÚSQUEDA: "${state.searchQuery.toUpperCase()}"`;
-        }
-        
-        return `${title} (${filteredQuestions.length})`;
-    }
-    
-    return `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-            <h2>${getQuestionsTitle()}</h2>
-            <div style="display: flex; gap: 10px;">
-                <button onclick="detectDuplicates()" class="btn btn-warning">🔍 Detectar Repetidas</button>
-                <button onclick="clearQuestions()" class="btn btn-danger">Limpiar Todo</button>
-            </div>
-        </div>
-
-        <!-- SECCIÓN DE FILTROS CON BÚSQUEDA -->
-        <div class="filter-container">
-            <!-- Filtro por tema existente -->
-            ${state.topics.length > 0 ? `
-                <div>
-                    <label style="margin-right: 10px; font-weight: 500;">📁 Filtrar por tema:</label>
-                    <select onchange="filterByTopic(this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #d1d5db;">
-                        <option value="all" ${state.selectedTopicFilter === 'all' ? 'selected' : ''}>Todos los temas (${state.questions.length})</option>
-                        ${state.topics.map(topic => `
-                            <option value="${topic.id}" ${state.selectedTopicFilter == topic.id ? 'selected' : ''}>
-                                ${topic.name} (${getTopicQuestionCount(topic.id)})
-                            </option>
-                        `).join('')}
-                    </select>
-                </div>
-            ` : ''}
-            
-            <!-- Input de búsqueda -->
-            <div>
-                <label style="margin-right: 10px; font-weight: 500;">🔍 Buscar:</label>
-                <input 
-                    type="text" 
-                    id="search-input" 
-                    placeholder="Escribe para buscar preguntas..." 
-                    oninput="searchQuestionsSmooth(this.value)"
-                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; width: 250px; font-size: 14px;"
-                    value="${state.searchQuery || ''}"
-                />
-                ${state.searchQuery ? `
-                    <button onclick="clearSearchSmooth()" style="margin-left: 5px; padding: 6px 10px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Limpiar búsqueda">
-                        ✖
-                    </button>
-                ` : ''}
-            </div>
-            
-            <!-- Indicador de resultados -->
-            ${state.searchQuery ? `
-                <div id="search-results-indicator" style="color: #059669; font-weight: 500; font-size: 14px;">
-                    📊 ${filteredQuestions.length} resultado${filteredQuestions.length === 1 ? '' : 's'} encontrado${filteredQuestions.length === 1 ? '' : 's'}
-                </div>
-            ` : ''}
-        </div>
-
-        <!-- Contenedor de preguntas que se actualiza sin render completo -->
-        <div id="questions-container">
-            ${state.topics.length > 0 && state.selectedTopicFilter === 'all' && !state.searchQuery ? 
-                renderQuestionsByTopic() : 
-                renderQuestionsFilteredWithSearch(filteredQuestions)
-            }
-        </div>
-    `;
-};
-
-// Renderizar la interfaz del detector de duplicados
-function renderDuplicateDetectorInterface() {
-    const groups = window.duplicateDetectorState.duplicateGroups;
-    const totalDuplicates = groups.reduce((sum, group) => sum + group.questions.length - 1, 0);
-    const mode = window.duplicateDetectorState.detectionMode;
-    
-    return `
-        <div style="max-width: 1200px; margin: 0 auto;">
-            <!-- Header -->
-            <div style="background: #f59e0b; color: white; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
-                <h2 style="margin: 0 0 10px 0;">🔍 Detector de Preguntas Repetidas</h2>
-                <p style="margin: 0; opacity: 0.9;">
-                    Encontrados ${groups.length} ${groups.length === 1 ? 'tema con' : 'temas con'} preguntas ${mode === 'exact' ? 'exactas' : 'similares'} (${totalDuplicates} duplicados para eliminar)
-                </p>
-            </div>
-            
-            <!-- Controles -->
-            <div style="background: white; border: 2px solid #f59e0b; border-top: none; padding: 20px;">
-                <!-- Selector de modo -->
-                <div style="display: flex; justify-content: center; margin-bottom: 20px;">
-                    <div style="background: #f3f4f6; border-radius: 8px; padding: 4px; display: flex; gap: 4px;">
-                        <button onclick="changeDetectionMode('exact')" style="padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; ${mode === 'exact' ? 'background: #3b82f6; color: white;' : 'background: transparent; color: #6b7280;'}">
-                            🎯 Solo Exactas
-                        </button>
-                        <button onclick="changeDetectionMode('similar')" style="padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; ${mode === 'similar' ? 'background: #3b82f6; color: white;' : 'background: transparent; color: #6b7280;'}">
-                            🔍 Similares (85%+)
-                        </button>
-                    </div>
-                </div>
-                
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <div>
-                        <button onclick="selectAllFirst()" class="btn btn-secondary" style="margin-right: 10px;">
-                            📄 Mantener Primeras
-                        </button>
-                        <button onclick="selectAllVerified()" class="btn btn-secondary">
-                            ⭐ Mantener Verificadas
-                        </button>
-                    </div>
-                    <div>
-                        <button onclick="closeDuplicateDetector()" class="btn btn-secondary" style="margin-right: 10px;">
-                            ❌ Cancelar
-                        </button>
-                        <button onclick="removeDuplicates()" class="btn btn-danger">
-                            🗑️ Eliminar Duplicados (${totalDuplicates})
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Lista de grupos duplicados por tema -->
-                <div style="max-height: 600px; overflow-y: auto;">
-                    ${groups.map((group, groupIndex) => {
-                        const topicName = getTopicNameForGroup(group);
-                        return `
-                        <div style="border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
-                            <div style="background: #4f46e5; color: white; padding: 12px 15px; border-bottom: 1px solid #e5e7eb;">
-                                <strong>📁 ${topicName}</strong> - ${group.questions.length} preguntas ${mode === 'exact' ? 'idénticas' : 'similares'}
-                            </div>
-                            <div style="padding: 15px;">
-                                ${group.questions.map((item, questionIndex) => {
-                                    const q = item.question;
-                                    const isSelected = group.selectedToKeep === item.index;
-                                    
-                                    return `
-                                        <div style="border: 2px solid ${isSelected ? '#10b981' : '#e5e7eb'}; border-radius: 6px; padding: 15px; margin-bottom: 10px; background: ${isSelected ? '#f0fdf4' : 'white'}; cursor: pointer;" onclick="selectQuestionToKeep(${groupIndex}, ${item.index})">
-                                            <div style="display: flex; justify-content: between; align-items: start; margin-bottom: 10px;">
-                                                <div style="flex: 1;">
-                                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                                                        <span style="background: ${isSelected ? '#10b981' : '#6b7280'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
-                                                            ${isSelected ? '✅ MANTENER' : 'ELIMINAR'}
-                                                        </span>
-                                                        ${q.isVerified ? '<span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">⭐ Verificada</span>' : ''}
-                                                    </div>
-                                                    <strong>${q.question}</strong>
-                                                </div>
-                                            </div>
-                                            <div style="font-size: 14px; color: #6b7280;">
-                                                ${q.options.map((opt, i) => `
-                                                    <div style="margin-bottom: 3px;">
-                                                        ${String.fromCharCode(65 + i)}) ${opt} ${i === q.correctAnswer ? '✅' : ''}
-                                                    </div>
-                                                `).join('')}
-                                            </div>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-                        </div>
-                    `;}).join('')}
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// Función para cambiar el modo de detección
-window.changeDetectionMode = function(newMode) {
-    window.duplicateDetectorState.detectionMode = newMode;
-    
-    // Re-detectar con el nuevo modo
-    const duplicateGroups = findDuplicateGroups();
-    window.duplicateDetectorState.duplicateGroups = duplicateGroups;
-    
-    // Re-renderizar
-    render();
-    
-    if (typeof showMessage === 'function') {
-        const modeText = newMode === 'exact' ? 'solo exactas' : 'similares (85%+)';
-        showMessage(`Modo cambiado a: ${modeText}. Encontrados ${duplicateGroups.length} grupos.`, 'info');
-    }
-};
-
-// Función para obtener el nombre del tema de un grupo de duplicados
-function getTopicNameForGroup(group) {
-    // Obtener el tema de la primera pregunta del grupo
-    const firstQuestion = group.questions[0].question;
-    
-    if (!firstQuestion.topicId) {
-        return 'Sin tema asignado';
-    }
-    
-    const topic = state.topics.find(t => t.id == firstQuestion.topicId);
-    return topic ? topic.name : 'Tema desconocido';
-}
-
-window.selectQuestionToKeep = function(groupIndex, questionIndex) {
-    window.duplicateDetectorState.duplicateGroups[groupIndex].selectedToKeep = questionIndex;
-    render(); // Re-renderizar para actualizar la interfaz
-};
-
-// Función para seleccionar todas las primeras preguntas
-window.selectAllFirst = function() {
-    window.duplicateDetectorState.duplicateGroups.forEach(group => {
-        group.selectedToKeep = group.questions[0].index;
-    });
-    render();
-};
-
-// Función para seleccionar todas las verificadas (o primera si ninguna está verificada)
-window.selectAllVerified = function() {
-    window.duplicateDetectorState.duplicateGroups.forEach(group => {
-        const verifiedQuestion = group.questions.find(item => item.question.isVerified);
-        group.selectedToKeep = verifiedQuestion ? verifiedQuestion.index : group.questions[0].index;
-    });
-    render();
-};
-
-// Función para cerrar el detector
-window.closeDuplicateDetector = function() {
-    window.duplicateDetectorState.isShowing = false;
-    render();
-};
-
-// Función para eliminar los duplicados seleccionados
-window.removeDuplicates = function() {
-    const groups = window.duplicateDetectorState.duplicateGroups;
-    const toRemove = [];
-    
-    // Recopilar índices a eliminar
-    groups.forEach(group => {
-        group.questions.forEach(item => {
-            if (item.index !== group.selectedToKeep) {
-                toRemove.push(item.index);
-            }
-        });
-    });
-    
-    if (toRemove.length === 0) {
-        alert('No hay duplicados para eliminar');
-        return;
-    }
-    
-    const confirmMessage = `¿Eliminar ${toRemove.length} preguntas duplicadas?\n\nEsta acción no se puede deshacer.`;
-    
-    if (!confirm(confirmMessage)) return;
-    
-    // Ordenar índices de mayor a menor para eliminar correctamente
-    toRemove.sort((a, b) => b - a);
-    
-    // Eliminar preguntas
-    toRemove.forEach(index => {
-        state.questions.splice(index, 1);
-    });
-    
-    // Guardar cambios
-    localStorage.setItem('questions', JSON.stringify(state.questions));
-    
-    // Cerrar detector y mostrar resultado
-    window.duplicateDetectorState.isShowing = false;
-    render();
-    
-    if (typeof showMessage === 'function') {
-        showMessage(`🗑️ ${toRemove.length} preguntas duplicadas eliminadas`, 'success');
-    }
-    
-    console.log(`🗑️ Eliminadas ${toRemove.length} preguntas duplicadas`);
-};
-
-// ========== FUNCIONALIDAD DE BÚSQUEDA MEJORADA ==========
-
-// Añadir variable de búsqueda al estado
-if (typeof state !== 'undefined') {
-    state.searchQuery = state.searchQuery || '';
-}
-
-// NUEVA: Función de búsqueda suave (sin render completo)
-window.searchQuestionsSmooth = function(query) {
-    if (typeof state !== 'undefined') {
-        state.searchQuery = query.trim();
-        console.log('🔍 Buscando:', query);
-        
-        // Actualizar solo el contenido, no re-renderizar todo
-        updateQuestionsContent();
-        updateSearchIndicator();
-        updatePageTitle();
-    }
-};
-
-// NUEVA: Función de limpiar búsqueda suave
-window.clearSearchSmooth = function() {
-    if (typeof state !== 'undefined') {
-        state.searchQuery = '';
-        const searchInput = document.getElementById('search-input');
-        if (searchInput) {
-            searchInput.value = '';
-            searchInput.focus(); // Mantener foco
-        }
-        console.log('🔍 Búsqueda limpiada');
-        
-        // Actualizar contenido sin render completo
-        updateQuestionsContent();
-        updateSearchIndicator();
-        updatePageTitle();
-    }
-};
-
-// NUEVA: Actualizar solo el contenido de preguntas
-function updateQuestionsContent() {
-    const questionsContainer = document.getElementById('questions-container');
-    if (questionsContainer) {
-        const filteredQuestions = getFilteredQuestions();
-        
-        const newContent = state.topics.length > 0 && state.selectedTopicFilter === 'all' && !state.searchQuery ? 
-            renderQuestionsByTopic() : 
-            renderQuestionsFilteredWithSearch(filteredQuestions);
-            
-        questionsContainer.innerHTML = newContent;
-    }
-}
-
-// NUEVA: Actualizar solo el indicador de resultados
-function updateSearchIndicator() {
-    const indicator = document.getElementById('search-results-indicator');
-    const filteredQuestions = getFilteredQuestions();
-    
-    if (state.searchQuery && state.searchQuery.length > 0) {
-        if (!indicator) {
-            // Crear indicador si no existe
-            const filterContainer = document.querySelector('.filter-container');
-            if (filterContainer) {
-                const indicatorDiv = document.createElement('div');
-                indicatorDiv.id = 'search-results-indicator';
-                indicatorDiv.style.cssText = 'color: #059669; font-weight: 500; font-size: 14px;';
-                filterContainer.appendChild(indicatorDiv);
-            }
-        }
-        const indicatorElement = document.getElementById('search-results-indicator');
-        if (indicatorElement) {
-            indicatorElement.innerHTML = `📊 ${filteredQuestions.length} resultado${filteredQuestions.length === 1 ? '' : 's'} encontrado${filteredQuestions.length === 1 ? '' : 's'}`;
-        }
-    } else {
-        if (indicator) {
-            indicator.remove();
+            contentDiv.style.display = 'block';
+            button.textContent = '▼';
+            button.title = 'Ocultar preguntas';
         }
     }
-}
-
-// NUEVA: Actualizar solo el título de la página
-function updatePageTitle() {
-    const titleElement = document.querySelector('h2');
-    if (titleElement) {
-        const filteredQuestions = getFilteredQuestions();
-        let title = '';
-        
-        if (state.selectedTopicFilter === 'all') {
-            title = 'TODAS LAS PREGUNTAS DEL BANCO';
-        } else {
-            const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
-            if (topic) {
-                title = `PREGUNTAS ${topic.name.toUpperCase()}`;
-            } else {
-                title = 'PREGUNTAS DEL TEMA SELECCIONADO';
-            }
-        }
-        
-        if (state.searchQuery && state.searchQuery.length > 0) {
-            title += ` - BÚSQUEDA: "${state.searchQuery.toUpperCase()}"`;
-        }
-        
-        titleElement.textContent = `${title} (${filteredQuestions.length})`;
-    }
-}
-
-// Función para resaltar texto encontrado
-window.highlightSearchTerm = function(text, searchTerm) {
-    if (!searchTerm || !text) return text;
-    
-    // Escapar caracteres especiales para regex
-    const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${escapedTerm})`, 'gi');
-    return text.replace(regex, '<span class="search-highlight">$1</span>');
 };
 
-// MEJORADA: Sobrescribir getFilteredQuestions para búsqueda secuencial
-const originalGetFilteredQuestions = window.getFilteredQuestions;
-
-window.getFilteredQuestions = function() {
-    let filtered = state.questions;
-    
-    // 1. Filtrar por tema (funcionalidad existente)
-    if (state.selectedTopicFilter !== 'all') {
-        filtered = filtered.filter(q => {
-            return q.topicId && q.topicId.toString() === state.selectedTopicFilter.toString();
-        });
-    }
-    
-    // 2. MEJORADO: Filtrar por búsqueda secuencial
-    if (state.searchQuery && state.searchQuery.length > 0) {
-        const searchTerm = state.searchQuery.toLowerCase().trim();
-        
-        filtered = filtered.filter(q => {
-            // Buscar la frase completa en orden secuencial
-            const questionText = q.question ? q.question.toLowerCase() : '';
-            const questionMatch = questionText.includes(searchTerm);
-            
-            // Buscar en las opciones de respuesta (también secuencial)
-            const optionsMatch = q.options && q.options.some(option => 
-                option && option.toLowerCase().includes(searchTerm)
-            );
-            
-            // Buscar en el nombre del tema (también secuencial)
-            let topicMatch = false;
-            if (q.topicId) {
-                const topic = state.topics.find(t => t.id == q.topicId);
-                topicMatch = topic && topic.name.toLowerCase().includes(searchTerm);
-            }
-            
-            return questionMatch || optionsMatch || topicMatch;
-        });
-    }
-    
-    return filtered;
-};
-
-// Función mejorada para renderizar preguntas filtradas con búsqueda
-window.renderQuestionsFilteredWithSearch = function(questions) {
-    if (questions.length === 0) {
-        let message = 'No hay preguntas disponibles';
-        
-        if (state.searchQuery && state.searchQuery.length > 0) {
-            message = `No se encontraron preguntas que contengan "${state.searchQuery}"`;
-        } else if (state.selectedTopicFilter !== 'all') {
-            const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
-            message = `No hay preguntas en el tema "${topic ? topic.name : 'seleccionado'}"`;
-        }
-        
-        return `
-            <div style="text-align: center; padding: 60px 20px; color: #6b7280;">
-                <div style="font-size: 3rem; margin-bottom: 20px;">🔍</div>
-                <h3 style="margin: 0 0 10px 0; color: #374151;">${message}</h3>
-                ${state.searchQuery ? `
-                    <p style="margin: 10px 0; font-size: 14px;">Intenta con otros términos de búsqueda</p>
-                    <button onclick="clearSearchSmooth()" class="btn btn-primary" style="margin-top: 15px;">
-                        ✖ Limpiar Búsqueda
-                    </button>
-                ` : ''}
-            </div>
-        `;
-    }
-    
-    return `
-        <div style="border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
-            ${questions.map((q, index) => {
-                const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                return renderSingleQuestionWithSearch(q, actualIndex);
-            }).join('')}
-        </div>
-    `;
-};
-
-// Función para renderizar pregunta individual con resaltado de búsqueda
-function renderSingleQuestionWithSearch(q, actualIndex) {
-    const topicName = q.topicId ? getTopicName(q.topicId) : null;
-    const searchTerm = state.searchQuery || '';
-    
-    // Resaltar términos en pregunta y opciones si hay búsqueda activa
-    let displayQuestion = q.question;
-    let displayOptions = q.options;
-    
-    if (searchTerm.length > 0) {
-        displayQuestion = highlightSearchTerm(q.question, searchTerm);
-        displayOptions = q.options.map(opt => highlightSearchTerm(opt, searchTerm));
-    }
-    
-    return `
-        <div style="padding: 15px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: flex-start;">
-            <div style="flex: 1; margin-right: 15px;">
-                <div style="margin-bottom: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
-                    <strong style="color: #1f2937;">P${actualIndex + 1}:</strong>
-                    ${topicName ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px;">${topicName}</span>` : ''}
-                    ${q.isVerified ? '<span style="background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 8px; font-size: 11px;">✓ Verificada</span>' : ''}
-                </div>
-                <div style="font-weight: 500; margin-bottom: 8px; color: #374151; line-height: 1.4;">
-                    ${displayQuestion}
-                </div>
-                <ul style="list-style: none; margin: 0; padding: 0;">
-                    ${displayOptions.map((opt, optIndex) => `
-                        <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'}; font-size: 14px;">
-                            ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✅' : ''}
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>
-            <div style="display: flex; gap: 5px; flex-shrink: 0; margin-left: 15px;">
-                <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
-                <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
-            </div>
-        </div>
-    `;
-}
-
-// ========== FUNCIONALIDAD EDICIÓN DE NOMBRES DE TEMAS (AÑADIDO) ==========
-console.log('✏️ Aplicando funcionalidad de edición de nombres de temas...');
-
-// FUNCIÓN PARA EDITAR NOMBRE DE TEMA
+// NUEVA FUNCIÓN: Editar nombre de tema
 window.editTopicName = function(topicId) {
-    console.log('✏️ Iniciando edición del tema ID:', topicId);
+    console.log('✏️ Editando tema ID:', topicId);
     
     try {
         // Encontrar el tema
         const topic = state.topics.find(t => t.id.toString() === topicId.toString());
         if (!topic) {
             alert('❌ Tema no encontrado');
-            console.error('Tema no encontrado:', topicId);
             return;
         }
-        
-        console.log('📝 Tema encontrado:', topic);
         
         // Solicitar nuevo nombre
         const currentName = topic.name;
         const newName = prompt(`Editar nombre del tema:\n\nNombre actual: "${currentName}"`, currentName);
         
         if (!newName) {
-            console.log('❌ Edición cancelada - Sin nombre');
-            return;
+            return; // Cancelado
         }
         
         if (newName.trim() === currentName) {
-            console.log('⚠️ Sin cambios en el nombre');
-            showMessage('No se realizaron cambios', 'info');
+            if (typeof showMessage === 'function') {
+                showMessage('No se realizaron cambios', 'info');
+            }
             return;
         }
         
@@ -18076,37 +17583,32 @@ window.editTopicName = function(topicId) {
             return;
         }
         
-        // Actualizar el nombre del tema
+        // Actualizar el nombre
         const oldName = topic.name;
         topic.name = newName.trim();
-        
-        console.log('🔄 Actualizando tema:', {
-            id: topic.id,
-            oldName: oldName,
-            newName: topic.name
-        });
         
         // Guardar en localStorage
         localStorage.setItem('topics', JSON.stringify(state.topics));
         
-        // Re-renderizar para actualizar todas las interfaces
+        // Re-renderizar
         if (typeof window.render === 'function') {
             render();
         }
         
-        // Mostrar mensaje de éxito
-        showMessage(`✅ Tema renombrado: "${oldName}" → "${topic.name}"`, 'success');
+        // Mostrar mensaje
+        if (typeof showMessage === 'function') {
+            showMessage(`✅ Tema renombrado: "${oldName}" → "${topic.name}"`, 'success');
+        }
         
-        console.log('✅ Tema actualizado exitosamente');
+        console.log('✅ Tema renombrado exitosamente');
         
     } catch (error) {
         console.error('❌ Error editando tema:', error);
-        showMessage('Error al editar el tema: ' + error.message, 'error');
+        alert('Error al editar el tema: ' + error.message);
     }
 };
 
-// MODIFICAR LA FUNCIÓN renderQuestionsByTopic PARA AGREGAR BOTÓN EDITAR
-const originalRenderQuestionsByTopic = renderQuestionsByTopic;
+// REEMPLAZAR renderQuestionsByTopic manteniendo todas las funcionalidades + AGREGANDO BOTÓN EDITAR
 renderQuestionsByTopic = function() {
     const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
     
@@ -18116,22 +17618,31 @@ renderQuestionsByTopic = function() {
     state.topics.forEach(topic => {
         const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
         if (topicQuestions.length > 0) {
+            const topicId = topic.id.toString();
+            const isCollapsed = collapsedTopics[topicId] || false;
+            
             html += `
                 <div style="margin-bottom: 30px;">
                     <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
                         <span>📁 ${topic.name}</span>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
+                            <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
+                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
+                                    title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                                ${isCollapsed ? '▶' : '▼'}
+                            </button>
                             <button onclick="editTopicName('${topic.id}')" 
-                                    title="Editar nombre del tema" 
-                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: background 0.2s;"
-                                    onmouseover="this.style.background='rgba(255,255,255,0.3)'"
-                                    onmouseout="this.style.background='rgba(255,255,255,0.2)'">
-                                ✏️ Editar
+                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
+                                    title="Editar nombre del tema">
+                                ✏️
+                            </button>
+                            <button onclick="deleteTopicSimple('${topic.id}')" class="btn btn-danger" style="padding: 4px 8px; font-size: 12px; background: #dc2626; border: none; border-radius: 4px; color: white; cursor: pointer;" title="Eliminar tema">
+                                🗑️
                             </button>
                         </div>
                     </h3>
-                    <div style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                    <div id="topic-content-${topicId}" style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
                         ${topicQuestions.map(q => {
                             const actualIndex = state.questions.findIndex(question => question.id === q.id);
                             return renderSingleQuestion(q, actualIndex);
@@ -18144,13 +17655,23 @@ renderQuestionsByTopic = function() {
     
     // Mostrar preguntas sin tema asignado SI existen
     if (questionsWithoutTopic.length > 0) {
+        const topicId = 'sin-tema';
+        const isCollapsed = collapsedTopics[topicId] || false;
+        
         html += `
             <div style="margin-bottom: 30px;">
                 <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
                     <span>📂 Sin tema asignado</span>
-                    <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                        <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
+                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
+                                title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                            ${isCollapsed ? '▶' : '▼'}
+                        </button>
+                    </div>
                 </h3>
-                <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                <div id="topic-content-${topicId}" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
                     ${questionsWithoutTopic.map(q => {
                         const actualIndex = state.questions.findIndex(question => question.id === q.id);
                         return renderSingleQuestion(q, actualIndex);
@@ -18160,95 +17681,20 @@ renderQuestionsByTopic = function() {
         `;
     }
     
-    // Si no hay preguntas
+    // Si no hay preguntas en absoluto
     if (html === '') {
-        html = `
-            <div style="text-align: center; padding: 40px; color: #6b7280;">
-                <p>📝 No hay preguntas en el banco</p>
-                <p style="font-size: 14px;">Añade algunas preguntas para empezar</p>
-            </div>
-        `;
+        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
     }
     
     return html;
 };
 
-// FUNCIÓN AUXILIAR PARA RENDERIZAR PREGUNTA INDIVIDUAL (si no existe)
-if (typeof renderSingleQuestion !== 'function') {
-    window.renderSingleQuestion = function(q, actualIndex) {
-        const topicName = q.topicId ? getTopicName(q.topicId) : null;
-        return `
-            <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: flex-start; gap: 15px;">
-                <div style="flex: 1;">
-                    <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
-                        <strong style="color: #374151;">P${actualIndex + 1}:</strong> 
-                        <span style="color: #6b7280; font-size: 14px;">${q.question}</span>
-                        <button onclick="toggleVerified(${actualIndex})" class="btn ${q.isVerified ? 'btn-primary' : 'btn-secondary'}" style="padding: 4px 8px; font-size: 14px;" title="${q.isVerified ? 'Pregunta verificada - Click para desmarcar' : 'Marcar como verificada'}">
-                            ${q.isVerified ? '⭐' : '☆'}
-                        </button>
-                        ${topicName ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px;">${topicName}</span>` : ''}
-                    </div>
-                    <ul style="list-style: none; margin: 0; padding: 0;">
-                        ${q.options.map((opt, optIndex) => `
-                            <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'};">
-                                ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✓' : ''}
-                            </li>
-                        `).join('')}
-                    </ul>
-                </div>
-                <div style="display: flex; gap: 5px; flex-shrink: 0;">
-                    <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
-                    <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
-                </div>
-            </div>
-        `;
-    };
-}
-
-// FUNCIÓN DE DIAGNÓSTICO PARA EDICIÓN DE TEMAS
-window.debugTopicEditing = function() {
-    console.log('🔍 DIAGNÓSTICO DEL SISTEMA DE EDICIÓN DE TEMAS:');
-    console.log('================================================');
-    
-    console.log('📊 Estado actual:');
-    console.log('  - Temas totales:', state.topics ? state.topics.length : 0);
-    console.log('  - Función editTopicName existe:', typeof window.editTopicName);
-    console.log('  - renderQuestionsByTopic modificado:', renderQuestionsByTopic !== originalRenderQuestionsByTopic);
-    
-    if (state.topics && state.topics.length > 0) {
-        console.log('📋 Lista de temas:');
-        state.topics.forEach((topic, index) => {
-            const questionCount = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length;
-            console.log(`  ${index + 1}. "${topic.name}" (ID: ${topic.id}) - ${questionCount} preguntas`);
-        });
-    }
-    
-    console.log('💡 Para probar: Busca los botones "✏️ Editar" en los encabezados de los temas');
-    console.log('================================================');
-};
-
-console.log('✅ Detector de preguntas repetidas aplicado');
-console.log('🔍 Funcionalidades:');
-console.log('   - Detecta preguntas exactas y similares (85%+)');
-console.log('   - Interfaz visual para seleccionar cuáles mantener');
-console.log('   - Botones rápidos: mantener primeras/verificadas');
-console.log('   - Vista previa antes de eliminar');
-console.log('   - Preserva preguntas verificadas automáticamente');
-console.log('🔍 MEJORADO: Búsqueda fluida y secuencial');
-console.log('   - ✅ Cursor NO se sale del input al escribir');
-console.log('   - ✅ Búsqueda secuencial respeta orden de palabras');
-console.log('   - ✅ Actualización suave sin render completo');
-console.log('   - ✅ Resalta términos encontrados en amarillo');
-console.log('   - ✅ Combinable con filtro por tema');
-console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
-console.log('✏️ AÑADIDO: Edición de nombres de temas');
-console.log('   - ✅ Botón "✏️ Editar" en cada encabezado de tema');
-console.log('   - ✅ Sincronización automática con dropdowns');
-console.log('   - ✅ Validación de nombres duplicados');
-console.log('   - ✅ Guardado automático en localStorage');
-console.log('   - ✅ Interfaz integrada con el diseño existente');
-console.log('🔧 Funciones de debug disponibles:');
-console.log('   - debugTopicEditing() - Diagnóstico de edición de temas');
+console.log('✅ Triangulito colapsar + botón eliminar tema + BOTÓN EDITAR TEMA añadidos');
+console.log('✏️ Nueva funcionalidad: Editar nombres de temas');
+console.log('   - Botón "✏️" al lado de colapsar y eliminar');
+console.log('   - Función editTopicName() creada');
+console.log('   - Sincronización automática con dropdowns');
+console.log('   - Validaciones incluidas (nombres vacíos y duplicados)');
 </script>
  <!-- 
 PARCHE: ESTRELLITAS INTERACTIVAS EN PREGUNTAS FILTRADAS
@@ -18412,6 +17858,7 @@ console.log('   - Compatible con todos los filtros y búsquedas');
 
 </body>
 </html>
+
 
 
 
