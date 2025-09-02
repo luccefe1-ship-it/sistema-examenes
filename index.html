@@ -18877,7 +18877,7 @@ if (typeof originalExportData === 'function') {
     window.exportData = createProgressFreeExport;
 }
 
-// Función que garantiza exportación SIN datos de progreso
+// Función que garantiza exportación SIN datos de progreso PERO CON temas y preguntas
 function createProgressFreeExport() {
     if (!state.currentUser) {
         showMessage('❌ Error: No hay usuario logueado', 'error');
@@ -18887,53 +18887,49 @@ function createProgressFreeExport() {
     try {
         const username = state.currentUser.username;
         
-        // Crear backup SOLO con datos de contenido (ABSOLUTAMENTE SIN DATOS DE PROGRESO)
+        // Crear backup con temas y preguntas (como funcionaba antes) pero SIN datos de progreso
         const contentBackup = {
             version: "3.0",
             exportDate: new Date().toISOString(),
             exportTimestamp: Date.now(),
             exportType: "content_only_no_progress",
             originalUser: username,
-            contentData: {
-                questions: state.questions || [],
-                topics: state.topics || [],
-                testResults: state.testResults || [],
-                summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
-                savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
-                apiKey: state.apiKey || ''
-                // CRÍTICO: NO incluir progressState, studyTopics, ni NINGÚN dato de progreso
-            },
-            stats: {
-                totalQuestions: state.questions ? state.questions.length : 0,
-                totalTopics: state.topics ? state.topics.length : 0,
-                totalTests: state.testResults ? state.testResults.length : 0,
-                totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0
-            },
-            // ASEGURAR que NO hay datos de progreso
+            // DATOS QUE SÍ SE EXPORTAN (como antes)
+            questions: state.questions || [],
+            topics: state.topics || [],
+            testResults: state.testResults || [],
+            summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
+            savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
+            apiKey: state.apiKey || '',
+            // DATOS QUE NO SE EXPORTAN
             excludedData: {
-                progressState: "❌ EXCLUIDO - Datos personales",
-                studyTopics: "❌ EXCLUIDO - Datos personales",
-                studiedPages: "❌ EXCLUIDO - Datos personales",
-                completedRounds: "❌ EXCLUIDO - Datos personales"
+                progressState: "❌ EXCLUIDO - Datos personales de progreso",
+                studyTopics: "❌ EXCLUIDO - Páginas y vueltas personales"
             }
         };
         
-        // Verificación extra: eliminar cualquier clave relacionada con progreso
+        // Verificación: eliminar cualquier dato de progreso personal
         delete contentBackup.progressState;
         delete contentBackup.studyTopics;
         delete contentBackup.studiedPages;
         delete contentBackup.completedRounds;
         delete contentBackup.currentRound;
         delete contentBackup.firstRoundPages;
+        delete contentBackup.manualTestCount;
+        
+        const totalQuestions = contentBackup.questions ? contentBackup.questions.length : 0;
+        const totalTopics = contentBackup.topics ? contentBackup.topics.length : 0;
+        const totalTests = contentBackup.testResults ? contentBackup.testResults.length : 0;
+        const totalSummaries = contentBackup.savedSummaries ? contentBackup.savedSummaries.length : 0;
         
         // Mostrar estadísticas antes de descargar
         const statsMessage = `
-📊 BACKUP DE CONTENIDO (SIN PROGRESO):
-• Preguntas: ${contentBackup.stats.totalQuestions}
-• Temas: ${contentBackup.stats.totalTopics}  
-• Tests realizados: ${contentBackup.stats.totalTests}
-• Resúmenes: ${contentBackup.stats.totalSummaries}
-• 🚫 PROGRESO DE ESTUDIO: NO INCLUIDO
+📊 BACKUP DE CONTENIDO GENERADO:
+• Preguntas: ${totalQuestions}
+• Temas: ${totalTopics}  
+• Tests realizados: ${totalTests}
+• Resúmenes: ${totalSummaries}
+• 🚫 PROGRESO: NO incluido (privado)
         `;
         
         showMessage(statsMessage, 'success');
@@ -18948,7 +18944,7 @@ function createProgressFreeExport() {
         const dateStr = new Date().toISOString().split('T')[0];
         const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
         a.href = url;
-        a.download = `contenido_SIN_progreso_${dateStr}_${timeStr}.json`;
+        a.download = `contenido_portable_${dateStr}_${timeStr}.json`;
         
         document.body.appendChild(a);
         a.click();
@@ -18957,17 +18953,24 @@ function createProgressFreeExport() {
         
         setTimeout(() => {
             showMessage(`
-✅ BACKUP DESCARGADO (SIN PROGRESO)
-📁 Archivo: contenido_SIN_progreso_${dateStr}_${timeStr}.json
+✅ BACKUP DESCARGADO - LISTO PARA IMPORTAR
+📁 Archivo: contenido_portable_${dateStr}_${timeStr}.json
 
-🚫 CONFIRMADO: DATOS DE PROGRESO NO INCLUIDOS
-• Solo preguntas, temas y tests
-• El progreso es privado de cada usuario/dispositivo
+✅ INCLUYE (importable):
+• ${totalQuestions} preguntas
+• ${totalTopics} temas  
+• ${totalTests} resultados de tests
+• ${totalSummaries} resúmenes
+
+🚫 NO INCLUYE (privado):
+• Páginas estudiadas
+• Vueltas completadas
+• Progreso personal
             `, 'success');
         }, 1000);
         
-        console.log('✅ Backup exportado SIN datos de progreso - CONFIRMADO');
-        console.log('🚫 Datos de progreso excluidos correctamente');
+        console.log('✅ Backup exportado correctamente - Temas y preguntas incluidos');
+        console.log(`📊 Estadísticas: ${totalQuestions} preguntas, ${totalTopics} temas`);
         
     } catch (error) {
         console.error('❌ Error exportando contenido:', error);
@@ -19099,6 +19102,7 @@ console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
