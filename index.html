@@ -18905,21 +18905,30 @@ if (typeof render === 'function') {
 
 function addProgressButtonToNavTabs() {
     const navTabs = document.querySelector('.nav-tabs');
-    if (navTabs && !document.getElementById('progress-nav-btn')) {
-        // Verificar si ya existe un botón de progreso
-        const existingProgressBtn = navTabs.querySelector('[onclick*="showProgressTab"], [onclick*="goToProgress"]');
-        if (!existingProgressBtn) {
-            const resultsButton = navTabs.querySelector('[onclick="setTab(\'results\')"]');
-            if (resultsButton) {
-                const progressButton = document.createElement('button');
-                progressButton.id = 'progress-nav-btn';
-                progressButton.className = 'nav-tab';
-                progressButton.innerHTML = '📊 Progreso';
-                progressButton.onclick = () => showProgressTab();
-                
-                resultsButton.parentNode.insertBefore(progressButton, resultsButton.nextSibling);
-            }
+    if (!navTabs) return;
+    
+    // Eliminar TODOS los botones de progreso existentes
+    const existingProgressBtns = navTabs.querySelectorAll('#progress-nav-btn, [onclick*="showProgressTab"], [onclick*="goToProgress"], button:contains("Progreso")');
+    existingProgressBtns.forEach(btn => btn.remove());
+    
+    // Buscar botones que contengan "Progreso" en el texto
+    const allButtons = navTabs.querySelectorAll('button');
+    allButtons.forEach(btn => {
+        if (btn.textContent && btn.textContent.includes('Progreso')) {
+            btn.remove();
         }
+    });
+    
+    // Ahora crear solo uno nuevo
+    const resultsButton = navTabs.querySelector('[onclick="setTab(\'results\')"]');
+    if (resultsButton) {
+        const progressButton = document.createElement('button');
+        progressButton.id = 'progress-nav-btn';
+        progressButton.className = 'nav-tab';
+        progressButton.innerHTML = '📊 Progreso';
+        progressButton.onclick = () => showProgressTab();
+        
+        resultsButton.parentNode.insertBefore(progressButton, resultsButton.nextSibling);
     }
 }
 
@@ -18947,6 +18956,7 @@ console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
