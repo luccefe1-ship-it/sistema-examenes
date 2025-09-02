@@ -7569,16 +7569,14 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
     }, 100);
 </script>
 <!-- 
-PARCHE DEFINITIVO: TARJETAS DE MEMORIA + EXPORTAR/IMPORTAR CONTENIDO PORTABLE
+PARCHE MODIFICADO: SISTEMA DE TARJETAS DE MEMORIA + EXPORTAR SOLO CONTENIDO
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-✅ EXPORTA SOLO CONTENIDO (sin datos de cuenta)
-✅ BOTÓN VERIFICAR en preguntas filtradas
-❌ SIN importación en formulario de login
+Versión modificada que exporta SOLO datos de contenido (portable entre usuarios)
 -->
 
 <script>
-    // ========== PARCHE COMPLETO: TARJETAS DE MEMORIA + EXPORTAR/IMPORTAR CONTENIDO ==========
-    console.log('🃏 Implementando sistema completo: tarjetas + exportación portable...');
+    // ========== PARCHE MODIFICADO: SISTEMA DE TARJETAS DE MEMORIA + EXPORTAR CONTENIDO ==========
+    console.log('🃏 Implementando sistema de tarjetas de memoria + exportación de contenido portable...');
     
     // Estado para las tarjetas de memoria
     let memoryCardsState = {
@@ -7666,7 +7664,7 @@ Añadir este código AL FINAL del archivo index.html, justo antes de </body>
         showMessage('Tarjetas mezcladas aleatoriamente', 'success');
     }
     
-    // ========== FUNCIÓN: EXPORTAR SOLO CONTENIDO (PORTABLE) ==========
+    // ========== NUEVA FUNCIÓN: EXPORTAR SOLO CONTENIDO (PORTABLE) ==========
     function exportContentDataOnly() {
         if (!state.currentUser) {
             showMessage('❌ Error: No hay usuario logueado', 'error');
@@ -7750,7 +7748,7 @@ Añadir este código AL FINAL del archivo index.html, justo antes de </body>
         }
     }
     
-    // ========== FUNCIÓN: IMPORTAR CONTENIDO DESDE CUALQUIER USUARIO ==========
+    // ========== NUEVA FUNCIÓN: IMPORTAR CONTENIDO DESDE CUALQUIER USUARIO ==========
     function importContentFromFile() {
         const input = document.createElement('input');
         input.type = 'file';
@@ -7894,105 +7892,6 @@ ${importedData.originalUser ? `👤 Usuario original: ${importedData.originalUse
         
         input.click();
     }
-    
-    // ========== MEJORAR BÚSQUEDA: AÑADIR BOTÓN VERIFICAR EN FILTRADOS ==========
-    
-    // Función mejorada para renderizar preguntas filtradas CON botón verificar
-    window.renderQuestionsFilteredWithSearchAndVerify = function(questions) {
-        if (questions.length === 0) {
-            let message = 'No hay preguntas disponibles';
-            
-            if (state.searchQuery && state.searchQuery.length > 0) {
-                message = `No se encontraron preguntas que contengan "${state.searchQuery}"`;
-            } else if (state.selectedTopicFilter !== 'all') {
-                const topic = state.topics.find(t => t.id == state.selectedTopicFilter);
-                message = `No hay preguntas en el tema "${topic ? topic.name : 'seleccionado'}"`;
-            }
-            
-            return `
-                <div style="text-align: center; padding: 60px 20px; color: #6b7280;">
-                    <div style="font-size: 3rem; margin-bottom: 20px;">🔍</div>
-                    <h3 style="margin: 0 0 10px 0; color: #374151;">${message}</h3>
-                    ${state.searchQuery ? `<button onclick="clearSearchSmooth()" class="btn btn-secondary">Limpiar búsqueda</button>` : ''}
-                </div>
-            `;
-        }
-
-        return questions.map((q, index) => {
-            // Encontrar el índice real en el array completo de preguntas
-            const actualIndex = state.questions.findIndex(question => question.id === q.id);
-            
-            // Preparar texto de pregunta y opciones (con resaltado si hay búsqueda)
-            let displayQuestion = q.question;
-            let displayOptions = [...q.options];
-            
-            if (state.searchQuery && state.searchQuery.length > 0) {
-                displayQuestion = highlightSearchTerm(displayQuestion, state.searchQuery);
-                displayOptions = displayOptions.map(opt => highlightSearchTerm(opt, state.searchQuery));
-            }
-            
-            return `
-                <div style="border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 15px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; align-items: flex-start;">
-                    <div style="flex-grow: 1;">
-                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                            <span style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">
-                                P${actualIndex + 1}
-                            </span>
-                            <span style="color: #6b7280; font-size: 12px; font-weight: 500;">
-                                ${q.topicId ? getTopicName(q.topicId) : 'Sin tema'}
-                            </span>
-                            ${q.isVerified ? '<span style="background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 8px; font-size: 11px;">✓ Verificada</span>' : ''}
-                        </div>
-                        <div style="font-weight: 500; margin-bottom: 8px; color: #374151; line-height: 1.4;">
-                            ${displayQuestion}
-                        </div>
-                        <ul style="list-style: none; margin: 0; padding: 0;">
-                            ${displayOptions.map((opt, optIndex) => `
-                                <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'}; font-size: 14px;">
-                                    ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✅' : ''}
-                                </li>
-                            `).join('')}
-                        </ul>
-                    </div>
-                    <div style="display: flex; gap: 5px; flex-shrink: 0; margin-left: 15px;">
-                        <!-- BOTÓN VERIFICAR AÑADIDO -->
-                        <button onclick="toggleVerified(${actualIndex})" class="btn ${q.isVerified ? 'btn-primary' : 'btn-secondary'}" style="padding: 5px 10px; font-size: 12px; ${q.isVerified ? 'background: linear-gradient(135deg, #3b82f6, #1d4ed8);' : ''}" title="${q.isVerified ? 'Pregunta verificada - Click para desmarcar' : 'Marcar como verificada'}">
-                            ${q.isVerified ? '⭐' : '☆'}
-                        </button>
-                        <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
-                        <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    };
-    
-    // Actualizar función que usa el renderizado de preguntas filtradas
-    const originalUpdateQuestionsContent = window.updateQuestionsContent;
-    if (typeof originalUpdateQuestionsContent === 'function') {
-        window.updateQuestionsContent = function() {
-            const questionsContainer = document.getElementById('questions-container');
-            if (questionsContainer) {
-                const filteredQuestions = getFilteredQuestions();
-                
-                const newContent = state.topics.length > 0 && state.selectedTopicFilter === 'all' && !state.searchQuery ?
-                    renderQuestionsByTopic() : 
-                    renderQuestionsFilteredWithSearchAndVerify(filteredQuestions);
-                    
-                questionsContainer.innerHTML = newContent;
-            }
-        };
-    }
-    
-    // Función para resaltar texto encontrado (necesaria para la búsqueda)
-    window.highlightSearchTerm = function(text, searchTerm) {
-        if (!searchTerm || !text) return text;
-        
-        // Escapar caracteres especiales para regex
-        const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`(${escapedTerm})`, 'gi');
-        return text.replace(regex, '<span style="background: #fef08a; color: #92400e; padding: 1px 2px; border-radius: 3px;">$1</span>');
-    };
     
     // FUNCIÓN para renderizar la sección de tarjetas de memoria
     function renderMemoryCardsTab() {
@@ -8401,19 +8300,16 @@ ${importedData.originalUser ? `👤 Usuario original: ${importedData.originalUse
     
     setupMemoryCardsKeyboard();
     
-    console.log('✅ Sistema Definitivo Implementado:');
-    console.log('🃏 TARJETAS DE MEMORIA:');
-    console.log('   - Navegación con animación flotante');
+    console.log('✅ Sistema Completo Implementado: Tarjetas de Memoria + Exportar/Importar Contenido Portable');
+    console.log('🃏 Funcionalidades de Tarjetas:');
     console.log('   - Botón "🏠 Menú" en header');
-    console.log('   - Atajos: ←→ (navegación), Espacio (respuesta), S (mezclar)');
-    console.log('📤 EXPORTAR/IMPORTAR CONTENIDO PORTABLE:');
-    console.log('   - "📤 Exportar": SOLO datos (sin cuenta)');
-    console.log('   - "📥 Importar": Compatible entre usuarios');
+    console.log('   - Tarjeta con animación flotante');
+    console.log('   - Atajos de teclado (←→ navegación, Espacio ver respuesta)');
+    console.log('📤 Funcionalidades de Exportación/Importación:');
+    console.log('   - "📤 Exportar Contenido": SOLO datos (preguntas, temas, tests)');
+    console.log('   - "📥 Importar Contenido": Compatible con cualquier usuario');
     console.log('   - Evita duplicados automáticamente');
-    console.log('⭐ BÚSQUEDA MEJORADA:');
-    console.log('   - Botón verificar (⭐/☆) en preguntas filtradas');
-    console.log('   - Funciona igual que en vista normal');
-    console.log('❌ SIN funcionalidad de importar en login (eliminada)');
+    console.log('   - Perfecto para compartir contenido entre cuentas');
     
     setTimeout(() => {
         if (state.currentUser && typeof window.render === 'function') {
@@ -18345,8 +18241,6 @@ console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
     
 </body>
 </html>
-
-
 
 
 
