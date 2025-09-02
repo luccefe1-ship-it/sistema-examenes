@@ -18239,9 +18239,677 @@ console.log('   - ✅ Resalta términos encontrados en amarillo');
 console.log('   - ✅ Combinable con filtro por tema');
 console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
 </script>
+<!-- 
+PARCHE PRIII COMPLETO: LOGIN LIMPIO + VERIFICACIÓN FILTRADA + TARJETAS DE MEMORIA
+Copiar este código AL FINAL del archivo index.html, justo antes de </body>
+-->
+
+<script>
+    // ========== PARCHE PRIII COMPLETO ==========
+    console.log('🔥 Aplicando parche completo para PRIII...');
     
+    // Estado para las tarjetas de memoria
+    let memoryCardsState = {
+        currentCard: null,
+        cardIndex: 0,
+        verifiedQuestions: [],
+        showAnswer: false
+    };
+    
+    // ========== 1. INTERCEPTAR LOGIN PARA QUITAR IMPORTAR DATOS ==========
+    
+    // Sobrescribir función render original para limpiar login
+    const originalPriiiRender = window.render;
+    window.render = function() {
+        const app = document.getElementById('app');
+        
+        // Si no hay usuario logueado, mostrar login limpio
+        if (!state.currentUser) {
+            app.innerHTML = `
+                <div class="container">
+                    <div class="login-form" style="max-width: 450px; margin: 80px auto; padding: 40px; background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+                        
+                        <!-- HEADER LIMPIO -->
+                        <div style="text-align: center; margin-bottom: 35px;">
+                            <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);">
+                                <span style="font-size: 2.5rem; color: white;">🎓</span>
+                            </div>
+                            <h2 style="color: #1f2937; margin: 0; font-weight: 700;">PRIII Sistema</h2>
+                            <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 14px;">Accede con tus credenciales</p>
+                        </div>
+                        
+                        <!-- FORMULARIO LOGIN LIMPIO -->
+                        <div class="form-group">
+                            <label class="form-label">👤 Usuario</label>
+                            <input type="text" id="username" class="form-input" placeholder="Tu nombre de usuario" style="font-size: 15px; padding: 12px;">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">🔒 Contraseña</label>
+                            <input type="password" id="password" class="form-input" placeholder="Tu contraseña" style="font-size: 15px; padding: 12px;">
+                        </div>
+                        
+                        <!-- Recordar usuario -->
+                        <div style="margin: 15px 0; display: flex; align-items: center;">
+                            <input type="checkbox" id="remember-me" style="margin-right: 8px;">
+                            <label for="remember-me" style="font-size: 14px; color: #4f46e5; cursor: pointer;">
+                                Recordar mis credenciales
+                            </label>
+                        </div>
+                        
+                        <!-- Botón de acceso -->
+                        <button onclick="login()" class="btn btn-primary" style="width: 100%; margin-bottom: 15px; padding: 15px; font-size: 16px; font-weight: 600;">
+                            🚀 ACCEDER AL SISTEMA
+                        </button>
+                        
+                        <!-- Botones secundarios -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                            <button onclick="showRegisterForm()" class="btn btn-success" style="padding: 12px; font-size: 14px;">
+                                👤 Crear Cuenta
+                            </button>
+                            <button onclick="showForgotPassword()" style="
+                                padding: 12px; background: linear-gradient(45deg, #f59e0b, #d97706); 
+                                color: white; border: none; border-radius: 8px; font-size: 14px; 
+                                cursor: pointer; font-weight: 600;
+                            ">
+                                🔑 Recuperar
+                            </button>
+                        </div>
+                        
+                        <!-- Info del sistema SIN importar -->
+                        <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                            <div style="text-align: center; margin-bottom: 10px;">
+                                <strong style="color: #374151; font-size: 14px;">🔐 Sistema Seguro</strong>
+                            </div>
+                            <ul style="margin: 0; padding-left: 20px; color: #6b7280; font-size: 12px; line-height: 1.5;">
+                                <li>Datos privados por usuario</li>
+                                <li>Recuperación por pregunta de seguridad</li>
+                                <li>Opción de recordar credenciales</li>
+                                <li>Crea tu cuenta si es la primera vez</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        // Si hay usuario, usar render original modificado
+        originalPriiiRender.call(this);
+    };
+    
+    // ========== 2. ARREGLAR VERIFICACIÓN EN PREGUNTAS FILTRADAS ==========
+    
+    // Función corregida para alternar verificación
+    window.toggleVerifyQuestionFixed = function(questionIndex) {
+        if (questionIndex < 0 || questionIndex >= state.questions.length) {
+            console.error('Índice inválido:', questionIndex);
+            return;
+        }
+        
+        // Alternar estado
+        state.questions[questionIndex].isVerified = !state.questions[questionIndex].isVerified;
+        
+        // Guardar cambios
+        if (typeof RealDataManager !== 'undefined' && state.currentUser) {
+            RealDataManager.saveFromGlobalData(state.currentUser.username);
+        }
+        
+        // Re-renderizar
+        if (state.currentTab === 'questions') {
+            render();
+        }
+        
+        // Mensaje
+        const action = state.questions[questionIndex].isVerified ? 'verificada' : 'no verificada';
+        showMessage(`Pregunta marcada como ${action}`, 'success');
+        
+        console.log(`✅ Pregunta ${questionIndex} ${action}`);
+    };
+    
+    // Interceptar renderQuestionsTab para arreglar botones
+    const originalRenderQuestionsTab = window.renderQuestionsTab;
+    window.renderQuestionsTab = function() {
+        // Llamar función original
+        let html = originalRenderQuestionsTab.call(this);
+        
+        // Reemplazar calls problemáticos de verificación
+        html = html.replace(
+            /onclick="toggleVerifyQuestion\((\d+)\)"/g,
+            function(match, index) {
+                // Obtener preguntas filtradas
+                const filteredQuestions = getFilteredQuestions();
+                const displayIndex = parseInt(index);
+                
+                if (displayIndex < filteredQuestions.length) {
+                    const questionId = filteredQuestions[displayIndex].id;
+                    const realIndex = state.questions.findIndex(q => q.id === questionId);
+                    
+                    if (realIndex !== -1) {
+                        return `onclick="toggleVerifyQuestionFixed(${realIndex})"`;
+                    }
+                }
+                return match;
+            }
+        );
+        
+        return html;
+    };
+    
+    // ========== 3. SISTEMA COMPLETO DE TARJETAS DE MEMORIA ==========
+    
+    // Funciones para tarjetas
+    window.goToMemoryCards = function() {
+        console.log('🃏 Iniciando tarjetas de memoria...');
+        
+        showIntermediateScreen = false;
+        state.currentTab = 'memory-cards';
+        
+        // Cargar preguntas verificadas
+        loadVerifiedQuestions();
+        render();
+    };
+    
+    window.backToMainMenuFromCards = function() {
+        console.log('🏠 Volviendo al menú principal...');
+        showIntermediateScreen = true;
+        state.currentTab = 'upload';
+        render();
+    };
+    
+    function loadVerifiedQuestions() {
+        memoryCardsState.verifiedQuestions = state.questions.filter(q => q.isVerified);
+        
+        if (memoryCardsState.verifiedQuestions.length > 0) {
+            // Mezclar aleatoriamente
+            memoryCardsState.verifiedQuestions = [...memoryCardsState.verifiedQuestions].sort(() => Math.random() - 0.5);
+            memoryCardsState.cardIndex = 0;
+            memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[0];
+            memoryCardsState.showAnswer = false;
+        } else {
+            memoryCardsState.currentCard = null;
+        }
+    }
+    
+    function toggleAnswer() {
+        memoryCardsState.showAnswer = !memoryCardsState.showAnswer;
+        render();
+    }
+    
+    function nextCard() {
+        if (memoryCardsState.verifiedQuestions.length === 0) return;
+        
+        memoryCardsState.cardIndex = (memoryCardsState.cardIndex + 1) % memoryCardsState.verifiedQuestions.length;
+        memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[memoryCardsState.cardIndex];
+        memoryCardsState.showAnswer = false;
+        render();
+    }
+    
+    function previousCard() {
+        if (memoryCardsState.verifiedQuestions.length === 0) return;
+        
+        memoryCardsState.cardIndex = memoryCardsState.cardIndex === 0 
+            ? memoryCardsState.verifiedQuestions.length - 1 
+            : memoryCardsState.cardIndex - 1;
+        memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[memoryCardsState.cardIndex];
+        memoryCardsState.showAnswer = false;
+        render();
+    }
+    
+    function shuffleCards() {
+        if (memoryCardsState.verifiedQuestions.length === 0) return;
+        
+        memoryCardsState.verifiedQuestions = [...memoryCardsState.verifiedQuestions].sort(() => Math.random() - 0.5);
+        memoryCardsState.cardIndex = 0;
+        memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[0];
+        memoryCardsState.showAnswer = false;
+        render();
+        showMessage('Tarjetas mezcladas aleatoriamente', 'success');
+    }
+    
+    // Renderizar tarjetas
+    function renderMemoryCardsTab() {
+        if (memoryCardsState.verifiedQuestions.length === 0) {
+            return `
+                <div style="max-width: 800px; margin: 0 auto; text-align: center; padding: 80px 20px;">
+                    <div style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 120px; height: 120px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(245, 158, 11, 0.3);">
+                        <span style="font-size: 4rem; color: white;">🃏</span>
+                    </div>
+                    <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 2.5rem;">No hay tarjetas disponibles</h2>
+                    <p style="color: #6b7280; margin: 0 0 30px 0; font-size: 1.2rem; line-height: 1.6;">
+                        Para usar las tarjetas necesitas tener preguntas <strong>verificadas</strong> (⭐) en tu banco.
+                    </p>
+                    <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 12px; padding: 25px; margin-bottom: 30px; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
+                        <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 1.1rem;">📝 ¿Cómo verificar preguntas?</h3>
+                        <ol style="color: #78350f; margin: 0; padding-left: 20px; line-height: 1.8;">
+                            <li>Ve a "Banco de Preguntas"</li>
+                            <li>Busca el botón ☆ junto a cada pregunta</li>
+                            <li>Haz clic para convertirlo en ⭐ (verificada)</li>
+                            <li>Vuelve aquí para practicar</li>
+                        </ol>
+                    </div>
+                    <button onclick="setTab('questions')" class="btn btn-primary" style="padding: 15px 25px; font-size: 16px;">
+                        📋 Ir al Banco de Preguntas
+                    </button>
+                </div>
+            `;
+        }
+        
+        const currentCard = memoryCardsState.currentCard;
+        const cardNumber = memoryCardsState.cardIndex + 1;
+        const totalCards = memoryCardsState.verifiedQuestions.length;
+        const topicName = currentCard.topicId ? getTopicName(currentCard.topicId) : 'General';
+        
+        return `
+            <div style="max-width: 900px; margin: 0 auto; padding: 20px;">
+                
+                <!-- Header -->
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                        <span>🃏</span> Tarjetas de Memoria
+                    </h1>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                        Tarjeta ${cardNumber} de ${totalCards} preguntas verificadas
+                    </p>
+                </div>
+                
+                <!-- Controles superiores -->
+                <div style="display: flex; justify-content: center; gap: 15px; margin-bottom: 40px;">
+                    <button onclick="shuffleCards()" class="btn btn-warning" style="padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
+                        <span>🔀</span> Mezclar
+                    </button>
+                    <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 600; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
+                        ${cardNumber} / ${totalCards}
+                    </div>
+                    <button onclick="loadVerifiedQuestions()" class="btn btn-info" style="padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
+                        <span>🔄</span> Recargar
+                    </button>
+                </div>
+                
+                <!-- Tarjeta principal -->
+                <div style="perspective: 1000px; margin-bottom: 40px;">
+                    <div class="memory-card" style="
+                        background: linear-gradient(145deg, #ffffff, #f8fafc); 
+                        border-radius: 20px; 
+                        box-shadow: 0 20px 40px rgba(0,0,0,0.12);
+                        margin: 0 auto; 
+                        max-width: 650px; 
+                        min-height: 400px; 
+                        position: relative; 
+                        border: 2px solid #e2e8f0;
+                        transition: all 0.4s ease;
+                        animation: cardFloat 4s ease-in-out infinite;
+                    ">
+                    
+                        <!-- Badge verificada -->
+                        <div style="position: absolute; top: -8px; right: 15px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); z-index: 10;">
+                            ⭐ Verificada
+                        </div>
+                        
+                        <!-- Contenido -->
+                        <div style="padding: 35px;">
+                            
+                            <!-- Tema y Pregunta -->
+                            <div style="margin-bottom: 30px;">
+                                <!-- Badge tema -->
+                                <div style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 6px 14px; border-radius: 15px; font-size: 13px; font-weight: 600; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);">
+                                    📁 ${topicName}
+                                </div>
+                                
+                                <!-- Pregunta -->
+                                <h3 style="color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">
+                                    📝 PREGUNTA
+                                </h3>
+                                <div style="font-size: 1.3rem; line-height: 1.6; color: #1f2937; font-weight: 500; background: linear-gradient(135deg, #f8fafc, #f1f5f9); padding: 25px; border-radius: 12px; border-left: 4px solid #4f46e5;">
+                                    ${currentCard.question}
+                                </div>
+                            </div>
+                            
+                            <!-- Área respuesta -->
+                            <div style="margin-bottom: 20px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                    <h3 style="color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin: 0;">
+                                        ✅ RESPUESTA CORRECTA
+                                    </h3>
+                                    <button onclick="toggleAnswer()" class="btn ${memoryCardsState.showAnswer ? 'btn-secondary' : 'btn-success'}" style="padding: 8px 16px; font-size: 14px; font-weight: 600; border-radius: 20px;">
+                                        ${memoryCardsState.showAnswer ? '🙈 Ocultar' : '👁️ Ver Respuesta'}
+                                    </button>
+                                </div>
+                                
+                                <div style="min-height: 80px; background: ${memoryCardsState.showAnswer ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : 'linear-gradient(135deg, #f9fafb, #f3f4f6)'}; border: 2px ${memoryCardsState.showAnswer ? 'solid #22c55e' : 'dashed #d1d5db'}; border-radius: 12px; padding: 25px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
+                                    
+                                    ${memoryCardsState.showAnswer ? `
+                                        <div style="text-align: center;">
+                                            <div style="font-size: 1.3rem; font-weight: 700; color: #166534; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                                <span style="font-size: 1.5rem;">✅</span>
+                                                <span>${String.fromCharCode(97 + currentCard.correctAnswer).toUpperCase()}) ${currentCard.options[currentCard.correctAnswer]}</span>
+                                            </div>
+                                            <div style="font-size: 14px; color: #16a34a; font-weight: 500;">
+                                                Esta es la respuesta correcta
+                                            </div>
+                                        </div>
+                                    ` : `
+                                        <div style="color: #9ca3af; font-style: italic; text-align: center;">
+                                            <div style="font-size: 2.5rem; margin-bottom: 10px;">🤔</div>
+                                            <div style="font-size: 16px;">Haz clic en "Ver Respuesta" para revelar</div>
+                                        </div>
+                                    `}
+                                </div>
+                            </div>
+                            
+                            <!-- Consejo -->
+                            <div style="text-align: center; margin-top: 25px; padding: 12px; background: rgba(79, 70, 229, 0.05); border-radius: 10px; border: 1px solid rgba(79, 70, 229, 0.1);">
+                                <div style="color: #6b7280; font-size: 13px; font-weight: 500;">
+                                    💡 Intenta responder mentalmente antes de ver la respuesta
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Controles navegación -->
+                <div style="display: flex; justify-content: center; align-items: center; gap: 25px;">
+                    <button onclick="previousCard()" class="btn btn-secondary" style="padding: 12px 25px; font-size: 16px; border-radius: 25px; display: flex; align-items: center; gap: 10px; min-width: 140px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
+                        <span style="font-size: 18px;">←</span>
+                        <span>Anterior</span>
+                    </button>
+                    
+                    <button onclick="nextCard()" class="btn btn-primary" style="padding: 12px 25px; font-size: 16px; border-radius: 25px; display: flex; align-items: center; gap: 10px; min-width: 140px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
+                        <span>Siguiente</span>
+                        <span style="font-size: 18px;">→</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Estilos animación -->
+            <style>
+                @keyframes cardFloat {
+                    0%, 100% { transform: translateY(0px); }
+                    50% { transform: translateY(-2px); }
+                }
+                
+                .memory-card:hover {
+                    transform: translateY(-3px);
+                    box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+                }
+            </style>
+        `;
+    }
+    
+    // ========== 4. MODIFICAR RENDER TAB CONTENT PARA INCLUIR TARJETAS ==========
+    
+    // Intercept renderTabContent
+    const originalRenderTabContent = window.renderTabContent;
+    window.renderTabContent = function() {
+        switch(state.currentTab) {
+            case 'memory-cards':
+                return renderMemoryCardsTab();
+            default:
+                return originalRenderTabContent.call(this);
+        }
+    };
+    
+    // Intercept render header para botón menú en tarjetas
+    const originalRenderFinal = window.render;
+    window.render = function() {
+        // Renderizar normalmente
+        if (!state.currentUser) {
+            // Pantalla login limpia
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="container">
+                    <div class="login-form" style="max-width: 450px; margin: 80px auto; padding: 40px; background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+                        <div style="text-align: center; margin-bottom: 35px;">
+                            <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);">
+                                <span style="font-size: 2.5rem; color: white;">🎓</span>
+                            </div>
+                            <h2 style="color: #1f2937; margin: 0; font-weight: 700;">PRIII Sistema</h2>
+                            <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 14px;">Accede con tus credenciales</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">👤 Usuario</label>
+                            <input type="text" id="username" class="form-input" placeholder="Tu nombre de usuario" style="font-size: 15px; padding: 12px;">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">🔒 Contraseña</label>
+                            <input type="password" id="password" class="form-input" placeholder="Tu contraseña" style="font-size: 15px; padding: 12px;">
+                        </div>
+                        
+                        <div style="margin: 15px 0; display: flex; align-items: center;">
+                            <input type="checkbox" id="remember-me" style="margin-right: 8px;">
+                            <label for="remember-me" style="font-size: 14px; color: #4f46e5; cursor: pointer;">
+                                Recordar mis credenciales
+                            </label>
+                        </div>
+                        
+                        <button onclick="login()" class="btn btn-primary" style="width: 100%; margin-bottom: 15px; padding: 15px; font-size: 16px; font-weight: 600;">
+                            🚀 ACCEDER AL SISTEMA
+                        </button>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                            <button onclick="showRegisterForm()" class="btn btn-success" style="padding: 12px; font-size: 14px;">
+                                👤 Crear Cuenta
+                            </button>
+                            <button onclick="showForgotPassword()" style="padding: 12px; background: linear-gradient(45deg, #f59e0b, #d97706); color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 600;">
+                                🔑 Recuperar
+                            </button>
+                        </div>
+                        
+                        <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                            <div style="text-align: center; margin-bottom: 10px;">
+                                <strong style="color: #374151; font-size: 14px;">🔐 Sistema Seguro</strong>
+                            </div>
+                            <ul style="margin: 0; padding-left: 20px; color: #6b7280; font-size: 12px; line-height: 1.5;">
+                                <li>Datos privados por usuario</li>
+                                <li>Recuperación por pregunta de seguridad</li>
+                                <li>Opción de recordar credenciales</li>
+                                <li>Crea tu cuenta si es la primera vez</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        // Usuario logueado
+        const app = document.getElementById('app');
+        
+        if (showIntermediateScreen && state.currentUser) {
+            // Pantalla intermedia CON tarjetas
+            app.innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <div class="title">Sistema de Exámenes</div>
+                        <div>
+                            <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                                ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                            </span>
+                            <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                            <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                            <button onclick="logout()" class="btn btn-danger">Salir</button>
+                        </div>
+                    </div>
+                    
+                    <!-- PANTALLA INTERMEDIA CON TARJETAS -->
+                    <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: -30px; border-radius: 20px;">
+                        <div style="background: white; border-radius: 24px; padding: 60px; box-shadow: 0 25px 50px rgba(0,0,0,0.15); max-width: 600px; width: 100%; text-align: center;">
+                            
+                            <div style="background: linear-gradient(135deg, #667eea, #764ba2); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center;">
+                                <span style="font-size: 2.5rem; color: white;">🎯</span>
+                            </div>
+                            
+                            <h1 style="font-size: 2.8rem; font-weight: 700; margin: 0 0 15px 0;">¡Bienvenid@!</h1>
+                            <p style="font-size: 1.3rem; color: #6b7280; margin: 0 0 50px 0;">Selecciona qué te gustaría hacer hoy</p>
+                            
+                            <div style="display: grid; gap: 15px; margin-bottom: 40px;">
+                                
+                                <button onclick="setTab('upload')" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                                    <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                        <span style="font-size: 1.5rem;">📚</span>
+                                        <div style="text-align: left;">
+                                            <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Realizar Tests</div>
+                                            <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Crear y gestionar exámenes</div>
+                                        </div>
+                                    </div>
+                                </button>
+                                
+                                <button onclick="setTab('summary')" style="background: linear-gradient(135deg, #059669, #0ea5e9); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                                    <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                        <span style="font-size: 1.5rem;">📊</span>
+                                        <div style="text-align: left;">
+                                            <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Ver Resúmenes</div>
+                                            <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Analizar resultados y estadísticas</div>
+                                        </div>
+                                    </div>
+                                </button>
+                                
+                                <!-- BOTÓN TARJETAS -->
+                                <button onclick="goToMemoryCards()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                                    <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                        <span style="font-size: 1.5rem;">🃏</span>
+                                        <div style="text-align: left;">
+                                            <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Tarjetas de Memoria</div>
+                                            <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Repasar con tarjetas interactivas</div>
+                                        </div>
+                                    </div>
+                                </button>
+                                
+                                <!-- BOTONES EXPORTAR/IMPORTAR ORIGINALES -->
+                                <button onclick="exportContentDataOnly()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                                    <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                        <span style="font-size: 1.5rem;">📤</span>
+                                        <div style="text-align: left;">
+                                            <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Exportar Contenido</div>
+                                            <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Descargar datos portables</div>
+                                        </div>
+                                    </div>
+                                </button>
+                                
+                                <button onclick="importContentFromFile()" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                                    <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                        <span style="font-size: 1.5rem;">📥</span>
+                                        <div style="text-align: left;">
+                                            <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Importar Contenido</div>
+                                            <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Cargar datos desde archivo</div>
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                            
+                            <div style="border-top: 1px solid #e5e7eb; padding-top: 25px; color: #9ca3af; font-size: 0.9rem;">
+                                <p style="margin: 0;">Sistema de Exámenes • Usuario: ${state.currentUser.name}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        // Pantallas normales con header mejorado
+        let pageTitle = 'Sistema de Exámenes';
+        if (state.currentTab === 'questions') pageTitle = 'Banco de Preguntas';
+        else if (state.currentTab === 'results') pageTitle = 'Resultados del Test';
+        else if (state.currentTab === 'summary') pageTitle = 'Generador de Resúmenes';
+        else if (state.currentTab === 'memory-cards') pageTitle = 'Tarjetas de Memoria';
+        
+        const showNavTabs = state.currentTab !== 'summary' && state.currentTab !== 'memory-cards';
+        
+        app.innerHTML = `
+            <div class="container">
+                <div class="header">
+                    <div class="title">${pageTitle}</div>
+                    <div>
+                        <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                            ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                        </span>
+                        <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                        ${state.currentTab === 'memory-cards' ? `
+                            <button onclick="backToMainMenuFromCards()" class="btn btn-info">🏠 Menú</button>
+                        ` : ''}
+                        <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                        <button onclick="logout()" class="btn btn-danger">Salir</button>
+                    </div>
+                </div>
+
+                ${showNavTabs ? `
+                    <div class="nav-tabs">
+                        <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
+                            📤 Subir Test
+                        </button>
+                        <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
+                            📋 Banco de Preguntas (${getFilteredQuestions().length})
+                        </button>
+                        <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
+                            🎯 Test Aleatorio
+                        </button>
+                        <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                            📊 Resultados (${state.testResults.length})
+                        </button>
+                    </div>
+                ` : ''}
+
+                <div id="messages"></div>
+
+                ${renderTabContent()}
+            </div>
+        `;
+    };
+    
+    // ========== 5. ATAJOS DE TECLADO PARA TARJETAS ==========
+    
+    document.addEventListener('keydown', function(e) {
+        if (state.currentTab !== 'memory-cards') return;
+        
+        switch(e.key) {
+            case 'ArrowLeft':
+            case 'a':
+            case 'A':
+                e.preventDefault();
+                previousCard();
+                break;
+            case 'ArrowRight':
+            case 'd':
+            case 'D':
+                e.preventDefault();
+                nextCard();
+                break;
+            case ' ':
+            case 'Enter':
+                e.preventDefault();
+                toggleAnswer();
+                break;
+            case 's':
+            case 'S':
+                e.preventDefault();
+                shuffleCards();
+                break;
+            case 'Escape':
+                e.preventDefault();
+                backToMainMenuFromCards();
+                break;
+        }
+    });
+    
+    console.log('🎉 PARCHE PRIII COMPLETO APLICADO EXITOSAMENTE');
+    console.log('✅ FUNCIONALIDADES IMPLEMENTADAS:');
+    console.log('   1. 🔒 LOGIN LIMPIO: Sin opción de importar datos');
+    console.log('   2. ⭐ VERIFICACIÓN FILTRADA: Botones funcionan en filtros');
+    console.log('   3. 🃏 TARJETAS DE MEMORIA: Sistema completo con navegación');
+    console.log('   4. 📤 EXPORTAR/IMPORTAR: Mantenido del código original');
+    console.log('   5. ⌨️ ATAJOS: ←→ navegación, Espacio respuesta, S mezclar, Esc menú');
+    
+    // Aplicar inmediatamente
+    setTimeout(() => {
+        if (typeof window.render === 'function') {
+            render();
+        }
+    }, 100);
+</script>    
 </body>
 </html>
+
 
 
 
