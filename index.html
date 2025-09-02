@@ -18094,17 +18094,84 @@ console.log('   - ✅ Combinable con filtro por tema');
 console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
 </script>
 <!-- 
-PARCHE FINAL: EXPORTACIÓN UNIVERSAL FUNCIONANDO
+PARCHE DEFINITIVO: EXPORTACIÓN UNIVERSAL CON SISTEMA CORRECTO
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche FUNCIONA con tu sistema RealDataManager existente
+Este parche define RealDataManager correctamente
 -->
 
 <script>
-    // ========== PARCHE FINAL: EXPORTACIÓN UNIVERSAL ==========
-    console.log('🎯 Aplicando PARCHE FINAL de exportación universal...');
+    // ========== PARCHE DEFINITIVO: EXPORTACIÓN UNIVERSAL ==========
+    console.log('🎯 Aplicando PARCHE DEFINITIVO...');
     
-    // PASO 1: REEMPLAZAR función de exportación para crear archivos universales
-    const originalExportFunction = window.exportUserDataComplete;
+    // ASEGURAR que RealDataManager existe (basado en tu código original)
+    if (typeof RealDataManager === 'undefined') {
+        window.RealDataManager = {
+            getUserDataKey(username, dataType) {
+                return `realUser_${username}_${dataType}`;
+            },
+            
+            loadUserData(username) {
+                return {
+                    questions: JSON.parse(localStorage.getItem(this.getUserDataKey(username, 'questions')) || '[]'),
+                    topics: JSON.parse(localStorage.getItem(this.getUserDataKey(username, 'topics')) || '[]'),
+                    testResults: JSON.parse(localStorage.getItem(this.getUserDataKey(username, 'testResults')) || '[]'),
+                    summaryTopics: JSON.parse(localStorage.getItem(this.getUserDataKey(username, 'summaryTopics')) || '[]'),
+                    savedSummaries: JSON.parse(localStorage.getItem(this.getUserDataKey(username, 'savedSummaries')) || '[]'),
+                    apiKey: localStorage.getItem(this.getUserDataKey(username, 'apiKey')) || ''
+                };
+            },
+            
+            saveUserData(username, dataType, data) {
+                localStorage.setItem(this.getUserDataKey(username, dataType), 
+                    typeof data === 'string' ? data : JSON.stringify(data));
+            },
+            
+            clearGlobalData() {
+                state.questions = [];
+                state.topics = [];
+                state.testResults = [];
+                state.selectedTopicForNewQuestions = null;
+                state.selectedTopicFilter = 'all';
+                state.apiKey = '';
+                
+                if (typeof summarySystemState !== 'undefined') {
+                    summarySystemState.summaryTopics = [];
+                    summarySystemState.savedSummaries = [];
+                    summarySystemState.selectedTopicForSummary = null;
+                }
+            },
+            
+            loadIntoGlobalData(username) {
+                const userData = this.loadUserData(username);
+                
+                state.questions = userData.questions;
+                state.topics = userData.topics;
+                state.testResults = userData.testResults;
+                state.apiKey = userData.apiKey;
+                
+                if (typeof summarySystemState !== 'undefined') {
+                    summarySystemState.summaryTopics = userData.summaryTopics;
+                    summarySystemState.savedSummaries = userData.savedSummaries;
+                }
+                
+                // Sincronizar localStorage para compatibilidad
+                localStorage.setItem('questions', JSON.stringify(userData.questions));
+                localStorage.setItem('topics', JSON.stringify(userData.topics));
+                localStorage.setItem('testResults', JSON.stringify(userData.testResults));
+                localStorage.setItem('summaryTopics', JSON.stringify(userData.summaryTopics));
+                localStorage.setItem('savedSummaries', JSON.stringify(userData.savedSummaries));
+                localStorage.setItem('anthropic_api_key', userData.apiKey);
+                
+                console.log('✅ Datos cargados en variables globales:', {
+                    questions: userData.questions.length,
+                    topics: userData.topics.length,
+                    tests: userData.testResults.length
+                });
+            }
+        };
+    }
+    
+    // FUNCIÓN DE EXPORTACIÓN UNIVERSAL
     window.exportUserDataComplete = function() {
         if (!state.currentUser) {
             showMessage('❌ Error: No hay usuario logueado', 'error');
@@ -18112,15 +18179,13 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
         }
         
         try {
-            const username = state.currentUser.username;
-            
-            // Crear backup UNIVERSAL (sin datos de cuenta específica)
+            // Crear backup UNIVERSAL
             const universalBackup = {
                 version: "3.0",
                 exportDate: new Date().toISOString(),
                 exportTimestamp: Date.now(),
                 exportType: "UNIVERSAL",
-                originalUsername: username, // Solo para referencia
+                originalUsername: state.currentUser.username,
                 userData: {
                     questions: state.questions || [],
                     topics: state.topics || [],
@@ -18130,23 +18195,22 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
                     apiKey: state.apiKey || ''
                 },
                 stats: {
-                    totalQuestions: state.questions ? state.questions.length : 0,
-                    totalTopics: state.topics ? state.topics.length : 0,
-                    totalTests: state.testResults ? state.testResults.length : 0,
+                    totalQuestions: (state.questions || []).length,
+                    totalTopics: (state.topics || []).length,
+                    totalTests: (state.testResults || []).length,
                     totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0
                 }
             };
             
             // Mostrar estadísticas
-            const statsMessage = `
+            showMessage(`
 📊 BACKUP UNIVERSAL GENERADO:
 • Preguntas: ${universalBackup.stats.totalQuestions}
 • Temas: ${universalBackup.stats.totalTopics}
 • Tests: ${universalBackup.stats.totalTests}
 • Resúmenes: ${universalBackup.stats.totalSummaries}
 • Tipo: 🌍 UNIVERSAL
-            `;
-            showMessage(statsMessage, 'success');
+            `, 'success');
             
             // Descargar archivo
             const blob = new Blob([JSON.stringify(universalBackup, null, 2)], { 
@@ -18165,26 +18229,13 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             
-            setTimeout(() => {
-                showMessage(`
-✅ BACKUP UNIVERSAL DESCARGADO
-📁 Archivo: datos_universales_${dateStr}_${timeStr}.json
-
-🌍 VENTAJAS:
-• Funciona con CUALQUIER usuario
-• Compatible con CUALQUIER dispositivo
-• No requiere credenciales específicas
-
-💡 Para usar: Login + Seleccionar este archivo
-                `, 'success');
-            }, 1000);
-            
         } catch (error) {
+            console.error('Error exportando:', error);
             showMessage('❌ Error al exportar: ' + error.message, 'error');
         }
     };
     
-    // PASO 2: MEJORAR función de selección de archivos
+    // FUNCIÓN DE SELECCIÓN DE ARCHIVOS
     window.handleImportFileSelect = function(input) {
         const file = input.files[0];
         if (!file) {
@@ -18206,23 +18257,20 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
             try {
                 const backupData = JSON.parse(e.target.result);
                 
-                // Detectar tipo de archivo
+                // Detectar tipo
                 let fileType = 'UNKNOWN';
-                let isValid = false;
-                
                 if (backupData.version === "3.0" && backupData.exportType === "UNIVERSAL") {
                     fileType = 'UNIVERSAL';
-                    isValid = backupData.userData && typeof backupData.userData === 'object';
-                } else if (backupData.version === "2.0" && backupData.accountData) {
+                } else if (backupData.version === "2.0") {
                     fileType = 'COMPLETO';
-                    isValid = backupData.userData && typeof backupData.userData === 'object';
-                } else if (backupData.userData && typeof backupData.userData === 'object') {
+                } else if (backupData.userData) {
                     fileType = 'DATOS';
-                    isValid = true;
                 }
                 
-                if (!isValid) {
-                    throw new Error('Archivo de backup inválido');
+                // Validar estructura básica
+                const userData = backupData.userData || backupData;
+                if (!userData || typeof userData !== 'object') {
+                    throw new Error('Estructura de datos inválida');
                 }
                 
                 // Mostrar información
@@ -18231,8 +18279,6 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
                 
                 if (fileInfo && fileDetails) {
                     fileInfo.style.display = 'block';
-                    const userData = backupData.userData || backupData;
-                    
                     fileDetails.innerHTML = `
                         📁 <strong>${file.name}</strong><br>
                         🔧 Tipo: <strong>${fileType}</strong><br>
@@ -18240,17 +18286,17 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
                         📚 Temas: <strong>${(userData.topics || []).length}</strong><br>
                         🎯 Tests: <strong>${(userData.testResults || []).length}</strong><br>
                         📝 Resúmenes: <strong>${(userData.savedSummaries || []).length}</strong><br>
-                        📅 Fecha: <strong>${new Date(backupData.exportDate || Date.now()).toLocaleDateString('es-ES')}</strong>
-                        ${fileType === 'UNIVERSAL' ? '<br><div style="color: #059669; font-weight: bold;">🌍 Compatible con cualquier usuario</div>' : ''}
+                        ${fileType === 'UNIVERSAL' ? '<div style="color: #059669; font-weight: bold;">🌍 Compatible con cualquier usuario</div>' : ''}
                     `;
                 }
                 
                 importFileSelected = backupData;
                 importFileSelected.detectedType = fileType;
                 
-                showMessage(`✅ Archivo ${fileType} cargado correctamente`, 'success');
+                showMessage(`✅ Archivo ${fileType} cargado (${(userData.questions || []).length} preguntas)`, 'success');
                 
             } catch (error) {
+                console.error('Error leyendo archivo:', error);
                 showMessage('❌ Error leyendo archivo: ' + error.message, 'error');
                 input.value = '';
                 importFileSelected = null;
@@ -18262,34 +18308,36 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
         reader.readAsText(file);
     };
     
-    // PASO 3: FUNCIÓN DE IMPORTACIÓN UNIVERSAL usando tu RealDataManager
+    // FUNCIÓN DE IMPORTACIÓN UNIVERSAL
     window.handleImportFromLogin = function() {
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value.trim();
         const rememberMe = document.getElementById('remember-me') ? document.getElementById('remember-me').checked : false;
         
         if (!importFileSelected) {
-            showMessage('❌ Error: No se ha seleccionado archivo para importar', 'error');
+            showMessage('❌ No se ha seleccionado archivo', 'error');
             return;
         }
         
         if (!username || !password) {
-            showMessage('❌ Error: Usuario y contraseña son obligatorios', 'error');
+            showMessage('❌ Usuario y contraseña son obligatorios', 'error');
             return;
         }
+        
+        console.log('🔄 Iniciando importación para:', username);
         
         try {
             const backupData = importFileSelected;
             
-            // MANEJAR ARCHIVOS UNIVERSALES
+            // PROCESAR ARCHIVOS UNIVERSALES
             if (backupData.version === "3.0" && backupData.exportType === "UNIVERSAL") {
                 console.log('🌍 Procesando archivo UNIVERSAL');
                 
-                // Usar tu sistema RealUserManager
+                // Gestionar usuario
                 const existingUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
                 
-                // Crear usuario si no existe
                 if (!existingUsers[username]) {
+                    // Crear usuario nuevo
                     existingUsers[username] = {
                         password: password,
                         name: username,
@@ -18299,19 +18347,26 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
                         lastLogin: new Date().toLocaleString('es-ES'),
                         importedUniversalData: backupData.exportDate
                     };
-                    localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
+                    console.log('👤 Creando nueva cuenta:', username);
                 } else {
-                    // Verificar password solo si el usuario ya existe
+                    // Verificar contraseña existente
                     if (existingUsers[username].password !== password) {
-                        showMessage('❌ Error: La contraseña no coincide con la cuenta existente', 'error');
+                        showMessage('❌ La contraseña no coincide con la cuenta existente', 'error');
                         return;
                     }
                     existingUsers[username].lastLogin = new Date().toLocaleString('es-ES');
-                    localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
                 }
                 
-                // USAR tu RealDataManager para guardar los datos
+                localStorage.setItem('realSystemUsers', JSON.stringify(existingUsers));
+                
+                // GUARDAR DATOS usando RealDataManager
                 const userData = backupData.userData;
+                console.log('💾 Guardando datos:', {
+                    questions: (userData.questions || []).length,
+                    topics: (userData.topics || []).length,
+                    tests: (userData.testResults || []).length
+                });
+                
                 RealDataManager.saveUserData(username, 'questions', userData.questions || []);
                 RealDataManager.saveUserData(username, 'topics', userData.topics || []);
                 RealDataManager.saveUserData(username, 'testResults', userData.testResults || []);
@@ -18319,13 +18374,14 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
                 RealDataManager.saveUserData(username, 'savedSummaries', userData.savedSummaries || []);
                 RealDataManager.saveUserData(username, 'apiKey', userData.apiKey || '');
                 
-                // Establecer usuario actual
+                // ESTABLECER USUARIO ACTUAL
                 state.currentUser = { 
                     username: username, 
                     name: existingUsers[username].name 
                 };
                 
-                // USAR tu RealDataManager para cargar a variables globales
+                // CARGAR DATOS A VARIABLES GLOBALES
+                console.log('📥 Cargando datos a variables globales...');
                 RealDataManager.loadIntoGlobalData(username);
                 
                 // Recordar credenciales
@@ -18335,17 +18391,15 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
                     localStorage.setItem('rememberExpiry', Date.now() + (30 * 24 * 60 * 60 * 1000));
                 }
                 
-                // Mensaje de éxito
-                const stats = backupData.stats || {};
+                // MENSAJE DE ÉXITO
                 showMessage(`
 ✅ ¡IMPORTACIÓN UNIVERSAL EXITOSA!
 
 👤 Usuario: ${username}
-🌍 DATOS UNIVERSALES IMPORTADOS:
-• Preguntas: ${stats.totalQuestions || (userData.questions || []).length}
-• Temas: ${stats.totalTopics || (userData.topics || []).length}
-• Tests: ${stats.totalTests || (userData.testResults || []).length}
-• Resúmenes: ${stats.totalSummaries || (userData.savedSummaries || []).length}
+📊 Datos importados:
+• Preguntas: ${state.questions.length}
+• Temas: ${state.topics.length}
+• Tests: ${state.testResults.length}
 
 🎉 ¡Todos tus datos están disponibles!
                 `, 'success');
@@ -18356,7 +18410,7 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
                     newLoginState.currentView = 'main';
                 }
                 
-                // Usar tu sistema de pantalla intermedia
+                // Mostrar pantalla intermedia
                 showIntermediateScreen = true;
                 setTimeout(() => {
                     if (typeof render === 'function') {
@@ -18367,25 +18421,25 @@ Este parche FUNCIONA con tu sistema RealDataManager existente
                 return;
             }
             
-            // Para archivos no universales, usar el sistema original si existe
-            showMessage('⚠️ Archivo de formato no universal - usa el sistema estándar', 'warning');
+            showMessage('⚠️ Formato de archivo no soportado para importación universal', 'warning');
             
         } catch (error) {
             console.error('❌ Error en importación:', error);
-            showMessage('❌ Error al importar datos: ' + error.message, 'error');
+            showMessage('❌ Error al importar: ' + error.message, 'error');
         }
     };
     
-    console.log('✅ PARCHE FINAL APLICADO CORRECTAMENTE');
-    console.log('🎯 Funcionalidades:');
-    console.log('   • Exportación universal sin datos de cuenta');
-    console.log('   • Importación usando tu RealDataManager');
-    console.log('   • Compatible con tu sistema de usuarios');
-    console.log('   • Auto-creación de cuentas para archivos universales');
-    console.log('   • Carga correcta en variables globales');
+    console.log('✅ PARCHE DEFINITIVO APLICADO');
+    console.log('🎯 RealDataManager definido:', typeof RealDataManager !== 'undefined');
+    console.log('📊 State actual:', {
+        usuario: state.currentUser ? state.currentUser.username : 'ninguno',
+        preguntas: state.questions ? state.questions.length : 0,
+        temas: state.topics ? state.topics.length : 0
+    });
 </script>
 </body>
 </html>
+
 
 
 
