@@ -439,103 +439,144 @@
             `;
         }
 
-        function renderQuestionsByTopic() {
-            const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
-            
-            let html = '';
-            
-            // Mostrar preguntas por cada tema que TENGA preguntas
-            state.topics.forEach(topic => {
-                const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
-                if (topicQuestions.length > 0) {
-                    html += `
-                        <div style="margin-bottom: 30px;">
-                            <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
-                                <span>📁 ${topic.name}</span>
-                                <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
-                            </h3>
-                            <div style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white;">
-                                ${topicQuestions.map(q => {
-                                    const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                                    return renderSingleQuestion(q, actualIndex);
-                                }).join('')}
-                            </div>
+       function renderQuestionsByTopic() {
+    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+    
+    let html = '';
+    
+    // Mostrar preguntas por cada tema que TENGA preguntas
+    state.topics.forEach(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        if (topicQuestions.length > 0) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span onclick="editTopicTitle('${topic.id}')" style="cursor: pointer;" title="Click para editar título">📁 ${topic.name}</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
+                            <button onclick="editTopicTitle('${topic.id}')" class="btn" style="padding: 4px 8px; font-size: 12px; background: rgba(255,255,255,0.2); border: none; border-radius: 4px; color: white; cursor: pointer;" title="Editar título">
+                                ✏️
+                            </button>
                         </div>
-                    `;
-                }
-            });
-            
-            // Mostrar preguntas sin tema asignado SI existen
-            if (questionsWithoutTopic.length > 0) {
-                html += `
-                    <div style="margin-bottom: 30px;">
-                        <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
-                            <span>📂 Sin tema asignado</span>
-                            <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
-                        </h3>
-                        <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white;">
-                            ${questionsWithoutTopic.map(q => {
-                                const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                                return renderSingleQuestion(q, actualIndex);
-                            }).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Si no hay preguntas en absoluto
-            if (html === '') {
-                return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
-            }
-            
-            return html;
-        }
-
-        function renderQuestionsFiltered(filteredQuestions) {
-            return `
-                <div style="border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
-                    ${filteredQuestions.length === 0 ? 
-                        '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles</div>' :
-                        filteredQuestions.map(q => {
+                    </h3>
+                    <div style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                        ${topicQuestions.map(q => {
                             const actualIndex = state.questions.findIndex(question => question.id === q.id);
                             return renderSingleQuestion(q, actualIndex);
-                        }).join('')
-                    }
+                        }).join('')}
+                    </div>
                 </div>
             `;
         }
+    });
+    
+    // Mostrar preguntas sin tema asignado SI existen
+    if (questionsWithoutTopic.length > 0) {
+        html += `
+            <div style="margin-bottom: 30px;">
+                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📂 Sin tema asignado</span>
+                    <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                </h3>
+                <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                    ${questionsWithoutTopic.map(q => {
+                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                        return renderSingleQuestion(q, actualIndex);
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Si no hay preguntas en absoluto
+    if (html === '') {
+        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
+    }
+    
+    return html;
+}
 
-        function renderSingleQuestion(q, actualIndex) {
-            const topicName = q.topicId ? getTopicName(q.topicId) : null;
-            
-            return `
-                <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
-                    <div style="flex: 1; display: flex; gap: 8px;">
-                        ${q.isVerified ? '<span style="color: #3b82f6; font-size: 16px; filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5)); flex-shrink: 0; margin-top: 2px;" title="Pregunta verificada">⭐</span>' : '<span style="width: 16px; flex-shrink: 0;"></span>'}
-                        <div style="flex: 1;">
-                            <div style="font-weight: 500; margin-bottom: 8px;">
-                                ${q.question}
-                                ${topicName && state.selectedTopicFilter === 'all' && state.selectedTopicFilter !== q.topicId ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px; margin-left: 8px;">${topicName}</span>` : ''}
-                            </div>
-                            <ul style="list-style: none; margin: 0; padding: 0;">
-                                ${q.options.map((opt, optIndex) => `
-                                    <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#059669' : '#6b7280'}; ${q.correctAnswer === optIndex ? 'font-weight: 500;' : ''}">
-                                        ${String.fromCharCode(97 + optIndex)}) ${opt}
-                                    </li>
-                                `).join('')}
-                            </ul>
-                        </div>
+function renderQuestionsFiltered(filteredQuestions) {
+    return `
+        <div style="border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
+            ${filteredQuestions.length === 0 ? 
+                '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles</div>' :
+                filteredQuestions.map(q => {
+                    const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                    return renderSingleQuestion(q, actualIndex);
+                }).join('')
+            }
+        </div>
+    `;
+}
+
+function renderSingleQuestion(q, actualIndex) {
+    const topicName = q.topicId ? getTopicName(q.topicId) : null;
+    
+    return `
+        <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
+            <div style="flex: 1; display: flex; gap: 8px;">
+                ${q.isVerified ? '<span style="color: #3b82f6; font-size: 16px; filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5)); flex-shrink: 0; margin-top: 2px;" title="Pregunta verificada">⭐</span>' : '<span style="width: 16px; flex-shrink: 0;"></span>'}
+                <div style="flex: 1;">
+                    <div style="font-weight: 500; margin-bottom: 8px;">
+                        ${q.question}
+                        ${topicName && state.selectedTopicFilter === 'all' && state.selectedTopicFilter !== q.topicId ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px; margin-left: 8px;">${topicName}</span>` : ''}
                     </div>
-                    <div style="display: flex; gap: 5px; align-items: flex-start;">
-                        <button onclick="toggleVerified(${actualIndex})" class="btn ${q.isVerified ? 'btn-primary' : 'btn-secondary'}" style="padding: 4px 8px; font-size: 14px; ${q.isVerified ? 'background: linear-gradient(135deg, #3b82f6, #1d4ed8);' : ''}" title="${q.isVerified ? 'Pregunta verificada - Click para desmarcar' : 'Marcar como verificada'}">
-                            ${q.isVerified ? '⭐' : '☆'}
-                        </button>
-                        <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
-                        <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
-                    </div>
+                    <ul style="list-style: none; margin: 0; padding: 0;">
+                        ${q.options.map((opt, optIndex) => `
+                            <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#059669' : '#6b7280'}; ${q.correctAnswer === optIndex ? 'font-weight: 500;' : ''}">
+                                ${String.fromCharCode(97 + optIndex)}) ${opt}
+                            </li>
+                        `).join('')}
+                    </ul>
                 </div>
-            `;
-        }
+            </div>
+            <div style="display: flex; gap: 5px; align-items: flex-start;">
+                <button onclick="toggleVerified(${actualIndex})" class="btn ${q.isVerified ? 'btn-primary' : 'btn-secondary'}" style="padding: 4px 8px; font-size: 14px; ${q.isVerified ? 'background: linear-gradient(135deg, #3b82f6, #1d4ed8);' : ''}" title="${q.isVerified ? 'Pregunta verificada - Click para desmarcar' : 'Marcar como verificada'}">
+                    ${q.isVerified ? '⭐' : '☆'}
+                </button>
+                <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
+                <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
+            </div>
+        </div>
+    `;
+}
+
+// Función para editar título del tema
+function editTopicTitle(topicId) {
+    const topic = state.topics.find(t => t.id == topicId);
+    if (!topic) {
+        showMessage('Tema no encontrado', 'error');
+        return;
+    }
+    
+    const newName = prompt('Nuevo nombre del tema:', topic.name);
+    
+    if (!newName) return; // Cancelado
+    
+    if (newName.trim().length === 0) {
+        alert('El nombre no puede estar vacío');
+        return;
+    }
+    
+    // Verificar si ya existe otro tema con ese nombre
+    const existingTopic = state.topics.find(t => t.id != topicId && t.name.toLowerCase() === newName.trim().toLowerCase());
+    if (existingTopic) {
+        alert('Ya existe un tema con ese nombre');
+        return;
+    }
+    
+    // Actualizar el nombre
+    topic.name = newName.trim();
+    
+    // Guardar en localStorage
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    
+    // Re-renderizar
+    render();
+    
+    showMessage(`Tema renombrado a "${newName.trim()}"`, 'success');
+}
 
         function renderTestTab() {
             if (state.questions.length === 0) {
@@ -18203,6 +18244,7 @@ console.log('   - Compatible con todos los filtros y búsquedas');
 </script>   
 </body>
 </html>
+
 
 
 
