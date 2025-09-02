@@ -1481,187 +1481,187 @@ IMPORTANTE: Cualquier opción con símbolo, marca visual, color verde, o descrip
             }
         }
 
-        function startTest() {
-            const generalCheckbox = document.getElementById('test-general');
-            const topicCheckboxes = document.querySelectorAll('.topic-checkbox');
-            
-            let availableQuestions = [];
-            let testTypeText = '';
-            let selectedTopics = [];
-            
-            if (generalCheckbox && generalCheckbox.checked) {
-                // Test general
-                availableQuestions = state.questions;
-                testTypeText = 'Test General';
+function startTest() {
+    const generalCheckbox = document.getElementById('test-general');
+    const topicCheckboxes = document.querySelectorAll('.topic-checkbox');
+    
+    let availableQuestions = [];
+    let testTypeText = '';
+    let selectedTopics = [];
+    
+    if (generalCheckbox && generalCheckbox.checked) {
+        // Test general - solo preguntas verificadas
+        availableQuestions = state.questions.filter(q => q.isVerified === true);
+        testTypeText = 'Test General';
+    } else {
+        // Test de temas específicos
+        const selectedTopicIds = Array.from(topicCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.getAttribute('data-topic-id'));
+        
+        if (selectedTopicIds.length === 0) {
+            showMessage('Selecciona al menos un tema o marca "Test General"', 'error');
+            return;
+        }
+        
+        selectedTopics = selectedTopicIds.map(id => getTopicName(id));
+        
+        // Filtrar preguntas por los temas seleccionados y que sean verificadas
+        availableQuestions = state.questions.filter(q => 
+            q.topicId && selectedTopicIds.includes(q.topicId.toString()) && q.isVerified === true
+        );
+        
+        if (selectedTopics.length === 1) {
+            testTypeText = `Test de ${selectedTopics[0]}`;
+        } else {
+            testTypeText = `Test Combinado: ${selectedTopics.join(', ')}`;
+        }
+    }
+
+    if (availableQuestions.length === 0) {
+        showMessage('No hay preguntas disponibles para la selección actual', 'error');
+        return;
+    }
+
+    // Obtener configuraciones
+    const questionsCountSelect = document.getElementById('test-questions-count');
+    const durationSelect = document.getElementById('test-duration');
+    const testNameInput = document.getElementById('test-name');
+    
+    const questionsCount = questionsCountSelect.value === 'all' ? availableQuestions.length : parseInt(questionsCountSelect.value);
+    const duration = parseInt(durationSelect.value);
+
+    // Generar nombre del test
+    let testName = testNameInput.value.trim();
+    if (!testName) {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('es-ES');
+        const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        
+        if (selectedTopics.length === 1) {
+            testName = `Test ${selectedTopics[0]} - ${dateStr} ${timeStr}`;
+        } else if (selectedTopics.length > 1) {
+            testName = `Test Combinado - ${dateStr} ${timeStr}`;
+        } else {
+            testName = `Test General - ${dateStr} ${timeStr}`;
+        }
+    }
+
+    const finalQuestionsCount = Math.min(questionsCount, availableQuestions.length);
+    const shuffled = [...availableQuestions].sort(() => Math.random() - 0.5);
+    
+    state.currentTest = {
+        name: testName,
+        questions: shuffled.slice(0, finalQuestionsCount),
+        answers: {},
+        duration: duration,
+        timeLeft: duration,
+        timer: null,
+        testType: generalCheckbox && generalCheckbox.checked ? 'all' : 'multiple',
+        testTypeText: testTypeText,
+        selectedTopics: selectedTopics,
+        startTime: Date.now()
+    };
+    
+    // Solo iniciar timer si hay duración
+    if (duration > 0) {
+        state.currentTest.timer = setInterval(() => {
+            state.currentTest.timeLeft--;
+            if (state.currentTest.timeLeft <= 0) {
+                finishTest();
             } else {
-                // Test de temas específicos
-                const selectedTopicIds = Array.from(topicCheckboxes)
-                    .filter(cb => cb.checked)
-                    .map(cb => cb.getAttribute('data-topic-id'));
-                
-                if (selectedTopicIds.length === 0) {
-                    showMessage('Selecciona al menos un tema o marca "Test General"', 'error');
-                    return;
-                }
-                
-                selectedTopics = selectedTopicIds.map(id => getTopicName(id));
-                
-                // Filtrar preguntas por los temas seleccionados
-                availableQuestions = state.questions.filter(q => 
-                    q.topicId && selectedTopicIds.includes(q.topicId.toString())
-                );
-                
-                if (selectedTopics.length === 1) {
-                    testTypeText = `Test de ${selectedTopics[0]}`;
-                } else {
-                    testTypeText = `Test Combinado: ${selectedTopics.join(', ')}`;
+                const timerElement = document.getElementById('timer');
+                if (timerElement) {
+                    timerElement.textContent = `⏱️ ${formatTime(state.currentTest.timeLeft)}`;
                 }
             }
+        }, 1000);
+    }
+    
+    render();
+}
 
-            if (availableQuestions.length === 0) {
-                showMessage('No hay preguntas disponibles para la selección actual', 'error');
-                return;
+function finishTest() {
+    if (!state.currentTest) return;
+    
+    // Detener timer si existe
+    if (state.currentTest.timer) {
+        clearInterval(state.currentTest.timer);
+    }
+    
+    // Recoger respuestas del formulario
+    const form = document.getElementById('test-form');
+    let correct = 0;
+    let incorrect = 0;
+    let unanswered = 0;
+    const answers = {};
+    const detailedResults = [];
+    
+    state.currentTest.questions.forEach((question, index) => {
+        const selectedOption = form.querySelector(`input[name="question-${index}"]:checked`);
+        let userAnswer = null;
+        let isCorrect = false;
+        
+        if (selectedOption) {
+            userAnswer = parseInt(selectedOption.value);
+            answers[index] = userAnswer;
+            if (userAnswer === question.correctAnswer) {
+                correct++;
+                isCorrect = true;
+            } else {
+                incorrect++;
             }
-
-            // Obtener configuraciones
-            const questionsCountSelect = document.getElementById('test-questions-count');
-            const durationSelect = document.getElementById('test-duration');
-            const testNameInput = document.getElementById('test-name');
-            
-            const questionsCount = questionsCountSelect.value === 'all' ? availableQuestions.length : parseInt(questionsCountSelect.value);
-            const duration = parseInt(durationSelect.value);
-
-            // Generar nombre del test
-            let testName = testNameInput.value.trim();
-            if (!testName) {
-                const now = new Date();
-                const dateStr = now.toLocaleDateString('es-ES');
-                const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                
-                if (selectedTopics.length === 1) {
-                    testName = `Test ${selectedTopics[0]} - ${dateStr} ${timeStr}`;
-                } else if (selectedTopics.length > 1) {
-                    testName = `Test Combinado - ${dateStr} ${timeStr}`;
-                } else {
-                    testName = `Test General - ${dateStr} ${timeStr}`;
-                }
-            }
-
-            const finalQuestionsCount = Math.min(questionsCount, availableQuestions.length);
-            const shuffled = [...availableQuestions].sort(() => Math.random() - 0.5);
-            
-            state.currentTest = {
-                name: testName,
-                questions: shuffled.slice(0, finalQuestionsCount),
-                answers: {},
-                duration: duration,
-                timeLeft: duration,
-                timer: null,
-                testType: generalCheckbox && generalCheckbox.checked ? 'all' : 'multiple',
-                testTypeText: testTypeText,
-                selectedTopics: selectedTopics,
-                startTime: Date.now()
-            };
-            
-            // Solo iniciar timer si hay duración
-            if (duration > 0) {
-                state.currentTest.timer = setInterval(() => {
-                    state.currentTest.timeLeft--;
-                    if (state.currentTest.timeLeft <= 0) {
-                        finishTest();
-                    } else {
-                        const timerElement = document.getElementById('timer');
-                        if (timerElement) {
-                            timerElement.textContent = `⏱️ ${formatTime(state.currentTest.timeLeft)}`;
-                        }
-                    }
-                }, 1000);
-            }
-            
-            render();
+        } else {
+            unanswered++;
         }
-
-        function finishTest() {
-            if (!state.currentTest) return;
-            
-            // Detener timer si existe
-            if (state.currentTest.timer) {
-                clearInterval(state.currentTest.timer);
-            }
-            
-            // Recoger respuestas del formulario
-            const form = document.getElementById('test-form');
-            let correct = 0;
-            let incorrect = 0;
-            let unanswered = 0;
-            const answers = {};
-            const detailedResults = [];
-            
-            state.currentTest.questions.forEach((question, index) => {
-                const selectedOption = form.querySelector(`input[name="question-${index}"]:checked`);
-                let userAnswer = null;
-                let isCorrect = false;
-                
-                if (selectedOption) {
-                    userAnswer = parseInt(selectedOption.value);
-                    answers[index] = userAnswer;
-                    if (userAnswer === question.correctAnswer) {
-                        correct++;
-                        isCorrect = true;
-                    } else {
-                        incorrect++;
-                    }
-                } else {
-                    unanswered++;
-                }
-                
-                detailedResults.push({
-                    question: question,
-                    userAnswer: userAnswer,
-                    isCorrect: isCorrect
-                });
-            });
-            
-            const totalQuestions = state.currentTest.questions.length;
-            
-            // Calcular tiempo usado
-            let timeUsedText = '';
-            if (state.currentTest.duration > 0) {
-                const timeUsed = state.currentTest.duration - state.currentTest.timeLeft;
-                timeUsedText = `Tiempo empleado: ${formatTime(timeUsed)} de ${formatTime(state.currentTest.duration)}`;
-            }
-            
-            // Crear objeto de resultado
-            const testResult = {
-                name: state.currentTest.name,
-                correct: correct,
-                incorrect: incorrect,
-                unanswered: unanswered,
-                total: totalQuestions,
-                testType: state.currentTest.testTypeText,
-                timeUsedText: timeUsedText,
-                detailedResults: detailedResults,
-                date: new Date().toLocaleString('es-ES'),
-                id: Date.now()
-            };
-            
-            // Añadir al historial
-            state.testResults.push(testResult);
-            localStorage.setItem('testResults', JSON.stringify(state.testResults));
-            
-            // Mostrar el resultado específico
-            state.currentViewingResult = testResult;
-            
-            // Limpiar test actual y cambiar a pestaña de resultados
-            state.currentTest = null;
-            state.currentTab = 'results';
-            render();
-            
-            // Hacer scroll al inicio de la página después de renderizar
-            setTimeout(() => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }, 100);
-        }
+        
+        detailedResults.push({
+            question: question,
+            userAnswer: userAnswer,
+            isCorrect: isCorrect
+        });
+    });
+    
+    const totalQuestions = state.currentTest.questions.length;
+    
+    // Calcular tiempo usado
+    let timeUsedText = '';
+    if (state.currentTest.duration > 0) {
+        const timeUsed = state.currentTest.duration - state.currentTest.timeLeft;
+        timeUsedText = `Tiempo empleado: ${formatTime(timeUsed)} de ${formatTime(state.currentTest.duration)}`;
+    }
+    
+    // Crear objeto de resultado
+    const testResult = {
+        name: state.currentTest.name,
+        correct: correct,
+        incorrect: incorrect,
+        unanswered: unanswered,
+        total: totalQuestions,
+        testType: state.currentTest.testTypeText,
+        timeUsedText: timeUsedText,
+        detailedResults: detailedResults,
+        date: new Date().toLocaleString('es-ES'),
+        id: Date.now()
+    };
+    
+    // Añadir al historial
+    state.testResults.push(testResult);
+    localStorage.setItem('testResults', JSON.stringify(state.testResults));
+    
+    // Mostrar el resultado específico
+    state.currentViewingResult = testResult;
+    
+    // Limpiar test actual y cambiar a pestaña de resultados
+    state.currentTest = null;
+    state.currentTab = 'results';
+    render();
+    
+    // Hacer scroll al inicio de la página después de renderizar
+    setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
+}
 
         function formatTime(seconds) {
             const mins = Math.floor(seconds / 60);
@@ -18203,6 +18203,7 @@ console.log('   - Compatible con todos los filtros y búsquedas');
 </script>   
 </body>
 </html>
+
 
 
 
