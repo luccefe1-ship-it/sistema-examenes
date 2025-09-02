@@ -18200,9 +18200,381 @@ console.log('   - Validación/desvalidación sin perder el foco del buscador');
 console.log('   - Actualización suave del contenedor de preguntas');
 console.log('   - Preserva todo el resaltado de búsqueda existente');
 console.log('   - Compatible con todos los filtros y búsquedas');
-</script>   
+</script>
+<!-- 
+PARCHE: NOMBRES DE TEMAS EDITABLES
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Permite editar nombres de temas desde el banco de preguntas y se refleja en toda la app
+-->
+
+<script>
+console.log('✏️ Aplicando parche: Nombres de temas editables...');
+
+// FUNCIÓN para editar nombre de tema
+window.editTopicName = function(topicId) {
+    console.log('✏️ Editando tema ID:', topicId);
+    
+    // Encontrar el tema actual
+    const topic = state.topics.find(t => t.id == topicId);
+    if (!topic) {
+        showMessage('❌ Error: Tema no encontrado', 'error');
+        return;
+    }
+    
+    // Mostrar prompt con nombre actual
+    const newName = prompt(`Editar nombre del tema:\n\nNombre actual: "${topic.name}"`, topic.name);
+    
+    // Si canceló o no escribió nada
+    if (!newName || newName.trim() === '') {
+        console.log('🚫 Edición cancelada');
+        return;
+    }
+    
+    const trimmedName = newName.trim();
+    
+    // Verificar que no sea el mismo nombre
+    if (trimmedName === topic.name) {
+        console.log('ℹ️ Mismo nombre, sin cambios');
+        showMessage('Sin cambios realizados', 'info');
+        return;
+    }
+    
+    // Verificar que no exista otro tema con ese nombre
+    const existingTopic = state.topics.find(t => t.id != topicId && t.name.toLowerCase() === trimmedName.toLowerCase());
+    if (existingTopic) {
+        alert(`❌ Ya existe un tema llamado "${trimmedName}"`);
+        return;
+    }
+    
+    // Guardar nombre anterior para el mensaje
+    const oldName = topic.name;
+    
+    // Actualizar el nombre del tema
+    topic.name = trimmedName;
+    topic.updatedAt = new Date().toISOString(); // Marcar como actualizado
+    
+    // Guardar en localStorage
+    try {
+        localStorage.setItem('topics', JSON.stringify(state.topics));
+        console.log('💾 Tema actualizado en localStorage');
+    } catch (error) {
+        console.error('❌ Error guardando en localStorage:', error);
+        showMessage('❌ Error al guardar cambios', 'error');
+        return;
+    }
+    
+    // Re-renderizar toda la aplicación
+    render();
+    
+    // Mostrar mensaje de éxito
+    showMessage(`✅ Tema renombrado: "${oldName}" → "${trimmedName}"`, 'success');
+    
+    console.log(`✅ Tema actualizado: ${oldName} → ${trimmedName}`);
+};
+
+// INTERCEPTAR y MEJORAR renderQuestionsByTopic para añadir botón editar
+const originalRenderQuestionsByTopic = window.renderQuestionsByTopic;
+
+window.renderQuestionsByTopic = function() {
+    // Si no hay función original, usar implementación básica
+    if (typeof originalRenderQuestionsByTopic !== 'function') {
+        return renderQuestionsByTopicWithEdit();
+    }
+    
+    // Obtener el HTML original
+    let originalHTML = originalRenderQuestionsByTopic();
+    
+    // Añadir botones de editar a cada header de tema
+    state.topics.forEach(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        if (topicQuestions.length > 0) {
+            // Buscar y reemplazar el header del tema
+            const oldHeader = new RegExp(`<h3[^>]*>\\s*📁\\s*${escapeRegExp(topic.name.toUpperCase())}[^<]*</h3>`, 'g');
+            const newHeader = `
+                <h3 style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 12px 15px; margin: 0; border-radius: 8px 8px 0 0; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 600;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span onclick="toggleTopicVisibility(${topic.id})" style="cursor: pointer; user-select: none;" title="Ocultar/Mostrar preguntas">
+                            📁 ${topic.name.toUpperCase()}
+                        </span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 12px; font-size: 12px;">
+                            ${topicQuestions.length} pregunta${topicQuestions.length === 1 ? '' : 's'}
+                        </span>
+                        <button onclick="editTopicName(${topic.id})" style="
+                            background: rgba(255,255,255,0.2); 
+                            border: none; 
+                            color: white; 
+                            padding: 4px 8px; 
+                            border-radius: 6px; 
+                            cursor: pointer; 
+                            font-size: 12px;
+                            transition: all 0.2s ease;
+                        " title="Editar nombre del tema" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                            ✏️
+                        </button>
+                        <button onclick="deleteTopicAndQuestions(${topic.id})" style="
+                            background: rgba(220,38,38,0.8); 
+                            border: none; 
+                            color: white; 
+                            padding: 4px 8px; 
+                            border-radius: 6px; 
+                            cursor: pointer; 
+                            font-size: 12px;
+                            transition: all 0.2s ease;
+                        " title="Eliminar tema y todas sus preguntas" onmouseover="this.style.background='rgba(220,38,38,1)'" onmouseout="this.style.background='rgba(220,38,38,0.8)'">
+                            🗑️
+                        </button>
+                    </div>
+                </h3>
+            `;
+            
+            originalHTML = originalHTML.replace(oldHeader, newHeader);
+        }
+    });
+    
+    return originalHTML;
+};
+
+// FUNCIÓN auxiliar para escapar caracteres especiales en regex
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// FUNCIÓN de respaldo por si no existe renderQuestionsByTopic
+function renderQuestionsByTopicWithEdit() {
+    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+    let html = '';
+    
+    // Renderizar preguntas por tema
+    state.topics.forEach(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        
+        if (topicQuestions.length > 0) {
+            const isCollapsed = collapsedTopics[topic.id] || false;
+            
+            html += `
+                <div style="margin-bottom: 15px; border: 1px solid #e5e7eb; border-radius: 8px; background: white; overflow: hidden;">
+                    <h3 style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 12px 15px; margin: 0; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 600;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span onclick="toggleTopicVisibility(${topic.id})" style="cursor: pointer; user-select: none;" title="Ocultar/Mostrar preguntas">
+                                📁 ${topic.name.toUpperCase()}
+                            </span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 12px; font-size: 12px;">
+                                ${topicQuestions.length} pregunta${topicQuestions.length === 1 ? '' : 's'}
+                            </span>
+                            <button onclick="editTopicName(${topic.id})" style="
+                                background: rgba(255,255,255,0.2); 
+                                border: none; 
+                                color: white; 
+                                padding: 4px 8px; 
+                                border-radius: 6px; 
+                                cursor: pointer; 
+                                font-size: 12px;
+                                transition: all 0.2s ease;
+                            " title="Editar nombre del tema" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                                ✏️
+                            </button>
+                            <button onclick="deleteTopicAndQuestions(${topic.id})" style="
+                                background: rgba(220,38,38,0.8); 
+                                border: none; 
+                                color: white; 
+                                padding: 4px 8px; 
+                                border-radius: 6px; 
+                                cursor: pointer; 
+                                font-size: 12px;
+                                transition: all 0.2s ease;
+                            " title="Eliminar tema y todas sus preguntas" onmouseover="this.style.background='rgba(220,38,38,1)'" onmouseout="this.style.background='rgba(220,38,38,0.8)'">
+                                🗑️
+                            </button>
+                        </div>
+                    </h3>
+                    
+                    ${!isCollapsed ? `
+                        <div style="border-top: none; background: white;">
+                            ${topicQuestions.map(q => {
+                                const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                                return renderSingleQuestion ? renderSingleQuestion(q, actualIndex) : `<div>Pregunta: ${q.question}</div>`;
+                            }).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+    });
+    
+    // Preguntas sin tema
+    if (questionsWithoutTopic.length > 0) {
+        html += `
+            <div style="margin-bottom: 15px; border: 1px solid #6b7280; border-radius: 8px; background: white; overflow: hidden;">
+                <h3 style="background: linear-gradient(135deg, #6b7280, #4b5563); color: white; padding: 12px 15px; margin: 0; font-size: 14px; font-weight: 600;">
+                    📋 PREGUNTAS SIN TEMA
+                    <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 12px; font-size: 12px; margin-left: 10px;">
+                        ${questionsWithoutTopic.length} preguntas
+                    </span>
+                </h3>
+                <div style="border-top: none; background: white;">
+                    ${questionsWithoutTopic.map(q => {
+                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                        return renderSingleQuestion ? renderSingleQuestion(q, actualIndex) : `<div>Pregunta: ${q.question}</div>`;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    return html || '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
+}
+
+// ASEGURAR que updateSelectedTopic refleje los cambios de nombre
+const originalUpdateSelectedTopic = window.updateSelectedTopic;
+window.updateSelectedTopic = function() {
+    if (typeof originalUpdateSelectedTopic === 'function') {
+        originalUpdateSelectedTopic();
+    } else {
+        // Implementación básica
+        const selector = document.getElementById('topic-selector');
+        if (selector && selector.value) {
+            const selectedTopic = state.topics.find(t => t.id == selector.value);
+            if (selectedTopic) {
+                state.selectedTopicForNewQuestions = selectedTopic.id;
+                showMessage(`Tema "${selectedTopic.name}" seleccionado`, 'success');
+            }
+        } else {
+            state.selectedTopicForNewQuestions = null;
+        }
+        render();
+    }
+};
+
+// MEJORAR la función getTopicName para asegurar consistencia
+if (typeof window.getTopicName !== 'function') {
+    window.getTopicName = function(topicId) {
+        if (!topicId) return null;
+        const topic = state.topics.find(t => t.id == topicId);
+        return topic ? topic.name : null;
+    };
+}
+
+// INTERCEPTAR render para asegurar que los cambios se reflejen
+const originalRender = window.render;
+window.render = function() {
+    // Llamar al render original
+    if (typeof originalRender === 'function') {
+        originalRender();
+    }
+    
+    // Post-procesamiento para asegurar que los selectores muestren nombres actualizados
+    setTimeout(() => {
+        updateAllTopicSelectors();
+    }, 50);
+};
+
+// FUNCIÓN para actualizar todos los selectores de temas
+function updateAllTopicSelectors() {
+    // Actualizar selector principal de temas para nuevas preguntas
+    const mainSelector = document.getElementById('topic-selector');
+    if (mainSelector) {
+        const currentValue = mainSelector.value;
+        
+        // Reconstruir opciones
+        mainSelector.innerHTML = '<option value="">🏷️ Seleccionar Tema</option>';
+        state.topics.forEach(topic => {
+            const option = document.createElement('option');
+            option.value = topic.id;
+            option.textContent = `${topic.name} (${getTopicQuestionCount(topic.id)})`;
+            option.selected = currentValue == topic.id;
+            mainSelector.appendChild(option);
+        });
+    }
+    
+    // Actualizar selector de filtros si existe
+    const filterSelector = document.getElementById('topic-filter');
+    if (filterSelector) {
+        const currentFilterValue = filterSelector.value;
+        
+        filterSelector.innerHTML = '<option value="all">Todos los temas</option>';
+        state.topics.forEach(topic => {
+            const option = document.createElement('option');
+            option.value = topic.id;
+            option.textContent = `${topic.name} (${getTopicQuestionCount(topic.id)})`;
+            option.selected = currentFilterValue == topic.id;
+            filterSelector.appendChild(option);
+        });
+    }
+    
+    // Actualizar otros selectores si existen (resúmenes, etc.)
+    const summarySelector = document.getElementById('summary-topic-selector');
+    if (summarySelector && typeof summarySystemState !== 'undefined') {
+        const currentSummaryValue = summarySelector.value;
+        
+        summarySelector.innerHTML = '<option value="">📂 Seleccionar Tema</option>';
+        if (summarySystemState.summaryTopics) {
+            summarySystemState.summaryTopics.forEach(topic => {
+                const option = document.createElement('option');
+                option.value = topic.id;
+                option.textContent = `${topic.name} (${getSummaryTopicCount ? getSummaryTopicCount(topic.id) : 0})`;
+                option.selected = currentSummaryValue == topic.id;
+                summarySelector.appendChild(option);
+            });
+        }
+    }
+}
+
+// FUNCIÓN auxiliar para contar preguntas por tema
+function getTopicQuestionCount(topicId) {
+    if (typeof getTopicQuestionCountDef === 'function') {
+        return getTopicQuestionCountDef(topicId);
+    }
+    
+    return state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
+}
+
+// VERIFICAR que la función de eliminar tema existe
+if (typeof window.deleteTopicAndQuestions !== 'function') {
+    window.deleteTopicAndQuestions = function(topicId) {
+        const topic = state.topics.find(t => t.id == topicId);
+        if (!topic) return;
+        
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString());
+        const confirmMessage = `¿Eliminar el tema "${topic.name}" y sus ${topicQuestions.length} preguntas?\n\nEsta acción no se puede deshacer.`;
+        
+        if (confirm(confirmMessage)) {
+            // Eliminar preguntas del tema
+            state.questions = state.questions.filter(q => !(q.topicId && q.topicId.toString() === topicId.toString()));
+            
+            // Eliminar tema
+            state.topics = state.topics.filter(t => t.id != topicId);
+            
+            // Guardar cambios
+            localStorage.setItem('questions', JSON.stringify(state.questions));
+            localStorage.setItem('topics', JSON.stringify(state.topics));
+            
+            // Limpiar selección si era el tema seleccionado
+            if (state.selectedTopicForNewQuestions == topicId) {
+                state.selectedTopicForNewQuestions = null;
+            }
+            
+            render();
+            showMessage(`Tema "${topic.name}" y ${topicQuestions.length} preguntas eliminadas`, 'success');
+        }
+    };
+}
+
+console.log('✅ Parche aplicado correctamente');
+console.log('✏️ Funcionalidades añadidas:');
+console.log('   - Botón ✏️ para editar nombres de temas');
+console.log('   - Cambios se reflejan en toda la aplicación');
+console.log('   - Actualización automática de selectores');
+console.log('   - Validación de nombres duplicados');
+console.log('   - Persistencia en localStorage');
+console.log('   - Compatible con sistema de carpetas colapsables');
+</script>
 </body>
 </html>
+
 
 
 
