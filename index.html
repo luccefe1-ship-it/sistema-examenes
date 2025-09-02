@@ -18502,12 +18502,13 @@ function closeCustomizeModal() {
 // Función para restaurar todos los datos a cero (NUEVA)
 function resetAllProgress() {
     const totalTopics = progressState.studyTopics.length;
+    const totalTests = progressState.studyTopics.reduce((sum, topic) => sum + countTestsByTopic(topic.name), 0);
     
     // Mostrar popup de confirmación doble
-    const firstConfirm = confirm(`⚠️ ADVERTENCIA: Restaurar Datos a Cero\n\n¿Estás COMPLETAMENTE SEGURO de que quieres eliminar TODO el progreso?\n\nEsto afectará a ${totalTopics} temas y NO se puede deshacer.`);
+    const firstConfirm = confirm(`⚠️ ADVERTENCIA: Restaurar Datos a Cero\n\n¿Estás COMPLETAMENTE SEGURO de que quieres eliminar TODO el progreso?\n\nEsto eliminará:\n• ${totalTopics} temas (páginas y vueltas)\n• ${totalTests} resultados de tests\n\nNO se puede deshacer.`);
     
     if (firstConfirm) {
-        const secondConfirm = confirm(`🚨 ÚLTIMA CONFIRMACIÓN\n\nEsto eliminará PERMANENTEMENTE:\n• Todas las páginas estudiadas\n• Todas las vueltas completadas\n• Todo el progreso de todos los temas\n\n¿CONFIRMAS que quieres continuar?`);
+        const secondConfirm = confirm(`🚨 ÚLTIMA CONFIRMACIÓN\n\nEsto eliminará PERMANENTEMENTE:\n• Todas las páginas estudiadas\n• Todas las vueltas completadas\n• TODO el progreso de todos los temas\n• TODOS los resultados de tests realizados\n\n¿CONFIRMAS que quieres continuar?`);
         
         if (secondConfirm) {
             // Resetear TODOS los temas a estado inicial
@@ -18518,6 +18519,34 @@ function resetAllProgress() {
                 topic.firstRoundPages = 0;
             });
             
+            // ELIMINAR TODOS LOS TESTS REALIZADOS
+            if (state.testResults && state.testResults.length > 0) {
+                // Filtrar y eliminar tests de todos los temas
+                const topicNames = progressState.studyTopics.map(topic => topic.name);
+                
+                const originalTestCount = state.testResults.length;
+                state.testResults = state.testResults.filter(result => {
+                    // Eliminar si el test corresponde a algún tema de progreso
+                    if (result.testType) {
+                        return !topicNames.some(topicName => result.testType.includes(topicName));
+                    }
+                    return true; // Conservar tests que no son de temas específicos
+                });
+                
+                const deletedTests = originalTestCount - state.testResults.length;
+                console.log(`🗑️ Tests eliminados: ${deletedTests} de ${originalTestCount}`);
+                
+                // Guardar los cambios en localStorage
+                if (state.currentUser) {
+                    localStorage.setItem(`testbank_${state.currentUser.username}`, JSON.stringify({
+                        questions: state.questions || [],
+                        topics: state.topics || [],
+                        testResults: state.testResults || [],
+                        apiKey: state.apiKey || ''
+                    }));
+                }
+            }
+            
             saveProgressData();
             
             // Re-renderizar la pantalla
@@ -18525,8 +18554,8 @@ function resetAllProgress() {
                 showProgressTab();
             }
             
-            showMessage(`🔄 TODOS LOS DATOS RESTAURADOS A CERO\n✅ ${totalTopics} temas reiniciados completamente`, 'success');
-            console.log(`🔄 RESET COMPLETO: ${totalTopics} temas restaurados a estado inicial`);
+            showMessage(`🔄 RESTAURACIÓN COMPLETA REALIZADA\n✅ ${totalTopics} temas reiniciados\n✅ ${totalTests} tests eliminados\n✅ Todo vuelve a estado inicial`, 'success');
+            console.log(`🔄 RESET COMPLETO: ${totalTopics} temas + ${totalTests} tests eliminados`);
         }
     }
 }
@@ -19018,6 +19047,7 @@ console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
