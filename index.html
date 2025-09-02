@@ -18273,9 +18273,9 @@ console.log('🔄 Aplicando parche completo: Sistema de Vueltas con Colores...')
 // Estado del sistema de progreso ACTUALIZADO
 let progressState = {
     studyTopics: [
-        { id: 'tema1', name: 'Tema 1', totalPages: 30, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0 },
-        { id: 'tema2', name: 'Tema 2', totalPages: 33, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0 },
-        { id: 'tema3', name: 'Tema 3', totalPages: 19, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0 }
+        { id: 'tema1', name: 'Tema 1', totalPages: 30, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0, manualTestCount: 0 },
+        { id: 'tema2', name: 'Tema 2', totalPages: 33, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0, manualTestCount: 0 },
+        { id: 'tema3', name: 'Tema 3', totalPages: 19, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0, manualTestCount: 0 }
     ]
 };
 
@@ -18306,6 +18306,7 @@ function loadProgressData() {
                         defaultTopic.currentRound = savedTopic.currentRound || 1;
                         defaultTopic.completedRounds = savedTopic.completedRounds || 0;
                         defaultTopic.firstRoundPages = savedTopic.firstRoundPages || savedTopic.studiedPages || 0;
+                        defaultTopic.manualTestCount = savedTopic.manualTestCount || 0;
                         if (savedTopic.name) defaultTopic.name = savedTopic.name;
                         if (savedTopic.totalPages) defaultTopic.totalPages = savedTopic.totalPages;
                     }
@@ -18322,7 +18323,8 @@ function loadProgressData() {
                             studiedPages: savedTopic.studiedPages || 0,
                             currentRound: savedTopic.currentRound || 1,
                             completedRounds: savedTopic.completedRounds || 0,
-                            firstRoundPages: savedTopic.firstRoundPages || savedTopic.studiedPages || 0
+                            firstRoundPages: savedTopic.firstRoundPages || savedTopic.studiedPages || 0,
+                            manualTestCount: savedTopic.manualTestCount || 0
                         });
                     }
                 }
@@ -18366,7 +18368,7 @@ function saveProgressData() {
     }
 }
 
-// Contar tests realizados por tema (IGUAL)
+// Contar tests realizados por tema (automáticos - IGUAL)
 function countTestsByTopic(topicName) {
     if (!state.testResults) return 0;
     
@@ -18376,6 +18378,36 @@ function countTestsByTopic(topicName) {
         }
         return false;
     }).length;
+}
+
+// Función para cambiar manualmente el contador de tests (NUEVA)
+function changeManualTestCount(topicId, change) {
+    const topic = progressState.studyTopics.find(t => t.id === topicId);
+    if (!topic) return;
+    
+    const newValue = topic.manualTestCount + change;
+    
+    // Validar límites (no permitir negativos)
+    if (newValue < 0) return;
+    
+    topic.manualTestCount = newValue;
+    
+    saveProgressData();
+    
+    // Re-renderizar si estamos en la pestaña de progreso
+    if (state.currentTab === 'progress') {
+        showProgressTab();
+    }
+    
+    console.log(`🧪 ${topic.name}: Tests manuales: ${topic.manualTestCount}`);
+}
+
+// Contar tests totales por tema (automático + manual) - NUEVA
+function getTotalTestsByTopic(topicName) {
+    const topic = progressState.studyTopics.find(t => t.name === topicName);
+    const automaticTests = countTestsByTopic(topicName);
+    const manualTests = topic ? topic.manualTestCount : 0;
+    return automaticTests + manualTests;
 }
 
 // Obtener color de la vuelta actual
@@ -18469,7 +18501,8 @@ function saveCustomTopics() {
                 studiedPages: existingTopic ? existingTopic.studiedPages : 0,
                 currentRound: existingTopic ? existingTopic.currentRound : 1,
                 completedRounds: existingTopic ? existingTopic.completedRounds : 0,
-                firstRoundPages: existingTopic ? existingTopic.firstRoundPages : 0
+                firstRoundPages: existingTopic ? existingTopic.firstRoundPages : 0,
+                manualTestCount: existingTopic ? existingTopic.manualTestCount : 0
             });
         }
     });
@@ -18502,7 +18535,7 @@ function closeCustomizeModal() {
 // Función para restaurar todos los datos a cero (NUEVA)
 function resetAllProgress() {
     const totalTopics = progressState.studyTopics.length;
-    const totalTests = progressState.studyTopics.reduce((sum, topic) => sum + countTestsByTopic(topic.name), 0);
+    const totalTests = progressState.studyTopics.reduce((sum, topic) => sum + getTotalTestsByTopic(topic.name), 0);
     
     // Mostrar popup de confirmación doble
     const firstConfirm = confirm(`⚠️ ADVERTENCIA: Restaurar Datos a Cero\n\n¿Estás COMPLETAMENTE SEGURO de que quieres eliminar TODO el progreso?\n\nEsto eliminará:\n• ${totalTopics} temas (páginas y vueltas)\n• ${totalTests} resultados de tests\n\nNO se puede deshacer.`);
@@ -18517,6 +18550,7 @@ function resetAllProgress() {
                 topic.currentRound = 1;
                 topic.completedRounds = 0;
                 topic.firstRoundPages = 0;
+                topic.manualTestCount = 0;
             });
             
             // ELIMINAR TODOS LOS TESTS REALIZADOS
@@ -18559,18 +18593,20 @@ function resetAllProgress() {
         }
     }
 }
+
 function resetTopicProgress(topicId) {
     const topic = progressState.studyTopics.find(t => t.id === topicId);
     if (!topic) return;
     
     // Mostrar popup de confirmación
-    const confirmReset = confirm(`¿Estás seguro de que quieres reiniciar el progreso de "${topic.name}"?\n\nEsto restaurará:\n- Páginas estudiadas: 0\n- Vuelta actual: Primera\n- Vueltas completadas: 0`);
+    const confirmReset = confirm(`¿Estás seguro de que quieres reiniciar el progreso de "${topic.name}"?\n\nEsto restaurará:\n- Páginas estudiadas: 0\n- Vuelta actual: Primera\n- Vueltas completadas: 0\n- Tests manuales: 0`);
     
     if (confirmReset) {
         topic.studiedPages = 0;
         topic.currentRound = 1;
         topic.completedRounds = 0;
         topic.firstRoundPages = 0;
+        topic.manualTestCount = 0;
         
         saveProgressData();
         
@@ -18591,7 +18627,7 @@ function renderProgressScreen() {
     const totalPages = progressState.studyTopics.reduce((sum, topic) => sum + topic.totalPages, 0);
     // CAMBIO: Solo contar las páginas de la primera vuelta para el progreso general
     const totalStudied = progressState.studyTopics.reduce((sum, topic) => sum + topic.firstRoundPages, 0);
-    const totalTests = progressState.studyTopics.reduce((sum, topic) => sum + countTestsByTopic(topic.name), 0);
+    const totalTests = progressState.studyTopics.reduce((sum, topic) => sum + getTotalTestsByTopic(topic.name), 0);
     const overallProgress = totalPages > 0 ? Math.round((totalStudied / totalPages) * 100) : 0;
     
     // Calcular progreso general considerando vueltas completadas
@@ -18630,7 +18666,9 @@ function renderProgressScreen() {
                 <!-- Filas de temas -->
                 ${progressState.studyTopics.map((topic, index) => {
                     const progress = topic.totalPages > 0 ? Math.round((topic.studiedPages / topic.totalPages) * 100) : 0;
-                    const testsCount = countTestsByTopic(topic.name);
+                    const automaticTests = countTestsByTopic(topic.name);
+                    const manualTests = topic.manualTestCount || 0;
+                    const totalTests = automaticTests + manualTests;
                     const roundInfo = getRoundColor(topic.currentRound);
                     
                     return `
@@ -18650,8 +18688,13 @@ function renderProgressScreen() {
                                 <span style="font-weight: 500; min-width: 45px;">${topic.studiedPages}/${topic.totalPages}</span>
                                 <button onclick="changeStudiedPages('${topic.id}', 1)" style="background: #22c55e; color: white; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-size: 12px; font-weight: bold;">+</button>
                             </div>
-                            <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; font-weight: 500; color: #059669;">
-                                ${testsCount}
+                            <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                <button onclick="changeManualTestCount('${topic.id}', -1)" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 20px; height: 20px; cursor: pointer; font-size: 10px; font-weight: bold;">-</button>
+                                <div style="text-align: center; min-width: 35px;">
+                                    <span style="font-weight: 600; color: #059669; display: block; font-size: 14px;">${totalTests}</span>
+                                    ${automaticTests > 0 && manualTests > 0 ? `<span style="font-size: 10px; color: #6b7280;">${automaticTests}+${manualTests}</span>` : ''}
+                                </div>
+                                <button onclick="changeManualTestCount('${topic.id}', 1)" style="background: #22c55e; color: white; border: none; border-radius: 4px; width: 20px; height: 20px; cursor: pointer; font-size: 10px; font-weight: bold;">+</button>
                             </div>
                             <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: ${roundInfo.color}; font-weight: 600;">
                                 ${roundInfo.name}
@@ -18938,6 +18981,8 @@ window.addNewTopic = addNewTopic;
 window.removeTopic = removeTopic;
 window.saveCustomTopics = saveCustomTopics;
 window.closeCustomizeModal = closeCustomizeModal;
+window.changeManualTestCount = changeManualTestCount;
+window.getTotalTestsByTopic = getTotalTestsByTopic;
 
 // INTERCEPTAR renderIntermediateScreen (IGUAL)
 const originalRenderIntermediateScreenProgress = renderIntermediateScreen;
@@ -19039,6 +19084,7 @@ console.log('   - Contador de vueltas completadas');
 console.log('   - Leyenda de colores visual');
 console.log('   - Botón reiniciar tema con confirmación');
 console.log('   - Personalización de temas (agregar/eliminar)');
+console.log('   - Tests manuales + automáticos combinados');
 console.log('   - Progreso general solo cuenta primera vuelta');
 console.log('   - Datos de progreso NO se exportan (privados)');
 console.log('🎨 Colores por vuelta:');
@@ -19047,6 +19093,7 @@ console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
