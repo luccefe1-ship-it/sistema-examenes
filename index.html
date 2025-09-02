@@ -7574,9 +7574,15 @@ Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 Versión corregida con botón en header y diseño mejorado
 -->
 
+<!-- 
+PARCHE MODIFICADO: SISTEMA DE TARJETAS DE MEMORIA + EXPORTAR SOLO CONTENIDO
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Versión modificada que exporta SOLO datos de contenido (portable entre usuarios)
+-->
+
 <script>
-    // ========== PARCHE CORREGIDO: SISTEMA DE TARJETAS DE MEMORIA + EXPORTAR ==========
-    console.log('🃏 Implementando sistema de tarjetas de memoria corregido con exportación...');
+    // ========== PARCHE MODIFICADO: SISTEMA DE TARJETAS DE MEMORIA + EXPORTAR CONTENIDO ==========
+    console.log('🃏 Implementando sistema de tarjetas de memoria + exportación de contenido portable...');
     
     // Estado para las tarjetas de memoria
     let memoryCardsState = {
@@ -7664,8 +7670,8 @@ Versión corregida con botón en header y diseño mejorado
         showMessage('Tarjetas mezcladas aleatoriamente', 'success');
     }
     
-    // FUNCIÓN para EXPORTAR datos completos
-    function exportUserDataComplete() {
+    // ========== NUEVA FUNCIÓN: EXPORTAR SOLO CONTENIDO (PORTABLE) ==========
+    function exportContentDataOnly() {
         if (!state.currentUser) {
             showMessage('❌ Error: No hay usuario logueado', 'error');
             return;
@@ -7674,29 +7680,14 @@ Versión corregida con botón en header y diseño mejorado
         try {
             const username = state.currentUser.username;
             
-            // Obtener datos de la cuenta desde localStorage
-            const allUsers = JSON.parse(localStorage.getItem('realSystemUsers') || '{}');
-            const accountData = allUsers[username];
-            
-            if (!accountData) {
-                showMessage('❌ Error: No se encontraron datos de la cuenta', 'error');
-                return;
-            }
-            
-            // Crear backup completo con cuenta + datos
-            const completeBackup = {
-                version: "2.0",
+            // Crear backup SOLO con datos de contenido (sin datos de cuenta)
+            const contentBackup = {
+                version: "3.0", // Nueva versión para datos portables
                 exportDate: new Date().toISOString(),
                 exportTimestamp: Date.now(),
-                username: username,
-                accountData: {
-                    password: accountData.password,
-                    name: accountData.name,
-                    securityQuestion: accountData.securityQuestion,
-                    securityAnswer: accountData.securityAnswer,
-                    createdAt: accountData.createdAt
-                },
-                userData: {
+                exportType: "content_only", // Indicar que es solo contenido
+                originalUser: username, // Solo para referencia, no para validación
+                contentData: {
                     questions: state.questions || [],
                     topics: state.topics || [],
                     testResults: state.testResults || [],
@@ -7714,18 +7705,18 @@ Versión corregida con botón en header y diseño mejorado
             
             // Mostrar estadísticas antes de descargar
             const statsMessage = `
-📊 BACKUP COMPLETO GENERADO:
-• Preguntas: ${completeBackup.stats.totalQuestions}
-• Temas: ${completeBackup.stats.totalTopics}
-• Tests realizados: ${completeBackup.stats.totalTests}
-• Resúmenes: ${completeBackup.stats.totalSummaries}
-• Datos de cuenta: ✅ Incluidos
+📊 BACKUP DE CONTENIDO GENERADO:
+• Preguntas: ${contentBackup.stats.totalQuestions}
+• Temas: ${contentBackup.stats.totalTopics}  
+• Tests realizados: ${contentBackup.stats.totalTests}
+• Resúmenes: ${contentBackup.stats.totalSummaries}
+• Datos de cuenta: ❌ NO incluidos (portable)
             `;
             
             showMessage(statsMessage, 'success');
             
             // Crear archivo para descarga
-            const blob = new Blob([JSON.stringify(completeBackup, null, 2)], { 
+            const blob = new Blob([JSON.stringify(contentBackup, null, 2)], { 
                 type: 'application/json' 
             });
             const url = URL.createObjectURL(blob);
@@ -7734,7 +7725,7 @@ Versión corregida con botón en header y diseño mejorado
             const dateStr = new Date().toISOString().split('T')[0];
             const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
             a.href = url;
-            a.download = `backup_completo_${username}_${dateStr}_${timeStr}.json`;
+            a.download = `contenido_portable_${dateStr}_${timeStr}.json`;
             
             document.body.appendChild(a);
             a.click();
@@ -7744,22 +7735,168 @@ Versión corregida con botón en header y diseño mejorado
             // Mensaje de confirmación con instrucciones
             setTimeout(() => {
                 showMessage(`
-✅ BACKUP DESCARGADO EXITOSAMENTE
-📁 Archivo: backup_completo_${username}_${dateStr}_${timeStr}.json
+✅ BACKUP DE CONTENIDO DESCARGADO
+📁 Archivo: contenido_portable_${dateStr}_${timeStr}.json
 
 💡 INSTRUCCIONES:
-• Guarda este archivo en un lugar seguro
-• Para usar en otro dispositivo: Login + Importar este archivo
-• Incluye tanto tu cuenta como todos tus datos
+• Este archivo contiene SOLO tus datos (no cuenta)
+• Se puede importar desde cualquier usuario
+• Perfecto para compartir contenido entre cuentas
+• Para usar: Login + usar "📥 Importar Contenido"
                 `, 'success');
             }, 1000);
             
-            console.log('✅ Backup completo exportado para:', username);
+            console.log('✅ Backup de contenido portable exportado');
             
         } catch (error) {
-            console.error('❌ Error exportando backup:', error);
-            showMessage('❌ Error al exportar datos: ' + error.message, 'error');
+            console.error('❌ Error exportando contenido:', error);
+            showMessage('❌ Error al exportar contenido: ' + error.message, 'error');
         }
+    }
+    
+    // ========== NUEVA FUNCIÓN: IMPORTAR CONTENIDO DESDE CUALQUIER USUARIO ==========
+    function importContentFromFile() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        
+        input.onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            if (!file.name.endsWith('.json')) {
+                showMessage('❌ Por favor selecciona un archivo .json válido', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    
+                    // Validar que sea un archivo válido
+                    if (!importedData.contentData && !importedData.userData) {
+                        throw new Error('Archivo no válido: falta datos de contenido');
+                    }
+                    
+                    // Determinar tipo de archivo y extraer datos
+                    let sourceData;
+                    let fileType = "desconocido";
+                    
+                    if (importedData.exportType === "content_only") {
+                        // Archivo nuevo de solo contenido
+                        sourceData = importedData.contentData;
+                        fileType = "contenido portable";
+                    } else if (importedData.userData) {
+                        // Archivo viejo completo, usar solo userData
+                        sourceData = importedData.userData;
+                        fileType = "backup completo (solo datos)";
+                    } else {
+                        throw new Error('Formato de archivo no reconocido');
+                    }
+                    
+                    // Mostrar información del archivo
+                    const stats = importedData.stats || {};
+                    const questionsCount = sourceData.questions?.length || 0;
+                    const topicsCount = sourceData.topics?.length || 0;
+                    const testsCount = sourceData.testResults?.length || 0;
+                    const summariesCount = sourceData.savedSummaries?.length || 0;
+                    
+                    // Confirmar importación
+                    const confirmMsg = `¿Importar este contenido a tu cuenta actual?
+
+📄 TIPO: ${fileType}
+${importedData.originalUser ? `👤 Usuario original: ${importedData.originalUser}` : ''}
+
+📊 DATOS A IMPORTAR:
+• Preguntas: ${questionsCount}
+• Temas: ${topicsCount}
+• Tests: ${testsCount}
+• Resúmenes: ${summariesCount}
+
+⚠️ ATENCIÓN: 
+• Los datos se AGREGARÁN a tu cuenta actual
+• Se evitarán duplicados automáticamente
+• Tu contenido actual NO se borrará`;
+                    
+                    if (!confirm(confirmMsg)) return;
+                    
+                    showMessage('🔄 Importando contenido...', 'info');
+                    
+                    // IMPORTAR datos agregándolos a los existentes
+                    const currentQuestions = state.questions || [];
+                    const currentTopics = state.topics || [];
+                    const currentTests = state.testResults || [];
+                    
+                    // Agregar preguntas (evitar duplicados por ID)
+                    const importedQuestions = sourceData.questions || [];
+                    const existingQuestionIds = new Set(currentQuestions.map(q => q.id));
+                    const newQuestions = importedQuestions.filter(q => !existingQuestionIds.has(q.id));
+                    
+                    // Agregar temas (evitar duplicados por nombre)
+                    const importedTopics = sourceData.topics || [];
+                    const existingTopicNames = new Set(currentTopics.map(t => t.name.toLowerCase()));
+                    const newTopics = importedTopics.filter(t => !existingTopicNames.has(t.name.toLowerCase()));
+                    
+                    // Regenerar IDs únicos para temas nuevos si es necesario
+                    newTopics.forEach(topic => {
+                        if (!topic.id) {
+                            topic.id = 'topic_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                        }
+                    });
+                    
+                    // Actualizar arrays globales
+                    state.questions = [...currentQuestions, ...newQuestions];
+                    state.topics = [...currentTopics, ...newTopics];
+                    state.testResults = [...currentTests, ...(sourceData.testResults || [])];
+                    
+                    // Importar datos de resúmenes si existen
+                    if (typeof summarySystemState !== 'undefined') {
+                        const currentSummaryTopics = summarySystemState.summaryTopics || [];
+                        const currentSummaries = summarySystemState.savedSummaries || [];
+                        
+                        summarySystemState.summaryTopics = [...currentSummaryTopics, ...(sourceData.summaryTopics || [])];
+                        summarySystemState.savedSummaries = [...currentSummaries, ...(sourceData.savedSummaries || [])];
+                    }
+                    
+                    // Guardar datos actualizados en localStorage del usuario
+                    if (typeof RealDataManager !== 'undefined') {
+                        RealDataManager.saveFromGlobalData(state.currentUser.username);
+                    } else {
+                        // Fallback manual si RealDataManager no existe
+                        const username = state.currentUser.username;
+                        localStorage.setItem(`realUser_${username}_questions`, JSON.stringify(state.questions));
+                        localStorage.setItem(`realUser_${username}_topics`, JSON.stringify(state.topics));
+                        localStorage.setItem(`realUser_${username}_testResults`, JSON.stringify(state.testResults));
+                    }
+                    
+                    // Actualizar interfaz
+                    render();
+                    
+                    showMessage(`
+✅ CONTENIDO IMPORTADO EXITOSAMENTE
+
+📊 RESUMEN DE IMPORTACIÓN:
+• Preguntas añadidas: ${newQuestions.length}
+• Temas añadidos: ${newTopics.length}
+• Tests importados: ${(sourceData.testResults || []).length}
+• Resúmenes importados: ${(sourceData.savedSummaries || []).length}
+
+🎉 ¡Tu contenido ha sido actualizado!
+                    `, 'success');
+                    
+                    console.log(`✅ Contenido importado: ${newQuestions.length} preguntas, ${newTopics.length} temas`);
+                    
+                } catch (error) {
+                    console.error('Error importando contenido:', error);
+                    showMessage('❌ Error al importar archivo: ' + error.message, 'error');
+                }
+            };
+            
+            reader.readAsText(file);
+        };
+        
+        input.click();
     }
     
     // FUNCIÓN para renderizar la sección de tarjetas de memoria
@@ -7937,91 +8074,102 @@ Versión corregida con botón en header y diseño mejorado
         `;
     }
     
-    // INTERCEPTAR la función renderIntermediateScreen para añadir la tercera opción y exportar
+    // INTERCEPTAR la función renderIntermediateScreen para añadir las nuevas opciones
     const originalRenderIntermediateScreen = renderIntermediateScreen;
     window.renderIntermediateScreen = function() {
-    return `
-        <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: -30px; border-radius: 20px;">
-            <div style="background: white; border-radius: 24px; padding: 60px; box-shadow: 0 25px 50px rgba(0,0,0,0.15); max-width: 600px; width: 100%; text-align: center; position: relative; overflow: hidden;">
-                
-                <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: linear-gradient(135deg, #667eea20, #764ba220); border-radius: 50%; z-index: 0;"></div>
-                <div style="position: absolute; bottom: -30px; left: -30px; width: 100px; height: 100px; background: linear-gradient(135deg, #764ba220, #667eea20); border-radius: 50%; z-index: 0;"></div>
-                
-                <div style="position: relative; z-index: 1;">
-                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);">
-                        <span style="font-size: 2.5rem; filter: drop-shadow(0 2px 4px rgba(255,255,255,0.3));">🎯</span>
-                    </div>
+        return `
+            <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: -30px; border-radius: 20px;">
+                <div style="background: white; border-radius: 24px; padding: 60px; box-shadow: 0 25px 50px rgba(0,0,0,0.15); max-width: 600px; width: 100%; text-align: center; position: relative; overflow: hidden;">
                     
-                    <h1 style="font-size: 2.8rem; font-weight: 700; margin: 0 0 15px 0; background: linear-gradient(135deg, #2d3748, #4a5568); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
-                        ¡Bienvenid@!
-                    </h1>
+                    <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: linear-gradient(135deg, #667eea20, #764ba220); border-radius: 50%; z-index: 0;"></div>
+                    <div style="position: absolute; bottom: -30px; left: -30px; width: 100px; height: 100px; background: linear-gradient(135deg, #764ba220, #667eea20); border-radius: 50%; z-index: 0;"></div>
                     
-                    <p style="font-size: 1.3rem; color: #6b7280; margin: 0 0 50px 0; font-weight: 400; line-height: 1.5;">
-                        Selecciona qué te gustaría hacer hoy
-                    </p>
-                    
-                    <div style="display: grid; gap: 15px; margin-bottom: 40px;">
+                    <div style="position: relative; z-index: 1;">
+                        <div style="background: linear-gradient(135deg, #667eea, #764ba2); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);">
+                            <span style="font-size: 2.5rem; filter: drop-shadow(0 2px 4px rgba(255,255,255,0.3));">🎯</span>
+                        </div>
                         
-                        <button onclick="goToTests()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                                <span style="font-size: 1.5rem;">📚</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Realizar Tests</div>
-                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Crear y gestionar exámenes</div>
-                                </div>
-                            </div>
-                        </button>
+                        <h1 style="font-size: 2.8rem; font-weight: 700; margin: 0 0 15px 0; background: linear-gradient(135deg, #2d3748, #4a5568); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                            ¡Bienvenid@!
+                        </h1>
                         
-                        <button onclick="goToSummaries()" style="background: linear-gradient(135deg, #059669, #0ea5e9); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                                <span style="font-size: 1.5rem;">📊</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Ver Resúmenes</div>
-                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Analizar resultados y estadísticas</div>
-                                </div>
-                            </div>
-                        </button>
+                        <p style="font-size: 1.3rem; color: #6b7280; margin: 0 0 50px 0; font-weight: 400; line-height: 1.5;">
+                            Selecciona qué te gustaría hacer hoy
+                        </p>
                         
-                        <button onclick="goToMemoryCards()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                                <span style="font-size: 1.5rem;">🃏</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Tarjetas de Memoria</div>
-                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Repasar con tarjetas interactivas</div>
+                        <div style="display: grid; gap: 15px; margin-bottom: 40px;">
+                            
+                            <button onclick="goToTests()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📚</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Realizar Tests</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Crear y gestionar exámenes</div>
+                                    </div>
                                 </div>
-                            </div>
-                        </button>
+                            </button>
+                            
+                            <button onclick="goToSummaries()" style="background: linear-gradient(135deg, #059669, #0ea5e9); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📊</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Ver Resúmenes</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Analizar resultados y estadísticas</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button onclick="goToMemoryCards()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">🃏</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Tarjetas de Memoria</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Repasar con tarjetas interactivas</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button onclick="goToMultiplayer()" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">⚔️</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Duelo de Preguntas</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Compete con otros usuarios</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <!-- NUEVO: BOTÓN EXPORTAR CONTENIDO PORTABLE -->
+                            <button onclick="exportContentDataOnly()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📤</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Exportar Contenido</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Descargar datos portables</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <!-- NUEVO: BOTÓN IMPORTAR CONTENIDO -->
+                            <button onclick="importContentFromFile()" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📥</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Importar Contenido</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Cargar datos desde archivo</div>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
                         
-                        <button onclick="goToMultiplayer()" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                                <span style="font-size: 1.5rem;">⚔️</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Duelo de Preguntas</div>
-                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Compete con otros usuarios</div>
-                                </div>
-                            </div>
-                        </button>
-                        
-                        <!-- BOTÓN EXPORTAR DATOS -->
-                        <button onclick="exportUserDataComplete()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                                <span style="font-size: 1.5rem;">💾</span>
-                                <div style="text-align: left;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Exportar Mis Datos</div>
-                                    <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Descargar backup completo</div>
-                                </div>
-                            </div>
-                        </button>
-                    </div>
-                    
-                    <div style="border-top: 1px solid #e5e7eb; padding-top: 25px; color: #9ca3af; font-size: 0.9rem;">
-                        <p style="margin: 0;">Sistema de Exámenes • Usuario: ${state.currentUser.name}</p>
+                        <div style="border-top: 1px solid #e5e7eb; padding-top: 25px; color: #9ca3af; font-size: 0.9rem;">
+                            <p style="margin: 0;">Sistema de Exámenes • Usuario: ${state.currentUser.name}</p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    `;
-};
+        `;
+    };
     
     // EXTENDER renderTabContent para incluir memory-cards
     const originalRenderTabContentMemory = renderTabContent;
@@ -8158,13 +8306,16 @@ Versión corregida con botón en header y diseño mejorado
     
     setupMemoryCardsKeyboard();
     
-    console.log('✅ Sistema de Tarjetas de Memoria + EXPORTAR implementado');
-    console.log('🃏 Funcionalidades:');
+    console.log('✅ Sistema Completo Implementado: Tarjetas de Memoria + Exportar/Importar Contenido Portable');
+    console.log('🃏 Funcionalidades de Tarjetas:');
     console.log('   - Botón "🏠 Menú" en header');
     console.log('   - Tarjeta con animación flotante');
-    console.log('   - Botón "💾 Exportar Mis Datos" en menú principal');
-    console.log('   - Backup completo: cuenta + datos');
-    console.log('   - Compatible con sistema de importación');
+    console.log('   - Atajos de teclado (←→ navegación, Espacio ver respuesta)');
+    console.log('📤 Funcionalidades de Exportación/Importación:');
+    console.log('   - "📤 Exportar Contenido": SOLO datos (preguntas, temas, tests)');
+    console.log('   - "📥 Importar Contenido": Compatible con cualquier usuario');
+    console.log('   - Evita duplicados automáticamente');
+    console.log('   - Perfecto para compartir contenido entre cuentas');
     
     setTimeout(() => {
         if (state.currentUser && typeof window.render === 'function') {
@@ -18096,6 +18247,7 @@ console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
     
 </body>
 </html>
+
 
 
 
