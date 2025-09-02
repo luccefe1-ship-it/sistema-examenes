@@ -18239,9 +18239,168 @@ console.log('   - ✅ Resalta términos encontrados en amarillo');
 console.log('   - ✅ Combinable con filtro por tema');
 console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
 </script>
+ <!-- 
+PARCHE: ESTRELLITAS INTERACTIVAS EN PREGUNTAS FILTRADAS
+Añadir este código al final del archivo index.html, justo antes de </body>
+Este parche permite validar preguntas con estrella mientras usas el buscador
+-->
+
+<script>
+console.log('⭐ Aplicando parche: Estrellitas interactivas en búsqueda...');
+
+// REEMPLAZAR completamente la función renderSingleQuestionWithSearch
+function renderSingleQuestionWithSearch(q, actualIndex) {
+    const topicName = q.topicId ? getTopicName(q.topicId) : null;
+    const searchTerm = state.searchQuery || '';
     
+    // Resaltar términos en pregunta y opciones si hay búsqueda activa
+    let displayQuestion = q.question;
+    let displayOptions = q.options;
+    
+    if (searchTerm.length > 0) {
+        displayQuestion = highlightSearchTerm(q.question, searchTerm);
+        displayOptions = q.options.map(opt => highlightSearchTerm(opt, searchTerm));
+    }
+    
+    return `
+        <div style="padding: 15px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1; margin-right: 15px;">
+                <div style="margin-bottom: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    <strong style="color: #1f2937;">P${actualIndex + 1}:</strong>
+                    ${topicName ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px;">${topicName}</span>` : ''}
+                    ${q.isVerified ? '<span style="background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 8px; font-size: 11px;">✓ Verificada</span>' : ''}
+                </div>
+                <div style="font-weight: 500; margin-bottom: 8px; color: #374151; line-height: 1.4;">
+                    ${displayQuestion}
+                </div>
+                <ul style="list-style: none; margin: 0; padding: 0;">
+                    ${displayOptions.map((opt, optIndex) => `
+                        <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'}; font-size: 14px;">
+                            ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✅' : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+            <div style="display: flex; gap: 5px; flex-shrink: 0; margin-left: 15px;">
+                <button onclick="toggleVerified(${actualIndex})" class="btn ${q.isVerified ? 'btn-primary' : 'btn-secondary'}" style="padding: 4px 8px; font-size: 14px; ${q.isVerified ? 'background: linear-gradient(135deg, #3b82f6, #1d4ed8);' : ''}" title="${q.isVerified ? 'Pregunta verificada - Click para desmarcar' : 'Marcar como verificada'}">
+                    ${q.isVerified ? '⭐' : '☆'}
+                </button>
+                <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
+                <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
+            </div>
+        </div>
+    `;
+}
+
+// VERIFICAR que la función toggleVerified existe (debería existir ya)
+if (typeof window.toggleVerified !== 'function') {
+    console.log('⚠️ Creando función toggleVerified...');
+    
+    window.toggleVerified = function(index) {
+        if (state.questions[index]) {
+            state.questions[index].isVerified = !state.questions[index].isVerified;
+            localStorage.setItem('questions', JSON.stringify(state.questions));
+            render();
+            
+            const message = state.questions[index].isVerified ? 
+                '⭐ Pregunta verificada' : 
+                '☆ Verificación removida';
+            showMessage(message, 'success');
+        }
+    };
+}
+
+// MEJORAR también la actualización suave del contenedor de preguntas
+// Para que las estrellas funcionen sin perder el foco del buscador
+function updateQuestionsContainerSmooth() {
+    const container = document.getElementById('questions-container');
+    if (!container) {
+        console.log('📋 Container no encontrado, usando render completo');
+        render();
+        return;
+    }
+    
+    const filteredQuestions = getFilteredQuestions();
+    
+    // Determinar qué vista usar
+    let newHTML;
+    if (state.topics.length > 0 && state.selectedTopicFilter === 'all' && !state.searchQuery) {
+        newHTML = renderQuestionsByTopic();
+    } else {
+        newHTML = renderQuestionsFilteredWithSearch(filteredQuestions);
+    }
+    
+    // Actualizar el contenido
+    container.innerHTML = newHTML;
+    
+    // Actualizar también el indicador de resultados si existe
+    const indicator = document.getElementById('search-results-indicator');
+    if (indicator && state.searchQuery && state.searchQuery.length > 0) {
+        indicator.innerHTML = `📊 ${filteredQuestions.length} resultado${filteredQuestions.length === 1 ? '' : 's'} encontrado${filteredQuestions.length === 1 ? '' : 's'}`;
+    }
+}
+
+// SOBRESCRIBIR la función de búsqueda para usar actualización suave
+function performSearchSmooth() {
+    const searchInput = document.getElementById('search-input');
+    if (!searchInput) return;
+    
+    const newQuery = searchInput.value.trim();
+    state.searchQuery = newQuery;
+    
+    // Guardar en localStorage para persistencia
+    if (newQuery.length > 0) {
+        localStorage.setItem('searchQuery', newQuery);
+    } else {
+        localStorage.removeItem('searchQuery');
+    }
+    
+    // Actualizar vista suavemente SIN render completo
+    updateQuestionsContainerSmooth();
+}
+
+// ASEGURAR que los eventos de búsqueda usen la actualización suave
+document.addEventListener('input', function(e) {
+    if (e.target && e.target.id === 'search-input') {
+        // Usar un pequeño delay para evitar demasiadas actualizaciones
+        if (window.searchTimeout) {
+            clearTimeout(window.searchTimeout);
+        }
+        
+        window.searchTimeout = setTimeout(function() {
+            performSearchSmooth();
+        }, 150); // 150ms de delay
+    }
+});
+
+// MEJORAR también la función clearSearchSmooth para mantener consistencia
+function clearSearchSmooth() {
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus(); // Mantener el foco
+    }
+    
+    state.searchQuery = '';
+    localStorage.removeItem('searchQuery');
+    
+    // Actualizar suavemente
+    updateQuestionsContainerSmooth();
+    
+    showMessage('🔍 Búsqueda limpiada', 'info');
+}
+
+console.log('✅ Parche aplicado correctamente');
+console.log('⭐ Funcionalidades añadidas:');
+console.log('   - Botón de estrella interactivo en preguntas filtradas');
+console.log('   - Validación/desvalidación sin perder el foco del buscador');
+console.log('   - Actualización suave del contenedor de preguntas');
+console.log('   - Preserva todo el resaltado de búsqueda existente');
+console.log('   - Compatible con todos los filtros y búsquedas');
+</script>   
 </body>
 </html>
+
 
 
 
