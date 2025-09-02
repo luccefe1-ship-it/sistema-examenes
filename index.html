@@ -18245,84 +18245,83 @@ Corrige: 1) Elimina "Importar Mis Datos" del login 2) Permite verificar pregunta
 -->
 
 <script>
-    // ========== CORRECCIÓN 1: ELIMINAR IMPORTAR DEL LOGIN ==========
-    console.log('🔧 Eliminando sección "Importar Mis Datos" del login...');
+    // ========== CORRECCIÓN 1: ELIMINAR IMPORTAR DEL LOGIN - MÉTODO AGRESIVO ==========
+    console.log('🔧 FORZANDO eliminación de "Importar Mis Datos" del login...');
     
-    // Interceptar y reemplazar renderLogin para quitar la sección de importar
-    const originalRenderLogin = window.renderLogin || function() { return ''; };
+    // Método 1: Interceptar render principal
+    const originalRender = window.render;
+    if (originalRender) {
+        window.render = function() {
+            originalRender.apply(this, arguments);
+            // Después del render, ocultar la sección de importar si existe
+            setTimeout(() => {
+                const importSection = document.querySelector('[style*="border: 2px dashed"]');
+                const importContainer = document.querySelector('div:has(> div:contains("Importar Mis Datos"))');
+                if (importSection && importSection.textContent.includes('Importar Mis Datos')) {
+                    importSection.style.display = 'none';
+                }
+                if (importContainer && importContainer.textContent.includes('Importar Mis Datos')) {
+                    importContainer.style.display = 'none';
+                }
+            }, 50);
+        };
+    }
     
-    window.renderLogin = function() {
-        return `
-            <div class="container">
-                <div class="login-form" style="max-width: 450px;">
-                    <div style="text-align: center; margin-bottom: 30px;">
-                        <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);">
-                            <span style="font-size: 2.5rem; filter: drop-shadow(0 2px 4px rgba(255,255,255,0.3));">🎓</span>
-                        </div>
-                        <h1 style="font-size: 2rem; font-weight: 700; margin: 0 0 10px 0; color: #1f2937;">PRIII Sistema</h1>
-                        <p style="color: #6b7280; margin: 0; font-size: 1rem;">Accede con tus credenciales</p>
-                    </div>
-
-                    <div style="margin-bottom: 20px;">
-                        <label style="display: block; margin-bottom: 6px; font-weight: 600; color: #374151; font-size: 14px;">
-                            👤 Usuario
-                        </label>
-                        <input type="text" id="username" placeholder="Nombre de usuario" 
-                               style="width: 100%; padding: 12px 15px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 16px; box-sizing: border-box; transition: border-color 0.2s;"
-                               onfocus="this.style.borderColor='#4f46e5'"
-                               onblur="this.style.borderColor='#e5e7eb'">
-                    </div>
-
-                    <div style="margin-bottom: 25px;">
-                        <label style="display: block; margin-bottom: 6px; font-weight: 600; color: #374151; font-size: 14px;">
-                            🔒 Contraseña
-                        </label>
-                        <input type="password" id="password" placeholder="••••••••••••" 
-                               style="width: 100%; padding: 12px 15px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 16px; box-sizing: border-box; transition: border-color 0.2s;"
-                               onfocus="this.style.borderColor='#4f46e5'"
-                               onblur="this.style.borderColor='#e5e7eb'"
-                               onkeypress="if(event.key==='Enter') login()">
-                    </div>
-
-                    <div style="margin-bottom: 25px;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #4f46e5;">
-                            <input type="checkbox" id="remember-me" style="margin: 0;">
-                            <span>Recordar usuario</span>
-                        </label>
-                    </div>
+    // Método 2: Observer para detectar y ocultar elemento cuando aparezca
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType === 1) { // Element node
+                    // Buscar texto "Importar Mis Datos" en el DOM
+                    const importElements = node.querySelectorAll ? 
+                        node.querySelectorAll('*') : [];
                     
-                    <button onclick="login()" class="btn btn-primary" style="width: 100%; margin-bottom: 15px; padding: 15px; font-size: 16px; font-weight: 600;">
-                        🚀 ACCEDER AL SISTEMA
-                    </button>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
-                        <button onclick="showRegisterForm()" class="btn btn-success" style="padding: 12px; font-size: 14px;">
-                            👤 Crear Cuenta
-                        </button>
-                        <button onclick="showForgotPassword()" style="
-                            padding: 12px; background: linear-gradient(45deg, #f59e0b, #d97706); 
-                            color: white; border: none; border-radius: 8px; font-size: 14px; 
-                            cursor: pointer; font-weight: 600;
-                        ">
-                            🔑 Recuperar
-                        </button>
-                    </div>
-                    
-                    <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
-                        <div style="text-align: center; margin-bottom: 10px;">
-                            <strong style="color: #374151; font-size: 14px;">🔐 Sistema Seguro</strong>
-                        </div>
-                        <ul style="margin: 0; padding-left: 20px; color: #6b7280; font-size: 12px; line-height: 1.5;">
-                            <li>Datos privados por usuario</li>
-                            <li>Recuperación por pregunta de seguridad</li>
-                            <li>Opción de recordar credenciales</li>
-                            <li>Exportar/Importar desde el menú principal</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        `;
-    };
+                    [...importElements, node].forEach(el => {
+                        if (el.textContent && el.textContent.includes('Importar Mis Datos')) {
+                            let container = el;
+                            // Subir hasta encontrar el contenedor con borde punteado
+                            while (container && container.parentElement) {
+                                const style = window.getComputedStyle(container);
+                                if (style.border && style.border.includes('dashed') || 
+                                    container.style.border && container.style.border.includes('dashed')) {
+                                    container.style.display = 'none';
+                                    console.log('✅ Sección "Importar Mis Datos" ocultada');
+                                    break;
+                                }
+                                container = container.parentElement;
+                            }
+                        }
+                    });
+                }
+            });
+        });
+    });
+    
+    // Iniciar observación
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+    
+    // Método 3: CSS para ocultar por contenido
+    const style = document.createElement('style');
+    style.textContent = `
+        /* Ocultar cualquier div que contenga "Importar Mis Datos" */
+        div:has(*:contains("Importar Mis Datos")) {
+            display: none !important;
+        }
+        
+        /* Ocultar por estructura típica */
+        div[style*="dashed"]:has(*:contains("Importar")) {
+            display: none !important;
+        }
+        
+        /* Ocultar input file relacionado con importar */
+        input[type="file"][accept=".json"] {
+            display: none !important;
+        }
+    `;
+    document.head.appendChild(style);
     
     // ========== CORRECCIÓN 2: VERIFICACIÓN EN PREGUNTAS FILTRADAS ==========
     console.log('⭐ Añadiendo verificación a preguntas filtradas...');
@@ -18454,9 +18453,10 @@ Corrige: 1) Elimina "Importar Mis Datos" del login 2) Permite verificar pregunta
     console.log('  3. 🔄 Función toggleVerifyQuestion disponible globalmente');
     console.log('  4. 💾 Guardado automático en localStorage y RealDataManager');
     
-</script>    
+</script>
 </body>
 </html>
+
 
 
 
