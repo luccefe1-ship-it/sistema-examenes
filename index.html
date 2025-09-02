@@ -18273,9 +18273,9 @@ console.log('🔄 Aplicando parche completo: Sistema de Vueltas con Colores...')
 // Estado del sistema de progreso ACTUALIZADO
 let progressState = {
     studyTopics: [
-        { id: 'tema1', name: 'Tema 1', totalPages: 30, studiedPages: 0, currentRound: 1, completedRounds: 0 },
-        { id: 'tema2', name: 'Tema 2', totalPages: 33, studiedPages: 0, currentRound: 1, completedRounds: 0 },
-        { id: 'tema3', name: 'Tema 3', totalPages: 19, studiedPages: 0, currentRound: 1, completedRounds: 0 }
+        { id: 'tema1', name: 'Tema 1', totalPages: 30, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0 },
+        { id: 'tema2', name: 'Tema 2', totalPages: 33, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0 },
+        { id: 'tema3', name: 'Tema 3', totalPages: 19, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0 }
     ]
 };
 
@@ -18305,9 +18305,27 @@ function loadProgressData() {
                         defaultTopic.studiedPages = savedTopic.studiedPages || 0;
                         defaultTopic.currentRound = savedTopic.currentRound || 1;
                         defaultTopic.completedRounds = savedTopic.completedRounds || 0;
+                        defaultTopic.firstRoundPages = savedTopic.firstRoundPages || savedTopic.studiedPages || 0;
                         if (savedTopic.name) defaultTopic.name = savedTopic.name;
+                        if (savedTopic.totalPages) defaultTopic.totalPages = savedTopic.totalPages;
                     }
                 });
+                
+                // Si hay más temas guardados que los por defecto, añadirlos
+                if (savedData.studyTopics.length > progressState.studyTopics.length) {
+                    for (let i = progressState.studyTopics.length; i < savedData.studyTopics.length; i++) {
+                        const savedTopic = savedData.studyTopics[i];
+                        progressState.studyTopics.push({
+                            id: savedTopic.id || `tema${i+1}`,
+                            name: savedTopic.name || `Tema ${i+1}`,
+                            totalPages: savedTopic.totalPages || 20,
+                            studiedPages: savedTopic.studiedPages || 0,
+                            currentRound: savedTopic.currentRound || 1,
+                            completedRounds: savedTopic.completedRounds || 0,
+                            firstRoundPages: savedTopic.firstRoundPages || savedTopic.studiedPages || 0
+                        });
+                    }
+                }
             }
         } catch (error) {
             console.log('Error cargando progreso:', error);
@@ -18365,6 +18383,122 @@ function getRoundColor(roundNumber) {
     return roundColors[roundNumber] || roundColors[6]; // Usar el color de la sexta si supera
 }
 
+// Función para personalizar temas (NUEVA)
+function customizeTopics() {
+    const currentTopicsHtml = progressState.studyTopics.map((topic, index) => `
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+            <input type="text" value="${topic.name}" placeholder="Nombre del tema" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" id="topicName${index}">
+            <input type="number" value="${topic.totalPages}" placeholder="Páginas" min="1" max="999" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" id="topicPages${index}">
+            <button onclick="removeTopic(${index})" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer;">🗑️</button>
+        </div>
+    `).join('');
+
+    const customizeModal = `
+        <div id="customizeModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <h3 style="margin: 0 0 20px 0; color: #374151;">⚙️ Personalizar Temas</h3>
+                
+                <div id="topicsList">
+                    ${currentTopicsHtml}
+                </div>
+                
+                <button onclick="addNewTopic()" style="background: #10b981; color: white; border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer; margin: 15px 0; width: 100%;">
+                    ➕ Agregar Tema
+                </button>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button onclick="saveCustomTopics()" style="background: #3b82f6; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer; flex: 1;">
+                        ✅ Guardar Cambios
+                    </button>
+                    <button onclick="closeCustomizeModal()" style="background: #6b7280; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer;">
+                        ❌ Cancelar
+                    </button>
+                </div>
+                
+                <div style="margin-top: 15px; padding: 10px; background: #fef3c7; border-radius: 8px; font-size: 14px; color: #92400e;">
+                    ⚠️ <strong>Advertencia:</strong> Los cambios afectarán tu progreso actual. Se recomienda hacer backup antes de modificar.
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', customizeModal);
+}
+
+// Agregar nuevo tema vacío (NUEVA)
+function addNewTopic() {
+    const topicsList = document.getElementById('topicsList');
+    const newIndex = document.querySelectorAll('#topicsList > div').length;
+    
+    const newTopicHtml = `
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+            <input type="text" value="Nuevo Tema" placeholder="Nombre del tema" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" id="topicName${newIndex}">
+            <input type="number" value="20" placeholder="Páginas" min="1" max="999" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" id="topicPages${newIndex}">
+            <button onclick="removeTopic(${newIndex})" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer;">🗑️</button>
+        </div>
+    `;
+    
+    topicsList.insertAdjacentHTML('beforeend', newTopicHtml);
+}
+
+// Eliminar tema de la lista (NUEVA)
+function removeTopic(index) {
+    const topicDiv = document.querySelector(`#topicName${index}`).closest('div');
+    if (topicDiv) {
+        topicDiv.remove();
+    }
+}
+
+// Guardar temas personalizados (NUEVA)
+function saveCustomTopics() {
+    const topicDivs = document.querySelectorAll('#topicsList > div');
+    const newTopics = [];
+    
+    topicDivs.forEach((div, index) => {
+        const nameInput = div.querySelector('input[type="text"]');
+        const pagesInput = div.querySelector('input[type="number"]');
+        
+        if (nameInput && pagesInput && nameInput.value.trim() && parseInt(pagesInput.value) > 0) {
+            // Mantener datos existentes si el tema ya existía
+            const existingTopic = progressState.studyTopics[index];
+            
+            newTopics.push({
+                id: existingTopic ? existingTopic.id : `tema${index + 1}`,
+                name: nameInput.value.trim(),
+                totalPages: parseInt(pagesInput.value),
+                studiedPages: existingTopic ? existingTopic.studiedPages : 0,
+                currentRound: existingTopic ? existingTopic.currentRound : 1,
+                completedRounds: existingTopic ? existingTopic.completedRounds : 0,
+                firstRoundPages: existingTopic ? existingTopic.firstRoundPages : 0
+            });
+        }
+    });
+    
+    if (newTopics.length === 0) {
+        showMessage('❌ Debes tener al menos un tema válido', 'error');
+        return;
+    }
+    
+    progressState.studyTopics = newTopics;
+    saveProgressData();
+    closeCustomizeModal();
+    
+    // Re-renderizar la pantalla
+    if (state.currentTab === 'progress') {
+        showProgressTab();
+    }
+    
+    showMessage(`✅ Configuración guardada: ${newTopics.length} temas`, 'success');
+}
+
+// Cerrar modal de personalización (NUEVA)
+function closeCustomizeModal() {
+    const modal = document.getElementById('customizeModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
 // Función para reiniciar tema (NUEVA)
 function resetTopicProgress(topicId) {
     const topic = progressState.studyTopics.find(t => t.id === topicId);
@@ -18377,6 +18511,7 @@ function resetTopicProgress(topicId) {
         topic.studiedPages = 0;
         topic.currentRound = 1;
         topic.completedRounds = 0;
+        topic.firstRoundPages = 0;
         
         saveProgressData();
         
@@ -18395,7 +18530,8 @@ function renderProgressScreen() {
     loadProgressData();
     
     const totalPages = progressState.studyTopics.reduce((sum, topic) => sum + topic.totalPages, 0);
-    const totalStudied = progressState.studyTopics.reduce((sum, topic) => sum + topic.studiedPages, 0);
+    // CAMBIO: Solo contar las páginas de la primera vuelta para el progreso general
+    const totalStudied = progressState.studyTopics.reduce((sum, topic) => sum + topic.firstRoundPages, 0);
     const totalTests = progressState.studyTopics.reduce((sum, topic) => sum + countTestsByTopic(topic.name), 0);
     const overallProgress = totalPages > 0 ? Math.round((totalStudied / totalPages) * 100) : 0;
     
@@ -18408,6 +18544,13 @@ function renderProgressScreen() {
             <div style="text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
                 <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem;">📊 Progreso de Estudio</h1>
                 <p style="color: #6b7280; margin: 5px 0 0 0;">Seguimiento de tu progreso por temas y vueltas</p>
+            </div>
+            
+            <!-- Botón personalizar temas -->
+            <div style="text-align: center; margin-bottom: 20px;">
+                <button onclick="customizeTopics()" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border: none; border-radius: 10px; padding: 12px 24px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);">
+                    ⚙️ Personalizar Temas
+                </button>
             </div>
             
             <!-- Tabla de progreso -->
@@ -18536,6 +18679,11 @@ function changeStudiedPages(topicId, change) {
     
     // LÓGICA DE VUELTAS: Si completa todas las páginas, avanzar a la siguiente vuelta
     if (topic.studiedPages === topic.totalPages) {
+        // Si es la primera vuelta, guardar las páginas completadas
+        if (topic.currentRound === 1) {
+            topic.firstRoundPages = topic.totalPages;
+        }
+        
         // Completó una vuelta
         topic.completedRounds++;
         topic.currentRound++;
@@ -18546,6 +18694,9 @@ function changeStudiedPages(topicId, change) {
         showMessage(`🎉 ¡Vuelta completada! ${topic.name} - Iniciando ${roundInfo.name} vuelta`, 'success');
         
         console.log(`🔄 ${topic.name}: Completó vuelta ${topic.completedRounds}, iniciando ${roundInfo.name}`);
+    } else if (topic.currentRound === 1) {
+        // Si estamos en la primera vuelta, actualizar el contador de primera vuelta
+        topic.firstRoundPages = topic.studiedPages;
     }
     
     saveProgressData();
@@ -18691,6 +18842,11 @@ window.changeStudiedPages = changeStudiedPages;
 window.backToMainFromProgress = backToMainFromProgress;
 window.renderProgressScreen = renderProgressScreen;
 window.resetTopicProgress = resetTopicProgress;
+window.customizeTopics = customizeTopics;
+window.addNewTopic = addNewTopic;
+window.removeTopic = removeTopic;
+window.saveCustomTopics = saveCustomTopics;
+window.closeCustomizeModal = closeCustomizeModal;
 
 // INTERCEPTAR renderIntermediateScreen (IGUAL)
 const originalRenderIntermediateScreenProgress = renderIntermediateScreen;
@@ -18778,6 +18934,8 @@ console.log('   - 6 colores diferentes para cada vuelta');
 console.log('   - Contador de vueltas completadas');
 console.log('   - Leyenda de colores visual');
 console.log('   - Botón reiniciar tema con confirmación');
+console.log('   - Personalización de temas (agregar/eliminar)');
+console.log('   - Progreso general solo cuenta primera vuelta');
 console.log('   - Datos de progreso NO se exportan (privados)');
 console.log('🎨 Colores por vuelta:');
 console.log('   - 1ª: Rojo, 2ª: Azul, 3ª: Verde');  
@@ -18785,6 +18943,7 @@ console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
