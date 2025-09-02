@@ -7570,155 +7570,748 @@ Sin preguntas, sin confirmaciones. Solo recordar datos del login.
     }, 100);
 </script>
 <!-- 
-PARCHE ESPECÍFICO: SOLO LOGIN LIMPIO + VERIFICACIÓN FILTRADA
+PARCHE MODIFICADO: SISTEMA DE TARJETAS DE MEMORIA + EXPORTAR SOLO CONTENIDO
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Solo corrige: 1) Quitar importar del login, 2) Arreglar verificación en filtros
+Versión modificada que exporta SOLO datos de contenido (portable entre usuarios)
 -->
 
 <script>
-    // ========== CORRECCIÓN 1: LOGIN LIMPIO (SIN IMPORTAR DATOS) ==========
-    console.log('🔧 Aplicando correcciones específicas: login limpio + verificación filtrada...');
+    // ========== PARCHE MODIFICADO: SISTEMA DE TARJETAS DE MEMORIA + EXPORTAR CONTENIDO ==========
+    console.log('🃏 Implementando sistema de tarjetas de memoria + exportación de contenido portable...');
     
-    // Interceptar render principal para limpiar SOLO la pantalla de login
-    const originalRenderForLogin = window.render;
-    window.render = function() {
-        const app = document.getElementById('app');
+    // Estado para las tarjetas de memoria
+    let memoryCardsState = {
+        currentCard: null,
+        cardIndex: 0,
+        verifiedQuestions: [],
+        showAnswer: false
+    };
+    
+    // FUNCIÓN para ir a tarjetas de memoria desde el menú principal
+    window.goToMemoryCards = function() {
+        console.log('🃏 Cambiando a Tarjetas de Memoria...');
         
-        if (!state.currentUser && (typeof newLoginState === 'undefined' || newLoginState.currentView === 'login')) {
-            // PANTALLA DE LOGIN LIMPIA (sin importar datos)
-            app.innerHTML = `
-                <div class="container">
-                    <div class="login-form" style="max-width: 450px; margin: 80px auto; padding: 40px; background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+        showIntermediateScreen = false;
+        state.currentTab = 'memory-cards';
+        
+        // Cargar preguntas verificadas
+        loadVerifiedQuestions();
+        
+        render();
+        
+    };
+    
+    // FUNCIÓN para volver al menú desde tarjetas
+    window.backToMainMenuFromCards = function() {
+        console.log('🏠 Volviendo al menú principal desde tarjetas...');
+        showIntermediateScreen = true;
+        state.currentTab = 'upload';
+        render();
+        
+    };
+    
+    // FUNCIÓN para cargar preguntas verificadas
+    function loadVerifiedQuestions() {
+        memoryCardsState.verifiedQuestions = state.questions.filter(q => q.isVerified);
+        
+        if (memoryCardsState.verifiedQuestions.length > 0) {
+            // Mezclar preguntas aleatoriamente
+            memoryCardsState.verifiedQuestions = [...memoryCardsState.verifiedQuestions].sort(() => Math.random() - 0.5);
+            memoryCardsState.cardIndex = 0;
+            memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[0];
+            memoryCardsState.showAnswer = false;
+        } else {
+            memoryCardsState.currentCard = null;
+        }
+    }
+    
+    // FUNCIÓN para mostrar/ocultar respuesta
+    function toggleAnswer() {
+        memoryCardsState.showAnswer = !memoryCardsState.showAnswer;
+        render();
+    }
+    
+    // FUNCIÓN para siguiente tarjeta
+    function nextCard() {
+        if (memoryCardsState.verifiedQuestions.length === 0) return;
+        
+        memoryCardsState.cardIndex = (memoryCardsState.cardIndex + 1) % memoryCardsState.verifiedQuestions.length;
+        memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[memoryCardsState.cardIndex];
+        memoryCardsState.showAnswer = false;
+        render();
+    }
+    
+    // FUNCIÓN para tarjeta anterior
+    function previousCard() {
+        if (memoryCardsState.verifiedQuestions.length === 0) return;
+        
+        memoryCardsState.cardIndex = memoryCardsState.cardIndex === 0 
+            ? memoryCardsState.verifiedQuestions.length - 1 
+            : memoryCardsState.cardIndex - 1;
+        memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[memoryCardsState.cardIndex];
+        memoryCardsState.showAnswer = false;
+        render();
+    }
+    
+    // FUNCIÓN para mezclar tarjetas
+    function shuffleCards() {
+        if (memoryCardsState.verifiedQuestions.length === 0) return;
+        
+        memoryCardsState.verifiedQuestions = [...memoryCardsState.verifiedQuestions].sort(() => Math.random() - 0.5);
+        memoryCardsState.cardIndex = 0;
+        memoryCardsState.currentCard = memoryCardsState.verifiedQuestions[0];
+        memoryCardsState.showAnswer = false;
+        render();
+        showMessage('Tarjetas mezcladas aleatoriamente', 'success');
+    }
+    
+    // ========== NUEVA FUNCIÓN: EXPORTAR SOLO CONTENIDO (PORTABLE) ==========
+    function exportContentDataOnly() {
+        if (!state.currentUser) {
+            showMessage('❌ Error: No hay usuario logueado', 'error');
+            return;
+        }
+        
+        try {
+            const username = state.currentUser.username;
+            
+            // Crear backup SOLO con datos de contenido (sin datos de cuenta)
+            const contentBackup = {
+                version: "3.0", // Nueva versión para datos portables
+                exportDate: new Date().toISOString(),
+                exportTimestamp: Date.now(),
+                exportType: "content_only", // Indicar que es solo contenido
+                originalUser: username, // Solo para referencia, no para validación
+                contentData: {
+                    questions: state.questions || [],
+                    topics: state.topics || [],
+                    testResults: state.testResults || [],
+                    summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
+                    savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
+                    apiKey: state.apiKey || ''
+                },
+                stats: {
+                    totalQuestions: state.questions ? state.questions.length : 0,
+                    totalTopics: state.topics ? state.topics.length : 0,
+                    totalTests: state.testResults ? state.testResults.length : 0,
+                    totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0
+                }
+            };
+            
+            // Mostrar estadísticas antes de descargar
+            const statsMessage = `
+📊 BACKUP DE CONTENIDO GENERADO:
+• Preguntas: ${contentBackup.stats.totalQuestions}
+• Temas: ${contentBackup.stats.totalTopics}  
+• Tests realizados: ${contentBackup.stats.totalTests}
+• Resúmenes: ${contentBackup.stats.totalSummaries}
+• Datos de cuenta: ❌ NO incluidos (portable)
+            `;
+            
+            showMessage(statsMessage, 'success');
+            
+            // Crear archivo para descarga
+            const blob = new Blob([JSON.stringify(contentBackup, null, 2)], { 
+                type: 'application/json' 
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            const dateStr = new Date().toISOString().split('T')[0];
+            const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
+            a.href = url;
+            a.download = `contenido_portable_${dateStr}_${timeStr}.json`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            // Mensaje de confirmación con instrucciones
+            setTimeout(() => {
+                showMessage(`
+✅ BACKUP DE CONTENIDO DESCARGADO
+📁 Archivo: contenido_portable_${dateStr}_${timeStr}.json
+
+💡 INSTRUCCIONES:
+• Este archivo contiene SOLO tus datos (no cuenta)
+• Se puede importar desde cualquier usuario
+• Perfecto para compartir contenido entre cuentas
+• Para usar: Login + usar "📥 Importar Contenido"
+                `, 'success');
+            }, 1000);
+            
+            console.log('✅ Backup de contenido portable exportado');
+            
+        } catch (error) {
+            console.error('❌ Error exportando contenido:', error);
+            showMessage('❌ Error al exportar contenido: ' + error.message, 'error');
+        }
+    }
+    
+    // ========== NUEVA FUNCIÓN: IMPORTAR CONTENIDO DESDE CUALQUIER USUARIO ==========
+    function importContentFromFile() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        
+        input.onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            if (!file.name.endsWith('.json')) {
+                showMessage('❌ Por favor selecciona un archivo .json válido', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    
+                    // Validar que sea un archivo válido
+                    if (!importedData.contentData && !importedData.userData) {
+                        throw new Error('Archivo no válido: falta datos de contenido');
+                    }
+                    
+                    // Determinar tipo de archivo y extraer datos
+                    let sourceData;
+                    let fileType = "desconocido";
+                    
+                    if (importedData.exportType === "content_only") {
+                        // Archivo nuevo de solo contenido
+                        sourceData = importedData.contentData;
+                        fileType = "contenido portable";
+                    } else if (importedData.userData) {
+                        // Archivo viejo completo, usar solo userData
+                        sourceData = importedData.userData;
+                        fileType = "backup completo (solo datos)";
+                    } else {
+                        throw new Error('Formato de archivo no reconocido');
+                    }
+                    
+                    // Mostrar información del archivo
+                    const stats = importedData.stats || {};
+                    const questionsCount = sourceData.questions?.length || 0;
+                    const topicsCount = sourceData.topics?.length || 0;
+                    const testsCount = sourceData.testResults?.length || 0;
+                    const summariesCount = sourceData.savedSummaries?.length || 0;
+                    
+                    // Confirmar importación
+                    const confirmMsg = `¿Importar este contenido a tu cuenta actual?
+
+📄 TIPO: ${fileType}
+${importedData.originalUser ? `👤 Usuario original: ${importedData.originalUser}` : ''}
+
+📊 DATOS A IMPORTAR:
+• Preguntas: ${questionsCount}
+• Temas: ${topicsCount}
+• Tests: ${testsCount}
+• Resúmenes: ${summariesCount}
+
+⚠️ ATENCIÓN: 
+• Los datos se AGREGARÁN a tu cuenta actual
+• Se evitarán duplicados automáticamente
+• Tu contenido actual NO se borrará`;
+                    
+                    if (!confirm(confirmMsg)) return;
+                    
+                    showMessage('🔄 Importando contenido...', 'info');
+                    
+                    // IMPORTAR datos agregándolos a los existentes
+                    const currentQuestions = state.questions || [];
+                    const currentTopics = state.topics || [];
+                    const currentTests = state.testResults || [];
+                    
+                    // Agregar preguntas (evitar duplicados por ID)
+                    const importedQuestions = sourceData.questions || [];
+                    const existingQuestionIds = new Set(currentQuestions.map(q => q.id));
+                    const newQuestions = importedQuestions.filter(q => !existingQuestionIds.has(q.id));
+                    
+                    // Agregar temas (evitar duplicados por nombre)
+                    const importedTopics = sourceData.topics || [];
+                    const existingTopicNames = new Set(currentTopics.map(t => t.name.toLowerCase()));
+                    const newTopics = importedTopics.filter(t => !existingTopicNames.has(t.name.toLowerCase()));
+                    
+                    // Regenerar IDs únicos para temas nuevos si es necesario
+                    newTopics.forEach(topic => {
+                        if (!topic.id) {
+                            topic.id = 'topic_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                        }
+                    });
+                    
+                    // Actualizar arrays globales
+                    state.questions = [...currentQuestions, ...newQuestions];
+                    state.topics = [...currentTopics, ...newTopics];
+                    state.testResults = [...currentTests, ...(sourceData.testResults || [])];
+                    
+                    // Importar datos de resúmenes si existen
+                    if (typeof summarySystemState !== 'undefined') {
+                        const currentSummaryTopics = summarySystemState.summaryTopics || [];
+                        const currentSummaries = summarySystemState.savedSummaries || [];
                         
-                        <!-- HEADER -->
-                        <div style="text-align: center; margin-bottom: 35px;">
-                            <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);">
-                                <span style="font-size: 2.5rem; color: white;">🎓</span>
-                            </div>
-                            <h2 style="color: #1f2937; margin: 0; font-weight: 700;">PRIII Sistema</h2>
-                            <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 14px;">Accede con tus credenciales</p>
-                        </div>
-                        
-                        <!-- FORMULARIO DE LOGIN LIMPIO -->
-                        <div class="form-group">
-                            <label class="form-label">👤 Usuario</label>
-                            <input type="text" id="username" class="form-input" placeholder="Tu nombre de usuario" style="font-size: 15px; padding: 12px;">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">🔒 Contraseña</label>
-                            <input type="password" id="password" class="form-input" placeholder="Tu contraseña" style="font-size: 15px; padding: 12px;">
-                        </div>
-                        
-                        <!-- Recordar usuario -->
-                        <div style="margin: 15px 0; display: flex; align-items: center;">
-                            <input type="checkbox" id="remember-me" style="margin-right: 8px;">
-                            <label for="remember-me" style="font-size: 14px; color: #4f46e5; cursor: pointer;">
-                                Recordar mis credenciales
-                            </label>
-                        </div>
-                        
-                        <!-- Botón de login -->
-                        <button onclick="login()" class="btn btn-primary" style="width: 100%; margin-bottom: 15px; padding: 15px; font-size: 16px; font-weight: 600;">
-                            🚀 ACCEDER AL SISTEMA
+                        summarySystemState.summaryTopics = [...currentSummaryTopics, ...(sourceData.summaryTopics || [])];
+                        summarySystemState.savedSummaries = [...currentSummaries, ...(sourceData.savedSummaries || [])];
+                    }
+                    
+                    // Guardar datos actualizados en localStorage del usuario
+                    if (typeof RealDataManager !== 'undefined') {
+                        RealDataManager.saveFromGlobalData(state.currentUser.username);
+                    } else {
+                        // Fallback manual si RealDataManager no existe
+                        const username = state.currentUser.username;
+                        localStorage.setItem(`realUser_${username}_questions`, JSON.stringify(state.questions));
+                        localStorage.setItem(`realUser_${username}_topics`, JSON.stringify(state.topics));
+                        localStorage.setItem(`realUser_${username}_testResults`, JSON.stringify(state.testResults));
+                    }
+                    
+                    // Actualizar interfaz
+                    render();
+                    
+                    showMessage(`
+✅ CONTENIDO IMPORTADO EXITOSAMENTE
+
+📊 RESUMEN DE IMPORTACIÓN:
+• Preguntas añadidas: ${newQuestions.length}
+• Temas añadidos: ${newTopics.length}
+• Tests importados: ${(sourceData.testResults || []).length}
+• Resúmenes importados: ${(sourceData.savedSummaries || []).length}
+
+🎉 ¡Tu contenido ha sido actualizado!
+                    `, 'success');
+                    
+                    console.log(`✅ Contenido importado: ${newQuestions.length} preguntas, ${newTopics.length} temas`);
+                    
+                } catch (error) {
+                    console.error('Error importando contenido:', error);
+                    showMessage('❌ Error al importar archivo: ' + error.message, 'error');
+                }
+            };
+            
+            reader.readAsText(file);
+        };
+        
+        input.click();
+    }
+    
+    // FUNCIÓN para renderizar la sección de tarjetas de memoria
+    function renderMemoryCardsTab() {
+        if (memoryCardsState.verifiedQuestions.length === 0) {
+            return `
+                <div style="max-width: 800px; margin: 0 auto; text-align: center; padding: 80px 20px;">
+                    <div style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 120px; height: 120px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(245, 158, 11, 0.3);">
+                        <span style="font-size: 4rem; color: white;">🃏</span>
+                    </div>
+                    <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 2.5rem;">No hay tarjetas disponibles</h2>
+                    <p style="color: #6b7280; margin: 0 0 30px 0; font-size: 1.2rem; line-height: 1.6;">
+                        Para usar las tarjetas de memoria necesitas tener preguntas <strong>verificadas</strong> (⭐) en tu banco de preguntas.
+                    </p>
+                    <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 12px; padding: 25px; margin-bottom: 30px; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
+                        <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 1.1rem;">📝 ¿Cómo verificar preguntas?</h3>
+                        <ol style="color: #78350f; margin: 0; padding-left: 20px; line-height: 1.8;">
+                            <li>Ve a "Banco de Preguntas"</li>
+                            <li>Busca el botón ☆ junto a cada pregunta</li>
+                            <li>Haz clic para convertirlo en ⭐ (verificada)</li>
+                            <li>Vuelve aquí para practicar con tarjetas</li>
+                        </ol>
+                    </div>
+                    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                        <button onclick="goToTestsFromSummary()" class="btn btn-primary" style="padding: 15px 25px; font-size: 16px;">
+                            📋 Ir al Banco de Preguntas
                         </button>
-                        
-                        <!-- Botones secundarios -->
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
-                            <button onclick="showRegisterForm()" class="btn btn-success" style="padding: 12px; font-size: 14px;">
-                                👤 Crear Cuenta
-                            </button>
-                            <button onclick="showForgotPassword()" style="
-                                padding: 12px; background: linear-gradient(45deg, #f59e0b, #d97706); 
-                                color: white; border: none; border-radius: 8px; font-size: 14px; 
-                                cursor: pointer; font-weight: 600;
-                            ">
-                                🔑 Recuperar
-                            </button>
-                        </div>
-                        
-                        <!-- Información del sistema (SIN importar) -->
-                        <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
-                            <div style="text-align: center; margin-bottom: 10px;">
-                                <strong style="color: #374151; font-size: 14px;">🔐 Sistema Seguro</strong>
-                            </div>
-                            <ul style="margin: 0; padding-left: 20px; color: #6b7280; font-size: 12px; line-height: 1.5;">
-                                <li>Datos privados por usuario</li>
-                                <li>Recuperación por pregunta de seguridad</li>
-                                <li>Opción de recordar credenciales</li>
-                                <li>Crea tu cuenta si es la primera vez</li>
-                            </ul>
-                        </div>
                     </div>
                 </div>
             `;
-            return;
         }
         
-        // Para todo lo demás, usar la función original
-        originalRenderForLogin.call(this);
-    };
-    
-    // ========== CORRECCIÓN 2: VERIFICACIÓN EN PREGUNTAS FILTRADAS ==========
-    
-    // Función CORREGIDA para alternar verificación que funciona con filtros
-    window.toggleVerifyQuestionCorrected = function(questionIndex) {
-        if (questionIndex < 0 || questionIndex >= state.questions.length) {
-            console.error('Índice de pregunta inválido:', questionIndex);
-            return;
-        }
+        const currentCard = memoryCardsState.currentCard;
+        const cardNumber = memoryCardsState.cardIndex + 1;
+        const totalCards = memoryCardsState.verifiedQuestions.length;
+        const topicName = currentCard.topicId ? getTopicName(currentCard.topicId) : 'General';
         
-        // Cambiar estado de verificación
-        state.questions[questionIndex].isVerified = !state.questions[questionIndex].isVerified;
-        
-        // Guardar cambios
-        if (typeof RealDataManager !== 'undefined' && state.currentUser) {
-            RealDataManager.saveFromGlobalData(state.currentUser.username);
-        }
-        
-        // Re-renderizar solo si estamos en la pestaña de preguntas
-        if (state.currentTab === 'questions') {
-            render();
-        }
-        
-        // Mostrar mensaje de confirmación
-        const action = state.questions[questionIndex].isVerified ? 'verificada' : 'no verificada';
-        showMessage(`Pregunta marcada como ${action}`, 'success');
-        
-        console.log(`✅ Pregunta ${questionIndex} marcada como ${action}`);
-    };
-    
-    // Interceptar renderQuestionsTab SOLO para arreglar los botones de verificación
-    const originalRenderQuestionsTabFixed = window.renderQuestionsTab;
-    window.renderQuestionsTab = function() {
-        // Llamar a la función original
-        let originalHTML = originalRenderQuestionsTabFixed.call(this);
-        
-        // Reemplazar solo los botones de verificación problemáticos con la versión corregida
-        originalHTML = originalHTML.replace(
-            /onclick="toggleVerifyQuestion\((\d+)\)"/g, 
-            function(match, index) {
-                // Encontrar el índice real en el array completo
-                const filteredQuestions = getFilteredQuestions();
-                const displayIndex = parseInt(index);
+        return `
+            <div style="max-width: 900px; margin: 0 auto; padding: 20px;">
                 
-                if (displayIndex < filteredQuestions.length) {
-                    const questionId = filteredQuestions[displayIndex].id;
-                    const realIndex = state.questions.findIndex(q => q.id === questionId);
-                    return `onclick="toggleVerifyQuestionCorrected(${realIndex})"`;
+                <!-- Header simple -->
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                        <span>🃏</span> Tarjetas de Memoria
+                    </h1>
+                    <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">
+                        Tarjeta ${cardNumber} de ${totalCards} preguntas verificadas
+                    </p>
+                </div>
+                
+                <!-- Controles superiores -->
+                <div style="display: flex; justify-content: center; gap: 15px; margin-bottom: 40px;">
+                    <button onclick="shuffleCards()" class="btn btn-warning" style="padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
+                        <span>🔀</span> Mezclar
+                    </button>
+                    <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 600; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
+                        ${cardNumber} / ${totalCards}
+                    </div>
+                    <button onclick="loadVerifiedQuestions()" class="btn btn-info" style="padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
+                        <span>🔄</span> Recargar
+                    </button>
+                </div>
+                
+                <!-- Tarjeta principal mejorada -->
+                <div style="perspective: 1000px; margin-bottom: 40px;">
+                    <div class="memory-card" style="
+                        background: linear-gradient(145deg, #ffffff, #f8fafc); 
+                        border-radius: 20px; 
+                        box-shadow: 
+                            0 20px 40px rgba(0,0,0,0.12),
+                            0 1px 0 rgba(255,255,255,0.8),
+                            inset 0 1px 3px rgba(255,255,255,0.9);
+                        margin: 0 auto; 
+                        max-width: 650px; 
+                        min-height: 400px; 
+                        position: relative; 
+                        border: 2px solid #e2e8f0;
+                        transform: rotateX(1deg) rotateY(-1deg);
+                        transition: all 0.4s ease;
+                        animation: cardFloat 4s ease-in-out infinite;
+                    ">
+                    
+                        <!-- Badge de verificada -->
+                        <div style="position: absolute; top: -8px; right: 15px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); z-index: 10;">
+                            ⭐ Verificada
+                        </div>
+                        
+                        <!-- Contenido de la tarjeta -->
+                        <div style="padding: 35px;">
+                            
+                            <!-- Tema y Pregunta -->
+                            <div style="margin-bottom: 30px;">
+                                <!-- Badge del tema -->
+                                <div style="display: inline-block; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 6px 14px; border-radius: 15px; font-size: 13px; font-weight: 600; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);">
+                                    📁 ${topicName}
+                                </div>
+                                
+                                <!-- Pregunta -->
+                                <h3 style="color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">
+                                    📝 PREGUNTA
+                                </h3>
+                                <div style="font-size: 1.3rem; line-height: 1.6; color: #1f2937; font-weight: 500; background: linear-gradient(135deg, #f8fafc, #f1f5f9); padding: 25px; border-radius: 12px; border-left: 4px solid #4f46e5; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
+                                    ${currentCard.question}
+                                </div>
+                            </div>
+                            
+                            <!-- Área de respuesta -->
+                            <div style="margin-bottom: 20px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                    <h3 style="color: #6b7280; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin: 0;">
+                                        ✅ RESPUESTA CORRECTA
+                                    </h3>
+                                    <button onclick="toggleAnswer()" class="btn ${memoryCardsState.showAnswer ? 'btn-secondary' : 'btn-success'}" style="padding: 8px 16px; font-size: 14px; font-weight: 600; border-radius: 20px;">
+                                        ${memoryCardsState.showAnswer ? '🙈 Ocultar' : '👁️ Ver Respuesta'}
+                                    </button>
+                                </div>
+                                
+                                <div style="min-height: 80px; background: ${memoryCardsState.showAnswer ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : 'linear-gradient(135deg, #f9fafb, #f3f4f6)'}; border: 2px ${memoryCardsState.showAnswer ? 'solid #22c55e' : 'dashed #d1d5db'}; border-radius: 12px; padding: 25px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
+                                    
+                                    ${memoryCardsState.showAnswer ? `
+                                        <div style="text-align: center;">
+                                            <div style="font-size: 1.3rem; font-weight: 700; color: #166534; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                                <span style="font-size: 1.5rem;">✅</span>
+                                                <span>${String.fromCharCode(97 + currentCard.correctAnswer).toUpperCase()}) ${currentCard.options[currentCard.correctAnswer]}</span>
+                                            </div>
+                                            <div style="font-size: 14px; color: #16a34a; font-weight: 500;">
+                                                Esta es la respuesta correcta
+                                            </div>
+                                        </div>
+                                    ` : `
+                                        <div style="color: #9ca3af; font-style: italic; text-align: center;">
+                                            <div style="font-size: 2.5rem; margin-bottom: 10px;">🤔</div>
+                                            <div style="font-size: 16px;">Haz clic en "Ver Respuesta" para revelar la solución</div>
+                                        </div>
+                                    `}
+                                </div>
+                            </div>
+                            
+                            <!-- Consejo -->
+                            <div style="text-align: center; margin-top: 25px; padding: 12px; background: rgba(79, 70, 229, 0.05); border-radius: 10px; border: 1px solid rgba(79, 70, 229, 0.1);">
+                                <div style="color: #6b7280; font-size: 13px; font-weight: 500;">
+                                    💡 Intenta responder mentalmente antes de ver la respuesta
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Controles de navegación -->
+                <div style="display: flex; justify-content: center; align-items: center; gap: 25px;">
+                    <button onclick="previousCard()" class="btn btn-secondary" style="padding: 12px 25px; font-size: 16px; border-radius: 25px; display: flex; align-items: center; gap: 10px; min-width: 140px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
+                        <span style="font-size: 18px;">←</span>
+                        <span>Anterior</span>
+                    </button>
+                    
+                    <button onclick="nextCard()" class="btn btn-primary" style="padding: 12px 25px; font-size: 16px; border-radius: 25px; display: flex; align-items: center; gap: 10px; min-width: 140px; justify-content: center;" ${totalCards <= 1 ? 'disabled' : ''}>
+                        <span>Siguiente</span>
+                        <span style="font-size: 18px;">→</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Estilos CSS -->
+            <style>
+                @keyframes cardFloat {
+                    0%, 100% { transform: rotateX(1deg) rotateY(-1deg) translateY(0px); }
+                    50% { transform: rotateX(1deg) rotateY(-1deg) translateY(-2px); }
                 }
-                return match;
-            }
-        );
-        
-        return originalHTML;
+                
+                .memory-card:hover {
+                    transform: rotateX(0deg) rotateY(0deg) translateY(-3px) !important;
+                    box-shadow: 0 25px 50px rgba(0,0,0,0.15) !important;
+                }
+            </style>
+        `;
+    }
+    
+    // INTERCEPTAR la función renderIntermediateScreen para añadir las nuevas opciones
+    const originalRenderIntermediateScreen = renderIntermediateScreen;
+    window.renderIntermediateScreen = function() {
+        return `
+            <div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: -30px; border-radius: 20px;">
+                <div style="background: white; border-radius: 24px; padding: 60px; box-shadow: 0 25px 50px rgba(0,0,0,0.15); max-width: 600px; width: 100%; text-align: center; position: relative; overflow: hidden;">
+                    
+                    <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: linear-gradient(135deg, #667eea20, #764ba220); border-radius: 50%; z-index: 0;"></div>
+                    <div style="position: absolute; bottom: -30px; left: -30px; width: 100px; height: 100px; background: linear-gradient(135deg, #764ba220, #667eea20); border-radius: 50%; z-index: 0;"></div>
+                    
+                    <div style="position: relative; z-index: 1;">
+                        <div style="background: linear-gradient(135deg, #667eea, #764ba2); width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);">
+                            <span style="font-size: 2.5rem; filter: drop-shadow(0 2px 4px rgba(255,255,255,0.3));">🎯</span>
+                        </div>
+                        
+                        <h1 style="font-size: 2.8rem; font-weight: 700; margin: 0 0 15px 0; background: linear-gradient(135deg, #2d3748, #4a5568); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                            ¡Bienvenid@!
+                        </h1>
+                        
+                        <p style="font-size: 1.3rem; color: #6b7280; margin: 0 0 50px 0; font-weight: 400; line-height: 1.5;">
+                            Selecciona qué te gustaría hacer hoy
+                        </p>
+                        
+                        <div style="display: grid; gap: 15px; margin-bottom: 40px;">
+                            
+                            <button onclick="goToTests()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📚</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Realizar Tests</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Crear y gestionar exámenes</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button onclick="goToSummaries()" style="background: linear-gradient(135deg, #059669, #0ea5e9); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📊</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Ver Resúmenes</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Analizar resultados y estadísticas</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button onclick="goToMemoryCards()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">🃏</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Tarjetas de Memoria</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Repasar con tarjetas interactivas</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button onclick="goToMultiplayer()" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">⚔️</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Duelo de Preguntas</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Compete con otros usuarios</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <!-- NUEVO: BOTÓN EXPORTAR CONTENIDO PORTABLE -->
+                            <button onclick="exportContentDataOnly()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📤</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Exportar Contenido</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Descargar datos portables</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <!-- NUEVO: BOTÓN IMPORTAR CONTENIDO -->
+                            <button onclick="importContentFromFile()" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📥</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Importar Contenido</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Cargar datos desde archivo</div>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                        
+                        <div style="border-top: 1px solid #e5e7eb; padding-top: 25px; color: #9ca3af; font-size: 0.9rem;">
+                            <p style="margin: 0;">Sistema de Exámenes • Usuario: ${state.currentUser.name}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     };
     
-    console.log('✅ CORRECCIONES ESPECÍFICAS APLICADAS:');
-    console.log('   1. ❌ LOGIN SIN IMPORTAR: Eliminada opción de importar datos del login');
-    console.log('   2. ⭐ VERIFICACIÓN FILTRADA: Botones ⭐/☆ funcionan correctamente en filtros');
-    console.log('   3. 🔄 MANTENIDO: Todas las demás funciones originales intactas');
+    // EXTENDER renderTabContent para incluir memory-cards
+    const originalRenderTabContentMemory = renderTabContent;
+    renderTabContent = function() {
+        switch(state.currentTab) {
+            case 'upload':
+                return renderUploadTab();
+            case 'questions':
+                return renderQuestionsTab();
+            case 'test':
+                return renderTestTab();
+            case 'results':
+                return renderResultsTab();
+            case 'summary':
+                return renderSummaryTab();
+            case 'memory-cards':
+                return renderMemoryCardsTab();
+            default:
+                return '<div>Error: Pestaña no encontrada - ' + state.currentTab + '</div>';
+        }
+    };
     
-    // Forzar renderizado si hay usuario logueado
+    // EXTENDER render para mostrar botón en header cuando estamos en tarjetas
+    const originalRenderMemoryCards = render;
+    render = function() {
+        if (showIntermediateScreen && state.currentUser) {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <div class="title">Sistema de Exámenes</div>
+                        <div>
+                            <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                                ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                            </span>
+                            <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                            <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                            <button onclick="logout()" class="btn btn-danger">Salir</button>
+                        </div>
+                    </div>
+                    ${renderIntermediateScreen()}
+                </div>
+            `;
+        } else if (state.currentUser) {
+            const app = document.getElementById('app');
+            
+            let pageTitle = 'Sistema de Exámenes';
+            if (state.currentTab === 'questions') pageTitle = 'Banco de Preguntas';
+            else if (state.currentTab === 'results') pageTitle = 'Resultados del Test';
+            else if (state.currentTab === 'summary') pageTitle = 'Generador de Resúmenes';
+            else if (state.currentTab === 'memory-cards') pageTitle = 'Tarjetas de Memoria';
+            
+            const showNavTabs = state.currentTab !== 'summary' && state.currentTab !== 'memory-cards';
+            
+            app.innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <div class="title">${pageTitle}</div>
+                        <div>
+                            <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                                ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                            </span>
+                            <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                            ${state.currentTab === 'memory-cards' ? `
+                                <button onclick="backToMainMenuFromCards()" class="btn btn-info">🏠 Menú</button>
+                            ` : ''}
+                            <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                            <button onclick="logout()" class="btn btn-danger">Salir</button>
+                        </div>
+                    </div>
+
+                    ${showNavTabs ? `
+                        <div class="nav-tabs">
+                            <button class="nav-tab ${state.currentTab === 'upload' ? 'active' : ''}" onclick="setTab('upload')">
+                                📤 Subir Test
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'questions' ? 'active' : ''}" onclick="setTab('questions')">
+                                📋 Banco de Preguntas (${getFilteredQuestions().length})
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'test' ? 'active' : ''}" onclick="setTab('test')">
+                                🎯 Test Aleatorio
+                            </button>
+                            <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
+                                📊 Resultados (${state.testResults.length})
+                            </button>
+                        </div>
+                    ` : ''}
+
+                    <div id="messages"></div>
+
+                    ${renderTabContent()}
+                </div>
+            `;
+        } else {
+            originalRenderMemoryCards.call(this);
+        }
+    };
+    
+    // ATAJOS DE TECLADO
+    function setupMemoryCardsKeyboard() {
+        document.addEventListener('keydown', function(e) {
+            if (state.currentTab !== 'memory-cards') return;
+            
+            switch(e.key) {
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    e.preventDefault();
+                    previousCard();
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    e.preventDefault();
+                    nextCard();
+                    break;
+                case ' ':
+                case 'Enter':
+                    e.preventDefault();
+                    toggleAnswer();
+                    break;
+                case 's':
+                case 'S':
+                    e.preventDefault();
+                    shuffleCards();
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    backToMainMenuFromCards();
+                    break;
+            }
+        });
+    }
+    
+    setupMemoryCardsKeyboard();
+    
+    console.log('✅ Sistema Completo Implementado: Tarjetas de Memoria + Exportar/Importar Contenido Portable');
+    console.log('🃏 Funcionalidades de Tarjetas:');
+    console.log('   - Botón "🏠 Menú" en header');
+    console.log('   - Tarjeta con animación flotante');
+    console.log('   - Atajos de teclado (←→ navegación, Espacio ver respuesta)');
+    console.log('📤 Funcionalidades de Exportación/Importación:');
+    console.log('   - "📤 Exportar Contenido": SOLO datos (preguntas, temas, tests)');
+    console.log('   - "📥 Importar Contenido": Compatible con cualquier usuario');
+    console.log('   - Evita duplicados automáticamente');
+    console.log('   - Perfecto para compartir contenido entre cuentas');
+    
     setTimeout(() => {
         if (state.currentUser && typeof window.render === 'function') {
             render();
@@ -17649,8 +18242,6 @@ console.log('   - ✅ Botón limpiar búsqueda mantiene foco');
     
 </body>
 </html>
-
-
 
 
 
