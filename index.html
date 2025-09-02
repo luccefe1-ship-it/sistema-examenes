@@ -18261,25 +18261,35 @@ console.log('   - Preserva todo el resaltado de búsqueda existente');
 console.log('   - Compatible con todos los filtros y búsquedas');
 </script>
 <!-- 
-PARCHE COMPLETO: SISTEMA DE PROGRESO DE ESTUDIO
+PARCHE COMPLETO: SISTEMA DE VUELTAS CON COLORES
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche añade una pestaña completa de progreso sin modificar código existente
+Este parche reemplaza el sistema anterior añadiendo vueltas automáticas con colores
 -->
 
 <script>
-// ========== PARCHE COMPLETO: SISTEMA DE PROGRESO DE ESTUDIO ==========
-console.log('📊 Aplicando parche completo: Sistema de Progreso de Estudio...');
+// ========== PARCHE COMPLETO: SISTEMA DE VUELTAS CON COLORES ==========
+console.log('🔄 Aplicando parche completo: Sistema de Vueltas con Colores...');
 
-// Estado del sistema de progreso
+// Estado del sistema de progreso ACTUALIZADO
 let progressState = {
     studyTopics: [
-        { id: 'tema1', name: 'Tema 1', totalPages: 30, studiedPages: 0 },
-        { id: 'tema2', name: 'Tema 2', totalPages: 33, studiedPages: 0 },
-        { id: 'tema3', name: 'Tema 3', totalPages: 19, studiedPages: 0 }
+        { id: 'tema1', name: 'Tema 1', totalPages: 30, studiedPages: 0, currentRound: 1, completedRounds: 0 },
+        { id: 'tema2', name: 'Tema 2', totalPages: 33, studiedPages: 0, currentRound: 1, completedRounds: 0 },
+        { id: 'tema3', name: 'Tema 3', totalPages: 19, studiedPages: 0, currentRound: 1, completedRounds: 0 }
     ]
 };
 
-// Cargar progreso desde localStorage
+// Configuración de colores por vuelta
+const roundColors = {
+    1: { gradient: 'linear-gradient(90deg, #f87171, #ef4444)', name: 'Primera', color: '#ef4444' },
+    2: { gradient: 'linear-gradient(90deg, #60a5fa, #3b82f6)', name: 'Segunda', color: '#3b82f6' },
+    3: { gradient: 'linear-gradient(90deg, #34d399, #10b981)', name: 'Tercera', color: '#10b981' },
+    4: { gradient: 'linear-gradient(90deg, #fbbf24, #f59e0b)', name: 'Cuarta', color: '#f59e0b' },
+    5: { gradient: 'linear-gradient(90deg, #a78bfa, #8b5cf6)', name: 'Quinta', color: '#8b5cf6' },
+    6: { gradient: 'linear-gradient(90deg, #fb7185, #e11d48)', name: 'Sexta', color: '#e11d48' }
+};
+
+// Cargar progreso desde localStorage (ACTUALIZADO)
 function loadProgressData() {
     if (!state.currentUser) return;
     
@@ -18287,7 +18297,18 @@ function loadProgressData() {
     if (saved) {
         try {
             const savedData = JSON.parse(saved);
-            progressState.studyTopics = savedData.studyTopics || progressState.studyTopics;
+            if (savedData.studyTopics) {
+                // Migrar datos antiguos si no tienen campos de vueltas
+                savedData.studyTopics.forEach((savedTopic, index) => {
+                    const defaultTopic = progressState.studyTopics[index];
+                    if (defaultTopic) {
+                        defaultTopic.studiedPages = savedTopic.studiedPages || 0;
+                        defaultTopic.currentRound = savedTopic.currentRound || 1;
+                        defaultTopic.completedRounds = savedTopic.completedRounds || 0;
+                        if (savedTopic.name) defaultTopic.name = savedTopic.name;
+                    }
+                });
+            }
         } catch (error) {
             console.log('Error cargando progreso:', error);
         }
@@ -18295,7 +18316,7 @@ function loadProgressData() {
     syncWithQuestionBankTopics();
 }
 
-// Sincronizar con temas del banco de preguntas
+// Sincronizar con temas del banco de preguntas (IGUAL)
 function syncWithQuestionBankTopics() {
     if (!state.topics || state.topics.length === 0) return;
     
@@ -18313,13 +18334,12 @@ function syncWithQuestionBankTopics() {
             const studyTopic = progressState.studyTopics.find(st => st.id === mappedId);
             if (studyTopic) {
                 studyTopic.name = bankTopic.name;
-                console.log(`✅ Sincronizado: ${studyTopic.id} -> ${bankTopic.name}`);
             }
         }
     });
 }
 
-// Guardar progreso en localStorage
+// Guardar progreso en localStorage (IGUAL)
 function saveProgressData() {
     if (state.currentUser) {
         localStorage.setItem(`studyProgress_${state.currentUser.username}`, JSON.stringify({
@@ -18328,7 +18348,7 @@ function saveProgressData() {
     }
 }
 
-// Contar tests realizados por tema
+// Contar tests realizados por tema (IGUAL)
 function countTestsByTopic(topicName) {
     if (!state.testResults) return 0;
     
@@ -18340,7 +18360,12 @@ function countTestsByTopic(topicName) {
     }).length;
 }
 
-// Renderizar pantalla de progreso
+// Obtener color de la vuelta actual
+function getRoundColor(roundNumber) {
+    return roundColors[roundNumber] || roundColors[6]; // Usar el color de la sexta si supera
+}
+
+// Renderizar pantalla de progreso (ACTUALIZADA con vueltas y colores)
 function renderProgressScreen() {
     loadProgressData();
     
@@ -18349,12 +18374,15 @@ function renderProgressScreen() {
     const totalTests = progressState.studyTopics.reduce((sum, topic) => sum + countTestsByTopic(topic.name), 0);
     const overallProgress = totalPages > 0 ? Math.round((totalStudied / totalPages) * 100) : 0;
     
+    // Calcular progreso general considerando vueltas completadas
+    const totalCompletedRounds = progressState.studyTopics.reduce((sum, topic) => sum + topic.completedRounds, 0);
+    
     return `
         <div style="max-width: 1000px; margin: 0 auto;">
             <!-- Header -->
             <div style="text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
                 <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem;">📊 Progreso de Estudio</h1>
-                <p style="color: #6b7280; margin: 5px 0 0 0;">Seguimiento de tu progreso por temas</p>
+                <p style="color: #6b7280; margin: 5px 0 0 0;">Seguimiento de tu progreso por temas y vueltas</p>
             </div>
             
             <!-- Tabla de progreso -->
@@ -18372,6 +18400,7 @@ function renderProgressScreen() {
                 ${progressState.studyTopics.map((topic, index) => {
                     const progress = topic.totalPages > 0 ? Math.round((topic.studiedPages / topic.totalPages) * 100) : 0;
                     const testsCount = countTestsByTopic(topic.name);
+                    const roundInfo = getRoundColor(topic.currentRound);
                     
                     return `
                         <div style="display: grid; grid-template-columns: 150px 120px 120px 100px 1fr; border-bottom: 1px solid #f3f4f6; ${index % 2 === 0 ? 'background: #fafafa;' : 'background: white;'}">
@@ -18379,6 +18408,11 @@ function renderProgressScreen() {
                                 <div style="background: #3b82f6; color: white; padding: 6px 12px; border-radius: 6px; font-size: 14px;">
                                     ${topic.name}
                                 </div>
+                                ${topic.completedRounds > 0 ? `
+                                    <div style="margin-left: 8px; background: ${roundInfo.color}; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: bold;">
+                                        ${topic.completedRounds} ✓
+                                    </div>
+                                ` : ''}
                             </div>
                             <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
                                 <button onclick="changeStudiedPages('${topic.id}', -1)" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-size: 12px; font-weight: bold;">-</button>
@@ -18388,12 +18422,12 @@ function renderProgressScreen() {
                             <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; font-weight: 500; color: #059669;">
                                 ${testsCount}
                             </div>
-                            <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: #6b7280;">
-                                Primera
+                            <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: ${roundInfo.color}; font-weight: 600;">
+                                ${roundInfo.name}
                             </div>
                             <div style="padding: 15px; display: flex; align-items: center; gap: 10px;">
                                 <div style="flex: 1; background: #f3f4f6; border-radius: 8px; height: 20px; overflow: hidden;">
-                                    <div style="background: linear-gradient(90deg, #f87171, #ef4444); height: 100%; width: ${progress}%; transition: width 0.3s ease; border-radius: 8px;"></div>
+                                    <div style="background: ${roundInfo.gradient}; height: 100%; width: ${progress}%; transition: width 0.3s ease; border-radius: 8px;"></div>
                                 </div>
                                 <span style="font-weight: 600; color: #374151; min-width: 35px;">${progress}%</span>
                             </div>
@@ -18407,6 +18441,11 @@ function renderProgressScreen() {
                         <div style="background: #6b7280; color: white; padding: 6px 12px; border-radius: 6px; font-size: 14px;">
                             General
                         </div>
+                        ${totalCompletedRounds > 0 ? `
+                            <div style="margin-left: 8px; background: #10b981; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: bold;">
+                                ${totalCompletedRounds} ✓
+                            </div>
+                        ` : ''}
                     </div>
                     <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: #059669;">
                         ${totalStudied}/${totalPages}
@@ -18415,7 +18454,7 @@ function renderProgressScreen() {
                         ${totalTests}
                     </div>
                     <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: #6b7280;">
-                        Primera
+                        Mixta
                     </div>
                     <div style="padding: 15px; display: flex; align-items: center; gap: 10px;">
                         <div style="flex: 1; background: #f3f4f6; border-radius: 8px; height: 20px; overflow: hidden;">
@@ -18427,7 +18466,7 @@ function renderProgressScreen() {
             </div>
             
             <!-- Estadísticas adicionales -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
                 <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 20px; border-radius: 12px; text-align: center;">
                     <div style="font-size: 2rem; margin-bottom: 8px;">📚</div>
                     <div style="font-size: 1.5rem; font-weight: bold;">${totalStudied}</div>
@@ -18443,10 +18482,28 @@ function renderProgressScreen() {
                     <div style="font-size: 1.5rem; font-weight: bold;">${overallProgress}%</div>
                     <div style="opacity: 0.9;">Progreso Total</div>
                 </div>
+                <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 20px; border-radius: 12px; text-align: center;">
+                    <div style="font-size: 2rem; margin-bottom: 8px;">🔄</div>
+                    <div style="font-size: 1.5rem; font-weight: bold;">${totalCompletedRounds}</div>
+                    <div style="opacity: 0.9;">Vueltas Completadas</div>
+                </div>
+            </div>
+            
+            <!-- Leyenda de colores -->
+            <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                <h3 style="margin: 0 0 15px 0; color: #374151;">🎨 Leyenda de Vueltas</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                    ${Object.entries(roundColors).map(([round, info]) => `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 20px; height: 12px; border-radius: 6px; background: ${info.gradient};"></div>
+                            <span style="font-size: 14px; color: #6b7280;">${info.name}</span>
+                        </div>
+                    `).join('')}
+                </div>
             </div>
             
             <!-- Botón volver -->
-            <div style="text-align: center; margin-top: 30px;">
+            <div style="text-align: center;">
                 <button onclick="backToMainFromProgress()" class="btn btn-secondary" style="padding: 12px 24px; font-size: 16px;">
                     ← Volver al Menú Principal
                 </button>
@@ -18455,15 +18512,32 @@ function renderProgressScreen() {
     `;
 }
 
-// Cambiar páginas estudiadas
+// Cambiar páginas estudiadas (ACTUALIZADA con lógica de vueltas)
 function changeStudiedPages(topicId, change) {
     const topic = progressState.studyTopics.find(t => t.id === topicId);
     if (!topic) return;
     
     const newValue = topic.studiedPages + change;
+    
+    // Validar límites
     if (newValue < 0 || newValue > topic.totalPages) return;
     
     topic.studiedPages = newValue;
+    
+    // LÓGICA DE VUELTAS: Si completa todas las páginas, avanzar a la siguiente vuelta
+    if (topic.studiedPages === topic.totalPages) {
+        // Completó una vuelta
+        topic.completedRounds++;
+        topic.currentRound++;
+        topic.studiedPages = 0; // Reiniciar el contador para la siguiente vuelta
+        
+        const roundInfo = getRoundColor(topic.currentRound);
+        
+        showMessage(`🎉 ¡Vuelta completada! ${topic.name} - Iniciando ${roundInfo.name} vuelta`, 'success');
+        
+        console.log(`🔄 ${topic.name}: Completó vuelta ${topic.completedRounds}, iniciando ${roundInfo.name}`);
+    }
+    
     saveProgressData();
     
     // Re-renderizar si estamos en la pestaña de progreso
@@ -18471,10 +18545,10 @@ function changeStudiedPages(topicId, change) {
         showProgressTab();
     }
     
-    console.log(`📊 ${topic.name}: ${topic.studiedPages}/${topic.totalPages} hojas`);
+    console.log(`📊 ${topic.name}: ${topic.studiedPages}/${topic.totalPages} hojas (${getRoundColor(topic.currentRound).name})`);
 }
 
-// Mostrar pestaña de progreso
+// RESTO DE FUNCIONES IGUALES AL PARCHE ANTERIOR
 function showProgressTab() {
     state.currentTab = 'progress';
     showIntermediateScreen = false;
@@ -18504,18 +18578,102 @@ function showProgressTab() {
     }
 }
 
-// Volver al menú principal
 function backToMainFromProgress() {
     showIntermediateScreen = true;
     state.currentTab = 'upload';
     render();
 }
 
-// Función para ir a progreso desde el menú principal  
 window.goToProgress = function() {
     console.log('📊 Cambiando a Progreso de Estudio...');
     showProgressTab();
 };
+
+// INTERCEPTAR FUNCIÓN DE EXPORTACIÓN PARA EXCLUIR DATOS DE PROGRESO
+const originalExportContentDataOnly = window.exportContentDataOnly;
+if (typeof originalExportContentDataOnly === 'function') {
+    window.exportContentDataOnly = function() {
+        if (!state.currentUser) {
+            showMessage('❌ Error: No hay usuario logueado', 'error');
+            return;
+        }
+        
+        try {
+            const username = state.currentUser.username;
+            
+            // Crear backup SOLO con datos de contenido (SIN datos de progreso)
+            const contentBackup = {
+                version: "3.0",
+                exportDate: new Date().toISOString(),
+                exportTimestamp: Date.now(),
+                exportType: "content_only",
+                originalUser: username,
+                contentData: {
+                    questions: state.questions || [],
+                    topics: state.topics || [],
+                    testResults: state.testResults || [],
+                    summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
+                    savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
+                    apiKey: state.apiKey || ''
+                    // NOTA: NO incluir progressState - datos de progreso son personales
+                },
+                stats: {
+                    totalQuestions: state.questions ? state.questions.length : 0,
+                    totalTopics: state.topics ? state.topics.length : 0,
+                    totalTests: state.testResults ? state.testResults.length : 0,
+                    totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0
+                }
+            };
+            
+            // Mostrar estadísticas antes de descargar
+            const statsMessage = `
+📊 BACKUP DE CONTENIDO GENERADO:
+• Preguntas: ${contentBackup.stats.totalQuestions}
+• Temas: ${contentBackup.stats.totalTopics}  
+• Tests realizados: ${contentBackup.stats.totalTests}
+• Resúmenes: ${contentBackup.stats.totalSummaries}
+• Progreso de estudio: ❌ NO incluido (privado)
+            `;
+            
+            showMessage(statsMessage, 'success');
+            
+            // Crear archivo para descarga
+            const blob = new Blob([JSON.stringify(contentBackup, null, 2)], { 
+                type: 'application/json' 
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            const dateStr = new Date().toISOString().split('T')[0];
+            const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
+            a.href = url;
+            a.download = `contenido_portable_${dateStr}_${timeStr}.json`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            setTimeout(() => {
+                showMessage(`
+✅ BACKUP DE CONTENIDO DESCARGADO
+📁 Archivo: contenido_portable_${dateStr}_${timeStr}.json
+
+💡 NOTA IMPORTANTE:
+• Tus datos de PROGRESO no se exportan
+• El progreso es personal de cada dispositivo
+• Solo se exporta contenido (preguntas, temas, tests)
+                `, 'success');
+            }, 1000);
+            
+            console.log('✅ Backup de contenido portable exportado (sin datos de progreso)');
+            
+        } catch (error) {
+            console.error('❌ Error exportando contenido:', error);
+            showMessage('❌ Error al exportar contenido: ' + error.message, 'error');
+        }
+    };
+}
 
 // Hacer funciones globales
 window.showProgressTab = showProgressTab;
@@ -18523,13 +18681,12 @@ window.changeStudiedPages = changeStudiedPages;
 window.backToMainFromProgress = backToMainFromProgress;
 window.renderProgressScreen = renderProgressScreen;
 
-// INTERCEPTAR la función renderIntermediateScreen para añadir el botón de progreso
+// INTERCEPTAR renderIntermediateScreen (IGUAL)
 const originalRenderIntermediateScreenProgress = renderIntermediateScreen;
 if (typeof renderIntermediateScreen === 'function') {
     window.renderIntermediateScreen = function() {
         const originalHTML = originalRenderIntermediateScreenProgress();
         
-        // Buscar el botón de duelo e insertar el botón de progreso después
         if (originalHTML.includes('goToMultiplayer()')) {
             const progressButton = `
                             <button onclick="goToProgress()" style="background: linear-gradient(135deg, #6366f1, #4f46e5); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
@@ -18553,7 +18710,7 @@ if (typeof renderIntermediateScreen === 'function') {
     };
 }
 
-// INTERCEPTAR la función setTab para manejar la pestaña de progreso
+// INTERCEPTAR setTab (IGUAL)
 const originalSetTabProgress = setTab;
 if (typeof setTab === 'function') {
     window.setTab = function(tab) {
@@ -18561,20 +18718,16 @@ if (typeof setTab === 'function') {
             showProgressTab();
             return;
         }
-        
-        // Llamar a la función original para otros tabs
         originalSetTabProgress(tab);
     };
 }
 
-// INTERCEPTAR render para añadir el botón de progreso a las nav-tabs si existen
+// INTERCEPTAR render (IGUAL)
 const originalRenderProgress = render;
 if (typeof render === 'function') {
     window.render = function() {
-        // Llamar al render original
         originalRenderProgress.call(this);
         
-        // Solo añadir el botón si estamos logueados y no en pantalla intermedia
         if (state.currentUser && !showIntermediateScreen && state.currentTab !== 'progress') {
             setTimeout(() => {
                 addProgressButtonToNavTabs();
@@ -18583,11 +18736,9 @@ if (typeof render === 'function') {
     };
 }
 
-// Función para añadir el botón a las nav-tabs existentes
 function addProgressButtonToNavTabs() {
     const navTabs = document.querySelector('.nav-tabs');
     if (navTabs && !document.getElementById('progress-nav-btn')) {
-        // Buscar el botón de resultados para insertarlo después
         const resultsButton = navTabs.querySelector('[onclick="setTab(\'results\')"]');
         if (resultsButton) {
             const progressButton = document.createElement('button');
@@ -18596,10 +18747,7 @@ function addProgressButtonToNavTabs() {
             progressButton.innerHTML = '📊 Progreso';
             progressButton.onclick = () => showProgressTab();
             
-            // Insertar después del botón de resultados
             resultsButton.parentNode.insertBefore(progressButton, resultsButton.nextSibling);
-            
-            console.log('✅ Botón Progreso añadido a nav-tabs');
         }
     }
 }
@@ -18608,22 +18756,24 @@ function addProgressButtonToNavTabs() {
 setTimeout(() => {
     if (state.currentUser) {
         loadProgressData();
-        console.log('✅ Sistema de progreso inicializado para usuario:', state.currentUser.name);
+        console.log('✅ Sistema de progreso con vueltas inicializado para:', state.currentUser.name);
     }
 }, 1000);
 
-console.log('✅ Parche completo aplicado: Sistema de Progreso de Estudio');
-console.log('📊 Funcionalidades disponibles:');
-console.log('   - Botón "📊 Progreso de Estudio" en menú principal');
-console.log('   - Botón "📊 Progreso" en nav-tabs');
-console.log('   - Tabla de progreso con botones +/- para hojas');
-console.log('   - Sincronización automática con temas del banco');
-console.log('   - Conteo automático de tests realizados');
-console.log('   - Estadísticas visuales con barras de progreso');
-console.log('   - Persistencia por usuario en localStorage');
+console.log('✅ Parche completo aplicado: Sistema de Vueltas con Colores');
+console.log('🔄 Funcionalidades de vueltas:');
+console.log('   - Vueltas automáticas al completar 100% de páginas');
+console.log('   - 6 colores diferentes para cada vuelta');
+console.log('   - Contador de vueltas completadas');
+console.log('   - Leyenda de colores visual');
+console.log('   - Datos de progreso NO se exportan (privados)');
+console.log('🎨 Colores por vuelta:');
+console.log('   - 1ª: Rojo, 2ª: Azul, 3ª: Verde');  
+console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
