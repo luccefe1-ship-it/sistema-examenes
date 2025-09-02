@@ -18200,9 +18200,267 @@ console.log('   - Validación/desvalidación sin perder el foco del buscador');
 console.log('   - Actualización suave del contenedor de preguntas');
 console.log('   - Preserva todo el resaltado de búsqueda existente');
 console.log('   - Compatible con todos los filtros y búsquedas');
-</script>   
+</script>
+<!--
+PARCHE: EDICIÓN DE NOMBRES DE TEMAS DESDE BANCO DE PREGUNTAS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche permite editar nombres de temas desde el banco y sincroniza con gestión de temas
+-->
+
+<script>
+// ========== PARCHE: EDICIÓN DE NOMBRES DE TEMAS ==========
+console.log('🔧 Aplicando parche de edición de nombres de temas...');
+
+// PASO 1: FUNCIÓN PARA EDITAR NOMBRE DE TEMA
+window.editTopicName = function(topicId) {
+    console.log('✏️ Iniciando edición del tema ID:', topicId);
+    
+    try {
+        // Encontrar el tema
+        const topic = state.topics.find(t => t.id.toString() === topicId.toString());
+        if (!topic) {
+            alert('❌ Tema no encontrado');
+            console.error('Tema no encontrado:', topicId);
+            return;
+        }
+        
+        console.log('📝 Tema encontrado:', topic);
+        
+        // Solicitar nuevo nombre
+        const currentName = topic.name;
+        const newName = prompt(`Editar nombre del tema:\n\nNombre actual: "${currentName}"`, currentName);
+        
+        if (!newName) {
+            console.log('❌ Edición cancelada - Sin nombre');
+            return;
+        }
+        
+        if (newName.trim() === currentName) {
+            console.log('⚠️ Sin cambios en el nombre');
+            showMessage('No se realizaron cambios', 'info');
+            return;
+        }
+        
+        if (newName.trim().length === 0) {
+            alert('❌ El nombre no puede estar vacío');
+            return;
+        }
+        
+        // Verificar si ya existe otro tema con ese nombre
+        const duplicateTopic = state.topics.find(t => 
+            t.id !== topic.id && 
+            t.name.toLowerCase() === newName.trim().toLowerCase()
+        );
+        
+        if (duplicateTopic) {
+            alert('❌ Ya existe otro tema con ese nombre');
+            return;
+        }
+        
+        // Actualizar el nombre del tema
+        const oldName = topic.name;
+        topic.name = newName.trim();
+        
+        console.log('🔄 Actualizando tema:', {
+            id: topic.id,
+            oldName: oldName,
+            newName: topic.name
+        });
+        
+        // Guardar en localStorage
+        localStorage.setItem('topics', JSON.stringify(state.topics));
+        
+        // Re-renderizar para actualizar todas las interfaces
+        if (typeof window.render === 'function') {
+            render();
+        }
+        
+        // Mostrar mensaje de éxito
+        showMessage(`✅ Tema renombrado: "${oldName}" → "${topic.name}"`, 'success');
+        
+        console.log('✅ Tema actualizado exitosamente');
+        
+    } catch (error) {
+        console.error('❌ Error editando tema:', error);
+        showMessage('Error al editar el tema: ' + error.message, 'error');
+    }
+};
+
+// PASO 2: MODIFICAR LA FUNCIÓN renderQuestionsByTopic PARA AGREGAR BOTÓN EDITAR
+const originalRenderQuestionsByTopic = renderQuestionsByTopic;
+renderQuestionsByTopic = function() {
+    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+    
+    let html = '';
+    
+    // Mostrar preguntas por cada tema que TENGA preguntas
+    state.topics.forEach(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        if (topicQuestions.length > 0) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📁 ${topic.name}</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
+                            <button onclick="editTopicName('${topic.id}')" 
+                                    title="Editar nombre del tema" 
+                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: background 0.2s;"
+                                    onmouseover="this.style.background='rgba(255,255,255,0.3)'"
+                                    onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                                ✏️ Editar
+                            </button>
+                        </div>
+                    </h3>
+                    <div style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                        ${topicQuestions.map(q => {
+                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                            return renderSingleQuestion(q, actualIndex);
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    // Mostrar preguntas sin tema asignado SI existen
+    if (questionsWithoutTopic.length > 0) {
+        html += `
+            <div style="margin-bottom: 30px;">
+                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📂 Sin tema asignado</span>
+                    <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                </h3>
+                <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white;">
+                    ${questionsWithoutTopic.map(q => {
+                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                        return renderSingleQuestion(q, actualIndex);
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Si no hay preguntas
+    if (html === '') {
+        html = `
+            <div style="text-align: center; padding: 40px; color: #6b7280;">
+                <p>📝 No hay preguntas en el banco</p>
+                <p style="font-size: 14px;">Añade algunas preguntas para empezar</p>
+            </div>
+        `;
+    }
+    
+    return html;
+};
+
+// PASO 3: FUNCIÓN PARA DIAGNOSTICAR EL SISTEMA DE EDICIÓN
+window.debugTopicEditing = function() {
+    console.log('🔍 DIAGNÓSTICO DEL SISTEMA DE EDICIÓN DE TEMAS:');
+    console.log('================================================');
+    
+    console.log('📊 Estado actual:');
+    console.log('  - Temas totales:', state.topics ? state.topics.length : 0);
+    console.log('  - Función editTopicName existe:', typeof window.editTopicName);
+    console.log('  - renderQuestionsByTopic modificado:', renderQuestionsByTopic !== originalRenderQuestionsByTopic);
+    
+    if (state.topics && state.topics.length > 0) {
+        console.log('📋 Lista de temas:');
+        state.topics.forEach((topic, index) => {
+            const questionCount = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length;
+            console.log(`  ${index + 1}. "${topic.name}" (ID: ${topic.id}) - ${questionCount} preguntas`);
+        });
+    }
+    
+    console.log('💡 Para probar: Busca los botones "✏️ Editar" en los encabezados de los temas');
+    console.log('================================================');
+};
+
+// PASO 4: VERIFICAR FUNCIONES AUXILIARES NECESARIAS
+if (typeof renderSingleQuestion !== 'function') {
+    console.warn('⚠️ renderSingleQuestion no encontrada, definiendo función auxiliar...');
+    
+    window.renderSingleQuestion = function(q, actualIndex) {
+        const topicName = getTopicNameSimple(q.topicId);
+        return `
+            <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: flex-start; gap: 15px;">
+                <div style="flex: 1;">
+                    <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                        <strong style="color: #374151;">P${actualIndex + 1}:</strong> 
+                        <span style="color: #6b7280; font-size: 14px;">${q.question}</span>
+                        <button onclick="toggleVerified(${actualIndex})" class="btn ${q.isVerified ? 'btn-primary' : 'btn-secondary'}" style="padding: 4px 8px; font-size: 14px;" title="${q.isVerified ? 'Pregunta verificada - Click para desmarcar' : 'Marcar como verificada'}">
+                            ${q.isVerified ? '⭐' : '☆'}
+                        </button>
+                        ${q.topicId ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px;">${topicName}</span>` : ''}
+                    </div>
+                    <ul style="list-style: none; margin: 0; padding: 0;">
+                        ${q.options.map((opt, optIndex) => `
+                            <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'};">
+                                ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✓' : ''}
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                <div style="display: flex; gap: 5px; flex-shrink: 0;">
+                    <button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>
+                    <button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>
+                </div>
+            </div>
+        `;
+    };
+}
+
+// FUNCIÓN AUXILIAR PARA OBTENER NOMBRE DE TEMA
+if (typeof getTopicNameSimple !== 'function') {
+    window.getTopicNameSimple = function(topicId) {
+        if (!topicId) return 'Sin tema';
+        const topic = state.topics.find(t => t.id.toString() === topicId.toString());
+        return topic ? topic.name : 'Tema no encontrado';
+    };
+}
+
+// PASO 5: EJECUTAR VERIFICACIÓN INICIAL
+setTimeout(() => {
+    console.log('🚀 Verificación inicial del parche...');
+    
+    if (typeof window.editTopicName === 'function') {
+        console.log('✅ Función editTopicName creada correctamente');
+    } else {
+        console.error('❌ Error: editTopicName no se creó');
+    }
+    
+    if (renderQuestionsByTopic !== originalRenderQuestionsByTopic) {
+        console.log('✅ renderQuestionsByTopic modificada correctamente');
+    } else {
+        console.error('❌ Error: renderQuestionsByTopic no se modificó');
+    }
+    
+    console.log('💡 Usa debugTopicEditing() para diagnóstico completo');
+    
+}, 500);
+
+console.log('✅ PARCHE DE EDICIÓN DE NOMBRES DE TEMAS APLICADO');
+console.log('🎯 Nuevas características:');
+console.log('   ✏️ Botón "Editar" en cada encabezado de tema del banco');
+console.log('   🔄 Sincronización automática con dropdowns y gestión');
+console.log('   ✅ Validación de nombres duplicados');
+console.log('   💾 Guardado automático en localStorage');
+console.log('   🎨 Interfaz integrada con el diseño existente');
+console.log('');
+console.log('📝 INSTRUCCIONES DE USO:');
+console.log('   1. Ve a la pestaña "Preguntas" (Banco de Preguntas)');
+console.log('   2. Busca cualquier encabezado de tema (ej: "📁 Matemáticas")');
+console.log('   3. Haz clic en el botón "✏️ Editar" al lado del número de preguntas');
+console.log('   4. Cambia el nombre y confirma');
+console.log('   5. Los cambios se reflejarán automáticamente en Gestión de Temas');
+console.log('');
+console.log('🔧 Funciones de debug disponibles:');
+console.log('   - debugTopicEditing() - Diagnóstico completo');
+console.log('   - editTopicName(id) - Editar tema por ID');
+</script>
 </body>
 </html>
+
 
 
 
