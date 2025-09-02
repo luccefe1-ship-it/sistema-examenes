@@ -18887,48 +18887,47 @@ function createProgressFreeExport() {
     try {
         const username = state.currentUser.username;
         
-        // Crear backup con temas y preguntas (como funcionaba antes) pero SIN datos de progreso
+        // Crear backup con la estructura EXACTA que espera el sistema de importación
         const contentBackup = {
             version: "3.0",
             exportDate: new Date().toISOString(),
             exportTimestamp: Date.now(),
-            exportType: "content_only_no_progress",
+            exportType: "content_only",
             originalUser: username,
-            // DATOS QUE SÍ SE EXPORTAN (como antes)
-            questions: state.questions || [],
-            topics: state.topics || [],
-            testResults: state.testResults || [],
-            summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
-            savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
-            apiKey: state.apiKey || '',
-            // DATOS QUE NO SE EXPORTAN
-            excludedData: {
-                progressState: "❌ EXCLUIDO - Datos personales de progreso",
-                studyTopics: "❌ EXCLUIDO - Páginas y vueltas personales"
+            contentData: {
+                // ESTRUCTURA CORRECTA que espera la importación
+                questions: state.questions || [],
+                topics: state.topics || [],
+                testResults: state.testResults || [],
+                summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
+                savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
+                apiKey: state.apiKey || ''
+                // NO incluir datos de progreso: progressState, studyTopics, etc.
+            },
+            stats: {
+                totalQuestions: state.questions ? state.questions.length : 0,
+                totalTopics: state.topics ? state.topics.length : 0,
+                totalTests: state.testResults ? state.testResults.length : 0,
+                totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0
             }
         };
         
-        // Verificación: eliminar cualquier dato de progreso personal
+        // Verificación: eliminar cualquier dato de progreso que pudiera haberse colado
         delete contentBackup.progressState;
         delete contentBackup.studyTopics;
-        delete contentBackup.studiedPages;
-        delete contentBackup.completedRounds;
-        delete contentBackup.currentRound;
-        delete contentBackup.firstRoundPages;
-        delete contentBackup.manualTestCount;
-        
-        const totalQuestions = contentBackup.questions ? contentBackup.questions.length : 0;
-        const totalTopics = contentBackup.topics ? contentBackup.topics.length : 0;
-        const totalTests = contentBackup.testResults ? contentBackup.testResults.length : 0;
-        const totalSummaries = contentBackup.savedSummaries ? contentBackup.savedSummaries.length : 0;
+        delete contentBackup.contentData.progressState;
+        delete contentBackup.contentData.studyTopics;
+        delete contentBackup.contentData.studiedPages;
+        delete contentBackup.contentData.completedRounds;
+        delete contentBackup.contentData.manualTestCount;
         
         // Mostrar estadísticas antes de descargar
         const statsMessage = `
 📊 BACKUP DE CONTENIDO GENERADO:
-• Preguntas: ${totalQuestions}
-• Temas: ${totalTopics}  
-• Tests realizados: ${totalTests}
-• Resúmenes: ${totalSummaries}
+• Preguntas: ${contentBackup.stats.totalQuestions}
+• Temas: ${contentBackup.stats.totalTopics}  
+• Tests realizados: ${contentBackup.stats.totalTests}
+• Resúmenes: ${contentBackup.stats.totalSummaries}
 • 🚫 PROGRESO: NO incluido (privado)
         `;
         
@@ -18953,24 +18952,30 @@ function createProgressFreeExport() {
         
         setTimeout(() => {
             showMessage(`
-✅ BACKUP DESCARGADO - LISTO PARA IMPORTAR
+✅ BACKUP GENERADO - LISTO PARA IMPORTAR
 📁 Archivo: contenido_portable_${dateStr}_${timeStr}.json
 
-✅ INCLUYE (importable):
-• ${totalQuestions} preguntas
-• ${totalTopics} temas  
-• ${totalTests} resultados de tests
-• ${totalSummaries} resúmenes
+✅ SE PUEDE IMPORTAR:
+• ${contentBackup.stats.totalQuestions} preguntas
+• ${contentBackup.stats.totalTopics} temas  
+• ${contentBackup.stats.totalTests} resultados de tests
+• ${contentBackup.stats.totalSummaries} resúmenes
 
-🚫 NO INCLUYE (privado):
-• Páginas estudiadas
-• Vueltas completadas
-• Progreso personal
+🚫 NO SE INCLUYE (privado):
+• Páginas estudiadas por tema
+• Vueltas completadas  
+• Progreso personal de estudio
+
+💡 INSTRUCCIONES:
+• Este archivo contiene SOLO contenido compartible
+• Se puede importar desde cualquier usuario
+• Perfecto para compartir preguntas entre cuentas
+• Para usar: Login + usar "📥 Importar Contenido"
             `, 'success');
         }, 1000);
         
-        console.log('✅ Backup exportado correctamente - Temas y preguntas incluidos');
-        console.log(`📊 Estadísticas: ${totalQuestions} preguntas, ${totalTopics} temas`);
+        console.log('✅ Backup exportado correctamente - Compatible con importación');
+        console.log(`📊 Contenido: ${contentBackup.stats.totalQuestions} preguntas, ${contentBackup.stats.totalTopics} temas`);
         
     } catch (error) {
         console.error('❌ Error exportando contenido:', error);
@@ -19102,6 +19107,7 @@ console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
