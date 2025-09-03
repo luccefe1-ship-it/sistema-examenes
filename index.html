@@ -18260,14 +18260,14 @@ console.log('   - Actualización suave del contenedor de preguntas');
 console.log('   - Preserva todo el resaltado de búsqueda existente');
 console.log('   - Compatible con todos los filtros y búsquedas');
 </script>
-<!-- 
-PARCHE COMPLETO: SISTEMA DE VUELTAS CON COLORES
-Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche reemplaza el sistema anterior añadiendo vueltas automáticas con colores
--->
 <script>
-// ========== PARCHE CORREGIDO: SISTEMA DE EXPORTACIÓN/IMPORTACIÓN GRANULAR ==========
-console.log('🔄 Aplicando parche corregido: Sistema de Exportación/Importación Granular...');
+// ========== PARCHE COMPLETO: SISTEMA DE EXPORTACIÓN/IMPORTACIÓN GRANULAR ==========
+console.log('🔄 Aplicando parche COMPLETO: Sistema de Exportación/Importación Granular...');
+
+// Eliminar cualquier función de exportación existente
+if (window.exportContentDataOnly) {
+    delete window.exportContentDataOnly;
+}
 
 // ========== SISTEMA DE EXPORTACIÓN GRANULAR ==========
 
@@ -18296,7 +18296,7 @@ function showExportModal() {
                 <!-- Opciones de exportación -->
                 <div style="space-y: 15px;">
                     <!-- Preguntas -->
-                    <label style="display: flex; align-items: center; padding: 15px; background: #f8fafc; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;" 
+                    <label style="display: flex; align-items: center; padding: 15px; background: #f8fafc; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; margin-bottom: 15px;" 
                            onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='transparent'">
                         <input type="checkbox" id="export-questions" style="margin-right: 12px; transform: scale(1.2);">
                         <div style="flex: 1;">
@@ -18310,7 +18310,7 @@ function showExportModal() {
                     </label>
                     
                     <!-- Temas con preguntas -->
-                    <label style="display: flex; align-items: center; padding: 15px; background: #f8fafc; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;" 
+                    <label style="display: flex; align-items: center; padding: 15px; background: #f8fafc; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; margin-bottom: 15px;" 
                            onmouseover="this.style.borderColor='#10b981'" onmouseout="this.style.borderColor='transparent'">
                         <input type="checkbox" id="export-topics" style="margin-right: 12px; transform: scale(1.2);">
                         <div style="flex: 1;">
@@ -18324,7 +18324,7 @@ function showExportModal() {
                     </label>
                     
                     <!-- Progreso -->
-                    <label style="display: flex; align-items: center; padding: 15px; background: #f8fafc; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;" 
+                    <label style="display: flex; align-items: center; padding: 15px; background: #f8fafc; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; margin-bottom: 15px;" 
                            onmouseover="this.style.borderColor='#8b5cf6'" onmouseout="this.style.borderColor='transparent'">
                         <input type="checkbox" id="export-progress" style="margin-right: 12px; transform: scale(1.2);">
                         <div style="flex: 1;">
@@ -18338,7 +18338,7 @@ function showExportModal() {
                     </label>
                     
                     <!-- Tests realizados -->
-                    <label style="display: flex; align-items: center; padding: 15px; background: #f8fafc; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;" 
+                    <label style="display: flex; align-items: center; padding: 15px; background: #f8fafc; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; margin-bottom: 15px;" 
                            onmouseover="this.style.borderColor='#f59e0b'" onmouseout="this.style.borderColor='transparent'">
                         <input type="checkbox" id="export-tests" style="margin-right: 12px; transform: scale(1.2);">
                         <div style="flex: 1;">
@@ -18352,7 +18352,7 @@ function showExportModal() {
                     </label>
                     
                     <!-- Resúmenes -->
-                    <label style="display: flex; align-items: center; padding: 15px; background: #f8fafc; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;" 
+                    <label style="display: flex; align-items: center; padding: 15px; background: #f8fafc; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; margin-bottom: 15px;" 
                            onmouseover="this.style.borderColor='#ef4444'" onmouseout="this.style.borderColor='transparent'">
                         <input type="checkbox" id="export-summaries" style="margin-right: 12px; transform: scale(1.2);">
                         <div style="flex: 1;">
@@ -19231,7 +19231,7 @@ function closeImportModal() {
 
 // ========== REEMPLAZAR FUNCIONES EXISTENTES ==========
 
-// Reemplazar la función exportContentDataOnly existente
+// Reemplazar COMPLETAMENTE la función exportContentDataOnly existente
 window.exportContentDataOnly = function() {
     showExportModal();
 };
@@ -19253,10 +19253,10 @@ window.calculateExportStats = calculateExportStats;
 // ========== INTERCEPTAR RENDERIZACIÓN PARA AGREGAR BOTONES ==========
 
 // Interceptar renderIntermediateScreen para agregar botón de importación
-const originalRenderIntermediateScreen = window.renderIntermediateScreen;
-if (typeof originalRenderIntermediateScreen === 'function') {
+const originalRenderIntermediateScreenExport = window.renderIntermediateScreen;
+if (typeof originalRenderIntermediateScreenExport === 'function') {
     window.renderIntermediateScreen = function() {
-        const originalHTML = originalRenderIntermediateScreen();
+        const originalHTML = originalRenderIntermediateScreenExport();
         
         // Buscar el botón de exportar y agregar el de importar después
         if (originalHTML.includes('exportContentDataOnly')) {
@@ -19272,17 +19272,20 @@ if (typeof originalRenderIntermediateScreen === 'function') {
                             </button>
             `;
             
-            return originalHTML.replace(
-                '</div>\n                    </div>\n                </div>',
-                importButton + '\n                        </div>\n                    </div>\n                </div>'
-            );
+            // Buscar donde insertar el botón (después del último botón en la fila)
+            const insertPosition = originalHTML.lastIndexOf('</button>');
+            if (insertPosition !== -1) {
+                // Encontrar el final del botón completo
+                const endButtonTag = originalHTML.indexOf('>', insertPosition) + 1;
+                return originalHTML.slice(0, endButtonTag) + '\n                            ' + importButton + originalHTML.slice(endButtonTag);
+            }
         }
         
         return originalHTML;
     };
 }
 
-console.log('✅ Sistema de Exportación/Importación Granular implementado');
+console.log('✅ Sistema de Exportación/Importación Granular implementado COMPLETAMENTE');
 console.log('🎯 Funcionalidades:');
 console.log('  • Exportación granular por tipo de datos');
 console.log('  • Importación inteligente con análisis de archivos');
@@ -19291,9 +19294,11 @@ console.log('  • Sin datos de usuario en archivos exportados');
 console.log('  • Compatible con archivos legacy');
 console.log('  • Validación de duplicados');
 console.log('  • Mensajes informativos detallados');
+console.log('  • Botones integrados en menú principal');
 </script>
 </body>
 </html>
+
 
 
 
