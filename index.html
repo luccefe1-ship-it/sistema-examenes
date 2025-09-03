@@ -19128,7 +19128,7 @@ ${exportedItems.join('\n')}
                 }
             }
             
-            // VERIFICAR GUARDADO Y ASIGNACIÓN DE TEMAS
+            // VERIFICACIÓN FINAL COMPLETA Y MEJORADA
             setTimeout(() => {
                 console.log('🔍 VERIFICACIÓN FINAL COMPLETA:');
                 console.log(`📊 Total preguntas en state: ${state.questions?.length || 0}`);
@@ -19149,10 +19149,33 @@ ${exportedItems.join('\n')}
                     const themeInState = state.topics?.find(t => t.name === targetTheme);
                     if (themeInState) {
                         console.log(`📚 Tema en state: "${themeInState.name}" - Contador: ${themeInState.questions}`);
+                        
+                        // VERIFICAR SINCRONIZACIÓN
+                        if (themeInState.questions !== questionsInTargetTheme.length) {
+                            console.log(`⚠️ DESINCRONIZACIÓN DETECTADA: Contador=${themeInState.questions}, Real=${questionsInTargetTheme.length}`);
+                            
+                            // CORRECCIÓN AUTOMÁTICA
+                            themeInState.questions = questionsInTargetTheme.length;
+                            console.log(`🔧 Contador corregido automáticamente: ${themeInState.questions}`);
+                            
+                            // Guardar corrección
+                            if (typeof RealDataManager !== 'undefined' && state.currentUser) {
+                                RealDataManager.saveFromGlobalData(state.currentUser.username);
+                                console.log('💾 Corrección guardada');
+                            }
+                            
+                            // Re-renderizar con corrección
+                            if (typeof render === 'function') {
+                                render();
+                                console.log('🔄 Interfaz actualizada con corrección');
+                            }
+                        } else {
+                            console.log('✅ Contador sincronizado correctamente');
+                        }
                     }
                 }
                 
-                // Verificar localStorage
+                // Verificar localStorage con más detalle
                 const username = state.currentUser?.username;
                 if (username) {
                     const savedData = localStorage.getItem(`testbank_${username}`);
@@ -19164,16 +19187,18 @@ ${exportedItems.join('\n')}
                         if (targetTheme && parsed.questions) {
                             const savedQuestionsInTheme = parsed.questions.filter(q => q.topic === targetTheme);
                             console.log(`💾 Preguntas del tema en localStorage: ${savedQuestionsInTheme.length}`);
+                            
+                            // Verificar tema en localStorage
+                            const savedTheme = parsed.topics?.find(t => t.name === targetTheme);
+                            if (savedTheme) {
+                                console.log(`💾 Contador del tema en localStorage: ${savedTheme.questions}`);
+                            }
                         }
                     }
                 }
                 
-                // FORZAR ACTUALIZACIÓN ADICIONAL
-                console.log('🔄 Forzando re-renderizado final...');
-                if (typeof render === 'function') {
-                    render();
-                }
-            }, 500);
+                console.log('🎉 Verificación final completada');
+            }, 800);
             
             // Actualizar interfaz - FORZAR RE-RENDERIZADO
             console.log('🔄 Actualizando interfaz...');
@@ -19301,6 +19326,7 @@ ${importedItems.join('\n')}${themeInfo}
 </script>
 </body>
 </html>
+
 
 
 
