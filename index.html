@@ -19148,22 +19148,30 @@ ${importedItems.join('\n')}${themeInfo}
     window.processImportWithTheme = processImportWithTheme;
     window.executeImportWithTheme = executeImportWithTheme;
     
-    // Interceptar clics en botones existentes
+    // Interceptar clics en botones existentes (SOLO del menú principal, no de modales)
     document.addEventListener('click', function(event) {
         const target = event.target;
         
+        // Verificar que NO estemos dentro de un modal
+        const isInsideModal = target.closest('#export-modal-selector') || target.closest('#import-modal-selector');
+        if (isInsideModal) {
+            // Si estamos dentro de un modal, NO interceptar
+            return;
+        }
+        
+        // Solo interceptar botones del menú principal
         if (target.textContent && target.textContent.includes('Exportar Contenido')) {
             event.preventDefault();
             event.stopPropagation();
-            console.log('🔄 Interceptando clic en botón de exportar');
+            console.log('🔄 Interceptando clic en botón de exportar del menú');
             window.exportContentDataOnly();
             return false;
         }
         
-        if (target.textContent && target.textContent.includes('Importar Contenido')) {
+        if (target.textContent && target.textContent.includes('Importar Contenido') && !target.onclick) {
             event.preventDefault();
             event.stopPropagation();
-            console.log('🔄 Interceptando clic en botón de importar');
+            console.log('🔄 Interceptando clic en botón de importar del menú');
             window.importContentFromFile();
             return false;
         }
@@ -19215,6 +19223,7 @@ ${importedItems.join('\n')}${themeInfo}
 </script>
 </body>
 </html>
+
 
 
 
