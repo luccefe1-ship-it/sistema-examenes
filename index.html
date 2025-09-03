@@ -18251,213 +18251,123 @@ console.log('   - Preserva todo el resaltado de búsqueda existente');
 console.log('   - Compatible con todos los filtros y búsquedas');
 </script>
 <!-- 
-PARCHE NUEVO: EXPORTACIÓN SELECTIVA + IMPORTACIÓN CON TEMA (SIMPLE Y FUNCIONAL)
+PARCHE SÚPER SIMPLE: EXPORTAR/IMPORTAR PREGUNTAS POR TEMA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-REEMPLAZA completamente el parche anterior
+Solo exporta preguntas de un tema específico, solo importa preguntas a un tema específico
 -->
 
 <script>
-    // ========== PARCHE NUEVO: SISTEMA SIMPLE DE EXPORTACIÓN/IMPORTACIÓN ==========
-    console.log('🆕 Iniciando parche nuevo de exportación/importación...');
+    // ========== PARCHE SIMPLE: PREGUNTAS POR TEMA ==========
+    console.log('🎯 Sistema simple de preguntas por tema iniciado');
     
-    // ========== EXPORTACIÓN SELECTIVA ==========
+    // ========== EXPORTAR PREGUNTAS DE UN TEMA ==========
     
     window.exportContentDataOnly = function() {
         if (!state.currentUser) {
             showMessage('❌ Error: No hay usuario logueado', 'error');
             return;
         }
-        showSimpleExportModal();
+        
+        if (!state.topics || state.topics.length === 0) {
+            showMessage('❌ No hay temas disponibles para exportar', 'error');
+            return;
+        }
+        
+        showExportByThemeModal();
     };
     
-    function showSimpleExportModal() {
+    function showExportByThemeModal() {
         // Eliminar modal existente
-        const existing = document.getElementById('simple-export-modal');
+        const existing = document.getElementById('export-theme-modal');
         if (existing) existing.remove();
         
+        // Preparar opciones de temas
+        let themeOptions = '';
+        state.topics.forEach(topic => {
+            const questionCount = state.questions ? state.questions.filter(q => q.topic === topic.name).length : 0;
+            themeOptions += `<option value="${topic.name}">${topic.name} (${questionCount} preguntas)</option>`;
+        });
+        
         const modal = document.createElement('div');
-        modal.id = 'simple-export-modal';
+        modal.id = 'export-theme-modal';
         modal.innerHTML = `
             <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 20000; display: flex; align-items: center; justify-content: center;">
-                <div style="background: white; border-radius: 15px; padding: 30px; max-width: 550px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
-                    <h2 style="margin: 0 0 20px 0; color: #1a1a1a; text-align: center; font-size: 1.4rem;">💾 Exportar Datos</h2>
+                <div style="background: white; border-radius: 15px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                    <h2 style="margin: 0 0 20px 0; color: #1a1a1a; text-align: center; font-size: 1.4rem;">📤 Exportar Preguntas</h2>
                     
                     <div style="background: #e8f4fd; border-radius: 10px; padding: 15px; margin-bottom: 20px; border-left: 4px solid #0ea5e9;">
-                        <p style="margin: 0; color: #0c4a6e; font-weight: 600;">🌐 Archivos portables - Funcionan en cualquier cuenta</p>
+                        <p style="margin: 0; color: #0c4a6e; font-weight: 600;">🎯 Selecciona el tema para exportar sus preguntas</p>
                     </div>
                     
                     <div style="margin-bottom: 25px;">
-                        <h3 style="color: #374151; margin-bottom: 15px; font-size: 1.1rem;">Selecciona qué exportar:</h3>
-                        
-                        <div style="display: grid; gap: 12px;">
-                            <label style="display: flex; align-items: center; padding: 15px; border-radius: 10px; cursor: pointer; background: #f8fafc; border: 2px solid #e2e8f0; transition: all 0.2s;">
-                                <input type="checkbox" id="exp-questions" style="margin-right: 12px; transform: scale(1.2);">
-                                <div>
-                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">📝 Solo Preguntas</div>
-                                    <div style="font-size: 0.85rem; color: #6b7280;">Exportar ${state.questions ? state.questions.length : 0} preguntas</div>
-                                </div>
-                            </label>
-                            
-                            <label style="display: flex; align-items: center; padding: 15px; border-radius: 10px; cursor: pointer; background: #f8fafc; border: 2px solid #e2e8f0; transition: all 0.2s;">
-                                <input type="checkbox" id="exp-topics" style="margin-right: 12px; transform: scale(1.2);">
-                                <div>
-                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">📚 Temas + Preguntas</div>
-                                    <div style="font-size: 0.85rem; color: #6b7280;">Exportar ${state.topics ? state.topics.length : 0} temas con preguntas</div>
-                                </div>
-                            </label>
-                            
-                            <label style="display: flex; align-items: center; padding: 15px; border-radius: 10px; cursor: pointer; background: #f8fafc; border: 2px solid #e2e8f0; transition: all 0.2s;">
-                                <input type="checkbox" id="exp-summaries" style="margin-right: 12px; transform: scale(1.2);">
-                                <div>
-                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">📄 Resúmenes</div>
-                                    <div style="font-size: 0.85rem; color: #6b7280;">Exportar ${typeof summarySystemState !== 'undefined' && summarySystemState.savedSummaries ? summarySystemState.savedSummaries.length : 0} resúmenes</div>
-                                </div>
-                            </label>
-                            
-                            <label style="display: flex; align-items: center; padding: 15px; border-radius: 10px; cursor: pointer; background: #f8fafc; border: 2px solid #e2e8f0; transition: all 0.2s;">
-                                <input type="checkbox" id="exp-tests" style="margin-right: 12px; transform: scale(1.2);">
-                                <div>
-                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">🧪 Tests</div>
-                                    <div style="font-size: 0.85rem; color: #6b7280;">Exportar ${state.testResults ? state.testResults.length : 0} tests realizados</div>
-                                </div>
-                            </label>
-                            
-                            <label style="display: flex; align-items: center; padding: 15px; border-radius: 10px; cursor: pointer; background: #f8fafc; border: 2px solid #e2e8f0; transition: all 0.2s;">
-                                <input type="checkbox" id="exp-progress" style="margin-right: 12px; transform: scale(1.2);">
-                                <div>
-                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">📊 Progreso</div>
-                                    <div style="font-size: 0.85rem; color: #6b7280;">Exportar progreso de estudio</div>
-                                </div>
-                            </label>
-                        </div>
+                        <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 600;">
+                            Tema a exportar:
+                        </label>
+                        <select id="export-theme-select" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #d1d5db; background: white; font-size: 1rem; color: #374151;">
+                            ${themeOptions}
+                        </select>
                     </div>
                     
                     <div style="display: flex; gap: 12px; margin-top: 25px;">
-                        <button onclick="executeSimpleExport()" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
-                            💾 Exportar
+                        <button onclick="executeExportByTheme()" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+                            📤 Exportar Preguntas
                         </button>
-                        <button onclick="closeSimpleExportModal()" style="flex: 0.6; background: #6b7280; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer;">
+                        <button onclick="closeExportThemeModal()" style="flex: 0.6; background: #6b7280; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer;">
                             ❌ Cancelar
                         </button>
-                    </div>
-                    
-                    <div style="margin-top: 15px; text-align: center;">
-                        <button onclick="selectAllSimpleExport()" style="background: transparent; color: #0ea5e9; border: 1px solid #0ea5e9; padding: 8px 15px; border-radius: 6px; cursor: pointer; margin-right: 8px; font-size: 0.9rem;">✅ Todo</button>
-                        <button onclick="clearAllSimpleExport()" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">❌ Limpiar</button>
                     </div>
                 </div>
             </div>
         `;
         
         document.body.appendChild(modal);
-        
-        // Agregar estilos dinámicos
-        const style = document.createElement('style');
-        style.textContent = `
-            #simple-export-modal label:hover { background: #f1f5f9 !important; border-color: #3b82f6 !important; }
-            #simple-export-modal input[type="checkbox"] { accent-color: #3b82f6; }
-        `;
-        document.head.appendChild(style);
-        
-        console.log('📤 Modal de exportación mostrado');
+        console.log('📤 Modal de exportar por tema mostrado');
     }
     
-    function closeSimpleExportModal() {
-        const modal = document.getElementById('simple-export-modal');
+    function closeExportThemeModal() {
+        const modal = document.getElementById('export-theme-modal');
         if (modal) modal.remove();
     }
     
-    function selectAllSimpleExport() {
-        ['exp-questions', 'exp-topics', 'exp-summaries', 'exp-tests', 'exp-progress'].forEach(id => {
-            const cb = document.getElementById(id);
-            if (cb) cb.checked = true;
-        });
-    }
-    
-    function clearAllSimpleExport() {
-        ['exp-questions', 'exp-topics', 'exp-summaries', 'exp-tests', 'exp-progress'].forEach(id => {
-            const cb = document.getElementById(id);
-            if (cb) cb.checked = false;
-        });
-    }
-    
-    function executeSimpleExport() {
-        const selections = {
-            questions: document.getElementById('exp-questions')?.checked || false,
-            topics: document.getElementById('exp-topics')?.checked || false,
-            summaries: document.getElementById('exp-summaries')?.checked || false,
-            tests: document.getElementById('exp-tests')?.checked || false,
-            progress: document.getElementById('exp-progress')?.checked || false
-        };
+    function executeExportByTheme() {
+        const themeSelect = document.getElementById('export-theme-select');
+        const selectedTheme = themeSelect.value;
         
-        const hasSelection = Object.values(selections).some(s => s);
-        if (!hasSelection) {
-            showMessage('⚠️ Selecciona al menos una opción', 'error');
+        if (!selectedTheme) {
+            showMessage('❌ Selecciona un tema', 'error');
             return;
         }
         
-        closeSimpleExportModal();
+        closeExportThemeModal();
         
         try {
-            const exportData = {
-                version: "6.0",
-                exportDate: new Date().toISOString(),
-                exportType: "portable_selective",
-                originalUser: state.currentUser.username,
-                data: {}
-            };
+            // Obtener preguntas del tema seleccionado
+            const themeQuestions = state.questions ? state.questions.filter(q => q.topic === selectedTheme) : [];
             
-            let items = [];
-            let nameParts = [];
-            
-            if (selections.questions && state.questions?.length > 0) {
-                exportData.data.questions = state.questions;
-                items.push(`📝 ${state.questions.length} preguntas`);
-                nameParts.push('preguntas');
-            }
-            
-            if (selections.topics) {
-                if (state.topics?.length > 0) {
-                    exportData.data.topics = state.topics;
-                    items.push(`📚 ${state.topics.length} temas`);
-                }
-                if (state.questions?.length > 0) {
-                    exportData.data.questions = state.questions;
-                    items.push(`📝 ${state.questions.length} preguntas`);
-                }
-                nameParts.push('temas');
-            }
-            
-            if (selections.summaries && typeof summarySystemState !== 'undefined') {
-                if (summarySystemState.savedSummaries?.length > 0) {
-                    exportData.data.savedSummaries = summarySystemState.savedSummaries;
-                    exportData.data.summaryTopics = summarySystemState.summaryTopics || [];
-                    items.push(`📄 ${summarySystemState.savedSummaries.length} resúmenes`);
-                    nameParts.push('resumenes');
-                }
-            }
-            
-            if (selections.tests && state.testResults?.length > 0) {
-                exportData.data.testResults = state.testResults;
-                items.push(`🧪 ${state.testResults.length} tests`);
-                nameParts.push('tests');
-            }
-            
-            if (selections.progress && typeof progressState !== 'undefined' && progressState.studyTopics?.length > 0) {
-                exportData.data.progressTopics = progressState.studyTopics;
-                items.push(`📊 ${progressState.studyTopics.length} temas de progreso`);
-                nameParts.push('progreso');
-            }
-            
-            if (items.length === 0) {
-                showMessage('⚠️ No hay datos para exportar', 'error');
+            if (themeQuestions.length === 0) {
+                showMessage(`❌ No hay preguntas en el tema "${selectedTheme}"`, 'error');
                 return;
             }
             
+            // Crear archivo de exportación simple
+            const exportData = {
+                version: "7.0-simple",
+                exportDate: new Date().toISOString(),
+                exportType: "questions_by_theme",
+                originalUser: state.currentUser.username,
+                originalTheme: selectedTheme,
+                data: {
+                    questions: themeQuestions
+                }
+            };
+            
+            // Generar nombre del archivo
             const dateStr = new Date().toISOString().split('T')[0];
             const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
-            const fileName = `export_${nameParts.join('_')}_${dateStr}_${timeStr}.json`;
+            const cleanThemeName = selectedTheme.replace(/[^a-zA-Z0-9]/g, '_');
+            const fileName = `preguntas_${cleanThemeName}_${dateStr}_${timeStr}.json`;
             
+            // Crear y descargar archivo
             const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -18468,8 +18378,8 @@ REEMPLAZA completamente el parche anterior
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             
-            showMessage(`✅ Exportado: ${items.join(', ')}\n📁 ${fileName}`, 'success');
-            console.log('✅ Exportación completada:', fileName);
+            showMessage(`✅ Exportadas ${themeQuestions.length} preguntas del tema "${selectedTheme}"\n📁 ${fileName}`, 'success');
+            console.log(`✅ Exportación completada: ${themeQuestions.length} preguntas de "${selectedTheme}"`);
             
         } catch (error) {
             console.error('❌ Error en exportación:', error);
@@ -18477,7 +18387,7 @@ REEMPLAZA completamente el parche anterior
         }
     }
     
-    // ========== IMPORTACIÓN CON TEMA ==========
+    // ========== IMPORTAR PREGUNTAS A UN TEMA ==========
     
     window.importContentFromFile = function() {
         const input = document.createElement('input');
@@ -18491,7 +18401,7 @@ REEMPLAZA completamente el parche anterior
             reader.onload = function(event) {
                 try {
                     const data = JSON.parse(event.target.result);
-                    showSimpleImportModal(data);
+                    showImportToThemeModal(data);
                 } catch (error) {
                     showMessage('❌ Error al leer archivo: ' + error.message, 'error');
                 }
@@ -18501,98 +18411,79 @@ REEMPLAZA completamente el parche anterior
         input.click();
     };
     
-    function showSimpleImportModal(importedData) {
-        // Extraer datos según formato
-        let sourceData = null;
-        if (importedData.data) {
-            sourceData = importedData.data; // v6.0, v5.0
-        } else if (importedData.contentData) {
-            sourceData = importedData.contentData; // v3.0, v4.0
-        } else if (importedData.userData) {
-            sourceData = importedData.userData; // v2.0
-        } else {
-            showMessage('❌ Formato de archivo no válido', 'error');
+    function showImportToThemeModal(importedData) {
+        // Extraer preguntas según formato del archivo
+        let questions = [];
+        if (importedData.data && importedData.data.questions) {
+            questions = importedData.data.questions; // Formato nuevo v7.0
+        } else if (importedData.contentData && importedData.contentData.questions) {
+            questions = importedData.contentData.questions; // Formato v3.0-v6.0
+        } else if (importedData.userData && importedData.userData.questions) {
+            questions = importedData.userData.questions; // Formato v2.0
+        } else if (importedData.questions) {
+            questions = importedData.questions; // Formato directo
+        }
+        
+        if (!questions || questions.length === 0) {
+            showMessage('❌ No se encontraron preguntas en el archivo', 'error');
+            return;
+        }
+        
+        // Verificar que tengamos temas donde importar
+        if (!state.topics || state.topics.length === 0) {
+            showMessage('❌ No tienes temas creados. Crea al menos un tema primero.', 'error');
             return;
         }
         
         // Eliminar modal existente
-        const existing = document.getElementById('simple-import-modal');
+        const existing = document.getElementById('import-theme-modal');
         if (existing) existing.remove();
         
-        const questionsCount = sourceData.questions?.length || 0;
-        const topicsCount = sourceData.topics?.length || 0;
-        const summariesCount = sourceData.savedSummaries?.length || 0;
-        const testsCount = sourceData.testResults?.length || 0;
-        const progressCount = sourceData.progressTopics?.length || 0;
-        
         // Preparar opciones de temas existentes
-        const existingTopics = state.topics || [];
-        let topicOptions = '<option value="create-new">🆕 Crear nuevo tema</option>';
-        if (existingTopics.length > 0) {
-            topicOptions += '<option value="" disabled>── Temas existentes ──</option>';
-            existingTopics.forEach(topic => {
-                topicOptions += `<option value="${topic.name}">${topic.name}</option>`;
-            });
-        }
+        let themeOptions = '';
+        state.topics.forEach(topic => {
+            const questionCount = state.questions ? state.questions.filter(q => q.topic === topic.name).length : 0;
+            themeOptions += `<option value="${topic.name}">${topic.name} (${questionCount} preguntas actuales)</option>`;
+        });
         
         const modal = document.createElement('div');
-        modal.id = 'simple-import-modal';
+        modal.id = 'import-theme-modal';
         modal.innerHTML = `
             <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 20000; display: flex; align-items: center; justify-content: center;">
-                <div style="background: white; border-radius: 15px; padding: 30px; max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
-                    <h2 style="margin: 0 0 20px 0; color: #1a1a1a; text-align: center; font-size: 1.4rem;">📥 Importar Contenido</h2>
+                <div style="background: white; border-radius: 15px; padding: 30px; max-width: 550px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                    <h2 style="margin: 0 0 20px 0; color: #1a1a1a; text-align: center; font-size: 1.4rem;">📥 Importar Preguntas</h2>
                     
                     <div style="background: #ecfdf5; border-radius: 10px; padding: 15px; margin-bottom: 20px; border-left: 4px solid #10b981;">
-                        <div style="color: #065f46; font-weight: 600; margin-bottom: 8px;">📂 Archivo: ${importedData.exportType || 'backup'}</div>
+                        <div style="color: #065f46; font-weight: 600; margin-bottom: 5px;">📊 Archivo seleccionado:</div>
+                        <div style="color: #047857;">📝 <strong>${questions.length}</strong> preguntas para importar</div>
+                        ${importedData.originalTheme ? `<div style="color: #047857;">🎯 Tema original: "${importedData.originalTheme}"</div>` : ''}
                         ${importedData.originalUser ? `<div style="color: #047857;">👤 Usuario: ${importedData.originalUser}</div>` : ''}
                     </div>
                     
                     <div style="margin-bottom: 20px;">
-                        <h3 style="color: #374151; margin-bottom: 12px; font-size: 1.1rem;">📊 Contenido disponible:</h3>
-                        <div style="display: grid; gap: 8px;">
-                            ${questionsCount > 0 ? `<div style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 6px;"><span>📝</span><span><strong>${questionsCount}</strong> preguntas</span></div>` : ''}
-                            ${topicsCount > 0 ? `<div style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 6px;"><span>📚</span><span><strong>${topicsCount}</strong> temas</span></div>` : ''}
-                            ${summariesCount > 0 ? `<div style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 6px;"><span>📄</span><span><strong>${summariesCount}</strong> resúmenes</span></div>` : ''}
-                            ${testsCount > 0 ? `<div style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 6px;"><span>🧪</span><span><strong>${testsCount}</strong> tests</span></div>` : ''}
-                            ${progressCount > 0 ? `<div style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 6px;"><span>📊</span><span><strong>${progressCount}</strong> progreso</span></div>` : ''}
-                        </div>
+                        <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 600;">
+                            Importar a qué tema:
+                        </label>
+                        <select id="import-theme-select" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #d1d5db; background: white; font-size: 1rem; color: #374151;">
+                            ${themeOptions}
+                        </select>
                     </div>
                     
-                    ${(questionsCount > 0 || summariesCount > 0) ? `
-                        <div style="margin-bottom: 20px; padding: 18px; background: #fffbeb; border-radius: 10px; border-left: 4px solid #f59e0b;">
-                            <h4 style="margin: 0 0 12px 0; color: #92400e; font-size: 1rem; display: flex; align-items: center; gap: 6px;">
-                                <span>🎯</span> Asignar a tema
-                            </h4>
-                            <label style="display: block; margin-bottom: 8px; color: #78350f; font-weight: 600;">
-                                Dónde importar preguntas/resúmenes:
-                            </label>
-                            <select id="imp-theme-selector" style="width: 100%; padding: 10px; border-radius: 6px; border: 2px solid #fbbf24; background: white; font-size: 0.95rem; color: #92400e;">
-                                ${topicOptions}
-                            </select>
-                            <div id="imp-new-theme-div" style="display: none; margin-top: 10px;">
-                                <label style="display: block; margin-bottom: 6px; color: #78350f; font-weight: 600;">Nombre del nuevo tema:</label>
-                                <input type="text" id="imp-new-theme-name" placeholder="Ej: Historia de España" style="width: 100%; padding: 10px; border-radius: 6px; border: 2px solid #fbbf24; font-size: 0.95rem;">
-                            </div>
-                        </div>
-                    ` : ''}
-                    
                     <div style="margin-bottom: 20px;">
-                        <h4 style="margin: 0 0 10px 0; color: #374151; font-size: 1rem;">⚙️ Opciones:</h4>
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 8px;">
-                            <input type="checkbox" id="imp-avoid-duplicates" checked style="transform: scale(1.1);">
-                            <span style="color: #4b5563;">Evitar duplicados</span>
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" id="imp-merge-content" checked style="transform: scale(1.1);">
-                            <span style="color: #4b5563;">Agregar a contenido existente</span>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                            <input type="checkbox" id="avoid-duplicates" checked style="transform: scale(1.2);">
+                            <div>
+                                <div style="font-weight: 600; color: #374151;">🔄 Evitar preguntas duplicadas</div>
+                                <div style="font-size: 0.85rem; color: #6b7280;">No importar preguntas que ya existan en el tema</div>
+                            </div>
                         </label>
                     </div>
                     
                     <div style="display: flex; gap: 12px; margin-top: 25px;">
-                        <button onclick="executeSimpleImport()" style="flex: 1; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer;">
-                            📥 Importar
+                        <button onclick="executeImportToTheme()" style="flex: 1; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer;">
+                            📥 Importar Preguntas
                         </button>
-                        <button onclick="closeSimpleImportModal()" style="flex: 0.6; background: #6b7280; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer;">
+                        <button onclick="closeImportThemeModal()" style="flex: 0.6; background: #6b7280; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer;">
                             ❌ Cancelar
                         </button>
                     </div>
@@ -18603,295 +18494,151 @@ REEMPLAZA completamente el parche anterior
         document.body.appendChild(modal);
         
         // Guardar datos para importar
-        window.pendingSimpleImportData = sourceData;
+        window.pendingQuestionsToImport = questions;
         
-        // Manejar selector de tema
-        const themeSelector = document.getElementById('imp-theme-selector');
-        const newThemeDiv = document.getElementById('imp-new-theme-div');
-        if (themeSelector && newThemeDiv) {
-            themeSelector.onchange = function() {
-                if (this.value === 'create-new') {
-                    newThemeDiv.style.display = 'block';
-                    document.getElementById('imp-new-theme-name').focus();
-                } else {
-                    newThemeDiv.style.display = 'none';
-                }
-            };
-        }
-        
-        console.log('📥 Modal de importación mostrado');
+        console.log('📥 Modal de importar a tema mostrado');
     }
     
-    function closeSimpleImportModal() {
-        const modal = document.getElementById('simple-import-modal');
+    function closeImportThemeModal() {
+        const modal = document.getElementById('import-theme-modal');
         if (modal) modal.remove();
-        delete window.pendingSimpleImportData;
+        delete window.pendingQuestionsToImport;
     }
     
-    function executeSimpleImport() {
-        if (!window.pendingSimpleImportData) {
-            showMessage('❌ Error: No hay datos para importar', 'error');
+    function executeImportToTheme() {
+        if (!window.pendingQuestionsToImport) {
+            showMessage('❌ Error: No hay preguntas para importar', 'error');
             return;
         }
         
-        const sourceData = window.pendingSimpleImportData;
+        const themeSelect = document.getElementById('import-theme-select');
+        const avoidDuplicates = document.getElementById('avoid-duplicates').checked;
+        const targetTheme = themeSelect.value;
         
-        // Obtener configuraciones
-        const themeSelector = document.getElementById('imp-theme-selector');
-        const newThemeName = document.getElementById('imp-new-theme-name');
-        const avoidDuplicates = document.getElementById('imp-avoid-duplicates')?.checked || true;
-        const mergeContent = document.getElementById('imp-merge-content')?.checked || true;
-        
-        let targetTheme = null;
-        
-        // Determinar tema objetivo
-        if (themeSelector && (sourceData.questions?.length > 0 || sourceData.savedSummaries?.length > 0)) {
-            if (themeSelector.value === 'create-new') {
-                const newName = newThemeName?.value?.trim();
-                if (!newName) {
-                    showMessage('❌ Escribe el nombre del nuevo tema', 'error');
-                    return;
-                }
-                
-                const exists = state.topics?.find(t => t.name.toLowerCase() === newName.toLowerCase());
-                if (exists) {
-                    showMessage('❌ Ya existe un tema con ese nombre', 'error');
-                    return;
-                }
-                
-                targetTheme = newName;
-            } else if (themeSelector.value) {
-                targetTheme = themeSelector.value;
-            }
+        if (!targetTheme) {
+            showMessage('❌ Selecciona un tema', 'error');
+            return;
         }
         
-        closeSimpleImportModal();
+        closeImportThemeModal();
         
-        // EJECUTAR IMPORTACIÓN SIMPLE Y DIRECTA
         try {
             console.log('🚀 INICIANDO IMPORTACIÓN SIMPLE');
-            console.log('Tema objetivo:', targetTheme);
-            console.log('Datos a importar:', {
-                questions: sourceData.questions?.length || 0,
-                topics: sourceData.topics?.length || 0,
-                summaries: sourceData.savedSummaries?.length || 0,
-                tests: sourceData.testResults?.length || 0
-            });
+            console.log(`Tema destino: "${targetTheme}"`);
+            console.log(`Preguntas a importar: ${window.pendingQuestionsToImport.length}`);
+            console.log(`Evitar duplicados: ${avoidDuplicates}`);
             
-            showMessage('📥 Importando...', 'info');
+            showMessage('📥 Importando preguntas...', 'info');
             
-            let importedItems = [];
+            // Preparar preguntas para importar
+            let questionsToAdd = [...window.pendingQuestionsToImport];
             
-            // IMPORTAR PREGUNTAS
-            if (sourceData.questions?.length > 0) {
-                console.log(`📝 Procesando ${sourceData.questions.length} preguntas`);
-                
-                let questionsToAdd = [...sourceData.questions];
-                
-                // Asignar tema si se especificó
-                if (targetTheme) {
-                    console.log(`🎯 Asignando preguntas al tema: "${targetTheme}"`);
-                    questionsToAdd = questionsToAdd.map(q => ({
-                        ...q,
-                        topic: targetTheme
-                    }));
-                }
-                
-                // Evitar duplicados
-                if (avoidDuplicates) {
-                    const currentQuestions = state.questions || [];
-                    const existingIds = new Set(currentQuestions.map(q => q.id));
-                    const beforeCount = questionsToAdd.length;
-                    questionsToAdd = questionsToAdd.filter(q => !existingIds.has(q.id));
-                    console.log(`🔄 Filtrados ${beforeCount - questionsToAdd.length} duplicados`);
-                }
-                
-                // Agregar preguntas
+            // Asignar todas las preguntas al tema seleccionado
+            questionsToAdd = questionsToAdd.map(q => ({
+                ...q,
+                topic: targetTheme
+            }));
+            
+            console.log(`✅ Preguntas asignadas al tema "${targetTheme}"`);
+            
+            // Evitar duplicados si está marcado
+            if (avoidDuplicates) {
                 const currentQuestions = state.questions || [];
-                if (mergeContent) {
-                    state.questions = [...currentQuestions, ...questionsToAdd];
-                } else {
-                    state.questions = questionsToAdd;
-                }
+                const existingIds = new Set(currentQuestions.map(q => q.id));
+                const originalCount = questionsToAdd.length;
+                questionsToAdd = questionsToAdd.filter(q => !existingIds.has(q.id));
+                const duplicatesRemoved = originalCount - questionsToAdd.length;
                 
-                console.log(`✅ ${questionsToAdd.length} preguntas agregadas`);
-                importedItems.push(`📝 ${questionsToAdd.length} preguntas`);
-                
-                // Crear/actualizar tema si es necesario
-                if (targetTheme) {
-                    const currentTopics = state.topics || [];
-                    const existingTopic = currentTopics.find(t => t.name === targetTheme);
-                    
-                    if (!existingTopic) {
-                        // Crear nuevo tema
-                        const newTopic = {
-                            id: 'topic_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                            name: targetTheme,
-                            questions: questionsToAdd.length
-                        };
-                        state.topics = [...currentTopics, newTopic];
-                        console.log(`🆕 Tema creado: "${targetTheme}" con ${questionsToAdd.length} preguntas`);
-                    } else {
-                        // Actualizar tema existente
-                        existingTopic.questions = (existingTopic.questions || 0) + questionsToAdd.length;
-                        console.log(`📈 Tema actualizado: "${targetTheme}" ahora tiene ${existingTopic.questions} preguntas`);
-                    }
+                if (duplicatesRemoved > 0) {
+                    console.log(`🔄 Eliminados ${duplicatesRemoved} duplicados`);
                 }
             }
             
-            // IMPORTAR TEMAS (si no hay tema objetivo específico)
-            if (sourceData.topics?.length > 0 && !targetTheme) {
-                let topicsToAdd = [...sourceData.topics];
-                
-                if (avoidDuplicates) {
-                    const currentTopics = state.topics || [];
-                    const existingNames = new Set(currentTopics.map(t => t.name.toLowerCase()));
-                    topicsToAdd = topicsToAdd.filter(t => !existingNames.has(t.name.toLowerCase()));
-                }
-                
-                topicsToAdd.forEach(topic => {
-                    if (!topic.id) {
-                        topic.id = 'topic_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                    }
-                });
-                
-                const currentTopics = state.topics || [];
-                if (mergeContent) {
-                    state.topics = [...currentTopics, ...topicsToAdd];
-                } else {
-                    state.topics = topicsToAdd;
-                }
-                
-                importedItems.push(`📚 ${topicsToAdd.length} temas`);
-                console.log(`✅ ${topicsToAdd.length} temas agregados`);
+            // SIEMPRE agregar a las preguntas existentes (nunca reemplazar)
+            const currentQuestions = state.questions || [];
+            state.questions = [...currentQuestions, ...questionsToAdd];
+            
+            console.log(`✅ ${questionsToAdd.length} preguntas agregadas al estado`);
+            
+            // Actualizar contador del tema
+            const tema = state.topics.find(t => t.name === targetTheme);
+            if (tema) {
+                const totalQuestionsInTheme = state.questions.filter(q => q.topic === targetTheme).length;
+                tema.questions = totalQuestionsInTheme;
+                console.log(`📈 Contador del tema "${targetTheme}" actualizado a: ${totalQuestionsInTheme}`);
             }
             
-            // IMPORTAR TESTS
-            if (sourceData.testResults?.length > 0) {
-                const currentTests = state.testResults || [];
-                if (mergeContent) {
-                    state.testResults = [...currentTests, ...sourceData.testResults];
-                } else {
-                    state.testResults = sourceData.testResults;
-                }
-                importedItems.push(`🧪 ${sourceData.testResults.length} tests`);
-                console.log(`✅ ${sourceData.testResults.length} tests agregados`);
-            }
-            
-            // IMPORTAR RESÚMENES
-            if (sourceData.savedSummaries?.length > 0 && typeof summarySystemState !== 'undefined') {
-                let summariesToAdd = [...sourceData.savedSummaries];
-                
-                if (targetTheme) {
-                    summariesToAdd = summariesToAdd.map(s => ({
-                        ...s,
-                        topic: targetTheme
-                    }));
-                }
-                
-                const currentSummaries = summarySystemState.savedSummaries || [];
-                if (mergeContent) {
-                    summarySystemState.savedSummaries = [...currentSummaries, ...summariesToAdd];
-                } else {
-                    summarySystemState.savedSummaries = summariesToAdd;
-                }
-                
-                if (sourceData.summaryTopics) {
-                    const currentSummaryTopics = summarySystemState.summaryTopics || [];
-                    if (mergeContent) {
-                        summarySystemState.summaryTopics = [...currentSummaryTopics, ...sourceData.summaryTopics];
-                    } else {
-                        summarySystemState.summaryTopics = sourceData.summaryTopics;
-                    }
-                }
-                
-                importedItems.push(`📄 ${summariesToAdd.length} resúmenes`);
-                console.log(`✅ ${summariesToAdd.length} resúmenes agregados`);
-            }
-            
-            // IMPORTAR PROGRESO
-            if (sourceData.progressTopics?.length > 0 && typeof progressState !== 'undefined') {
-                const currentProgress = progressState.studyTopics || [];
-                if (mergeContent) {
-                    progressState.studyTopics = [...currentProgress, ...sourceData.progressTopics];
-                } else {
-                    progressState.studyTopics = sourceData.progressTopics;
-                }
-                importedItems.push(`📊 ${sourceData.progressTopics.length} progreso`);
-                console.log(`✅ ${sourceData.progressTopics.length} progreso agregado`);
-            }
-            
-            // GUARDAR TODO DE FORMA SIMPLE Y DIRECTA
+            // GUARDAR TODO
             console.log('💾 Guardando datos...');
             const username = state.currentUser?.username;
             
             if (username) {
-                // Preparar datos para guardar
                 const dataToSave = {
-                    questions: state.questions || [],
-                    topics: state.topics || [],
+                    questions: state.questions,
+                    topics: state.topics,
                     testResults: state.testResults || [],
                     apiKey: state.apiKey || ''
                 };
                 
-                // Guardar en localStorage con múltiples claves para compatibilidad
+                // Guardar en localStorage
                 localStorage.setItem(`testbank_${username}`, JSON.stringify(dataToSave));
                 localStorage.setItem(`realUser_${username}_questions`, JSON.stringify(dataToSave.questions));
                 localStorage.setItem(`realUser_${username}_topics`, JSON.stringify(dataToSave.topics));
-                localStorage.setItem(`realUser_${username}_testResults`, JSON.stringify(dataToSave.testResults));
                 
                 console.log('💾 Datos guardados en localStorage');
                 
-                // Verificar guardado
-                const saved = JSON.parse(localStorage.getItem(`testbank_${username}`) || '{}');
-                console.log('✅ Verificación guardado:', {
-                    questionsGuardadas: saved.questions?.length || 0,
-                    temasGuardados: saved.topics?.length || 0,
-                    preguntasDelTema: targetTheme ? saved.questions?.filter(q => q.topic === targetTheme).length : 'N/A'
-                });
+                // Verificar guardado inmediatamente
+                const verification = JSON.parse(localStorage.getItem(`testbank_${username}`) || '{}');
+                const savedQuestionsInTheme = verification.questions ? verification.questions.filter(q => q.topic === targetTheme).length : 0;
+                console.log(`✅ Verificación: ${savedQuestionsInTheme} preguntas guardadas en tema "${targetTheme}"`);
             }
             
-            // Intentar también con RealDataManager si existe
+            // También guardar con RealDataManager si existe
             if (typeof RealDataManager !== 'undefined' && state.currentUser) {
                 try {
                     RealDataManager.saveFromGlobalData(state.currentUser.username);
                     console.log('💾 También guardado con RealDataManager');
                 } catch (error) {
-                    console.log('⚠️ Error con RealDataManager:', error.message);
+                    console.log('⚠️ Error con RealDataManager (no crítico):', error.message);
                 }
             }
             
-            // FORZAR ACTUALIZACIÓN DE LA INTERFAZ
+            // FORZAR ACTUALIZACIÓN DE INTERFAZ
             console.log('🔄 Actualizando interfaz...');
             if (typeof render === 'function') {
                 render();
-                // Segundo renderizado para asegurar
                 setTimeout(() => {
                     render();
                     console.log('🔄 Interfaz actualizada');
-                }, 100);
+                }, 200);
             }
             
             // MENSAJE DE ÉXITO
-            const themeInfo = targetTheme ? `\n🎯 Tema: "${targetTheme}"` : '';
-            showMessage(`✅ IMPORTACIÓN COMPLETADA\n\n${importedItems.join('\n')}${themeInfo}`, 'success');
+            const duplicatesMsg = avoidDuplicates && (window.pendingQuestionsToImport.length - questionsToAdd.length) > 0 
+                ? `\n🔄 ${window.pendingQuestionsToImport.length - questionsToAdd.length} duplicados omitidos` 
+                : '';
+            
+            showMessage(`✅ IMPORTACIÓN COMPLETADA\n\n📝 ${questionsToAdd.length} preguntas importadas\n🎯 Tema: "${targetTheme}"${duplicatesMsg}`, 'success');
             
             console.log('🎉 IMPORTACIÓN COMPLETADA EXITOSAMENTE');
+            
+            // Limpiar datos temporales
+            delete window.pendingQuestionsToImport;
             
         } catch (error) {
             console.error('❌ Error en importación:', error);
             showMessage('❌ Error al importar: ' + error.message, 'error');
+            delete window.pendingQuestionsToImport;
         }
     }
     
     // ========== INTERCEPTAR BOTONES EXISTENTES ==========
     
-    // Solo interceptar botones del menú principal, no de modales
     document.addEventListener('click', function(event) {
         const target = event.target;
         
         // No interceptar si estamos dentro de un modal
-        if (target.closest('#simple-export-modal') || target.closest('#simple-import-modal')) {
+        if (target.closest('#export-theme-modal') || target.closest('#import-theme-modal')) {
             return;
         }
         
@@ -18899,7 +18646,7 @@ REEMPLAZA completamente el parche anterior
         if (target.textContent && target.textContent.includes('Exportar Contenido')) {
             event.preventDefault();
             event.stopPropagation();
-            console.log('🔄 Interceptando exportar del menú');
+            console.log('🔄 Interceptando exportar - mostrando selector de tema');
             window.exportContentDataOnly();
             return false;
         }
@@ -18908,7 +18655,7 @@ REEMPLAZA completamente el parche anterior
         if (target.textContent && target.textContent.includes('Importar Contenido')) {
             event.preventDefault();
             event.stopPropagation();
-            console.log('🔄 Interceptando importar del menú');
+            console.log('🔄 Interceptando importar - mostrando selector de archivo');
             window.importContentFromFile();
             return false;
         }
@@ -18916,31 +18663,29 @@ REEMPLAZA completamente el parche anterior
     
     // ========== FUNCIONES GLOBALES ==========
     
-    window.showSimpleExportModal = showSimpleExportModal;
-    window.closeSimpleExportModal = closeSimpleExportModal;
-    window.selectAllSimpleExport = selectAllSimpleExport;
-    window.clearAllSimpleExport = clearAllSimpleExport;
-    window.executeSimpleExport = executeSimpleExport;
-    window.showSimpleImportModal = showSimpleImportModal;
-    window.closeSimpleImportModal = closeSimpleImportModal;
-    window.executeSimpleImport = executeSimpleImport;
+    window.showExportByThemeModal = showExportByThemeModal;
+    window.closeExportThemeModal = closeExportThemeModal;
+    window.executeExportByTheme = executeExportByTheme;
+    window.showImportToThemeModal = showImportToThemeModal;
+    window.closeImportThemeModal = closeImportThemeModal;
+    window.executeImportToTheme = executeImportToTheme;
     
-    console.log('✅ PARCHE NUEVO IMPLEMENTADO CORRECTAMENTE');
-    console.log('🎯 Funcionalidades disponibles:');
-    console.log('  📤 Exportación selectiva simple');
-    console.log('  📥 Importación con asignación de tema');
-    console.log('  🔐 Archivos portables sin datos de usuario');
-    console.log('  🚫 Sin duplicados automáticamente');
-    console.log('  💾 Guardado múltiple para máxima compatibilidad');
-    console.log('  🔄 Actualización forzada de interfaz');
+    console.log('✅ SISTEMA SIMPLE DE PREGUNTAS POR TEMA LISTO');
+    console.log('🎯 Funcionalidades:');
+    console.log('  📤 Exportar preguntas de un tema específico');
+    console.log('  📥 Importar preguntas a un tema específico');
+    console.log('  🔄 Evitar duplicados opcional');
+    console.log('  ➕ Siempre agregar, nunca borrar preguntas existentes');
+    console.log('  🎁 Archivos portables entre usuarios');
     
     setTimeout(() => {
-        console.log('🚀 Sistema listo para usar');
-        console.log('💡 Prueba "Exportar Contenido" o "Importar Contenido"');
+        console.log('🚀 ¡Listo para usar!');
+        console.log('💡 Prueba los botones "Exportar Contenido" e "Importar Contenido"');
     }, 1000);
 </script>
 </body>
 </html>
+
 
 
 
