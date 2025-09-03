@@ -18251,387 +18251,216 @@ console.log('   - Preserva todo el resaltado de búsqueda existente');
 console.log('   - Compatible con todos los filtros y búsquedas');
 </script>
 <!-- 
-PARCHE COMPLETO: EXPORTACIÓN SELECTIVA + IMPORTACIÓN CON TEMA
+PARCHE NUEVO: EXPORTACIÓN SELECTIVA + IMPORTACIÓN CON TEMA (SIMPLE Y FUNCIONAL)
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+REEMPLAZA completamente el parche anterior
 -->
 
 <script>
-    // ========== SISTEMA COMPLETO: EXPORTACIÓN SELECTIVA + IMPORTACIÓN CON TEMA ==========
-    console.log('🚀 Implementando sistema completo de exportación/importación...');
+    // ========== PARCHE NUEVO: SISTEMA SIMPLE DE EXPORTACIÓN/IMPORTACIÓN ==========
+    console.log('🆕 Iniciando parche nuevo de exportación/importación...');
     
-    // REDEFINIR función de exportación con modal selectivo
+    // ========== EXPORTACIÓN SELECTIVA ==========
+    
     window.exportContentDataOnly = function() {
         if (!state.currentUser) {
             showMessage('❌ Error: No hay usuario logueado', 'error');
             return;
         }
-        showExportSelectionModal();
+        showSimpleExportModal();
     };
     
-    // Función para mostrar modal de exportación
-    function showExportSelectionModal() {
-        const existingModal = document.getElementById('export-modal-selector');
-        if (existingModal) existingModal.remove();
+    function showSimpleExportModal() {
+        // Eliminar modal existente
+        const existing = document.getElementById('simple-export-modal');
+        if (existing) existing.remove();
         
-        const modalHTML = `
-            <div id="export-modal-selector" style="
-                position: fixed; 
-                top: 0; 
-                left: 0; 
-                width: 100%; 
-                height: 100%; 
-                background: rgba(0,0,0,0.85); 
-                z-index: 15000;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                animation: fadeIn 0.3s ease;
-            ">
-                <style>
-                    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-                    @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-                    .export-option { transition: all 0.3s ease; }
-                    .export-option:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
-                </style>
-                <div style="
-                    background: white;
-                    border-radius: 20px;
-                    padding: 35px;
-                    max-width: 600px;
-                    width: 90%;
-                    max-height: 90vh;
-                    overflow-y: auto;
-                    box-shadow: 0 25px 70px rgba(0,0,0,0.4);
-                    animation: slideIn 0.4s ease;
-                ">
-                    <h2 style="margin: 0 0 15px 0; color: #1a202c; text-align: center; font-size: 1.5rem; font-weight: 700;">
-                        💾 Exportar Datos Selectivos
-                    </h2>
+        const modal = document.createElement('div');
+        modal.id = 'simple-export-modal';
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 20000; display: flex; align-items: center; justify-content: center;">
+                <div style="background: white; border-radius: 15px; padding: 30px; max-width: 550px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                    <h2 style="margin: 0 0 20px 0; color: #1a1a1a; text-align: center; font-size: 1.4rem;">💾 Exportar Datos</h2>
                     
-                    <div style="background: linear-gradient(135deg, #e3f2fd, #f3e5f5); border-radius: 12px; padding: 20px; margin-bottom: 25px; border-left: 5px solid #2196f3;">
-                        <p style="margin: 0; color: #1565c0; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 1.2rem;">🌐</span> 
-                            <strong>Archivos 100% portables:</strong> Funcionan en cualquier cuenta, sin datos personales.
-                        </p>
+                    <div style="background: #e8f4fd; border-radius: 10px; padding: 15px; margin-bottom: 20px; border-left: 4px solid #0ea5e9;">
+                        <p style="margin: 0; color: #0c4a6e; font-weight: 600;">🌐 Archivos portables - Funcionan en cualquier cuenta</p>
                     </div>
                     
-                    <div style="margin-bottom: 30px;">
-                        <h3 style="color: #374151; margin-bottom: 20px; font-size: 1.2rem; font-weight: 600;">Elige qué exportar:</h3>
+                    <div style="margin-bottom: 25px;">
+                        <h3 style="color: #374151; margin-bottom: 15px; font-size: 1.1rem;">Selecciona qué exportar:</h3>
                         
-                        <div style="display: grid; gap: 15px;">
-                            <label class="export-option" style="
-                                display: flex; 
-                                align-items: center; 
-                                padding: 18px; 
-                                border-radius: 12px; 
-                                cursor: pointer; 
-                                background: #f8fafc;
-                                border: 2px solid #e2e8f0;
-                            ">
-                                <input type="checkbox" id="export-only-questions" style="margin-right: 15px; transform: scale(1.3);">
-                                <div style="flex: 1;">
-                                    <div style="font-weight: 600; color: #1f2937; font-size: 1.1rem; margin-bottom: 4px;">
-                                        📝 Solo Preguntas
-                                    </div>
-                                    <div style="font-size: 0.9rem; color: #6b7280;">
-                                        Exportar únicamente las ${state.questions ? state.questions.length : 0} preguntas generadas
-                                    </div>
+                        <div style="display: grid; gap: 12px;">
+                            <label style="display: flex; align-items: center; padding: 15px; border-radius: 10px; cursor: pointer; background: #f8fafc; border: 2px solid #e2e8f0; transition: all 0.2s;">
+                                <input type="checkbox" id="exp-questions" style="margin-right: 12px; transform: scale(1.2);">
+                                <div>
+                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">📝 Solo Preguntas</div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">Exportar ${state.questions ? state.questions.length : 0} preguntas</div>
                                 </div>
                             </label>
                             
-                            <label class="export-option" style="
-                                display: flex; 
-                                align-items: center; 
-                                padding: 18px; 
-                                border-radius: 12px; 
-                                cursor: pointer; 
-                                background: #f8fafc;
-                                border: 2px solid #e2e8f0;
-                            ">
-                                <input type="checkbox" id="export-topics-questions" style="margin-right: 15px; transform: scale(1.3);">
-                                <div style="flex: 1;">
-                                    <div style="font-weight: 600; color: #1f2937; font-size: 1.1rem; margin-bottom: 4px;">
-                                        📚 Temas + Preguntas
-                                    </div>
-                                    <div style="font-size: 0.9rem; color: #6b7280;">
-                                        Exportar ${state.topics ? state.topics.length : 0} temas y ${state.questions ? state.questions.length : 0} preguntas asociadas
-                                    </div>
+                            <label style="display: flex; align-items: center; padding: 15px; border-radius: 10px; cursor: pointer; background: #f8fafc; border: 2px solid #e2e8f0; transition: all 0.2s;">
+                                <input type="checkbox" id="exp-topics" style="margin-right: 12px; transform: scale(1.2);">
+                                <div>
+                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">📚 Temas + Preguntas</div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">Exportar ${state.topics ? state.topics.length : 0} temas con preguntas</div>
                                 </div>
                             </label>
                             
-                            <label class="export-option" style="
-                                display: flex; 
-                                align-items: center; 
-                                padding: 18px; 
-                                border-radius: 12px; 
-                                cursor: pointer; 
-                                background: #f8fafc;
-                                border: 2px solid #e2e8f0;
-                            ">
-                                <input type="checkbox" id="export-only-summaries" style="margin-right: 15px; transform: scale(1.3);">
-                                <div style="flex: 1;">
-                                    <div style="font-weight: 600; color: #1f2937; font-size: 1.1rem; margin-bottom: 4px;">
-                                        📄 Solo Resúmenes
-                                    </div>
-                                    <div style="font-size: 0.9rem; color: #6b7280;">
-                                        Exportar ${typeof summarySystemState !== 'undefined' && summarySystemState.savedSummaries ? summarySystemState.savedSummaries.length : 0} resúmenes generados
-                                    </div>
+                            <label style="display: flex; align-items: center; padding: 15px; border-radius: 10px; cursor: pointer; background: #f8fafc; border: 2px solid #e2e8f0; transition: all 0.2s;">
+                                <input type="checkbox" id="exp-summaries" style="margin-right: 12px; transform: scale(1.2);">
+                                <div>
+                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">📄 Resúmenes</div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">Exportar ${typeof summarySystemState !== 'undefined' && summarySystemState.savedSummaries ? summarySystemState.savedSummaries.length : 0} resúmenes</div>
                                 </div>
                             </label>
                             
-                            <label class="export-option" style="
-                                display: flex; 
-                                align-items: center; 
-                                padding: 18px; 
-                                border-radius: 12px; 
-                                cursor: pointer; 
-                                background: #f8fafc;
-                                border: 2px solid #e2e8f0;
-                            ">
-                                <input type="checkbox" id="export-progress-data" style="margin-right: 15px; transform: scale(1.3);">
-                                <div style="flex: 1;">
-                                    <div style="font-weight: 600; color: #1f2937; font-size: 1.1rem; margin-bottom: 4px;">
-                                        📊 Progreso de Estudio
-                                    </div>
-                                    <div style="font-size: 0.9rem; color: #6b7280;">
-                                        Exportar configuración de temas y progreso de estudio
-                                    </div>
+                            <label style="display: flex; align-items: center; padding: 15px; border-radius: 10px; cursor: pointer; background: #f8fafc; border: 2px solid #e2e8f0; transition: all 0.2s;">
+                                <input type="checkbox" id="exp-tests" style="margin-right: 12px; transform: scale(1.2);">
+                                <div>
+                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">🧪 Tests</div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">Exportar ${state.testResults ? state.testResults.length : 0} tests realizados</div>
                                 </div>
                             </label>
                             
-                            <label class="export-option" style="
-                                display: flex; 
-                                align-items: center; 
-                                padding: 18px; 
-                                border-radius: 12px; 
-                                cursor: pointer; 
-                                background: #f8fafc;
-                                border: 2px solid #e2e8f0;
-                            ">
-                                <input type="checkbox" id="export-test-results" style="margin-right: 15px; transform: scale(1.3);">
-                                <div style="flex: 1;">
-                                    <div style="font-weight: 600; color: #1f2937; font-size: 1.1rem; margin-bottom: 4px;">
-                                        🧪 Tests Realizados
-                                    </div>
-                                    <div style="font-size: 0.9rem; color: #6b7280;">
-                                        Exportar historial de ${state.testResults ? state.testResults.length : 0} tests realizados
-                                    </div>
+                            <label style="display: flex; align-items: center; padding: 15px; border-radius: 10px; cursor: pointer; background: #f8fafc; border: 2px solid #e2e8f0; transition: all 0.2s;">
+                                <input type="checkbox" id="exp-progress" style="margin-right: 12px; transform: scale(1.2);">
+                                <div>
+                                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">📊 Progreso</div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">Exportar progreso de estudio</div>
                                 </div>
                             </label>
                         </div>
                     </div>
                     
-                    <div style="display: flex; gap: 15px; margin-top: 30px;">
-                        <button onclick="processExportSelection()" style="
-                            flex: 1;
-                            background: linear-gradient(135deg, #10b981, #059669);
-                            color: white;
-                            border: none;
-                            padding: 15px 25px;
-                            border-radius: 12px;
-                            font-weight: 700;
-                            font-size: 1rem;
-                            cursor: pointer;
-                            transition: all 0.3s ease;
-                            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
-                        " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 25px rgba(16, 185, 129, 0.4)'" 
-                           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(16, 185, 129, 0.3)'">
-                            💾 Exportar Seleccionados
+                    <div style="display: flex; gap: 12px; margin-top: 25px;">
+                        <button onclick="executeSimpleExport()" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+                            💾 Exportar
                         </button>
-                        
-                        <button onclick="closeExportModal()" style="
-                            flex: 0.7;
-                            background: #6b7280;
-                            color: white;
-                            border: none;
-                            padding: 15px 25px;
-                            border-radius: 12px;
-                            font-weight: 700;
-                            font-size: 1rem;
-                            cursor: pointer;
-                            transition: all 0.3s ease;
-                        " onmouseover="this.style.background='#4b5563'" onmouseout="this.style.background='#6b7280'">
+                        <button onclick="closeSimpleExportModal()" style="flex: 0.6; background: #6b7280; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer;">
                             ❌ Cancelar
                         </button>
                     </div>
                     
-                    <div style="margin-top: 20px; text-align: center; display: flex; gap: 10px; justify-content: center;">
-                        <button onclick="selectAllExportOptions()" style="
-                            background: transparent;
-                            color: #0ea5e9;
-                            border: 2px solid #0ea5e9;
-                            padding: 10px 18px;
-                            border-radius: 8px;
-                            cursor: pointer;
-                            font-size: 0.9rem;
-                            font-weight: 600;
-                            transition: all 0.3s ease;
-                        " onmouseover="this.style.background='#0ea5e9'; this.style.color='white'" 
-                           onmouseout="this.style.background='transparent'; this.style.color='#0ea5e9'">
-                            ✅ Seleccionar Todo
-                        </button>
-                        
-                        <button onclick="clearAllExportOptions()" style="
-                            background: transparent;
-                            color: #ef4444;
-                            border: 2px solid #ef4444;
-                            padding: 10px 18px;
-                            border-radius: 8px;
-                            cursor: pointer;
-                            font-size: 0.9rem;
-                            font-weight: 600;
-                            transition: all 0.3s ease;
-                        " onmouseover="this.style.background='#ef4444'; this.style.color='white'" 
-                           onmouseout="this.style.background='transparent'; this.style.color='#ef4444'">
-                            ❌ Limpiar Todo
-                        </button>
+                    <div style="margin-top: 15px; text-align: center;">
+                        <button onclick="selectAllSimpleExport()" style="background: transparent; color: #0ea5e9; border: 1px solid #0ea5e9; padding: 8px 15px; border-radius: 6px; cursor: pointer; margin-right: 8px; font-size: 0.9rem;">✅ Todo</button>
+                        <button onclick="clearAllSimpleExport()" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">❌ Limpiar</button>
                     </div>
                 </div>
             </div>
         `;
         
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        document.body.appendChild(modal);
         
-        document.addEventListener('keydown', function handleEscape(e) {
-            if (e.key === 'Escape') {
-                closeExportModal();
-                document.removeEventListener('keydown', handleEscape);
-            }
-        });
+        // Agregar estilos dinámicos
+        const style = document.createElement('style');
+        style.textContent = `
+            #simple-export-modal label:hover { background: #f1f5f9 !important; border-color: #3b82f6 !important; }
+            #simple-export-modal input[type="checkbox"] { accent-color: #3b82f6; }
+        `;
+        document.head.appendChild(style);
         
-        console.log('💾 Modal de exportación selectiva mostrado');
+        console.log('📤 Modal de exportación mostrado');
     }
     
-    function closeExportModal() {
-        const modal = document.getElementById('export-modal-selector');
-        if (modal) {
-            modal.style.opacity = '0';
-            setTimeout(() => modal.remove(), 300);
-        }
+    function closeSimpleExportModal() {
+        const modal = document.getElementById('simple-export-modal');
+        if (modal) modal.remove();
     }
     
-    function selectAllExportOptions() {
-        const checkboxes = ['export-only-questions', 'export-topics-questions', 'export-only-summaries', 'export-progress-data', 'export-test-results'];
-        checkboxes.forEach(id => {
-            const checkbox = document.getElementById(id);
-            if (checkbox) checkbox.checked = true;
+    function selectAllSimpleExport() {
+        ['exp-questions', 'exp-topics', 'exp-summaries', 'exp-tests', 'exp-progress'].forEach(id => {
+            const cb = document.getElementById(id);
+            if (cb) cb.checked = true;
         });
     }
     
-    function clearAllExportOptions() {
-        const checkboxes = ['export-only-questions', 'export-topics-questions', 'export-only-summaries', 'export-progress-data', 'export-test-results'];
-        checkboxes.forEach(id => {
-            const checkbox = document.getElementById(id);
-            if (checkbox) checkbox.checked = false;
+    function clearAllSimpleExport() {
+        ['exp-questions', 'exp-topics', 'exp-summaries', 'exp-tests', 'exp-progress'].forEach(id => {
+            const cb = document.getElementById(id);
+            if (cb) cb.checked = false;
         });
     }
     
-    function processExportSelection() {
+    function executeSimpleExport() {
         const selections = {
-            onlyQuestions: document.getElementById('export-only-questions')?.checked || false,
-            topicsAndQuestions: document.getElementById('export-topics-questions')?.checked || false,
-            onlySummaries: document.getElementById('export-only-summaries')?.checked || false,
-            progressData: document.getElementById('export-progress-data')?.checked || false,
-            testResults: document.getElementById('export-test-results')?.checked || false
+            questions: document.getElementById('exp-questions')?.checked || false,
+            topics: document.getElementById('exp-topics')?.checked || false,
+            summaries: document.getElementById('exp-summaries')?.checked || false,
+            tests: document.getElementById('exp-tests')?.checked || false,
+            progress: document.getElementById('exp-progress')?.checked || false
         };
         
-        const hasSelection = Object.values(selections).some(selected => selected);
+        const hasSelection = Object.values(selections).some(s => s);
         if (!hasSelection) {
-            showMessage('⚠️ Selecciona al menos una opción para exportar', 'error');
+            showMessage('⚠️ Selecciona al menos una opción', 'error');
             return;
         }
         
-        closeExportModal();
-        executeSelectiveExport(selections);
-    }
-    
-    function executeSelectiveExport(selections) {
+        closeSimpleExportModal();
+        
         try {
-            const username = state.currentUser.username;
-            
             const exportData = {
-                version: "5.0",
+                version: "6.0",
                 exportDate: new Date().toISOString(),
-                exportTimestamp: Date.now(),
-                exportType: "selective_portable",
-                originalUser: username,
-                selectedOptions: selections,
-                data: {},
-                stats: {}
+                exportType: "portable_selective",
+                originalUser: state.currentUser.username,
+                data: {}
             };
             
-            let exportedItems = [];
-            let totalItems = 0;
-            let fileNameParts = [];
+            let items = [];
+            let nameParts = [];
             
-            if (selections.onlyQuestions && state.questions && state.questions.length > 0) {
+            if (selections.questions && state.questions?.length > 0) {
                 exportData.data.questions = state.questions;
-                exportData.stats.totalQuestions = state.questions.length;
-                exportedItems.push(`📝 ${state.questions.length} preguntas`);
-                totalItems += state.questions.length;
-                fileNameParts.push('preguntas');
+                items.push(`📝 ${state.questions.length} preguntas`);
+                nameParts.push('preguntas');
             }
             
-            if (selections.topicsAndQuestions) {
-                if (state.topics && state.topics.length > 0) {
+            if (selections.topics) {
+                if (state.topics?.length > 0) {
                     exportData.data.topics = state.topics;
-                    exportData.stats.totalTopics = state.topics.length;
-                    exportedItems.push(`📚 ${state.topics.length} temas`);
-                    totalItems += state.topics.length;
+                    items.push(`📚 ${state.topics.length} temas`);
                 }
-                
-                if (state.questions && state.questions.length > 0) {
+                if (state.questions?.length > 0) {
                     exportData.data.questions = state.questions;
-                    exportData.stats.totalQuestions = state.questions.length;
-                    exportedItems.push(`📝 ${state.questions.length} preguntas asociadas`);
-                    totalItems += state.questions.length;
+                    items.push(`📝 ${state.questions.length} preguntas`);
                 }
-                fileNameParts.push('temas');
+                nameParts.push('temas');
             }
             
-            if (selections.onlySummaries && typeof summarySystemState !== 'undefined') {
-                if (summarySystemState.summaryTopics && summarySystemState.summaryTopics.length > 0) {
-                    exportData.data.summaryTopics = summarySystemState.summaryTopics;
-                }
-                
-                if (summarySystemState.savedSummaries && summarySystemState.savedSummaries.length > 0) {
+            if (selections.summaries && typeof summarySystemState !== 'undefined') {
+                if (summarySystemState.savedSummaries?.length > 0) {
                     exportData.data.savedSummaries = summarySystemState.savedSummaries;
-                    exportData.stats.totalSummaries = summarySystemState.savedSummaries.length;
-                    exportedItems.push(`📄 ${summarySystemState.savedSummaries.length} resúmenes`);
-                    totalItems += summarySystemState.savedSummaries.length;
-                    fileNameParts.push('resumenes');
+                    exportData.data.summaryTopics = summarySystemState.summaryTopics || [];
+                    items.push(`📄 ${summarySystemState.savedSummaries.length} resúmenes`);
+                    nameParts.push('resumenes');
                 }
             }
             
-            if (selections.progressData && typeof progressState !== 'undefined' && progressState.studyTopics) {
-                exportData.data.progressTopics = progressState.studyTopics;
-                exportData.stats.totalProgressTopics = progressState.studyTopics.length;
-                exportedItems.push(`📊 Progreso de ${progressState.studyTopics.length} temas`);
-                totalItems += progressState.studyTopics.length;
-                fileNameParts.push('progreso');
-            }
-            
-            if (selections.testResults && state.testResults && state.testResults.length > 0) {
+            if (selections.tests && state.testResults?.length > 0) {
                 exportData.data.testResults = state.testResults;
-                exportData.stats.totalTests = state.testResults.length;
-                exportedItems.push(`🧪 ${state.testResults.length} tests`);
-                totalItems += state.testResults.length;
-                fileNameParts.push('tests');
+                items.push(`🧪 ${state.testResults.length} tests`);
+                nameParts.push('tests');
             }
             
-            if (totalItems === 0) {
-                showMessage('⚠️ No hay datos disponibles para exportar con las opciones seleccionadas', 'error');
+            if (selections.progress && typeof progressState !== 'undefined' && progressState.studyTopics?.length > 0) {
+                exportData.data.progressTopics = progressState.studyTopics;
+                items.push(`📊 ${progressState.studyTopics.length} temas de progreso`);
+                nameParts.push('progreso');
+            }
+            
+            if (items.length === 0) {
+                showMessage('⚠️ No hay datos para exportar', 'error');
                 return;
             }
             
             const dateStr = new Date().toISOString().split('T')[0];
             const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
-            const fileName = `export_${fileNameParts.join('_')}_${dateStr}_${timeStr}.json`;
+            const fileName = `export_${nameParts.join('_')}_${dateStr}_${timeStr}.json`;
             
             const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            
             a.href = url;
             a.download = fileName;
             document.body.appendChild(a);
@@ -18639,18 +18468,8 @@ Añadir este código AL FINAL del archivo index.html, justo antes de </body>
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             
-            showMessage(`
-✅ EXPORTACIÓN COMPLETADA
-📁 Archivo: ${fileName}
-
-📊 EXPORTADO:
-${exportedItems.join('\n')}
-
-🔐 Archivo 100% portable
-🌐 Funciona en cualquier cuenta
-            `.trim(), 'success');
-            
-            console.log('✅ Exportación selectiva completada:', fileName);
+            showMessage(`✅ Exportado: ${items.join(', ')}\n📁 ${fileName}`, 'success');
+            console.log('✅ Exportación completada:', fileName);
             
         } catch (error) {
             console.error('❌ Error en exportación:', error);
@@ -18658,242 +18477,122 @@ ${exportedItems.join('\n')}
         }
     }
     
-    // REDEFINIR función de importación con selección de tema
+    // ========== IMPORTACIÓN CON TEMA ==========
+    
     window.importContentFromFile = function() {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json';
-        
         input.onchange = function(e) {
             const file = e.target.files[0];
             if (!file) return;
             
-            if (!file.name.endsWith('.json')) {
-                showMessage('❌ Selecciona un archivo .json válido', 'error');
-                return;
-            }
-            
             const reader = new FileReader();
             reader.onload = function(event) {
                 try {
-                    const importedData = JSON.parse(event.target.result);
-                    
-                    if (!importedData.data && !importedData.contentData && !importedData.userData) {
-                        throw new Error('Archivo no válido: estructura no reconocida');
-                    }
-                    
-                    let sourceData;
-                    let fileType = "desconocido";
-                    
-                    if (importedData.data) {
-                        sourceData = importedData.data;
-                        fileType = "exportación selectiva";
-                    } else if (importedData.contentData) {
-                        sourceData = importedData.contentData;
-                        fileType = "contenido portable";
-                    } else if (importedData.userData) {
-                        sourceData = importedData.userData;
-                        fileType = "backup completo";
-                    }
-                    
-                    showImportModal(importedData, sourceData, fileType);
-                    
+                    const data = JSON.parse(event.target.result);
+                    showSimpleImportModal(data);
                 } catch (error) {
-                    console.error('❌ Error al procesar archivo:', error);
                     showMessage('❌ Error al leer archivo: ' + error.message, 'error');
                 }
             };
-            
             reader.readAsText(file);
         };
-        
         input.click();
     };
     
-    function showImportModal(importedData, sourceData, fileType) {
-        const existingModal = document.getElementById('import-modal-selector');
-        if (existingModal) existingModal.remove();
+    function showSimpleImportModal(importedData) {
+        // Extraer datos según formato
+        let sourceData = null;
+        if (importedData.data) {
+            sourceData = importedData.data; // v6.0, v5.0
+        } else if (importedData.contentData) {
+            sourceData = importedData.contentData; // v3.0, v4.0
+        } else if (importedData.userData) {
+            sourceData = importedData.userData; // v2.0
+        } else {
+            showMessage('❌ Formato de archivo no válido', 'error');
+            return;
+        }
+        
+        // Eliminar modal existente
+        const existing = document.getElementById('simple-import-modal');
+        if (existing) existing.remove();
         
         const questionsCount = sourceData.questions?.length || 0;
         const topicsCount = sourceData.topics?.length || 0;
-        const testsCount = sourceData.testResults?.length || 0;
         const summariesCount = sourceData.savedSummaries?.length || 0;
+        const testsCount = sourceData.testResults?.length || 0;
         const progressCount = sourceData.progressTopics?.length || 0;
         
+        // Preparar opciones de temas existentes
         const existingTopics = state.topics || [];
-        let topicSelectOptions = '';
-        existingTopics.forEach(topic => {
-            topicSelectOptions += `<option value="${topic.name}">${topic.name}</option>`;
-        });
+        let topicOptions = '<option value="create-new">🆕 Crear nuevo tema</option>';
+        if (existingTopics.length > 0) {
+            topicOptions += '<option value="" disabled>── Temas existentes ──</option>';
+            existingTopics.forEach(topic => {
+                topicOptions += `<option value="${topic.name}">${topic.name}</option>`;
+            });
+        }
         
-        const modalHTML = `
-            <div id="import-modal-selector" style="
-                position: fixed; 
-                top: 0; 
-                left: 0; 
-                width: 100%; 
-                height: 100%; 
-                background: rgba(0,0,0,0.85); 
-                z-index: 15000;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                animation: fadeIn 0.3s ease;
-            ">
-                <div style="
-                    background: white;
-                    border-radius: 20px;
-                    padding: 35px;
-                    max-width: 650px;
-                    width: 90%;
-                    max-height: 90vh;
-                    overflow-y: auto;
-                    box-shadow: 0 25px 70px rgba(0,0,0,0.4);
-                    animation: slideIn 0.4s ease;
-                ">
-                    <h2 style="margin: 0 0 20px 0; color: #1a202c; text-align: center; font-size: 1.5rem; font-weight: 700;">
-                        📥 Importar Contenido
-                    </h2>
+        const modal = document.createElement('div');
+        modal.id = 'simple-import-modal';
+        modal.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 20000; display: flex; align-items: center; justify-content: center;">
+                <div style="background: white; border-radius: 15px; padding: 30px; max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                    <h2 style="margin: 0 0 20px 0; color: #1a1a1a; text-align: center; font-size: 1.4rem;">📥 Importar Contenido</h2>
                     
-                    <div style="background: linear-gradient(135deg, #e8f5e8, #f0f9ff); border-radius: 12px; padding: 20px; margin-bottom: 25px; border-left: 5px solid #10b981;">
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                            <span style="font-size: 1.3rem;">📂</span>
-                            <strong style="color: #059669; font-size: 1.1rem;">Tipo:</strong>
-                            <span style="color: #065f46; font-weight: 600;">${fileType}</span>
-                        </div>
-                        
-                        <div style="margin-left: 35px; color: #047857;">
-                            ${importedData.originalUser ? `<div><strong>Usuario original:</strong> ${importedData.originalUser}</div>` : ''}
-                            ${importedData.exportDate ? `<div><strong>Fecha:</strong> ${new Date(importedData.exportDate).toLocaleDateString('es-ES')}</div>` : ''}
-                        </div>
+                    <div style="background: #ecfdf5; border-radius: 10px; padding: 15px; margin-bottom: 20px; border-left: 4px solid #10b981;">
+                        <div style="color: #065f46; font-weight: 600; margin-bottom: 8px;">📂 Archivo: ${importedData.exportType || 'backup'}</div>
+                        ${importedData.originalUser ? `<div style="color: #047857;">👤 Usuario: ${importedData.originalUser}</div>` : ''}
                     </div>
                     
-                    <div style="margin-bottom: 30px;">
-                        <h3 style="color: #374151; margin-bottom: 15px; font-size: 1.2rem;">📊 Contenido disponible:</h3>
-                        
-                        <div style="display: grid; gap: 10px;">
-                            ${questionsCount > 0 ? `
-                                <div style="display: flex; align-items: center; gap: 10px; padding: 12px; background: #f8fafc; border-radius: 8px;">
-                                    <span style="font-size: 1.2rem;">📝</span>
-                                    <span><strong>${questionsCount}</strong> preguntas</span>
-                                </div>
-                            ` : ''}
-                            
-                            ${topicsCount > 0 ? `
-                                <div style="display: flex; align-items: center; gap: 10px; padding: 12px; background: #f8fafc; border-radius: 8px;">
-                                    <span style="font-size: 1.2rem;">📚</span>
-                                    <span><strong>${topicsCount}</strong> temas</span>
-                                </div>
-                            ` : ''}
-                            
-                            ${summariesCount > 0 ? `
-                                <div style="display: flex; align-items: center; gap: 10px; padding: 12px; background: #f8fafc; border-radius: 8px;">
-                                    <span style="font-size: 1.2rem;">📄</span>
-                                    <span><strong>${summariesCount}</strong> resúmenes</span>
-                                </div>
-                            ` : ''}
-                            
-                            ${testsCount > 0 ? `
-                                <div style="display: flex; align-items: center; gap: 10px; padding: 12px; background: #f8fafc; border-radius: 8px;">
-                                    <span style="font-size: 1.2rem;">🧪</span>
-                                    <span><strong>${testsCount}</strong> tests</span>
-                                </div>
-                            ` : ''}
-                            
-                            ${progressCount > 0 ? `
-                                <div style="display: flex; align-items: center; gap: 10px; padding: 12px; background: #f8fafc; border-radius: 8px;">
-                                    <span style="font-size: 1.2rem;">📊</span>
-                                    <span><strong>${progressCount}</strong> temas de progreso</span>
-                                </div>
-                            ` : ''}
+                    <div style="margin-bottom: 20px;">
+                        <h3 style="color: #374151; margin-bottom: 12px; font-size: 1.1rem;">📊 Contenido disponible:</h3>
+                        <div style="display: grid; gap: 8px;">
+                            ${questionsCount > 0 ? `<div style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 6px;"><span>📝</span><span><strong>${questionsCount}</strong> preguntas</span></div>` : ''}
+                            ${topicsCount > 0 ? `<div style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 6px;"><span>📚</span><span><strong>${topicsCount}</strong> temas</span></div>` : ''}
+                            ${summariesCount > 0 ? `<div style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 6px;"><span>📄</span><span><strong>${summariesCount}</strong> resúmenes</span></div>` : ''}
+                            ${testsCount > 0 ? `<div style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 6px;"><span>🧪</span><span><strong>${testsCount}</strong> tests</span></div>` : ''}
+                            ${progressCount > 0 ? `<div style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 6px;"><span>📊</span><span><strong>${progressCount}</strong> progreso</span></div>` : ''}
                         </div>
                     </div>
                     
                     ${(questionsCount > 0 || summariesCount > 0) ? `
-                        <div style="margin-bottom: 25px; padding: 20px; background: #fffbeb; border-radius: 12px; border-left: 5px solid #f59e0b;">
-                            <h4 style="margin: 0 0 15px 0; color: #92400e; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                                <span style="font-size: 1.2rem;">🎯</span>
-                                Asignar a tema
+                        <div style="margin-bottom: 20px; padding: 18px; background: #fffbeb; border-radius: 10px; border-left: 4px solid #f59e0b;">
+                            <h4 style="margin: 0 0 12px 0; color: #92400e; font-size: 1rem; display: flex; align-items: center; gap: 6px;">
+                                <span>🎯</span> Asignar a tema
                             </h4>
-                            
-                            <div style="margin-bottom: 15px;">
-                                <label style="display: block; margin-bottom: 8px; color: #78350f; font-weight: 600;">
-                                    Elige dónde importar las preguntas/resúmenes:
-                                </label>
-                                
-                                <select id="theme-selector" style="
-                                    width: 100%;
-                                    padding: 12px;
-                                    border-radius: 8px;
-                                    border: 2px solid #fbbf24;
-                                    background: white;
-                                    font-size: 1rem;
-                                    color: #92400e;
-                                ">
-                                    <option value="create-new">🆕 Crear nuevo tema</option>
-                                    ${existingTopics.length > 0 ? `<option value="" disabled>── Temas existentes ──</option>` : ''}
-                                    ${topicSelectOptions}
-                                </select>
-                            </div>
-                            
-                            <div id="new-theme-input" style="display: none;">
-                                <label style="display: block; margin-bottom: 8px; color: #78350f; font-weight: 600;">
-                                    Nombre del nuevo tema:
-                                </label>
-                                <input type="text" id="new-theme-name" placeholder="Ej: Historia de España" style="
-                                    width: 100%;
-                                    padding: 12px;
-                                    border-radius: 8px;
-                                    border: 2px solid #fbbf24;
-                                    font-size: 1rem;
-                                ">
+                            <label style="display: block; margin-bottom: 8px; color: #78350f; font-weight: 600;">
+                                Dónde importar preguntas/resúmenes:
+                            </label>
+                            <select id="imp-theme-selector" style="width: 100%; padding: 10px; border-radius: 6px; border: 2px solid #fbbf24; background: white; font-size: 0.95rem; color: #92400e;">
+                                ${topicOptions}
+                            </select>
+                            <div id="imp-new-theme-div" style="display: none; margin-top: 10px;">
+                                <label style="display: block; margin-bottom: 6px; color: #78350f; font-weight: 600;">Nombre del nuevo tema:</label>
+                                <input type="text" id="imp-new-theme-name" placeholder="Ej: Historia de España" style="width: 100%; padding: 10px; border-radius: 6px; border: 2px solid #fbbf24; font-size: 0.95rem;">
                             </div>
                         </div>
                     ` : ''}
                     
-                    <div style="margin-bottom: 25px;">
-                        <h4 style="margin: 0 0 15px 0; color: #374151; font-size: 1.1rem;">⚙️ Opciones de importación:</h4>
-                        
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 10px;">
-                            <input type="checkbox" id="avoid-duplicates" checked style="transform: scale(1.2);">
-                            <span style="color: #4b5563;">Evitar duplicados automáticamente</span>
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 10px 0; color: #374151; font-size: 1rem;">⚙️ Opciones:</h4>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 8px;">
+                            <input type="checkbox" id="imp-avoid-duplicates" checked style="transform: scale(1.1);">
+                            <span style="color: #4b5563;">Evitar duplicados</span>
                         </label>
-                        
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                            <input type="checkbox" id="merge-content" checked style="transform: scale(1.2);">
-                            <span style="color: #4b5563;">Agregar a contenido existente (no reemplazar)</span>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="imp-merge-content" checked style="transform: scale(1.1);">
+                            <span style="color: #4b5563;">Agregar a contenido existente</span>
                         </label>
                     </div>
                     
-                    <div style="display: flex; gap: 15px; margin-top: 30px;">
-                        <button onclick="processImportWithTheme()" style="
-                            flex: 1;
-                            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-                            color: white;
-                            border: none;
-                            padding: 15px 25px;
-                            border-radius: 12px;
-                            font-weight: 700;
-                            font-size: 1rem;
-                            cursor: pointer;
-                            transition: all 0.3s ease;
-                            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
-                        " onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-                            📥 Importar Contenido
+                    <div style="display: flex; gap: 12px; margin-top: 25px;">
+                        <button onclick="executeSimpleImport()" style="flex: 1; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer;">
+                            📥 Importar
                         </button>
-                        
-                        <button onclick="closeImportModal()" style="
-                            flex: 0.7;
-                            background: #6b7280;
-                            color: white;
-                            border: none;
-                            padding: 15px 25px;
-                            border-radius: 12px;
-                            font-weight: 700;
-                            font-size: 1rem;
-                            cursor: pointer;
-                            transition: all 0.3s ease;
-                        " onmouseover="this.style.background='#4b5563'" onmouseout="this.style.background='#6b7280'">
+                        <button onclick="closeSimpleImportModal()" style="flex: 0.6; background: #6b7280; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer;">
                             ❌ Cancelar
                         </button>
                     </div>
@@ -18901,72 +18600,61 @@ ${exportedItems.join('\n')}
             </div>
         `;
         
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        document.body.appendChild(modal);
         
-        window.pendingImportData = { importedData, sourceData, fileType };
+        // Guardar datos para importar
+        window.pendingSimpleImportData = sourceData;
         
-        setTimeout(() => {
-            const themeSelector = document.getElementById('theme-selector');
-            const newThemeInput = document.getElementById('new-theme-input');
-            
-            if (themeSelector && newThemeInput) {
-                themeSelector.onchange = function() {
-                    if (this.value === 'create-new') {
-                        newThemeInput.style.display = 'block';
-                        document.getElementById('new-theme-name').focus();
-                    } else {
-                        newThemeInput.style.display = 'none';
-                    }
-                };
-            }
-        }, 100);
-        
-        document.addEventListener('keydown', function handleEscape(e) {
-            if (e.key === 'Escape') {
-                closeImportModal();
-                document.removeEventListener('keydown', handleEscape);
-            }
-        });
+        // Manejar selector de tema
+        const themeSelector = document.getElementById('imp-theme-selector');
+        const newThemeDiv = document.getElementById('imp-new-theme-div');
+        if (themeSelector && newThemeDiv) {
+            themeSelector.onchange = function() {
+                if (this.value === 'create-new') {
+                    newThemeDiv.style.display = 'block';
+                    document.getElementById('imp-new-theme-name').focus();
+                } else {
+                    newThemeDiv.style.display = 'none';
+                }
+            };
+        }
         
         console.log('📥 Modal de importación mostrado');
     }
     
-    function closeImportModal() {
-        const modal = document.getElementById('import-modal-selector');
-        if (modal) {
-            modal.style.opacity = '0';
-            setTimeout(() => {
-                modal.remove();
-                delete window.pendingImportData;
-            }, 300);
-        }
+    function closeSimpleImportModal() {
+        const modal = document.getElementById('simple-import-modal');
+        if (modal) modal.remove();
+        delete window.pendingSimpleImportData;
     }
     
-    function processImportWithTheme() {
-        if (!window.pendingImportData) {
-            showMessage('❌ Error: No hay datos pendientes de importación', 'error');
+    function executeSimpleImport() {
+        if (!window.pendingSimpleImportData) {
+            showMessage('❌ Error: No hay datos para importar', 'error');
             return;
         }
         
-        const { importedData, sourceData, fileType } = window.pendingImportData;
+        const sourceData = window.pendingSimpleImportData;
         
-        const themeSelector = document.getElementById('theme-selector');
-        const newThemeName = document.getElementById('new-theme-name');
-        const avoidDuplicates = document.getElementById('avoid-duplicates')?.checked || true;
-        const mergeContent = document.getElementById('merge-content')?.checked || true;
+        // Obtener configuraciones
+        const themeSelector = document.getElementById('imp-theme-selector');
+        const newThemeName = document.getElementById('imp-new-theme-name');
+        const avoidDuplicates = document.getElementById('imp-avoid-duplicates')?.checked || true;
+        const mergeContent = document.getElementById('imp-merge-content')?.checked || true;
         
         let targetTheme = null;
         
+        // Determinar tema objetivo
         if (themeSelector && (sourceData.questions?.length > 0 || sourceData.savedSummaries?.length > 0)) {
             if (themeSelector.value === 'create-new') {
                 const newName = newThemeName?.value?.trim();
                 if (!newName) {
-                    showMessage('❌ Debes escribir el nombre del nuevo tema', 'error');
+                    showMessage('❌ Escribe el nombre del nuevo tema', 'error');
                     return;
                 }
                 
-                const existingTheme = state.topics?.find(t => t.name.toLowerCase() === newName.toLowerCase());
-                if (existingTheme) {
+                const exists = state.topics?.find(t => t.name.toLowerCase() === newName.toLowerCase());
+                if (exists) {
                     showMessage('❌ Ya existe un tema con ese nombre', 'error');
                     return;
                 }
@@ -18977,61 +18665,86 @@ ${exportedItems.join('\n')}
             }
         }
         
-        closeImportModal();
-        executeImportWithTheme(sourceData, targetTheme, { avoidDuplicates, mergeContent });
-    }
-    
-    function executeImportWithTheme(sourceData, targetTheme, options) {
+        closeSimpleImportModal();
+        
+        // EJECUTAR IMPORTACIÓN SIMPLE Y DIRECTA
         try {
-            showMessage('📥 Importando contenido...', 'info');
+            console.log('🚀 INICIANDO IMPORTACIÓN SIMPLE');
+            console.log('Tema objetivo:', targetTheme);
+            console.log('Datos a importar:', {
+                questions: sourceData.questions?.length || 0,
+                topics: sourceData.topics?.length || 0,
+                summaries: sourceData.savedSummaries?.length || 0,
+                tests: sourceData.testResults?.length || 0
+            });
+            
+            showMessage('📥 Importando...', 'info');
             
             let importedItems = [];
-            let totalItemsImported = 0;
             
-            const currentQuestions = state.questions || [];
-            const currentTopics = state.topics || [];
-            const currentTests = state.testResults || [];
-            
-            if (sourceData.questions && sourceData.questions.length > 0) {
+            // IMPORTAR PREGUNTAS
+            if (sourceData.questions?.length > 0) {
+                console.log(`📝 Procesando ${sourceData.questions.length} preguntas`);
+                
                 let questionsToAdd = [...sourceData.questions];
                 
+                // Asignar tema si se especificó
                 if (targetTheme) {
+                    console.log(`🎯 Asignando preguntas al tema: "${targetTheme}"`);
                     questionsToAdd = questionsToAdd.map(q => ({
                         ...q,
                         topic: targetTheme
                     }));
+                }
+                
+                // Evitar duplicados
+                if (avoidDuplicates) {
+                    const currentQuestions = state.questions || [];
+                    const existingIds = new Set(currentQuestions.map(q => q.id));
+                    const beforeCount = questionsToAdd.length;
+                    questionsToAdd = questionsToAdd.filter(q => !existingIds.has(q.id));
+                    console.log(`🔄 Filtrados ${beforeCount - questionsToAdd.length} duplicados`);
+                }
+                
+                // Agregar preguntas
+                const currentQuestions = state.questions || [];
+                if (mergeContent) {
+                    state.questions = [...currentQuestions, ...questionsToAdd];
+                } else {
+                    state.questions = questionsToAdd;
+                }
+                
+                console.log(`✅ ${questionsToAdd.length} preguntas agregadas`);
+                importedItems.push(`📝 ${questionsToAdd.length} preguntas`);
+                
+                // Crear/actualizar tema si es necesario
+                if (targetTheme) {
+                    const currentTopics = state.topics || [];
+                    const existingTopic = currentTopics.find(t => t.name === targetTheme);
                     
-                    const themeExists = currentTopics.find(t => t.name === targetTheme);
-                    if (!themeExists) {
+                    if (!existingTopic) {
+                        // Crear nuevo tema
                         const newTopic = {
                             id: 'topic_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                             name: targetTheme,
                             questions: questionsToAdd.length
                         };
                         state.topics = [...currentTopics, newTopic];
-                        console.log('🆕 Nuevo tema creado:', targetTheme);
+                        console.log(`🆕 Tema creado: "${targetTheme}" con ${questionsToAdd.length} preguntas`);
+                    } else {
+                        // Actualizar tema existente
+                        existingTopic.questions = (existingTopic.questions || 0) + questionsToAdd.length;
+                        console.log(`📈 Tema actualizado: "${targetTheme}" ahora tiene ${existingTopic.questions} preguntas`);
                     }
                 }
-                
-                if (options.avoidDuplicates) {
-                    const existingIds = new Set(currentQuestions.map(q => q.id));
-                    questionsToAdd = questionsToAdd.filter(q => !existingIds.has(q.id));
-                }
-                
-                if (options.mergeContent) {
-                    state.questions = [...currentQuestions, ...questionsToAdd];
-                } else {
-                    state.questions = questionsToAdd;
-                }
-                
-                importedItems.push(`📝 ${questionsToAdd.length} preguntas`);
-                totalItemsImported += questionsToAdd.length;
             }
             
-            if (sourceData.topics && sourceData.topics.length > 0) {
+            // IMPORTAR TEMAS (si no hay tema objetivo específico)
+            if (sourceData.topics?.length > 0 && !targetTheme) {
                 let topicsToAdd = [...sourceData.topics];
                 
-                if (options.avoidDuplicates) {
+                if (avoidDuplicates) {
+                    const currentTopics = state.topics || [];
                     const existingNames = new Set(currentTopics.map(t => t.name.toLowerCase()));
                     topicsToAdd = topicsToAdd.filter(t => !existingNames.has(t.name.toLowerCase()));
                 }
@@ -19042,28 +18755,31 @@ ${exportedItems.join('\n')}
                     }
                 });
                 
-                if (options.mergeContent) {
+                const currentTopics = state.topics || [];
+                if (mergeContent) {
                     state.topics = [...currentTopics, ...topicsToAdd];
                 } else {
                     state.topics = topicsToAdd;
                 }
                 
                 importedItems.push(`📚 ${topicsToAdd.length} temas`);
-                totalItemsImported += topicsToAdd.length;
+                console.log(`✅ ${topicsToAdd.length} temas agregados`);
             }
             
-            if (sourceData.testResults && sourceData.testResults.length > 0) {
-                if (options.mergeContent) {
+            // IMPORTAR TESTS
+            if (sourceData.testResults?.length > 0) {
+                const currentTests = state.testResults || [];
+                if (mergeContent) {
                     state.testResults = [...currentTests, ...sourceData.testResults];
                 } else {
                     state.testResults = sourceData.testResults;
                 }
-                
                 importedItems.push(`🧪 ${sourceData.testResults.length} tests`);
-                totalItemsImported += sourceData.testResults.length;
+                console.log(`✅ ${sourceData.testResults.length} tests agregados`);
             }
             
-            if (sourceData.savedSummaries && sourceData.savedSummaries.length > 0 && typeof summarySystemState !== 'undefined') {
+            // IMPORTAR RESÚMENES
+            if (sourceData.savedSummaries?.length > 0 && typeof summarySystemState !== 'undefined') {
                 let summariesToAdd = [...sourceData.savedSummaries];
                 
                 if (targetTheme) {
@@ -19074,8 +18790,7 @@ ${exportedItems.join('\n')}
                 }
                 
                 const currentSummaries = summarySystemState.savedSummaries || [];
-                
-                if (options.mergeContent) {
+                if (mergeContent) {
                     summarySystemState.savedSummaries = [...currentSummaries, ...summariesToAdd];
                 } else {
                     summarySystemState.savedSummaries = summariesToAdd;
@@ -19083,7 +18798,7 @@ ${exportedItems.join('\n')}
                 
                 if (sourceData.summaryTopics) {
                     const currentSummaryTopics = summarySystemState.summaryTopics || [];
-                    if (options.mergeContent) {
+                    if (mergeContent) {
                         summarySystemState.summaryTopics = [...currentSummaryTopics, ...sourceData.summaryTopics];
                     } else {
                         summarySystemState.summaryTopics = sourceData.summaryTopics;
@@ -19091,147 +18806,77 @@ ${exportedItems.join('\n')}
                 }
                 
                 importedItems.push(`📄 ${summariesToAdd.length} resúmenes`);
-                totalItemsImported += summariesToAdd.length;
+                console.log(`✅ ${summariesToAdd.length} resúmenes agregados`);
             }
             
-            if (sourceData.progressTopics && typeof progressState !== 'undefined') {
-                if (options.mergeContent) {
-                    const currentProgress = progressState.studyTopics || [];
+            // IMPORTAR PROGRESO
+            if (sourceData.progressTopics?.length > 0 && typeof progressState !== 'undefined') {
+                const currentProgress = progressState.studyTopics || [];
+                if (mergeContent) {
                     progressState.studyTopics = [...currentProgress, ...sourceData.progressTopics];
                 } else {
                     progressState.studyTopics = sourceData.progressTopics;
                 }
-                
-                importedItems.push(`📊 Progreso de ${sourceData.progressTopics.length} temas`);
-                totalItemsImported += sourceData.progressTopics.length;
+                importedItems.push(`📊 ${sourceData.progressTopics.length} progreso`);
+                console.log(`✅ ${sourceData.progressTopics.length} progreso agregado`);
             }
             
-            // GUARDAR CAMBIOS - CRÍTICO
-            console.log('💾 Guardando cambios en localStorage...');
+            // GUARDAR TODO DE FORMA SIMPLE Y DIRECTA
+            console.log('💾 Guardando datos...');
+            const username = state.currentUser?.username;
             
+            if (username) {
+                // Preparar datos para guardar
+                const dataToSave = {
+                    questions: state.questions || [],
+                    topics: state.topics || [],
+                    testResults: state.testResults || [],
+                    apiKey: state.apiKey || ''
+                };
+                
+                // Guardar en localStorage con múltiples claves para compatibilidad
+                localStorage.setItem(`testbank_${username}`, JSON.stringify(dataToSave));
+                localStorage.setItem(`realUser_${username}_questions`, JSON.stringify(dataToSave.questions));
+                localStorage.setItem(`realUser_${username}_topics`, JSON.stringify(dataToSave.topics));
+                localStorage.setItem(`realUser_${username}_testResults`, JSON.stringify(dataToSave.testResults));
+                
+                console.log('💾 Datos guardados en localStorage');
+                
+                // Verificar guardado
+                const saved = JSON.parse(localStorage.getItem(`testbank_${username}`) || '{}');
+                console.log('✅ Verificación guardado:', {
+                    questionsGuardadas: saved.questions?.length || 0,
+                    temasGuardados: saved.topics?.length || 0,
+                    preguntasDelTema: targetTheme ? saved.questions?.filter(q => q.topic === targetTheme).length : 'N/A'
+                });
+            }
+            
+            // Intentar también con RealDataManager si existe
             if (typeof RealDataManager !== 'undefined' && state.currentUser) {
-                console.log(`💾 Usando RealDataManager para usuario: ${state.currentUser.username}`);
-                RealDataManager.saveFromGlobalData(state.currentUser.username);
-                console.log('✅ Datos guardados con RealDataManager');
-            } else {
-                // Fallback manual si RealDataManager no existe
-                console.log('💾 Usando guardado manual (fallback)');
-                const username = state.currentUser?.username;
-                if (username) {
-                    localStorage.setItem(`testbank_${username}`, JSON.stringify({
-                        questions: state.questions || [],
-                        topics: state.topics || [],
-                        testResults: state.testResults || [],
-                        apiKey: state.apiKey || ''
-                    }));
-                    console.log('✅ Datos guardados manualmente');
+                try {
+                    RealDataManager.saveFromGlobalData(state.currentUser.username);
+                    console.log('💾 También guardado con RealDataManager');
+                } catch (error) {
+                    console.log('⚠️ Error con RealDataManager:', error.message);
                 }
             }
             
-            // VERIFICACIÓN FINAL COMPLETA Y MEJORADA
-            setTimeout(() => {
-                console.log('🔍 VERIFICACIÓN FINAL COMPLETA:');
-                console.log(`📊 Total preguntas en state: ${state.questions?.length || 0}`);
-                console.log(`📚 Total temas en state: ${state.topics?.length || 0}`);
-                
-                // Verificar cuántas preguntas están asignadas al tema objetivo
-                if (targetTheme && state.questions) {
-                    const questionsInTargetTheme = state.questions.filter(q => q.topic === targetTheme);
-                    console.log(`🎯 Preguntas en tema "${targetTheme}": ${questionsInTargetTheme.length}`);
-                    
-                    // Mostrar muestra de preguntas del tema
-                    console.log('📋 Muestra de preguntas del tema:');
-                    questionsInTargetTheme.slice(0, 3).forEach((q, i) => {
-                        console.log(`  ${i+1}. "${q.question?.substring(0, 50)}..." (Topic: "${q.topic}")`);
-                    });
-                    
-                    // Verificar el tema en el array de temas
-                    const themeInState = state.topics?.find(t => t.name === targetTheme);
-                    if (themeInState) {
-                        console.log(`📚 Tema en state: "${themeInState.name}" - Contador: ${themeInState.questions}`);
-                        
-                        // VERIFICAR SINCRONIZACIÓN
-                        if (themeInState.questions !== questionsInTargetTheme.length) {
-                            console.log(`⚠️ DESINCRONIZACIÓN DETECTADA: Contador=${themeInState.questions}, Real=${questionsInTargetTheme.length}`);
-                            
-                            // CORRECCIÓN AUTOMÁTICA
-                            themeInState.questions = questionsInTargetTheme.length;
-                            console.log(`🔧 Contador corregido automáticamente: ${themeInState.questions}`);
-                            
-                            // Guardar corrección
-                            if (typeof RealDataManager !== 'undefined' && state.currentUser) {
-                                RealDataManager.saveFromGlobalData(state.currentUser.username);
-                                console.log('💾 Corrección guardada');
-                            }
-                            
-                            // Re-renderizar con corrección
-                            if (typeof render === 'function') {
-                                render();
-                                console.log('🔄 Interfaz actualizada con corrección');
-                            }
-                        } else {
-                            console.log('✅ Contador sincronizado correctamente');
-                        }
-                    }
-                }
-                
-                // Verificar localStorage con más detalle
-                const username = state.currentUser?.username;
-                if (username) {
-                    const savedData = localStorage.getItem(`testbank_${username}`);
-                    if (savedData) {
-                        const parsed = JSON.parse(savedData);
-                        console.log(`💾 localStorage - Preguntas: ${parsed.questions?.length || 0}, Temas: ${parsed.topics?.length || 0}`);
-                        
-                        // Verificar preguntas del tema en localStorage
-                        if (targetTheme && parsed.questions) {
-                            const savedQuestionsInTheme = parsed.questions.filter(q => q.topic === targetTheme);
-                            console.log(`💾 Preguntas del tema en localStorage: ${savedQuestionsInTheme.length}`);
-                            
-                            // Verificar tema en localStorage
-                            const savedTheme = parsed.topics?.find(t => t.name === targetTheme);
-                            if (savedTheme) {
-                                console.log(`💾 Contador del tema en localStorage: ${savedTheme.questions}`);
-                            }
-                        }
-                    }
-                }
-                
-                console.log('🎉 Verificación final completada');
-            }, 800);
-            
-            // Actualizar interfaz - FORZAR RE-RENDERIZADO
+            // FORZAR ACTUALIZACIÓN DE LA INTERFAZ
             console.log('🔄 Actualizando interfaz...');
             if (typeof render === 'function') {
                 render();
-                console.log('✅ Interfaz actualizada con render()');
+                // Segundo renderizado para asegurar
+                setTimeout(() => {
+                    render();
+                    console.log('🔄 Interfaz actualizada');
+                }, 100);
             }
             
-            // Forzar actualización de contadores si estamos en banco de preguntas
-            setTimeout(() => {
-                if (state.currentTab === 'upload') {
-                    console.log('🔄 Forzando actualización de contadores...');
-                    render();
-                }
-            }, 200);
+            // MENSAJE DE ÉXITO
+            const themeInfo = targetTheme ? `\n🎯 Tema: "${targetTheme}"` : '';
+            showMessage(`✅ IMPORTACIÓN COMPLETADA\n\n${importedItems.join('\n')}${themeInfo}`, 'success');
             
-            const themeInfo = targetTheme ? `\n🎯 Asignado al tema: "${targetTheme}"` : '';
-            
-            showMessage(`
-✅ IMPORTACIÓN COMPLETADA
-
-📊 CONTENIDO IMPORTADO:
-${importedItems.join('\n')}${themeInfo}
-
-📈 Total: ${totalItemsImported} elementos
-🔄 ${options.mergeContent ? 'Agregado a contenido existente' : 'Contenido reemplazado'}
-            `.trim(), 'success');
-            
-            console.log('✅ Importación completada:', {
-                items: importedItems,
-                targetTheme,
-                totalItems: totalItemsImported
-            });
+            console.log('🎉 IMPORTACIÓN COMPLETADA EXITOSAMENTE');
             
         } catch (error) {
             console.error('❌ Error en importación:', error);
@@ -19239,93 +18884,64 @@ ${importedItems.join('\n')}${themeInfo}
         }
     }
     
-    // Hacer funciones globales
-    window.showExportSelectionModal = showExportSelectionModal;
-    window.closeExportModal = closeExportModal;
-    window.selectAllExportOptions = selectAllExportOptions;
-    window.clearAllExportOptions = clearAllExportOptions;
-    window.processExportSelection = processExportSelection;
-    window.executeSelectiveExport = executeSelectiveExport;
-    window.showImportModal = showImportModal;
-    window.closeImportModal = closeImportModal;
-    window.processImportWithTheme = processImportWithTheme;
-    window.executeImportWithTheme = executeImportWithTheme;
+    // ========== INTERCEPTAR BOTONES EXISTENTES ==========
     
-    // Interceptar clics en botones existentes (SOLO del menú principal, no de modales)
+    // Solo interceptar botones del menú principal, no de modales
     document.addEventListener('click', function(event) {
         const target = event.target;
         
-        // Verificar que NO estemos dentro de un modal
-        const isInsideModal = target.closest('#export-modal-selector') || target.closest('#import-modal-selector');
-        if (isInsideModal) {
-            // Si estamos dentro de un modal, NO interceptar
+        // No interceptar si estamos dentro de un modal
+        if (target.closest('#simple-export-modal') || target.closest('#simple-import-modal')) {
             return;
         }
         
-        // Solo interceptar botones del menú principal
+        // Interceptar botón de exportar del menú
         if (target.textContent && target.textContent.includes('Exportar Contenido')) {
             event.preventDefault();
             event.stopPropagation();
-            console.log('🔄 Interceptando clic en botón de exportar del menú');
+            console.log('🔄 Interceptando exportar del menú');
             window.exportContentDataOnly();
             return false;
         }
         
-        if (target.textContent && target.textContent.includes('Importar Contenido') && !target.onclick) {
+        // Interceptar botón de importar del menú
+        if (target.textContent && target.textContent.includes('Importar Contenido')) {
             event.preventDefault();
             event.stopPropagation();
-            console.log('🔄 Interceptando clic en botón de importar del menú');
+            console.log('🔄 Interceptando importar del menú');
             window.importContentFromFile();
             return false;
         }
     }, true);
     
-    // Aplicar estilos CSS
-    if (!document.getElementById('export-import-styles')) {
-        const styles = document.createElement('style');
-        styles.id = 'export-import-styles';
-        styles.textContent = `
-            .export-option:hover {
-                background: #f3f4f6 !important;
-                border-color: #60a5fa !important;
-            }
-            
-            .export-option input[type="checkbox"]:checked + div {
-                color: #1d4ed8 !important;
-            }
-            
-            input[type="checkbox"] {
-                accent-color: #3b82f6 !important;
-            }
-            
-            select {
-                background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
-                background-repeat: no-repeat;
-                background-position: right 12px center;
-                background-size: 16px;
-                padding-right: 40px !important;
-            }
-        `;
-        document.head.appendChild(styles);
-    }
+    // ========== FUNCIONES GLOBALES ==========
     
-    console.log('✅ SISTEMA COMPLETO IMPLEMENTADO');
-    console.log('🎯 Funcionalidades:');
-    console.log('  📤 Exportación selectiva con modal interactivo');
-    console.log('  📥 Importación con selección/creación de tema');
-    console.log('  🎨 Interfaz moderna y responsive');
-    console.log('  🔐 Archivos 100% portables entre cuentas');
-    console.log('  🚫 Sin exportación de datos de usuario');
-    console.log('  ⚡ Evita duplicados automáticamente');
-    console.log('  🔄 Compatible con todos los formatos existentes');
+    window.showSimpleExportModal = showSimpleExportModal;
+    window.closeSimpleExportModal = closeSimpleExportModal;
+    window.selectAllSimpleExport = selectAllSimpleExport;
+    window.clearAllSimpleExport = clearAllSimpleExport;
+    window.executeSimpleExport = executeSimpleExport;
+    window.showSimpleImportModal = showSimpleImportModal;
+    window.closeSimpleImportModal = closeSimpleImportModal;
+    window.executeSimpleImport = executeSimpleImport;
+    
+    console.log('✅ PARCHE NUEVO IMPLEMENTADO CORRECTAMENTE');
+    console.log('🎯 Funcionalidades disponibles:');
+    console.log('  📤 Exportación selectiva simple');
+    console.log('  📥 Importación con asignación de tema');
+    console.log('  🔐 Archivos portables sin datos de usuario');
+    console.log('  🚫 Sin duplicados automáticamente');
+    console.log('  💾 Guardado múltiple para máxima compatibilidad');
+    console.log('  🔄 Actualización forzada de interfaz');
     
     setTimeout(() => {
-        console.log('🚀 SISTEMA LISTO PARA USAR');
-        console.log('💡 Haz clic en "Exportar Contenido" para probar la nueva funcionalidad');
+        console.log('🚀 Sistema listo para usar');
+        console.log('💡 Prueba "Exportar Contenido" o "Importar Contenido"');
     }, 1000);
 </script>
 </body>
 </html>
+
 
 
 
