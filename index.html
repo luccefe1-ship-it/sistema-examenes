@@ -18338,18 +18338,67 @@ Solo exporta preguntas de un tema específico, solo importa preguntas a un tema 
             return;
         }
         
+        console.log(`🚀 Exportando tema: "${selectedTheme}"`);
+        
         closeExportThemeModal();
         
         try {
-            // Obtener preguntas del tema seleccionado
-            const themeQuestions = state.questions ? state.questions.filter(q => q.topic === selectedTheme) : [];
-            
-            if (themeQuestions.length === 0) {
-                showMessage(`❌ No hay preguntas en el tema "${selectedTheme}"`, 'error');
-                return;
+            // Obtener preguntas del tema seleccionado (verificar múltiples campos)
+            let themeQuestions = [];
+            if (state.questions) {
+                themeQuestions = state.questions.filter(q => {
+                    return q.topic === selectedTheme || 
+                           q.topicName === selectedTheme ||
+                           (q.topic && q.topic.toString() === selectedTheme);
+                });
             }
             
-            // Crear archivo de exportación simple
+            console.log(`🔍 Preguntas encontradas para "${selectedTheme}": ${themeQuestions.length}`);
+            
+            // Si no encontramos preguntas con el filtro normal, intentar buscar de otra forma
+            if (themeQuestions.length === 0 && state.questions) {
+                console.log('🔍 Buscando preguntas sin filtro de tema...');
+                console.log('Total preguntas en state:', state.questions.length);
+                
+                // Mostrar todas las preguntas y sus temas para debug
+                state.questions.slice(0, 5).forEach((q, i) => {
+                    console.log(`  Pregunta ${i+1}: topic="${q.topic}", topicName="${q.topicName}", id="${q.id}"`);
+                });
+                
+                // Buscar tema en el array de temas
+                const tema = state.topics.find(t => t.name === selectedTheme);
+                if (tema) {
+                    console.log(`📚 Tema encontrado: ${tema.name}, ID: ${tema.id}`);
+                    
+                    // Intentar filtrar por ID del tema también
+                    themeQuestions = state.questions.filter(q => 
+                        q.topic === tema.name || 
+                        q.topic === tema.id ||
+                        q.topicId === tema.id
+                    );
+                    
+                    console.log(`🔍 Preguntas encontradas con filtro ampliado: ${themeQuestions.length}`);
+                }
+            }
+            
+            if (themeQuestions.length === 0) {
+                // Dar opción de exportar TODAS las preguntas si no hay preguntas específicas del tema
+                const exportAll = confirm(`No se encontraron preguntas específicas del tema "${selectedTheme}".\n\n¿Quieres exportar TODAS las preguntas (${state.questions?.length || 0}) en su lugar?\n\n(Se asignarán al tema "${selectedTheme}" en el archivo)`);
+                
+                if (exportAll && state.questions && state.questions.length > 0) {
+                    // Exportar todas las preguntas pero asignándolas al tema seleccionado
+                    themeQuestions = state.questions.map(q => ({
+                        ...q,
+                        topic: selectedTheme
+                    }));
+                    console.log(`✅ Exportando todas las preguntas (${themeQuestions.length}) como tema "${selectedTheme}"`);
+                } else {
+                    showMessage(`❌ No hay preguntas para exportar del tema "${selectedTheme}"`, 'error');
+                    return;
+                }
+            }
+            
+            // Crear archivo de exportación
             const exportData = {
                 version: "7.0-simple",
                 exportDate: new Date().toISOString(),
@@ -18685,6 +18734,7 @@ Solo exporta preguntas de un tema específico, solo importa preguntas a un tema 
 </script>
 </body>
 </html>
+
 
 
 
