@@ -19106,11 +19106,59 @@ ${exportedItems.join('\n')}
                 totalItemsImported += sourceData.progressTopics.length;
             }
             
+            // GUARDAR CAMBIOS - CRÍTICO
+            console.log('💾 Guardando cambios en localStorage...');
+            
             if (typeof RealDataManager !== 'undefined' && state.currentUser) {
+                console.log(`💾 Usando RealDataManager para usuario: ${state.currentUser.username}`);
                 RealDataManager.saveFromGlobalData(state.currentUser.username);
+                console.log('✅ Datos guardados con RealDataManager');
+            } else {
+                // Fallback manual si RealDataManager no existe
+                console.log('💾 Usando guardado manual (fallback)');
+                const username = state.currentUser?.username;
+                if (username) {
+                    localStorage.setItem(`testbank_${username}`, JSON.stringify({
+                        questions: state.questions || [],
+                        topics: state.topics || [],
+                        testResults: state.testResults || [],
+                        apiKey: state.apiKey || ''
+                    }));
+                    console.log('✅ Datos guardados manualmente');
+                }
             }
             
-            render();
+            // VERIFICAR GUARDADO
+            setTimeout(() => {
+                console.log('🔍 Verificando que los datos se guardaron correctamente...');
+                console.log(`📊 Total preguntas en state: ${state.questions?.length || 0}`);
+                console.log(`📚 Total temas en state: ${state.topics?.length || 0}`);
+                
+                // Verificar localStorage
+                const username = state.currentUser?.username;
+                if (username) {
+                    const savedData = localStorage.getItem(`testbank_${username}`);
+                    if (savedData) {
+                        const parsed = JSON.parse(savedData);
+                        console.log(`💾 Verificación localStorage - Preguntas: ${parsed.questions?.length || 0}, Temas: ${parsed.topics?.length || 0}`);
+                    }
+                }
+            }, 100);
+            
+            // Actualizar interfaz - FORZAR RE-RENDERIZADO
+            console.log('🔄 Actualizando interfaz...');
+            if (typeof render === 'function') {
+                render();
+                console.log('✅ Interfaz actualizada con render()');
+            }
+            
+            // Forzar actualización de contadores si estamos en banco de preguntas
+            setTimeout(() => {
+                if (state.currentTab === 'upload') {
+                    console.log('🔄 Forzando actualización de contadores...');
+                    render();
+                }
+            }, 200);
             
             const themeInfo = targetTheme ? `\n🎯 Asignado al tema: "${targetTheme}"` : '';
             
@@ -19223,6 +19271,7 @@ ${importedItems.join('\n')}${themeInfo}
 </script>
 </body>
 </html>
+
 
 
 
