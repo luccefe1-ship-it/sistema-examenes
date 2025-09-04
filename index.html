@@ -6,7 +6,6 @@
 
 
 
-
 <!DOCTYPE html>
 <html lang="es">
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
@@ -6943,15 +6942,23 @@ Este parche añade navegación entre Tests y Resúmenes, y botón de vuelta al m
     // INTERCEPTAR las funciones setTab para preservar navegación
     const originalSetTab = window.setTab;
     window.setTab = function(tab) {
-        // Remover navegación anterior para re-crearla
-        const existingNav = document.getElementById('cross-navigation');
-        if (existingNav) {
-            existingNav.remove();
-        }
-        
-        // Llamar función original
-        originalSetTab.call(this, tab);
-    };
+    state.currentTab = tab;
+    state.currentViewingResult = null;
+    
+    // Si vamos a summary, asegurar que no se muestre la pantalla intermedia
+    if (tab === 'summary') {
+        showIntermediateScreen = false;
+    }
+    
+    // Si vamos a progreso, mostrar pantalla de progreso
+    if (tab === 'progress') {
+        showIntermediateScreen = false;
+        showProgressTab();
+        return;
+    }
+    
+    render();
+};
     
     // MEJORAR las funciones goToTests y goToSummaries originales
     const originalGoToTests = window.goToTests;
@@ -9574,6 +9581,9 @@ Este parche añade el botón de logout al header en todas las páginas
                             </button>
                             <button class="nav-tab ${state.currentTab === 'results' ? 'active' : ''}" onclick="setTab('results')">
                                 📊 Resultados (${state.testResults.length})
+                            </button>
+                             <button class="nav-tab ${state.currentTab === 'progress' ? 'active' : ''}" onclick="setTab('progress')">
+                                📊 Progreso
                             </button>
                         </div>
                         ${renderTabContent()}
@@ -18249,9 +18259,833 @@ console.log('   - Validación/desvalidación sin perder el foco del buscador');
 console.log('   - Actualización suave del contenedor de preguntas');
 console.log('   - Preserva todo el resaltado de búsqueda existente');
 console.log('   - Compatible con todos los filtros y búsquedas');
-</script>   
+</script>
+<!-- 
+PARCHE COMPLETO: SISTEMA DE VUELTAS CON COLORES
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche reemplaza el sistema anterior añadiendo vueltas automáticas con colores
+-->
+
+<script>
+// ========== PARCHE COMPLETO: SISTEMA DE VUELTAS CON COLORES ==========
+console.log('🔄 Aplicando parche completo: Sistema de Vueltas con Colores...');
+
+// Estado del sistema de progreso ACTUALIZADO
+let progressState = {
+    studyTopics: [
+        { id: 'tema1', name: 'Tema 1', totalPages: 30, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0, manualTestCount: 0 },
+        { id: 'tema2', name: 'Tema 2', totalPages: 33, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0, manualTestCount: 0 },
+        { id: 'tema3', name: 'Tema 3', totalPages: 19, studiedPages: 0, currentRound: 1, completedRounds: 0, firstRoundPages: 0, manualTestCount: 0 }
+    ]
+};
+
+// Configuración de colores por vuelta
+const roundColors = {
+    1: { gradient: 'linear-gradient(90deg, #f87171, #ef4444)', name: 'Primera', color: '#ef4444' },
+    2: { gradient: 'linear-gradient(90deg, #60a5fa, #3b82f6)', name: 'Segunda', color: '#3b82f6' },
+    3: { gradient: 'linear-gradient(90deg, #34d399, #10b981)', name: 'Tercera', color: '#10b981' },
+    4: { gradient: 'linear-gradient(90deg, #fbbf24, #f59e0b)', name: 'Cuarta', color: '#f59e0b' },
+    5: { gradient: 'linear-gradient(90deg, #a78bfa, #8b5cf6)', name: 'Quinta', color: '#8b5cf6' },
+    6: { gradient: 'linear-gradient(90deg, #fb7185, #e11d48)', name: 'Sexta', color: '#e11d48' }
+};
+
+// Cargar progreso desde localStorage (ACTUALIZADO)
+function loadProgressData() {
+    if (!state.currentUser) return;
+    
+    const saved = localStorage.getItem(`studyProgress_${state.currentUser.username}`);
+    if (saved) {
+        try {
+            const savedData = JSON.parse(saved);
+            if (savedData.studyTopics) {
+                // Migrar datos antiguos si no tienen campos de vueltas
+                savedData.studyTopics.forEach((savedTopic, index) => {
+                    const defaultTopic = progressState.studyTopics[index];
+                    if (defaultTopic) {
+                        defaultTopic.studiedPages = savedTopic.studiedPages || 0;
+                        defaultTopic.currentRound = savedTopic.currentRound || 1;
+                        defaultTopic.completedRounds = savedTopic.completedRounds || 0;
+                        defaultTopic.firstRoundPages = savedTopic.firstRoundPages || savedTopic.studiedPages || 0;
+                        defaultTopic.manualTestCount = savedTopic.manualTestCount || 0;
+                        if (savedTopic.name) defaultTopic.name = savedTopic.name;
+                        if (savedTopic.totalPages) defaultTopic.totalPages = savedTopic.totalPages;
+                    }
+                });
+                
+                // Si hay más temas guardados que los por defecto, añadirlos
+                if (savedData.studyTopics.length > progressState.studyTopics.length) {
+                    for (let i = progressState.studyTopics.length; i < savedData.studyTopics.length; i++) {
+                        const savedTopic = savedData.studyTopics[i];
+                        progressState.studyTopics.push({
+                            id: savedTopic.id || `tema${i+1}`,
+                            name: savedTopic.name || `Tema ${i+1}`,
+                            totalPages: savedTopic.totalPages || 20,
+                            studiedPages: savedTopic.studiedPages || 0,
+                            currentRound: savedTopic.currentRound || 1,
+                            completedRounds: savedTopic.completedRounds || 0,
+                            firstRoundPages: savedTopic.firstRoundPages || savedTopic.studiedPages || 0,
+                            manualTestCount: savedTopic.manualTestCount || 0
+                        });
+                    }
+                }
+            }
+        } catch (error) {
+            console.log('Error cargando progreso:', error);
+        }
+    }
+    syncWithQuestionBankTopics();
+}
+
+// Sincronizar con temas del banco de preguntas (IGUAL)
+function syncWithQuestionBankTopics() {
+    if (!state.topics || state.topics.length === 0) return;
+    
+    const topicMapping = {
+        'tema 1': 'tema1',
+        'tema 2': 'tema2', 
+        'tema 3': 'tema3'
+    };
+    
+    state.topics.forEach(bankTopic => {
+        const normalizedName = bankTopic.name.toLowerCase();
+        const mappedId = topicMapping[normalizedName];
+        
+        if (mappedId) {
+            const studyTopic = progressState.studyTopics.find(st => st.id === mappedId);
+            if (studyTopic) {
+                studyTopic.name = bankTopic.name;
+            }
+        }
+    });
+}
+
+// Guardar progreso en localStorage (IGUAL)
+function saveProgressData() {
+    if (state.currentUser) {
+        localStorage.setItem(`studyProgress_${state.currentUser.username}`, JSON.stringify({
+            studyTopics: progressState.studyTopics
+        }));
+    }
+}
+
+// Contar tests realizados por tema (automáticos - IGUAL)
+function countTestsByTopic(topicName) {
+    if (!state.testResults) return 0;
+    
+    return state.testResults.filter(result => {
+        if (result.testType && result.testType.includes(topicName)) {
+            return true;
+        }
+        return false;
+    }).length;
+}
+
+// Función para cambiar manualmente el contador de tests (NUEVA)
+function changeManualTestCount(topicId, change) {
+    const topic = progressState.studyTopics.find(t => t.id === topicId);
+    if (!topic) return;
+    
+    const newValue = topic.manualTestCount + change;
+    
+    // Validar límites (no permitir negativos)
+    if (newValue < 0) return;
+    
+    topic.manualTestCount = newValue;
+    
+    saveProgressData();
+    
+    // Re-renderizar si estamos en la pestaña de progreso
+    if (state.currentTab === 'progress') {
+        showProgressTab();
+    }
+    
+    console.log(`🧪 ${topic.name}: Tests manuales: ${topic.manualTestCount}`);
+}
+
+// Contar tests totales por tema (automático + manual) - NUEVA
+function getTotalTestsByTopic(topicName) {
+    const topic = progressState.studyTopics.find(t => t.name === topicName);
+    const automaticTests = countTestsByTopic(topicName);
+    const manualTests = topic ? topic.manualTestCount : 0;
+    return automaticTests + manualTests;
+}
+
+// Obtener color de la vuelta actual
+function getRoundColor(roundNumber) {
+    return roundColors[roundNumber] || roundColors[6]; // Usar el color de la sexta si supera
+}
+
+// Función para personalizar temas (NUEVA)
+function customizeTopics() {
+    const currentTopicsHtml = progressState.studyTopics.map((topic, index) => `
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+            <input type="text" value="${topic.name}" placeholder="Nombre del tema" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" id="topicName${index}">
+            <input type="number" value="${topic.totalPages}" placeholder="Páginas" min="1" max="999" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" id="topicPages${index}">
+            <button onclick="removeTopic(${index})" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer;">🗑️</button>
+        </div>
+    `).join('');
+
+    const customizeModal = `
+        <div id="customizeModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <h3 style="margin: 0 0 20px 0; color: #374151;">⚙️ Personalizar Temas</h3>
+                
+                <div id="topicsList">
+                    ${currentTopicsHtml}
+                </div>
+                
+                <button onclick="addNewTopic()" style="background: #10b981; color: white; border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer; margin: 15px 0; width: 100%;">
+                    ➕ Agregar Tema
+                </button>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button onclick="saveCustomTopics()" style="background: #3b82f6; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer; flex: 1;">
+                        ✅ Guardar Cambios
+                    </button>
+                    <button onclick="closeCustomizeModal()" style="background: #6b7280; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer;">
+                        ❌ Cancelar
+                    </button>
+                </div>
+                
+                <div style="margin-top: 15px; padding: 10px; background: #fef3c7; border-radius: 8px; font-size: 14px; color: #92400e;">
+                    ⚠️ <strong>Advertencia:</strong> Los cambios afectarán tu progreso actual. Se recomienda hacer backup antes de modificar.
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', customizeModal);
+}
+
+// Agregar nuevo tema vacío (NUEVA)
+function addNewTopic() {
+    const topicsList = document.getElementById('topicsList');
+    const newIndex = document.querySelectorAll('#topicsList > div').length;
+    
+    const newTopicHtml = `
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+            <input type="text" value="Nuevo Tema" placeholder="Nombre del tema" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" id="topicName${newIndex}">
+            <input type="number" value="20" placeholder="Páginas" min="1" max="999" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" id="topicPages${newIndex}">
+            <button onclick="removeTopic(${newIndex})" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer;">🗑️</button>
+        </div>
+    `;
+    
+    topicsList.insertAdjacentHTML('beforeend', newTopicHtml);
+}
+
+// Eliminar tema de la lista (NUEVA)
+function removeTopic(index) {
+    const topicDiv = document.querySelector(`#topicName${index}`).closest('div');
+    if (topicDiv) {
+        topicDiv.remove();
+    }
+}
+
+// Guardar temas personalizados (NUEVA)
+function saveCustomTopics() {
+    const topicDivs = document.querySelectorAll('#topicsList > div');
+    const newTopics = [];
+    
+    topicDivs.forEach((div, index) => {
+        const nameInput = div.querySelector('input[type="text"]');
+        const pagesInput = div.querySelector('input[type="number"]');
+        
+        if (nameInput && pagesInput && nameInput.value.trim() && parseInt(pagesInput.value) > 0) {
+            // Mantener datos existentes si el tema ya existía
+            const existingTopic = progressState.studyTopics[index];
+            
+            newTopics.push({
+                id: existingTopic ? existingTopic.id : `tema${index + 1}`,
+                name: nameInput.value.trim(),
+                totalPages: parseInt(pagesInput.value),
+                studiedPages: existingTopic ? existingTopic.studiedPages : 0,
+                currentRound: existingTopic ? existingTopic.currentRound : 1,
+                completedRounds: existingTopic ? existingTopic.completedRounds : 0,
+                firstRoundPages: existingTopic ? existingTopic.firstRoundPages : 0,
+                manualTestCount: existingTopic ? existingTopic.manualTestCount : 0
+            });
+        }
+    });
+    
+    if (newTopics.length === 0) {
+        showMessage('❌ Debes tener al menos un tema válido', 'error');
+        return;
+    }
+    
+    progressState.studyTopics = newTopics;
+    saveProgressData();
+    closeCustomizeModal();
+    
+    // Re-renderizar la pantalla
+    if (state.currentTab === 'progress') {
+        showProgressTab();
+    }
+    
+    showMessage(`✅ Configuración guardada: ${newTopics.length} temas`, 'success');
+}
+
+// Cerrar modal de personalización (NUEVA)
+function closeCustomizeModal() {
+    const modal = document.getElementById('customizeModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Función para restaurar todos los datos a cero (NUEVA)
+function resetAllProgress() {
+    const totalTopics = progressState.studyTopics.length;
+    const totalTests = progressState.studyTopics.reduce((sum, topic) => sum + getTotalTestsByTopic(topic.name), 0);
+    
+    // Mostrar popup de confirmación doble
+    const firstConfirm = confirm(`⚠️ ADVERTENCIA: Restaurar Datos a Cero\n\n¿Estás COMPLETAMENTE SEGURO de que quieres eliminar TODO el progreso?\n\nEsto eliminará:\n• ${totalTopics} temas (páginas y vueltas)\n• ${totalTests} resultados de tests\n\nNO se puede deshacer.`);
+    
+    if (firstConfirm) {
+        const secondConfirm = confirm(`🚨 ÚLTIMA CONFIRMACIÓN\n\nEsto eliminará PERMANENTEMENTE:\n• Todas las páginas estudiadas\n• Todas las vueltas completadas\n• TODO el progreso de todos los temas\n• TODOS los resultados de tests realizados\n\n¿CONFIRMAS que quieres continuar?`);
+        
+        if (secondConfirm) {
+            // Resetear TODOS los temas a estado inicial
+            progressState.studyTopics.forEach(topic => {
+                topic.studiedPages = 0;
+                topic.currentRound = 1;
+                topic.completedRounds = 0;
+                topic.firstRoundPages = 0;
+                topic.manualTestCount = 0;
+            });
+            
+            // ELIMINAR TODOS LOS TESTS REALIZADOS
+            if (state.testResults && state.testResults.length > 0) {
+                // Filtrar y eliminar tests de todos los temas
+                const topicNames = progressState.studyTopics.map(topic => topic.name);
+                
+                const originalTestCount = state.testResults.length;
+                state.testResults = state.testResults.filter(result => {
+                    // Eliminar si el test corresponde a algún tema de progreso
+                    if (result.testType) {
+                        return !topicNames.some(topicName => result.testType.includes(topicName));
+                    }
+                    return true; // Conservar tests que no son de temas específicos
+                });
+                
+                const deletedTests = originalTestCount - state.testResults.length;
+                console.log(`🗑️ Tests eliminados: ${deletedTests} de ${originalTestCount}`);
+                
+                // Guardar los cambios en localStorage
+                if (state.currentUser) {
+                    localStorage.setItem(`testbank_${state.currentUser.username}`, JSON.stringify({
+                        questions: state.questions || [],
+                        topics: state.topics || [],
+                        testResults: state.testResults || [],
+                        apiKey: state.apiKey || ''
+                    }));
+                }
+            }
+            
+            saveProgressData();
+            
+            // Re-renderizar la pantalla
+            if (state.currentTab === 'progress') {
+                showProgressTab();
+            }
+            
+            showMessage(`🔄 RESTAURACIÓN COMPLETA REALIZADA\n✅ ${totalTopics} temas reiniciados\n✅ ${totalTests} tests eliminados\n✅ Todo vuelve a estado inicial`, 'success');
+            console.log(`🔄 RESET COMPLETO: ${totalTopics} temas + ${totalTests} tests eliminados`);
+        }
+    }
+}
+
+function resetTopicProgress(topicId) {
+    const topic = progressState.studyTopics.find(t => t.id === topicId);
+    if (!topic) return;
+    
+    // Mostrar popup de confirmación
+    const confirmReset = confirm(`¿Estás seguro de que quieres reiniciar el progreso de "${topic.name}"?\n\nEsto restaurará:\n- Páginas estudiadas: 0\n- Vuelta actual: Primera\n- Vueltas completadas: 0\n- Tests manuales: 0`);
+    
+    if (confirmReset) {
+        topic.studiedPages = 0;
+        topic.currentRound = 1;
+        topic.completedRounds = 0;
+        topic.firstRoundPages = 0;
+        topic.manualTestCount = 0;
+        
+        saveProgressData();
+        
+        // Re-renderizar si estamos en la pestaña de progreso
+        if (state.currentTab === 'progress') {
+            showProgressTab();
+        }
+        
+        showMessage(`🔄 "${topic.name}" reiniciado correctamente`, 'success');
+        console.log(`🔄 ${topic.name}: Progreso reiniciado`);
+    }
+}
+
+// Renderizar pantalla de progreso (ACTUALIZADA con vueltas y colores)
+function renderProgressScreen() {
+    loadProgressData();
+    
+    const totalPages = progressState.studyTopics.reduce((sum, topic) => sum + topic.totalPages, 0);
+    // CAMBIO: Solo contar las páginas de la primera vuelta para el progreso general
+    const totalStudied = progressState.studyTopics.reduce((sum, topic) => sum + topic.firstRoundPages, 0);
+    const totalTests = progressState.studyTopics.reduce((sum, topic) => sum + getTotalTestsByTopic(topic.name), 0);
+    const overallProgress = totalPages > 0 ? Math.round((totalStudied / totalPages) * 100) : 0;
+    
+    // Calcular progreso general considerando vueltas completadas
+    const totalCompletedRounds = progressState.studyTopics.reduce((sum, topic) => sum + topic.completedRounds, 0);
+    
+    // NUEVA LÓGICA CORREGIDA: Calcular vuelta general basada en completitud de todas las páginas
+    // La vuelta general solo avanza cuando TODOS los temas han completado al menos una vuelta completa
+    const minCompletedRounds = Math.min(...progressState.studyTopics.map(topic => topic.completedRounds));
+    const generalRoundNumber = minCompletedRounds + 1; // La vuelta actual es las completadas + 1
+    const generalRoundInfo = getRoundColor(generalRoundNumber);
+    
+    return `
+        <div style="max-width: 1300px; margin: 0 auto;">
+            <!-- Header -->
+            <div style="text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                <h1 style="color: #1f2937; margin: 0; font-size: 2.2rem;">📊 Progreso de Estudio</h1>
+                <p style="color: #6b7280; margin: 5px 0 0 0;">Seguimiento de tu progreso por temas y vueltas</p>
+            </div>
+            
+            <!-- Botones de gestión -->
+            <div style="text-align: center; margin-bottom: 20px; display: flex; gap: 15px; justify-content: center;">
+                <button onclick="customizeTopics()" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border: none; border-radius: 10px; padding: 12px 24px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);">
+                    ⚙️ Personalizar Temas
+                </button>
+                <button onclick="resetAllProgress()" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; border-radius: 10px; padding: 12px 24px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);">
+                    🔄 Restaurar Datos a Cero
+                </button>
+            </div>
+            
+            <!-- Tabla de progreso -->
+            <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 30px;">
+                <!-- Encabezado de tabla -->
+                <div style="display: grid; grid-template-columns: 150px 120px 120px 100px 1fr 100px; background: #f8fafc; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #374151;">
+                    <div style="padding: 15px; border-right: 1px solid #e5e7eb;">Tema</div>
+                    <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center;">Memorizado</div>
+                    <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center;">Test Realizados</div>
+                    <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center;">Vuelta</div>
+                    <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center;">Progreso</div>
+                    <div style="padding: 15px; text-align: center;">Acciones</div>
+                </div>
+                
+                <!-- Filas de temas -->
+                ${progressState.studyTopics.map((topic, index) => {
+                    const progress = topic.totalPages > 0 ? Math.round((topic.studiedPages / topic.totalPages) * 100) : 0;
+                    const automaticTests = countTestsByTopic(topic.name);
+                    const manualTests = topic.manualTestCount || 0;
+                    const totalTests = automaticTests + manualTests;
+                    const roundInfo = getRoundColor(topic.currentRound);
+                    
+                    return `
+                        <div style="display: grid; grid-template-columns: 150px 120px 120px 100px 1fr 100px; border-bottom: 1px solid #f3f4f6; ${index % 2 === 0 ? 'background: #fafafa;' : 'background: white;'}">
+                            <div style="padding: 15px; border-right: 1px solid #e5e7eb; font-weight: 500; display: flex; align-items: center;">
+                                <div style="background: #3b82f6; color: white; padding: 6px 12px; border-radius: 6px; font-size: 14px;">
+                                    ${topic.name}
+                                </div>
+                                ${topic.completedRounds > 0 ? `
+                                    <div style="margin-left: 8px; background: ${roundInfo.color}; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: bold;">
+                                        ${topic.completedRounds} ✓
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                <button onclick="changeStudiedPages('${topic.id}', -1)" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-size: 12px; font-weight: bold;">-</button>
+                                <span style="font-weight: 500; min-width: 45px;">${topic.studiedPages}/${topic.totalPages}</span>
+                                <button onclick="changeStudiedPages('${topic.id}', 1)" style="background: #22c55e; color: white; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-size: 12px; font-weight: bold;">+</button>
+                            </div>
+                            <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                <button onclick="changeManualTestCount('${topic.id}', -1)" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 20px; height: 20px; cursor: pointer; font-size: 10px; font-weight: bold;">-</button>
+                                <div style="text-align: center; min-width: 35px;">
+                                    <span style="font-weight: 600; color: #059669; display: block; font-size: 14px;">${totalTests}</span>
+                                    ${automaticTests > 0 && manualTests > 0 ? `<span style="font-size: 9px; color: #6b7280; background: #f3f4f6; padding: 1px 4px; border-radius: 8px; display: inline-block; margin-top: 2px;">${automaticTests}+${manualTests}</span>` : ''}
+                                </div>
+                                <button onclick="changeManualTestCount('${topic.id}', 1)" style="background: #22c55e; color: white; border: none; border-radius: 4px; width: 20px; height: 20px; cursor: pointer; font-size: 10px; font-weight: bold;">+</button>
+                            </div>
+                            <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: ${roundInfo.color}; font-weight: 600;">
+                                ${roundInfo.name}
+                            </div>
+                            <div style="padding: 15px; border-right: 1px solid #e5e7eb; display: flex; align-items: center; gap: 10px;">
+                                <div style="flex: 1; background: #f3f4f6; border-radius: 8px; height: 20px; overflow: hidden;">
+                                    <div style="background: ${roundInfo.gradient}; height: 100%; width: ${progress}%; transition: width 0.3s ease; border-radius: 8px;"></div>
+                                </div>
+                                <span style="font-weight: 600; color: #374151; min-width: 35px;">${progress}%</span>
+                            </div>
+                            <div style="padding: 15px; text-align: center; display: flex; align-items: center; justify-content: center;">
+                                <button onclick="resetTopicProgress('${topic.id}')" style="background: #f97316; color: white; border: none; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px; font-weight: bold;" title="Reiniciar progreso del tema">
+                                    🔄
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+                
+                <!-- Fila General (resumen) -->
+                <div style="display: grid; grid-template-columns: 150px 120px 120px 100px 1fr 100px; background: #f8fafc; border-top: 2px solid #e5e7eb; font-weight: 600;">
+                    <div style="padding: 15px; border-right: 1px solid #e5e7eb; display: flex; align-items: center;">
+                        <div style="background: #6b7280; color: white; padding: 6px 12px; border-radius: 6px; font-size: 14px;">
+                            General
+                        </div>
+                        ${totalCompletedRounds > 0 ? `
+                            <div style="margin-left: 8px; background: #10b981; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: bold;">
+                                ${totalCompletedRounds} ✓
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: #059669;">
+                        ${totalStudied}/${totalPages}
+                    </div>
+                    <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: #059669;">
+                        ${totalTests}
+                    </div>
+                    <div style="padding: 15px; border-right: 1px solid #e5e7eb; text-align: center; color: ${generalRoundInfo.color}; font-weight: 600;">
+                        ${generalRoundInfo.name}
+                    </div>
+                    <div style="padding: 15px; border-right: 1px solid #e5e7eb; display: flex; align-items: center; gap: 10px;">
+                        <div style="flex: 1; background: #f3f4f6; border-radius: 8px; height: 20px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #f87171, #ef4444); height: 100%; width: ${overallProgress}%; transition: width 0.3s ease; border-radius: 8px;"></div>
+                        </div>
+                        <span style="font-weight: 600; color: #374151; min-width: 35px;">${overallProgress}%</span>
+                    </div>
+                    <div style="padding: 15px; text-align: center;">
+                        -
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Leyenda de colores -->
+            <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                <h3 style="margin: 0 0 15px 0; color: #374151;">🎨 Leyenda de Vueltas</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                    ${Object.entries(roundColors).map(([round, info]) => `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 20px; height: 12px; border-radius: 6px; background: ${info.gradient};"></div>
+                            <span style="font-size: 14px; color: #6b7280;">${info.name}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <!-- Botón volver -->
+            <div style="text-align: center;">
+                <button onclick="backToMainFromProgress()" class="btn btn-secondary" style="padding: 12px 24px; font-size: 16px;">
+                    ← Volver al Menú Principal
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Cambiar páginas estudiadas (ACTUALIZADA con lógica de vueltas)
+function changeStudiedPages(topicId, change) {
+    const topic = progressState.studyTopics.find(t => t.id === topicId);
+    if (!topic) return;
+    
+    const newValue = topic.studiedPages + change;
+    
+    // Validar límites
+    if (newValue < 0 || newValue > topic.totalPages) return;
+    
+    topic.studiedPages = newValue;
+    
+    // LÓGICA DE VUELTAS: Si completa todas las páginas, avanzar a la siguiente vuelta
+    if (topic.studiedPages === topic.totalPages) {
+        // Si es la primera vuelta, guardar las páginas completadas
+        if (topic.currentRound === 1) {
+            topic.firstRoundPages = topic.totalPages;
+        }
+        
+        // Completó una vuelta
+        topic.completedRounds++;
+        topic.currentRound++;
+        topic.studiedPages = 0; // Reiniciar el contador para la siguiente vuelta
+        
+        const roundInfo = getRoundColor(topic.currentRound);
+        
+        showMessage(`🎉 ¡Vuelta completada! ${topic.name} - Iniciando ${roundInfo.name} vuelta`, 'success');
+        
+        console.log(`🔄 ${topic.name}: Completó vuelta ${topic.completedRounds}, iniciando ${roundInfo.name}`);
+    } else if (topic.currentRound === 1) {
+        // Si estamos en la primera vuelta, actualizar el contador de primera vuelta
+        topic.firstRoundPages = topic.studiedPages;
+    }
+    
+    saveProgressData();
+    
+    // Re-renderizar si estamos en la pestaña de progreso
+    if (state.currentTab === 'progress') {
+        showProgressTab();
+    }
+    
+    console.log(`📊 ${topic.name}: ${topic.studiedPages}/${topic.totalPages} hojas (${getRoundColor(topic.currentRound).name})`);
+}
+
+// RESTO DE FUNCIONES IGUALES AL PARCHE ANTERIOR
+function showProgressTab() {
+    state.currentTab = 'progress';
+    showIntermediateScreen = false;
+    
+    const app = document.getElementById('app');
+    if (app) {
+        app.innerHTML = `
+            <div class="container">
+                <div class="header">
+                    <div class="title">📊 Progreso de Estudio</div>
+                    <div>
+                        <span style="color: ${state.apiKey ? '#10b981' : '#ef4444'};">
+                            ${state.apiKey ? '✅ API Configurada' : '❌ Sin API'}
+                        </span>
+                        <button onclick="configureAPI()" class="btn btn-secondary">API</button>
+                        <button onclick="backToMainFromProgress()" class="btn btn-info">🏠 Menú</button>
+                        <span style="color: #f59e0b;">👤 ${state.currentUser.name}</span>
+                        <button onclick="logout()" class="btn btn-danger">Salir</button>
+                    </div>
+                </div>
+                
+                <div id="messages"></div>
+                
+                ${renderProgressScreen()}
+            </div>
+        `;
+    }
+}
+
+function backToMainFromProgress() {
+    showIntermediateScreen = true;
+    state.currentTab = 'upload';
+    render();
+}
+
+window.goToProgress = function() {
+    console.log('📊 Cambiando a Progreso de Estudio...');
+    showProgressTab();
+};
+
+// INTERCEPTAR FUNCIÓN DE EXPORTACIÓN PARA EXCLUIR DATOS DE PROGRESO Y TESTS
+const originalExportContentDataOnly = window.exportContentDataOnly;
+if (typeof originalExportContentDataOnly === 'function') {
+    window.exportContentDataOnly = function() {
+        if (!state.currentUser) {
+            showMessage('❌ Error: No hay usuario logueado', 'error');
+            return;
+        }
+        
+        try {
+            const username = state.currentUser.username;
+            
+            // Crear backup con estructura compatible PERO sin tests ni progreso
+            const contentBackup = {
+                version: "3.0",
+                exportDate: new Date().toISOString(),
+                exportTimestamp: Date.now(),
+                exportType: "content_only",
+                originalUser: username,
+                contentData: {
+                    questions: state.questions || [],
+                    topics: state.topics || [],
+                    // NO EXPORTAR: testResults (como solicita el usuario)
+                    summaryTopics: (typeof summarySystemState !== 'undefined') ? summarySystemState.summaryTopics || [] : [],
+                    savedSummaries: (typeof summarySystemState !== 'undefined') ? summarySystemState.savedSummaries || [] : [],
+                    apiKey: state.apiKey || ''
+                    // NO EXPORTAR: progressState, studyTopics, ni datos de progreso
+                },
+                stats: {
+                    totalQuestions: state.questions ? state.questions.length : 0,
+                    totalTopics: state.topics ? state.topics.length : 0,
+                    totalTests: 0, // No se exportan tests
+                    totalSummaries: (typeof summarySystemState !== 'undefined') ? (summarySystemState.savedSummaries || []).length : 0
+                }
+            };
+            
+            // Mostrar estadísticas antes de descargar
+            const statsMessage = `
+📊 BACKUP DE CONTENIDO GENERADO:
+• Preguntas: ${contentBackup.stats.totalQuestions}
+• Temas: ${contentBackup.stats.totalTopics}  
+• Tests realizados: ❌ NO incluidos
+• Resúmenes: ${contentBackup.stats.totalSummaries}
+• Progreso de estudio: ❌ NO incluido (privado)
+            `;
+            
+            showMessage(statsMessage, 'success');
+            
+            // Crear archivo para descarga
+            const blob = new Blob([JSON.stringify(contentBackup, null, 2)], { 
+                type: 'application/json' 
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            const dateStr = new Date().toISOString().split('T')[0];
+            const timeStr = new Date().toLocaleTimeString('es-ES').replace(/:/g, '');
+            a.href = url;
+            a.download = `contenido_portable_${dateStr}_${timeStr}.json`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            setTimeout(() => {
+                showMessage(`
+✅ BACKUP DE CONTENIDO DESCARGADO
+📁 Archivo: contenido_portable_${dateStr}_${timeStr}.json
+
+💡 NOTA IMPORTANTE:
+• Tus datos de PROGRESO no se exportan
+• Los TESTS REALIZADOS no se exportan  
+• El progreso es personal de cada dispositivo
+• Solo se exporta contenido (preguntas, temas, resúmenes)
+                `, 'success');
+            }, 1000);
+            
+            console.log('✅ Backup de contenido portable exportado (sin tests ni progreso)');
+            
+        } catch (error) {
+            console.error('❌ Error exportando contenido:', error);
+            showMessage('❌ Error al exportar contenido: ' + error.message, 'error');
+        }
+    };
+}
+
+// Hacer funciones globales
+window.showProgressTab = showProgressTab;
+window.changeStudiedPages = changeStudiedPages;
+window.backToMainFromProgress = backToMainFromProgress;
+window.renderProgressScreen = renderProgressScreen;
+window.resetTopicProgress = resetTopicProgress;
+window.resetAllProgress = resetAllProgress;
+window.customizeTopics = customizeTopics;
+window.addNewTopic = addNewTopic;
+window.removeTopic = removeTopic;
+window.saveCustomTopics = saveCustomTopics;
+window.closeCustomizeModal = closeCustomizeModal;
+window.changeManualTestCount = changeManualTestCount;
+window.getTotalTestsByTopic = getTotalTestsByTopic;
+
+// INTERCEPTAR renderIntermediateScreen (IGUAL)
+const originalRenderIntermediateScreenProgress = renderIntermediateScreen;
+if (typeof renderIntermediateScreen === 'function') {
+    window.renderIntermediateScreen = function() {
+        const originalHTML = originalRenderIntermediateScreenProgress();
+        
+        if (originalHTML.includes('goToMultiplayer()')) {
+            const progressButton = `
+                            <button onclick="goToProgress()" style="background: linear-gradient(135deg, #6366f1, #4f46e5); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📊</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Progreso de Estudio</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Seguir avance por temas</div>
+                                    </div>
+                                </div>
+                            </button>
+            `;
+            
+            return originalHTML.replace(
+                '<button onclick="exportContentDataOnly()"',
+                progressButton + '\n                            <button onclick="exportContentDataOnly()"'
+            );
+        }
+        
+        return originalHTML;
+    };
+}
+
+// INTERCEPTAR setTab (IGUAL)
+const originalSetTabProgress = setTab;
+if (typeof setTab === 'function') {
+    window.setTab = function(tab) {
+        if (tab === 'progress') {
+            showProgressTab();
+            return;
+        }
+        originalSetTabProgress(tab);
+    };
+}
+
+// INTERCEPTAR render (IGUAL)
+const originalRenderProgress = render;
+if (typeof render === 'function') {
+    window.render = function() {
+        originalRenderProgress.call(this);
+        
+        if (state.currentUser && !showIntermediateScreen && state.currentTab !== 'progress') {
+            setTimeout(() => {
+                addProgressButtonToNavTabs();
+            }, 100);
+        }
+    };
+}
+
+function addProgressButtonToNavTabs() {
+    const navTabs = document.querySelector('.nav-tabs');
+    if (!navTabs) return;
+    
+    // Eliminar TODOS los botones de progreso existentes
+    const existingProgressBtns = navTabs.querySelectorAll('#progress-nav-btn, [onclick*="showProgressTab"], [onclick*="goToProgress"], button:contains("Progreso")');
+    existingProgressBtns.forEach(btn => btn.remove());
+    
+    // Buscar botones que contengan "Progreso" en el texto
+    const allButtons = navTabs.querySelectorAll('button');
+    allButtons.forEach(btn => {
+        if (btn.textContent && btn.textContent.includes('Progreso')) {
+            btn.remove();
+        }
+    });
+    
+    // Ahora crear solo uno nuevo
+    const resultsButton = navTabs.querySelector('[onclick="setTab(\'results\')"]');
+    if (resultsButton) {
+        const progressButton = document.createElement('button');
+        progressButton.id = 'progress-nav-btn';
+        progressButton.className = 'nav-tab';
+        progressButton.innerHTML = '📊 Progreso';
+        progressButton.onclick = () => showProgressTab();
+        
+        resultsButton.parentNode.insertBefore(progressButton, resultsButton.nextSibling);
+    }
+}
+
+// Inicializar sistema
+setTimeout(() => {
+    if (state.currentUser) {
+        loadProgressData();
+        console.log('✅ Sistema de progreso con vueltas inicializado para:', state.currentUser.name);
+    }
+}, 1000);
+
+console.log('✅ Parche completo aplicado: Sistema de Vueltas con Colores');
+console.log('🔄 Funcionalidades de vueltas:');
+console.log('   - Vueltas automáticas al completar 100% de páginas');
+console.log('   - 6 colores diferentes para cada vuelta');
+console.log('   - Contador de vueltas completadas');
+console.log('   - Leyenda de colores visual');
+console.log('   - Botón reiniciar tema con confirmación');
+console.log('   - Personalización de temas (agregar/eliminar)');
+console.log('   - Tests manuales + automáticos combinados');
+console.log('   - Progreso general solo cuenta primera vuelta');
+console.log('   - Datos de progreso NO se exportan (privados)');
+console.log('🎨 Colores por vuelta:');
+console.log('   - 1ª: Rojo, 2ª: Azul, 3ª: Verde');  
+console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
+</script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
