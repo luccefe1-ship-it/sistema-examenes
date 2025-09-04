@@ -19585,13 +19585,13 @@ if (typeof renderIntermediateScreen === 'function') {
         
         // Buscar donde está el botón "Exportar Contenido" y añadir los nuevos botones
         if (originalHTML.includes('Exportar Contenido')) {
-            // Añadir botón de exportar preguntas por tema ANTES del botón de exportar contenido
-            const exportTopicButton = `
+            // Añadir botones de exportar/importar preguntas REEMPLAZANDO los dos últimos botones
+            const newButtons = `
                             <button onclick="exportQuestionsByTopicOnly()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
                                     <span style="font-size: 1.5rem;">📦</span>
                                     <div style="text-align: left;">
-                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Exportar por Tema</div>
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Exportar Preguntas</div>
                                         <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Solo preguntas de un tema</div>
                                     </div>
                                 </div>
@@ -19608,11 +19608,22 @@ if (typeof renderIntermediateScreen === 'function') {
                             </button>
             `;
             
-            // Insertar los nuevos botones antes del botón "Exportar Contenido"
-            originalHTML = originalHTML.replace(
-                '<button onclick="exportContentDataOnly()"',
-                exportTopicButton + '\n                            <button onclick="exportContentDataOnly()"'
-            );
+            // Eliminar los dos últimos botones (Exportar Contenido e Importar Contenido) y reemplazarlos
+            let modifiedHTML = originalHTML;
+            
+            // Encontrar y eliminar el botón "Exportar Contenido"
+            const exportContentRegex = /<button onclick="exportContentDataOnly\(\)"[\s\S]*?<\/button>/;
+            modifiedHTML = modifiedHTML.replace(exportContentRegex, '');
+            
+            // Encontrar y eliminar el botón "Importar Contenido" (si existe)
+            const importContentRegex = /<button onclick="importContentFromFile\(\)"[\s\S]*?<\/button>/;
+            modifiedHTML = modifiedHTML.replace(importContentRegex, '');
+            
+            // Añadir los nuevos botones al final de la grilla de botones
+            const gridEndRegex = /(\s*<\/div>\s*<div style="margin-top: 30px; padding: 15px; background: #f8fafc)/;
+            modifiedHTML = modifiedHTML.replace(gridEndRegex, newButtons + '\n$1');
+            
+            originalHTML = modifiedHTML;
         }
         
         return originalHTML;
@@ -19642,6 +19653,7 @@ console.log('   - Importar: Botón morado "Importar Preguntas" en menú principa
 </script>
 </body>
 </html>
+
 
 
 
