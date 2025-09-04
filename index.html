@@ -19071,17 +19071,17 @@ console.log('   - 1ª: Rojo, 2ª: Azul, 3ª: Verde');
 console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 <!-- 
-PARCHE: EXPORTAR/IMPORTAR PREGUNTAS POR TEMA
+PARCHE CORREGIDO: EXPORTAR/IMPORTAR PREGUNTAS POR TEMA (COMPATIBLE)
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche permite exportar solo preguntas de temas específicos e importarlas asignando tema
+Este parche funciona con los sistemas existentes sin conflictos
 -->
 
 <script>
-// ========== PARCHE: EXPORTAR/IMPORTAR PREGUNTAS POR TEMA ==========
-console.log('📦 Implementando sistema de exportación/importación de preguntas por tema...');
+// ========== PARCHE CORREGIDO: EXPORTAR/IMPORTAR PREGUNTAS POR TEMA ==========
+console.log('📦 Implementando sistema de exportación/importación de preguntas por tema (versión compatible)...');
 
-// PASO 1: FUNCIÓN PARA EXPORTAR PREGUNTAS DE UN TEMA ESPECÍFICO
-function exportQuestionsByTopic() {
+// PASO 1: CREAR FUNCIÓN ESPECÍFICA PARA EXPORTAR PREGUNTAS POR TEMA
+function exportQuestionsByTopicOnly() {
     if (!state.currentUser) {
         showMessage('❌ Error: No hay usuario logueado', 'error');
         return;
@@ -19114,10 +19114,10 @@ function exportQuestionsByTopic() {
                 <div id="exportPreview" style="margin-bottom: 20px; display: none;"></div>
                 
                 <div style="display: flex; gap: 10px;">
-                    <button onclick="executeTopicExport()" id="confirmExportBtn" style="background: #10b981; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer; flex: 1;" disabled>
+                    <button onclick="executeTopicExportOnly()" id="confirmExportBtn" style="background: #10b981; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer; flex: 1;" disabled>
                         📤 Exportar Preguntas
                     </button>
-                    <button onclick="closeExportModal()" style="background: #6b7280; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer;">
+                    <button onclick="closeExportTopicModal()" style="background: #6b7280; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer;">
                         ❌ Cancelar
                     </button>
                 </div>
@@ -19129,12 +19129,12 @@ function exportQuestionsByTopic() {
     
     // Agregar evento para actualizar preview
     document.getElementById('exportTopicSelect').addEventListener('change', function() {
-        updateExportPreview();
+        updateExportTopicPreview();
     });
 }
 
 // Actualizar preview de exportación
-function updateExportPreview() {
+function updateExportTopicPreview() {
     const topicId = document.getElementById('exportTopicSelect').value;
     const previewDiv = document.getElementById('exportPreview');
     const confirmBtn = document.getElementById('confirmExportBtn');
@@ -19178,7 +19178,7 @@ function updateExportPreview() {
 }
 
 // Ejecutar exportación del tema seleccionado
-function executeTopicExport() {
+function executeTopicExportOnly() {
     const topicId = document.getElementById('exportTopicSelect').value;
     if (!topicId) return;
     
@@ -19238,7 +19238,7 @@ function executeTopicExport() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        closeExportModal();
+        closeExportTopicModal();
         
         showMessage(`✅ EXPORTADO: ${questions.length} preguntas del tema "${topic.name}"
 📁 Archivo: preguntas_${safeTopic}_${dateStr}_${timeStr}.json
@@ -19253,8 +19253,8 @@ function executeTopicExport() {
     }
 }
 
-// Cerrar modal de exportación
-function closeExportModal() {
+// Cerrar modal de exportación de tema
+function closeExportTopicModal() {
     const modal = document.getElementById('exportTopicModal');
     if (modal) {
         modal.remove();
@@ -19262,7 +19262,7 @@ function closeExportModal() {
 }
 
 // PASO 2: FUNCIÓN PARA IMPORTAR PREGUNTAS CON SELECCIÓN DE TEMA
-function importQuestionsByTopic() {
+function importQuestionsByTopicOnly() {
     if (!state.currentUser) {
         showMessage('❌ Error: No hay usuario logueado', 'error');
         return;
@@ -19299,7 +19299,7 @@ function importQuestionsByTopic() {
                 }
                 
                 // Mostrar modal de importación con selección de tema
-                showImportModal(importedData, questionsToImport);
+                showImportTopicModal(importedData, questionsToImport);
                 
             } catch (error) {
                 console.error('Error procesando archivo:', error);
@@ -19314,7 +19314,7 @@ function importQuestionsByTopic() {
 }
 
 // Mostrar modal para seleccionar tema de destino
-function showImportModal(importedData, questionsToImport) {
+function showImportTopicModal(importedData, questionsToImport) {
     const existingTopicsHtml = state.topics.map(topic => {
         const questionCount = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length;
         return `<option value="${topic.id}">${topic.name} (${questionCount} preguntas actuales)</option>`;
@@ -19345,21 +19345,21 @@ function showImportModal(importedData, questionsToImport) {
                     <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">¿Dónde quieres importar estas preguntas?</label>
                     
                     <div style="margin-bottom: 15px;">
-                        <input type="radio" id="createNewTopic" name="importDestination" value="new" style="margin-right: 8px;">
-                        <label for="createNewTopic" style="font-weight: 500;">🆕 Crear nuevo tema</label>
+                        <input type="radio" id="createNewTopicRadio" name="importDestination" value="new" style="margin-right: 8px;">
+                        <label for="createNewTopicRadio" style="font-weight: 500;">🆕 Crear nuevo tema</label>
                         
                         <div id="newTopicNameDiv" style="margin-top: 10px; margin-left: 24px; display: none;">
-                            <input type="text" id="newTopicName" placeholder="Nombre del nuevo tema" value="${originalTopic.name}" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
+                            <input type="text" id="newTopicNameInput" placeholder="Nombre del nuevo tema" value="${originalTopic.name}" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
                         </div>
                     </div>
                     
                     ${state.topics.length > 0 ? `
                         <div>
-                            <input type="radio" id="useExistingTopic" name="importDestination" value="existing" style="margin-right: 8px;">
-                            <label for="useExistingTopic" style="font-weight: 500;">📁 Agregar a tema existente</label>
+                            <input type="radio" id="useExistingTopicRadio" name="importDestination" value="existing" style="margin-right: 8px;">
+                            <label for="useExistingTopicRadio" style="font-weight: 500;">📁 Agregar a tema existente</label>
                             
                             <div id="existingTopicDiv" style="margin-top: 10px; margin-left: 24px; display: none;">
-                                <select id="existingTopicSelect" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                <select id="existingTopicSelectImport" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
                                     <option value="">-- Selecciona un tema --</option>
                                     ${existingTopicsHtml}
                                 </select>
@@ -19368,15 +19368,15 @@ function showImportModal(importedData, questionsToImport) {
                     ` : ''}
                 </div>
                 
-                <div id="duplicateWarning" style="background: #fef3c7; padding: 12px; border-radius: 6px; color: #92400e; font-size: 14px; margin-bottom: 15px; display: none;">
+                <div id="duplicateWarningImport" style="background: #fef3c7; padding: 12px; border-radius: 6px; color: #92400e; font-size: 14px; margin-bottom: 15px; display: none;">
                     ⚠️ Se detectarán y omitirán preguntas duplicadas automáticamente
                 </div>
                 
                 <div style="display: flex; gap: 10px;">
-                    <button onclick="executeImport()" id="confirmImportBtn" style="background: #10b981; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer; flex: 1;" disabled>
+                    <button onclick="executeImportQuestions()" id="confirmImportBtn" style="background: #10b981; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer; flex: 1;" disabled>
                         📥 Importar Preguntas
                     </button>
-                    <button onclick="closeImportModal()" style="background: #6b7280; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer;">
+                    <button onclick="closeImportTopicModal()" style="background: #6b7280; color: white; border: none; border-radius: 8px; padding: 12px 24px; cursor: pointer;">
                         ❌ Cancelar
                     </button>
                 </div>
@@ -19387,52 +19387,52 @@ function showImportModal(importedData, questionsToImport) {
     document.body.insertAdjacentHTML('beforeend', importModal);
     
     // Agregar eventos
-    document.getElementById('createNewTopic').addEventListener('change', function() {
+    document.getElementById('createNewTopicRadio').addEventListener('change', function() {
         if (this.checked) {
             document.getElementById('newTopicNameDiv').style.display = 'block';
             document.getElementById('existingTopicDiv').style.display = 'none';
-            document.getElementById('duplicateWarning').style.display = 'none';
-            updateImportButton();
+            document.getElementById('duplicateWarningImport').style.display = 'none';
+            updateImportTopicButton();
         }
     });
     
-    if (document.getElementById('useExistingTopic')) {
-        document.getElementById('useExistingTopic').addEventListener('change', function() {
+    if (document.getElementById('useExistingTopicRadio')) {
+        document.getElementById('useExistingTopicRadio').addEventListener('change', function() {
             if (this.checked) {
                 document.getElementById('newTopicNameDiv').style.display = 'none';
                 document.getElementById('existingTopicDiv').style.display = 'block';
-                document.getElementById('duplicateWarning').style.display = 'block';
-                updateImportButton();
+                document.getElementById('duplicateWarningImport').style.display = 'block';
+                updateImportTopicButton();
             }
         });
         
-        document.getElementById('existingTopicSelect').addEventListener('change', updateImportButton);
+        document.getElementById('existingTopicSelectImport').addEventListener('change', updateImportTopicButton);
     }
     
-    document.getElementById('newTopicName').addEventListener('input', updateImportButton);
+    document.getElementById('newTopicNameInput').addEventListener('input', updateImportTopicButton);
     
     // Seleccionar "crear nuevo tema" por defecto
-    document.getElementById('createNewTopic').checked = true;
+    document.getElementById('createNewTopicRadio').checked = true;
     document.getElementById('newTopicNameDiv').style.display = 'block';
-    updateImportButton();
+    updateImportTopicButton();
     
     // Guardar datos para la importación
-    window.importData = { importedData, questionsToImport };
+    window.importTopicData = { importedData, questionsToImport };
 }
 
 // Actualizar estado del botón de importar
-function updateImportButton() {
+function updateImportTopicButton() {
     const confirmBtn = document.getElementById('confirmImportBtn');
-    const createNew = document.getElementById('createNewTopic').checked;
-    const useExisting = document.getElementById('useExistingTopic') && document.getElementById('useExistingTopic').checked;
+    const createNew = document.getElementById('createNewTopicRadio').checked;
+    const useExisting = document.getElementById('useExistingTopicRadio') && document.getElementById('useExistingTopicRadio').checked;
     
     let canImport = false;
     
     if (createNew) {
-        const newName = document.getElementById('newTopicName').value.trim();
+        const newName = document.getElementById('newTopicNameInput').value.trim();
         canImport = newName.length > 0;
     } else if (useExisting) {
-        const selectedTopic = document.getElementById('existingTopicSelect').value;
+        const selectedTopic = document.getElementById('existingTopicSelectImport').value;
         canImport = selectedTopic !== '';
     }
     
@@ -19440,17 +19440,17 @@ function updateImportButton() {
 }
 
 // Ejecutar importación
-function executeImport() {
-    if (!window.importData) return;
+function executeImportQuestions() {
+    if (!window.importTopicData) return;
     
-    const { importedData, questionsToImport } = window.importData;
-    const createNew = document.getElementById('createNewTopic').checked;
+    const { importedData, questionsToImport } = window.importTopicData;
+    const createNew = document.getElementById('createNewTopicRadio').checked;
     let targetTopicId;
     
     try {
         if (createNew) {
             // Crear nuevo tema
-            const newTopicName = document.getElementById('newTopicName').value.trim();
+            const newTopicName = document.getElementById('newTopicNameInput').value.trim();
             if (!newTopicName) {
                 showMessage('❌ Ingresa un nombre para el nuevo tema', 'error');
                 return;
@@ -19477,7 +19477,7 @@ function executeImport() {
             
         } else {
             // Usar tema existente
-            const selectedTopicId = document.getElementById('existingTopicSelect').value;
+            const selectedTopicId = document.getElementById('existingTopicSelectImport').value;
             if (!selectedTopicId) {
                 showMessage('❌ Selecciona un tema existente', 'error');
                 return;
@@ -19522,10 +19522,22 @@ function executeImport() {
         });
         
         // Guardar cambios
-        saveData();
+        if (typeof saveData === 'function') {
+            saveData();
+        } else {
+            // Guardar manualmente si no existe saveData
+            if (state.currentUser) {
+                localStorage.setItem(`testbank_${state.currentUser.username}`, JSON.stringify({
+                    questions: state.questions,
+                    topics: state.topics,
+                    testResults: state.testResults || [],
+                    apiKey: state.apiKey || ''
+                }));
+            }
+        }
         
         // Cerrar modal
-        closeImportModal();
+        closeImportTopicModal();
         
         // Mensaje de éxito
         const targetTopic = state.topics.find(t => t.id.toString() === targetTopicId.toString());
@@ -19552,84 +19564,40 @@ ${importedData.originalUser ? `👤 Origen: ${importedData.originalUser}` : ''}
         showMessage('❌ Error al importar preguntas: ' + error.message, 'error');
     } finally {
         // Limpiar datos temporales
-        delete window.importData;
+        delete window.importTopicData;
     }
 }
 
-// Cerrar modal de importación
-function closeImportModal() {
+// Cerrar modal de importación de tema
+function closeImportTopicModal() {
     const modal = document.getElementById('importTopicModal');
     if (modal) {
         modal.remove();
     }
-    delete window.importData;
+    delete window.importTopicData;
 }
 
-// PASO 3: REEMPLAZAR LA FUNCIÓN ORIGINAL exportContentDataOnly
-const originalExportContentDataOnly = window.exportContentDataOnly;
-if (typeof originalExportContentDataOnly === 'function') {
-    window.exportContentDataOnly = function() {
-        // Mostrar opciones de exportación
-        const exportOptionsModal = `
-            <div id="exportOptionsModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
-                <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
-                    <h3 style="margin: 0 0 20px 0; color: #374151;">📤 Opciones de Exportación</h3>
-                    
-                    <div style="margin-bottom: 20px;">
-                        <p style="color: #6b7280; margin-bottom: 15px;">¿Qué tipo de exportación quieres realizar?</p>
-                        
-                        <button onclick="exportQuestionsByTopic(); closeExportOptionsModal();" style="width: 100%; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; border-radius: 8px; padding: 15px 20px; cursor: pointer; margin-bottom: 10px; text-align: left;">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <span style="font-size: 1.2rem;">📦</span>
-                                <div>
-                                    <div style="font-weight: 600; margin-bottom: 3px;">Preguntas por Tema</div>
-                                    <div style="font-size: 12px; opacity: 0.9;">Exportar solo preguntas de un tema específico</div>
-                                </div>
-                            </div>
-                        </button>
-                        
-                        <button onclick="originalExportContentDataOnly(); closeExportOptionsModal();" style="width: 100%; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 8px; padding: 15px 20px; cursor: pointer; text-align: left;">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <span style="font-size: 1.2rem;">💾</span>
-                                <div>
-                                    <div style="font-weight: 600; margin-bottom: 3px;">Contenido Completo</div>
-                                    <div style="font-size: 12px; opacity: 0.9;">Todo el contenido (preguntas, temas, resúmenes)</div>
-                                </div>
-                            </div>
-                        </button>
-                    </div>
-                    
-                    <button onclick="closeExportOptionsModal()" style="background: #6b7280; color: white; border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer; width: 100%;">
-                        Cancelar
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        document.body.insertAdjacentHTML('beforeend', exportOptionsModal);
-        
-        // Hacer originalExportContentDataOnly disponible globalmente
-        window.originalExportContentDataOnly = originalExportContentDataOnly;
-    };
-}
-
-// Cerrar modal de opciones de exportación
-function closeExportOptionsModal() {
-    const modal = document.getElementById('exportOptionsModal');
-    if (modal) {
-        modal.remove();
-    }
-}
-
-// PASO 4: AGREGAR BOTÓN DE IMPORTAR EN EL MENÚ PRINCIPAL
-const originalRenderIntermediateScreen = renderIntermediateScreen;
+// PASO 3: INTERCEPTAR renderIntermediateScreen PARA AÑADIR BOTONES
+const originalRenderIntermediateScreenTopics = renderIntermediateScreen;
 if (typeof renderIntermediateScreen === 'function') {
     window.renderIntermediateScreen = function() {
-        const originalHTML = originalRenderIntermediateScreen();
+        let originalHTML = originalRenderIntermediateScreenTopics();
         
-        if (originalHTML.includes('goToMultiplayer()')) {
-            const importButton = `
-                            <button onclick="importQuestionsByTopic()" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+        // Buscar donde está el botón "Exportar Contenido" y añadir los nuevos botones
+        if (originalHTML.includes('Exportar Contenido')) {
+            // Añadir botón de exportar preguntas por tema ANTES del botón de exportar contenido
+            const exportTopicButton = `
+                            <button onclick="exportQuestionsByTopicOnly()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                                    <span style="font-size: 1.5rem;">📦</span>
+                                    <div style="text-align: left;">
+                                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Exportar por Tema</div>
+                                        <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 400;">Solo preguntas de un tema</div>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button onclick="importQuestionsByTopicOnly()" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
                                     <span style="font-size: 1.5rem;">📥</span>
                                     <div style="text-align: left;">
@@ -19640,9 +19608,10 @@ if (typeof renderIntermediateScreen === 'function') {
                             </button>
             `;
             
-            return originalHTML.replace(
+            // Insertar los nuevos botones antes del botón "Exportar Contenido"
+            originalHTML = originalHTML.replace(
                 '<button onclick="exportContentDataOnly()"',
-                importButton + '\n                            <button onclick="exportContentDataOnly()"'
+                exportTopicButton + '\n                            <button onclick="exportContentDataOnly()"'
             );
         }
         
@@ -19651,30 +19620,29 @@ if (typeof renderIntermediateScreen === 'function') {
 }
 
 // Hacer funciones globales
-window.exportQuestionsByTopic = exportQuestionsByTopic;
-window.importQuestionsByTopic = importQuestionsByTopic;
-window.updateExportPreview = updateExportPreview;
-window.executeTopicExport = executeTopicExport;
-window.closeExportModal = closeExportModal;
-window.showImportModal = showImportModal;
-window.updateImportButton = updateImportButton;
-window.executeImport = executeImport;
-window.closeImportModal = closeImportModal;
-window.closeExportOptionsModal = closeExportOptionsModal;
+window.exportQuestionsByTopicOnly = exportQuestionsByTopicOnly;
+window.importQuestionsByTopicOnly = importQuestionsByTopicOnly;
+window.updateExportTopicPreview = updateExportTopicPreview;
+window.executeTopicExportOnly = executeTopicExportOnly;
+window.closeExportTopicModal = closeExportTopicModal;
+window.showImportTopicModal = showImportTopicModal;
+window.updateImportTopicButton = updateImportTopicButton;
+window.executeImportQuestions = executeImportQuestions;
+window.closeImportTopicModal = closeImportTopicModal;
 
-console.log('✅ Sistema de exportación/importación por tema implementado');
+console.log('✅ Sistema de exportación/importación por tema implementado (versión compatible)');
 console.log('📦 Funcionalidades añadidas:');
-console.log('   - Exportar preguntas de tema específico');
-console.log('   - Importar con selección de tema (nuevo o existente)');
+console.log('   - Botón "Exportar por Tema" - exporta preguntas de tema específico');
+console.log('   - Botón "Importar Preguntas" - importa con selección de tema');
 console.log('   - Detección automática de duplicados');
-console.log('   - Compatible con sistema de progreso existente');
-console.log('   - Botones integrados en menú principal');
+console.log('   - Compatible con todos los sistemas existentes');
 console.log('💡 Uso:');
-console.log('   - Exportar: Botón "Exportar Contenido" → "Preguntas por Tema"');
-console.log('   - Importar: Botón "Importar Preguntas" en menú principal');
+console.log('   - Exportar: Botón naranja "Exportar por Tema" en menú principal');
+console.log('   - Importar: Botón morado "Importar Preguntas" en menú principal');
 </script>
 </body>
 </html>
+
 
 
 
