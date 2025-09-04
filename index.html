@@ -19585,7 +19585,22 @@ if (typeof renderIntermediateScreen === 'function') {
         
         // Buscar donde está el botón "Exportar Contenido" y añadir los nuevos botones
         if (originalHTML.includes('Exportar Contenido')) {
-            // Añadir botones de exportar/importar preguntas REEMPLAZANDO los dos últimos botones
+        // Buscar donde están los botones de exportar/importar existentes y reemplazarlos
+        if (originalHTML.includes('Exportar Contenido') || originalHTML.includes('Importar Contenido')) {
+            
+            // Eliminar botón "Exportar Contenido"
+            originalHTML = originalHTML.replace(
+                /<button onclick="exportContentDataOnly\(\)"[\s\S]*?<\/button>/,
+                ''
+            );
+            
+            // Eliminar botón "Importar Contenido" 
+            originalHTML = originalHTML.replace(
+                /<button onclick="importContentFromFile\(\)"[\s\S]*?<\/button>/,
+                ''
+            );
+            
+            // Añadir los dos nuevos botones al final de la grilla
             const newButtons = `
                             <button onclick="exportQuestionsByTopicOnly()" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 16px; padding: 20px 30px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
@@ -19608,22 +19623,19 @@ if (typeof renderIntermediateScreen === 'function') {
                             </button>
             `;
             
-            // Eliminar los dos últimos botones (Exportar Contenido e Importar Contenido) y reemplazarlos
-            let modifiedHTML = originalHTML;
-            
-            // Encontrar y eliminar el botón "Exportar Contenido"
-            const exportContentRegex = /<button onclick="exportContentDataOnly\(\)"[\s\S]*?<\/button>/;
-            modifiedHTML = modifiedHTML.replace(exportContentRegex, '');
-            
-            // Encontrar y eliminar el botón "Importar Contenido" (si existe)
-            const importContentRegex = /<button onclick="importContentFromFile\(\)"[\s\S]*?<\/button>/;
-            modifiedHTML = modifiedHTML.replace(importContentRegex, '');
-            
-            // Añadir los nuevos botones al final de la grilla de botones
-            const gridEndRegex = /(\s*<\/div>\s*<div style="margin-top: 30px; padding: 15px; background: #f8fafc)/;
-            modifiedHTML = modifiedHTML.replace(gridEndRegex, newButtons + '\n$1');
-            
-            originalHTML = modifiedHTML;
+            // Insertarlos después del último botón de la grilla principal
+            if (originalHTML.includes('Progreso de Estudio')) {
+                originalHTML = originalHTML.replace(
+                    /(<button onclick="goToProgress\(\)"[\s\S]*?<\/button>)/,
+                    '$1\n' + newButtons
+                );
+            } else if (originalHTML.includes('Duelo de Preguntas')) {
+                originalHTML = originalHTML.replace(
+                    /(<button onclick="goToMultiplayer\(\)"[\s\S]*?<\/button>)/,
+                    '$1\n' + newButtons
+                );
+            }
+        }
         }
         
         return originalHTML;
@@ -19653,6 +19665,7 @@ console.log('   - Importar: Botón morado "Importar Preguntas" en menú principa
 </script>
 </body>
 </html>
+
 
 
 
