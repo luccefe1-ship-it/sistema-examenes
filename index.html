@@ -19906,8 +19906,219 @@ console.log('📊 Estado:', {
     temas: state.topics ? state.topics.length : 0
 });
 </script>
+<!-- 
+PARCHE: MOSTRAR TEMAS VACÍOS PARA PODER ELIMINARLOS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche permite ver y eliminar temas que no tienen preguntas
+-->
+
+<script>
+// ========== PARCHE: MOSTRAR TEMAS VACÍOS PARA ELIMINAR ==========
+console.log('📁 Aplicando parche: Mostrar temas vacíos para eliminar...');
+
+// INTERCEPTAR renderQuestionsByTopic PARA AÑADIR TEMAS VACÍOS
+const originalRenderQuestionsByTopicEmpty = renderQuestionsByTopic;
+
+renderQuestionsByTopic = function() {
+    // Ejecutar la función original para obtener el HTML de temas con preguntas
+    let originalHTML = originalRenderQuestionsByTopicEmpty.call(this);
+    
+    // Encontrar temas vacíos (sin preguntas)
+    const emptyTopics = state.topics.filter(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        return topicQuestions.length === 0;
+    });
+    
+    // Si hay temas vacíos, añadirlos al final
+    if (emptyTopics.length > 0) {
+        const emptyTopicsHTML = emptyTopics.map(topic => `
+            <div style="margin-bottom: 30px; opacity: 0.7;">
+                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📂 ${topic.name}</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 14px; opacity: 0.9;">0 preguntas</span>
+                        <button onclick="editTopicEmpty('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema vacío">
+                            ✏️
+                        </button>
+                        <button onclick="deleteTopicEmpty('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema vacío">
+                            🗑️
+                        </button>
+                    </div>
+                </h3>
+                <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: #f9fafb; padding: 20px; text-align: center;">
+                    <div style="color: #6b7280; font-style: italic;">
+                        📝 Este tema no tiene preguntas asignadas
+                    </div>
+                    <div style="margin-top: 10px; font-size: 14px; color: #9ca3af;">
+                        Puedes editarlo para cambiar su nombre o eliminarlo si ya no lo necesitas
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        // Añadir una sección separadora si hay tanto temas con preguntas como temas vacíos
+        const separatorHTML = originalHTML.trim() !== '' ? `
+            <div style="margin: 40px 0 30px 0; border-top: 2px solid #e5e7eb; padding-top: 20px;">
+                <h4 style="color: #6b7280; text-align: center; margin: 0; font-size: 16px;">
+                    📂 Temas sin preguntas (${emptyTopics.length})
+                </h4>
+                <p style="color: #9ca3af; text-align: center; margin: 10px 0 0 0; font-size: 14px;">
+                    Estos temas están vacíos y se pueden eliminar
+                </p>
+            </div>
+        ` : '';
+        
+        originalHTML = originalHTML + separatorHTML + emptyTopicsHTML;
+    }
+    
+    return originalHTML;
+};
+
+// FUNCIÓN PARA EDITAR TEMA VACÍO
+window.editTopicEmpty = function(topicId) {
+    const topic = state.topics.find(t => t.id == topicId);
+    if (!topic) {
+        showMessage('❌ Tema no encontrado', 'error');
+        return;
+    }
+    
+    const newName = prompt(`Editar nombre del tema:\n\nNombre actual: "${topic.name}"\n\nIngresa el nuevo nombre:`, topic.name);
+    
+    if (newName === null) return; // Usuario canceló
+    
+    if (newName.trim() === '') {
+        showMessage('❌ El nombre del tema no puede estar vacío', 'error');
+        return;
+    }
+    
+    // Verificar que no exista otro tema con el mismo nombre
+    const existingTopic = state.topics.find(t => t.id != topicId && t.name.toLowerCase() === newName.trim().toLowerCase());
+    if (existingTopic) {
+        showMessage('❌ Ya existe un tema con ese nombre', 'error');
+        return;
+    }
+    
+    // Actualizar nombre
+    topic.name = newName.trim();
+    
+    // Guardar cambios
+    if (typeof saveData === 'function') {
+        saveData();
+    } else {
+        localStorage.setItem('topics', JSON.stringify(state.topics));
+    }
+    
+    // Re-renderizar
+    render();
+    
+    showMessage(`✅ Tema renombrado a "${newName.trim()}"`, 'success');
+};
+
+// FUNCIÓN PARA ELIMINAR TEMA VACÍO
+window.deleteTopicEmpty = function(topicId) {
+    const topic = state.topics.find(t => t.id == topicId);
+    if (!topic) {
+        showMessage('❌ Tema no encontrado', 'error');
+        return;
+    }
+    
+    // Verificar que realmente esté vacío
+    const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString());
+    if (topicQuestions.length > 0) {
+        showMessage('⚠️ Este tema tiene preguntas asignadas. No se puede eliminar como tema vacío.', 'warning');
+        return;
+    }
+    
+    // Confirmación
+    const confirmDelete = confirm(`¿Eliminar el tema vacío "${topic.name}"?\n\nEste tema no tiene preguntas asignadas.\n\nEsta acción no se puede deshacer.`);
+    
+    if (confirmDelete) {
+        // Eliminar tema de la lista
+        state.topics = state.topics.filter(t => t.id != topicId);
+        
+        // Guardar cambios
+        if (typeof saveData === 'function') {
+            saveData();
+        } else {
+            localStorage.setItem('topics', JSON.stringify(state.topics));
+        }
+        
+        // Re-renderizar
+        render();
+        
+        showMessage(`✅ Tema vacío "${topic.name}" eliminado correctamente`, 'success');
+        
+        console.log(`🗑️ Tema vacío eliminado: ${topic.name} (ID: ${topicId})`);
+    }
+};
+
+// FUNCIÓN PARA MOSTRAR ESTADÍSTICAS DE TEMAS
+window.showTopicStats = function() {
+    const totalTopics = state.topics.length;
+    const topicsWithQuestions = state.topics.filter(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        return topicQuestions.length > 0;
+    }).length;
+    const emptyTopics = totalTopics - topicsWithQuestions;
+    
+    const stats = `📊 ESTADÍSTICAS DE TEMAS:
+
+📁 Total de temas: ${totalTopics}
+📝 Temas con preguntas: ${topicsWithQuestions}
+📂 Temas vacíos: ${emptyTopics}
+
+${emptyTopics > 0 ? '💡 Puedes eliminar los temas vacíos desde el banco de preguntas.' : '✅ Todos los temas tienen preguntas asignadas.'}`;
+    
+    alert(stats);
+    
+    console.log('📊 Estadísticas de temas:', {
+        total: totalTopics,
+        conPreguntas: topicsWithQuestions,
+        vacios: emptyTopics
+    });
+    
+    return { total: totalTopics, withQuestions: topicsWithQuestions, empty: emptyTopics };
+};
+
+// INTERCEPTAR managedTopicsModal PARA SINCRONIZAR ELIMINACIONES
+const originalManageTopicsModal = window.manageTopicsModal;
+if (typeof manageTopicsModal === 'function') {
+    window.manageTopicsModal = function() {
+        const result = originalManageTopicsModal.call(this);
+        
+        // Añadir botón para ver estadísticas en el modal
+        setTimeout(() => {
+            const modal = document.getElementById('manage-topics-modal');
+            if (modal) {
+                const statsButton = document.createElement('button');
+                statsButton.innerHTML = '📊 Ver Estadísticas';
+                statsButton.style.cssText = 'background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin: 10px 5px 0 0;';
+                statsButton.onclick = showTopicStats;
+                
+                const buttonsDiv = modal.querySelector('[style*="margin-top: 20px"]');
+                if (buttonsDiv) {
+                    buttonsDiv.insertBefore(statsButton, buttonsDiv.firstChild);
+                }
+            }
+        }, 100);
+        
+        return result;
+    };
+}
+
+console.log('✅ Parche de temas vacíos aplicado correctamente');
+console.log('📁 Funcionalidades añadidas:');
+console.log('   - Mostrar temas vacíos al final del banco de preguntas');
+console.log('   - Botón editar (✏️) para cambiar nombre de tema vacío');
+console.log('   - Botón eliminar (🗑️) para eliminar tema vacío');
+console.log('   - Sección separadora "Temas sin preguntas"');
+console.log('   - Función showTopicStats() para ver estadísticas');
+console.log('   - Sincronización con gestión de temas existente');
+console.log('💡 Los temas vacíos aparecen en gris con 0 preguntas');
+</script>
 </body>
 </html>
+
 
 
 
