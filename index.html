@@ -19663,8 +19663,342 @@ console.log('💡 Uso:');
 console.log('   - Exportar: Botón naranja "Exportar por Tema" en menú principal');
 console.log('   - Importar: Botón morado "Importar Preguntas" en menú principal');
 </script>
+<!-- 
+PARCHE: CORREGIR TEMAS DEL ANFITRIÓN EN MULTIJUGADOR
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche restaura la funcionalidad de temas del anfitrión sin tocar otras funciones
+-->
+
+<script>
+// ========== PARCHE: CORREGIR TEMAS DEL ANFITRIÓN EN MULTIJUGADOR ==========
+console.log('🔧 Corrigiendo visualización de temas del anfitrión en multijugador...');
+
+// PASO 1: ASEGURAR QUE organizeQuestionsForFirebase EXISTE Y FUNCIONA
+if (typeof organizeQuestionsForFirebase !== 'function') {
+    console.log('📦 Creando función organizeQuestionsForFirebase...');
+    
+    window.organizeQuestionsForFirebase = function(questions, topics) {
+        const organized = {};
+        
+        if (!questions || !topics) {
+            console.warn('⚠️ organizeQuestionsForFirebase: preguntas o temas faltantes');
+            return {};
+        }
+        
+        // Organizar por temas existentes
+        topics.forEach(topic => {
+            const topicQuestions = questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+            
+            if (topicQuestions.length > 0) {
+                organized[topic.id] = {
+                    name: topic.name,
+                    questions: topicQuestions.map(q => ({
+                        ...q,
+                        firebaseKey: q.id.toString() // Asegurar clave para Firebase
+                    }))
+                };
+            }
+        });
+        
+        console.log('📊 Preguntas organizadas por tema:', {
+            totalTopics: Object.keys(organized).length,
+            totalQuestions: Object.values(organized).reduce((sum, topic) => sum + topic.questions.length, 0)
+        });
+        
+        return organized;
+    };
+}
+
+// PASO 2: FORZAR REGENERACIÓN DEL BANCO DE PREGUNTAS DEL ANFITRIÓN
+function forceRegenerateHostBank() {
+    if (!multiplayerState.isHost) return;
+    
+    console.log('🔄 Regenerando banco de preguntas del anfitrión...');
+    
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    if (verifiedQuestions.length === 0) {
+        console.warn('⚠️ No hay preguntas verificadas disponibles');
+        return {};
+    }
+    
+    const hostBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+    
+    // Actualizar estado local
+    multiplayerState.hostQuestionBank = hostBank;
+    
+    // Si hay una sala activa, actualizar Firebase
+    if (multiplayerState.currentRoom && database) {
+        database.ref('rooms/' + multiplayerState.currentRoom + '/questionBanks/host').set(hostBank)
+            .then(() => {
+                console.log('✅ Banco del anfitrión sincronizado en Firebase');
+                // Forzar re-renderizado
+                if (multiplayerState.gameState === 'playing') {
+                    render();
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error sincronizando banco del anfitrión:', error);
+            });
+    }
+    
+    console.log('📊 Banco del anfitrión regenerado:', {
+        topics: Object.keys(hostBank).length,
+        questions: Object.values(hostBank).reduce((sum, topic) => sum + topic.questions.length, 0),
+        bankData: hostBank
+    });
+    
+    return hostBank;
+}
+
+// PASO 3: INTERCEPTAR getMyQuestionBank PARA FORZAR REGENERACIÓN
+const originalGetMyQuestionBank = window.getMyQuestionBank;
+window.getMyQuestionBank = function() {
+    let myBank;
+    
+    if (multiplayerState.isHost) {
+        myBank = multiplayerState.hostQuestionBank || {};
+    } else {
+        myBank = multiplayerState.guestQuestionBank || {};
+    }
+    
+    // Si soy anfitrión y no tengo banco, forzar regeneración
+    if (multiplayerState.isHost && (!myBank || Object.keys(myBank).length === 0)) {
+        console.warn('⚠️ Anfitrión sin banco - Regenerando...');
+        myBank = forceRegenerateHostBank();
+    }
+    
+    // Si soy invitado y no tengo banco, crear desde preguntas locales
+    if (!multiplayerState.isHost && (!myBank || Object.keys(myBank).length === 0)) {
+        console.warn('⚠️ Invitado sin banco - Creando desde preguntas locales...');
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        if (verifiedQuestions.length > 0) {
+            myBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+            multiplayerState.guestQuestionBank = myBank;
+            
+            // Sincronizar con Firebase si hay sala activa
+            if (multiplayerState.currentRoom && database) {
+                database.ref('rooms/' + multiplayerState.currentRoom + '/questionBanks/guest').set(myBank)
+                    .catch(error => console.error('❌ Error sincronizando invitado:', error));
+            }
+        }
+    }
+    
+    return myBank;
+};
+
+// PASO 4: INTERCEPTAR createMultiplayerRoom PARA ASEGURAR BANCO DEL ANFITRIÓN
+const originalCreateMultiplayerRoom = window.createMultiplayerRoom;
+if (originalCreateMultiplayerRoom) {
+    window.createMultiplayerRoom = function() {
+        console.log('🏗️ Interceptando creación de sala para asegurar banco...');
+        
+        // Forzar regeneración del banco antes de crear la sala
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        if (verifiedQuestions.length < 5) {
+            showMessage('Necesitas al menos 5 preguntas verificadas para crear una sala', 'error');
+            return;
+        }
+        
+        // Asegurar que tenemos los datos necesarios
+        if (!state.topics || state.topics.length === 0) {
+            showMessage('Necesitas tener temas creados para organizar las preguntas', 'error');
+            return;
+        }
+        
+        // Generar banco inmediatamente
+        const hostBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+        multiplayerState.hostQuestionBank = hostBank;
+        
+        console.log('📦 Banco del anfitrión preparado para crear sala:', {
+            topics: Object.keys(hostBank).length,
+            questions: Object.values(hostBank).reduce((sum, topic) => sum + topic.questions.length, 0)
+        });
+        
+        // Llamar a la función original
+        originalCreateMultiplayerRoom.call(this);
+    };
+}
+
+// PASO 5: INTERCEPTAR joinMultiplayerRoom PARA ASEGURAR BANCO DEL INVITADO
+const originalJoinMultiplayerRoom = window.joinMultiplayerRoom;
+if (originalJoinMultiplayerRoom) {
+    window.joinMultiplayerRoom = function() {
+        console.log('🚪 Interceptando unión a sala para asegurar banco...');
+        
+        // Forzar regeneración del banco del invitado
+        const verifiedQuestions = state.questions.filter(q => q.isVerified);
+        if (verifiedQuestions.length < 5) {
+            showMessage('Necesitas al menos 5 preguntas verificadas para unirte a una sala', 'error');
+            return;
+        }
+        
+        // Asegurar que tenemos los datos necesarios
+        if (!state.topics || state.topics.length === 0) {
+            showMessage('Necesitas tener temas creados para organizar las preguntas', 'error');
+            return;
+        }
+        
+        // Generar banco inmediatamente
+        const guestBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+        multiplayerState.guestQuestionBank = guestBank;
+        
+        console.log('📦 Banco del invitado preparado para unirse a sala:', {
+            topics: Object.keys(guestBank).length,
+            questions: Object.values(guestBank).reduce((sum, topic) => sum + topic.questions.length, 0)
+        });
+        
+        // Llamar a la función original
+        originalJoinMultiplayerRoom.call(this);
+    };
+}
+
+// PASO 6: FUNCIÓN DE EMERGENCIA PARA REGENERAR BANCOS
+window.regenerateMultiplayerBanks = function() {
+    console.log('🚨 Regeneración de emergencia de bancos multijugador...');
+    
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    if (verifiedQuestions.length === 0) {
+        showMessage('❌ No tienes preguntas verificadas para regenerar bancos', 'error');
+        return;
+    }
+    
+    if (!state.topics || state.topics.length === 0) {
+        showMessage('❌ No tienes temas creados', 'error');
+        return;
+    }
+    
+    const newBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+    
+    if (multiplayerState.isHost) {
+        multiplayerState.hostQuestionBank = newBank;
+        if (multiplayerState.currentRoom && database) {
+            database.ref('rooms/' + multiplayerState.currentRoom + '/questionBanks/host').set(newBank);
+        }
+        console.log('🔄 Banco del anfitrión regenerado');
+    } else {
+        multiplayerState.guestQuestionBank = newBank;
+        if (multiplayerState.currentRoom && database) {
+            database.ref('rooms/' + multiplayerState.currentRoom + '/questionBanks/guest').set(newBank);
+        }
+        console.log('🔄 Banco del invitado regenerado');
+    }
+    
+    showMessage('✅ Bancos de preguntas regenerados correctamente', 'success');
+    
+    // Forzar re-renderizado
+    if (multiplayerState.gameState === 'playing') {
+        render();
+    }
+    
+    return newBank;
+};
+
+// PASO 7: INTERCEPTAR EL LISTENER DE SALA PARA ASEGURAR DATOS
+const originalListenToRoom = window.listenToRoom;
+if (originalListenToRoom) {
+    window.listenToRoom = function(roomCode) {
+        console.log('👂 Interceptando listener de sala...');
+        
+        // Ejecutar función original
+        if (typeof originalListenToRoom === 'function') {
+            originalListenToRoom.call(this, roomCode);
+        }
+        
+        // Después de 2 segundos, verificar que tengamos bancos
+        setTimeout(() => {
+            const myBank = multiplayerState.isHost ? multiplayerState.hostQuestionBank : multiplayerState.guestQuestionBank;
+            
+            if (!myBank || Object.keys(myBank).length === 0) {
+                console.warn('⚠️ No se detectaron bancos después de unirse - Regenerando...');
+                regenerateMultiplayerBanks();
+            }
+        }, 2000);
+    };
+}
+
+// PASO 8: FUNCIÓN DE DIAGNÓSTICO (OPCIONAL)
+window.diagnosticarMultijugador = function() {
+    console.log('🔍 DIAGNÓSTICO COMPLETO DEL MULTIJUGADOR:');
+    console.log('=====================================');
+    console.log('Estado general:', {
+        isHost: multiplayerState.isHost,
+        currentRoom: multiplayerState.currentRoom,
+        gameState: multiplayerState.gameState,
+        myTurn: multiplayerState.myTurn
+    });
+    
+    console.log('Preguntas locales:', {
+        total: state.questions.length,
+        verified: state.questions.filter(q => q.isVerified).length,
+        topics: state.topics.length
+    });
+    
+    console.log('Banco del anfitrión:', {
+        exists: !!multiplayerState.hostQuestionBank,
+        topics: multiplayerState.hostQuestionBank ? Object.keys(multiplayerState.hostQuestionBank).length : 0,
+        data: multiplayerState.hostQuestionBank
+    });
+    
+    console.log('Banco del invitado:', {
+        exists: !!multiplayerState.guestQuestionBank,
+        topics: multiplayerState.guestQuestionBank ? Object.keys(multiplayerState.guestQuestionBank).length : 0,
+        data: multiplayerState.guestQuestionBank
+    });
+    
+    console.log('=====================================');
+    console.log('💡 Comandos disponibles:');
+    console.log('- regenerateMultiplayerBanks() - Regenera bancos');
+    console.log('- diagnosticarMultijugador() - Este diagnóstico');
+};
+
+// PASO 9: AUTO-REGENERACIÓN AL ENTRAR EN MODO MULTIJUGADOR
+const originalRender = render;
+if (typeof render === 'function') {
+    window.render = function() {
+        // Ejecutar render original
+        originalRender.call(this);
+        
+        // Si estamos en multijugador y no tenemos banco, regenerar
+        if (multiplayerState.gameState === 'playing' && state.currentUser) {
+            setTimeout(() => {
+                const myBank = multiplayerState.isHost ? multiplayerState.hostQuestionBank : multiplayerState.guestQuestionBank;
+                
+                if (!myBank || Object.keys(myBank).length === 0) {
+                    console.warn('⚠️ Detectado multijugador sin bancos - Auto-regenerando...');
+                    
+                    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+                    if (verifiedQuestions.length > 0 && state.topics.length > 0) {
+                        const newBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
+                        
+                        if (multiplayerState.isHost) {
+                            multiplayerState.hostQuestionBank = newBank;
+                        } else {
+                            multiplayerState.guestQuestionBank = newBank;
+                        }
+                        
+                        console.log('✅ Auto-regeneración completada');
+                        
+                        // Re-renderizar una vez más
+                        setTimeout(() => originalRender.call(this), 500);
+                    }
+                }
+            }, 1000);
+        }
+    };
+}
+
+console.log('✅ Parche de corrección del multijugador aplicado');
+console.log('🎮 Funcionalidades restauradas:');
+console.log('   - Regeneración automática de bancos del anfitrión');
+console.log('   - Interceptación de creación/unión de salas');
+console.log('   - Función de emergencia: regenerateMultiplayerBanks()');
+console.log('   - Función de diagnóstico: diagnosticarMultijugador()');
+console.log('   - Auto-regeneración en render');
+console.log('💡 Si sigues sin ver temas, ejecuta: regenerateMultiplayerBanks()');
+</script>
 </body>
 </html>
+
 
 
 
