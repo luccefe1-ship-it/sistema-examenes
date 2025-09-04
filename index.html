@@ -18991,32 +18991,43 @@ function performTopicExport() {
         // Filtrar preguntas del tema seleccionado usando múltiples métodos
         let topicQuestions = [];
         
-        // Método 1: Por topicId exacto
+        // Método 1: Por topicId exacto (string)
         topicQuestions = state.questions.filter(q => q.topicId === selectedTopicId);
-        console.log('Método 1 (topicId exacto):', topicQuestions.length);
+        console.log('Método 1 (topicId string exacto):', topicQuestions.length);
         
-        // Método 2: Por nombre de tema
+        // Método 2: Por topicId numérico (conversión)
+        if (topicQuestions.length === 0) {
+            topicQuestions = state.questions.filter(q => 
+                q.topicId === parseInt(selectedTopicId) || 
+                parseInt(q.topicId) === parseInt(selectedTopicId) ||
+                q.topicId == selectedTopicId // comparación no estricta
+            );
+            console.log('Método 2 (conversión numérica):', topicQuestions.length);
+        }
+        
+        // Método 3: Por nombre de tema
         if (topicQuestions.length === 0) {
             topicQuestions = state.questions.filter(q => 
                 q.topic === selectedTopic.name || 
                 q.topicName === selectedTopic.name ||
                 (q.topic && q.topic.toLowerCase() === selectedTopic.name.toLowerCase())
             );
-            console.log('Método 2 (por nombre):', topicQuestions.length);
+            console.log('Método 3 (por nombre):', topicQuestions.length);
         }
         
-        // Método 3: Por ID no estricto
+        // Método 4: Por ID conversión string
         if (topicQuestions.length === 0) {
             topicQuestions = state.questions.filter(q => 
-                q.topicId == selectedTopicId || // comparación no estricta
                 q.topicId === selectedTopic.name || 
+                q.topicId === selectedTopicId.toString() ||
                 q.topic_id === selectedTopicId ||
-                q.topic_id == selectedTopicId
+                q.topic_id == selectedTopicId ||
+                String(q.topicId) === String(selectedTopicId)
             );
-            console.log('Método 3 (ID no estricto):', topicQuestions.length);
+            console.log('Método 4 (conversión string):', topicQuestions.length);
         }
         
-        // Método 4: Buscar en propiedades anidadas
+        // Método 5: Buscar en propiedades anidadas
         if (topicQuestions.length === 0) {
             topicQuestions = state.questions.filter(q => {
                 if (q.topicData && q.topicData.id === selectedTopicId) return true;
@@ -19024,7 +19035,7 @@ function performTopicExport() {
                 if (typeof q.topicId === 'object' && q.topicId.id === selectedTopicId) return true;
                 return false;
             });
-            console.log('Método 4 (propiedades anidadas):', topicQuestions.length);
+            console.log('Método 5 (propiedades anidadas):', topicQuestions.length);
         }
         
         // Debug: mostrar información de búsqueda
@@ -19573,6 +19584,7 @@ console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
