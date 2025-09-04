@@ -20206,8 +20206,273 @@ if (typeof window.parseTextoSimple === 'function') {
 console.log('✅ Parche aplicado');
 console.log('📝 Las preguntas nuevas del editor múltiple aparecerán como ☆ (no verificadas)');
 </script>
+<!-- 
+PARCHE: ARRASTRAR Y SOLTAR TEMAS
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche permite reordenar temas arrastrando y soltando
+-->
+
+<script>
+console.log('🔄 Aplicando parche: Arrastrar y soltar temas...');
+
+// INTERCEPTAR renderQuestionsByTopic PARA AÑADIR FUNCIONALIDAD DE DRAG & DROP
+const originalRenderQuestionsByTopicDrag = renderQuestionsByTopic;
+
+renderQuestionsByTopic = function() {
+    // Obtener HTML original
+    let originalHTML = originalRenderQuestionsByTopicDrag.call(this);
+    
+    // Crear array completo de temas (con y sin preguntas) en el orden actual
+    const allTopicsInOrder = state.topics.map(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        return {
+            topic: topic,
+            hasQuestions: topicQuestions.length > 0,
+            questions: topicQuestions
+        };
+    });
+    
+    // Generar HTML completo con drag & drop
+    const topicsHTML = allTopicsInOrder.map((topicData, index) => {
+        const topic = topicData.topic;
+        const hasQuestions = topicData.hasQuestions;
+        const questions = topicData.questions;
+        
+        if (hasQuestions) {
+            // Tema con preguntas
+            const topicId = topic.id.toString();
+            const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+            
+            return `
+                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" style="margin-bottom: 30px; cursor: move;">
+                    <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span>🔷 ${topic.name}</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 14px; opacity: 0.9;">${questions.length} preguntas</span>
+                            <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
+                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
+                                    title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                                ${isCollapsed ? '▶' : '▼'}
+                            </button>
+                            <button onclick="editTopicSimple('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema">
+                                ✏️
+                            </button>
+                            <button onclick="deleteTopicSimple('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema">
+                                🗑️
+                            </button>
+                        </div>
+                    </h3>
+                    <div id="topic-content-${topicId}" style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                        ${questions.map((q, qIndex) => {
+                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                            return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        } else {
+            // Tema vacío
+            return `
+                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" style="margin-bottom: 30px; opacity: 0.7; cursor: move;">
+                    <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span>🔶 ${topic.name}</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 14px; opacity: 0.9;">0 preguntas</span>
+                            <button onclick="editTopicEmpty('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema vacío">
+                                ✏️
+                            </button>
+                            <button onclick="deleteTopicEmpty('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema vacío">
+                                🗑️
+                            </button>
+                        </div>
+                    </h3>
+                    <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: #f9fafb; padding: 20px; text-align: center;">
+                        <div style="color: #6b7280; font-style: italic;">
+                            📝 Este tema no tiene preguntas asignadas
+                        </div>
+                        <div style="margin-top: 10px; font-size: 14px; color: #9ca3af;">
+                            Puedes editarlo para cambiar su nombre o eliminarlo si ya no lo necesitas
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }).join('');
+    
+    return `
+        <div id="sortable-topics-container">
+            ${topicsHTML}
+        </div>
+        <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
+            🔄 <strong>Consejo:</strong> Puedes arrastrar y soltar los temas para cambiar su orden
+        </div>
+    `;
+};
+
+// AÑADIR EVENTOS DE DRAG & DROP
+document.addEventListener('DOMContentLoaded', function() {
+    setupDragAndDrop();
+});
+
+// Si ya se cargó el DOM, configurar inmediatamente
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupDragAndDrop);
+} else {
+    setupDragAndDrop();
+}
+
+function setupDragAndDrop() {
+    // Usar delegación de eventos para elementos dinámicos
+    document.addEventListener('dragstart', function(e) {
+        if (e.target.classList.contains('draggable-topic')) {
+            e.target.style.opacity = '0.5';
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', e.target.dataset.topicId);
+        }
+    });
+    
+    document.addEventListener('dragend', function(e) {
+        if (e.target.classList.contains('draggable-topic')) {
+            e.target.style.opacity = '';
+        }
+    });
+    
+    document.addEventListener('dragover', function(e) {
+        if (e.target.closest('.draggable-topic')) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+    });
+    
+    document.addEventListener('dragenter', function(e) {
+        if (e.target.closest('.draggable-topic')) {
+            e.preventDefault();
+            const targetTopic = e.target.closest('.draggable-topic');
+            if (targetTopic) {
+                targetTopic.style.borderTop = '3px solid #3b82f6';
+            }
+        }
+    });
+    
+    document.addEventListener('dragleave', function(e) {
+        if (e.target.closest('.draggable-topic')) {
+            const targetTopic = e.target.closest('.draggable-topic');
+            if (targetTopic && !targetTopic.contains(e.relatedTarget)) {
+                targetTopic.style.borderTop = '';
+            }
+        }
+    });
+    
+    document.addEventListener('drop', function(e) {
+        if (e.target.closest('.draggable-topic')) {
+            e.preventDefault();
+            
+            const draggedTopicId = e.dataTransfer.getData('text/html');
+            const targetTopic = e.target.closest('.draggable-topic');
+            const targetTopicId = targetTopic.dataset.topicId;
+            
+            if (draggedTopicId && targetTopicId && draggedTopicId !== targetTopicId) {
+                reorderTopics(draggedTopicId, targetTopicId);
+            }
+            
+            // Limpiar estilos
+            targetTopic.style.borderTop = '';
+        }
+    });
+    
+    console.log('🔄 Eventos de drag & drop configurados');
+}
+
+// FUNCIÓN PARA REORDENAR TEMAS
+function reorderTopics(draggedTopicId, targetTopicId) {
+    console.log(`🔄 Reordenando: ${draggedTopicId} -> posición de ${targetTopicId}`);
+    
+    const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedTopicId);
+    const targetIndex = state.topics.findIndex(t => t.id.toString() === targetTopicId);
+    
+    if (draggedIndex === -1 || targetIndex === -1) {
+        console.error('❌ No se encontraron los temas para reordenar');
+        return;
+    }
+    
+    // Remover el tema arrastrado de su posición actual
+    const [draggedTopic] = state.topics.splice(draggedIndex, 1);
+    
+    // Insertar en la nueva posición
+    state.topics.splice(targetIndex, 0, draggedTopic);
+    
+    // Guardar cambios
+    if (typeof saveData === 'function') {
+        saveData();
+    } else {
+        localStorage.setItem('topics', JSON.stringify(state.topics));
+    }
+    
+    // Re-renderizar
+    render();
+    
+    const draggedName = draggedTopic.name;
+    const targetName = state.topics[targetIndex === 0 ? 0 : targetIndex].name;
+    
+    if (typeof showMessage === 'function') {
+        showMessage(`🔄 Tema "${draggedName}" movido`, 'success');
+    }
+    
+    console.log(`✅ Tema "${draggedName}" reordenado correctamente`);
+}
+
+// INTERCEPTAR LA VENTANA DE GESTIÓN DE TEMAS PARA QUE RESPETE EL NUEVO ORDEN
+const originalManageTopicsModalDrag = window.manageTopicsModal;
+if (typeof window.manageTopicsModal === 'function') {
+    window.manageTopicsModal = function() {
+        // Generar el modal con el orden actualizado
+        const existingTopicsHtml = state.topics.map(topic => {
+            const questionCount = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length;
+            return `<option value="${topic.id}">${topic.name} (${questionCount} preguntas)</option>`;
+        }).join('');
+
+        const modalHtml = `
+            <div id="manage-topics-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
+                <div style="background: white; border-radius: 16px; padding: 30px; max-width: 500px; width: 90%;">
+                    <h3 style="margin-bottom: 20px; color: #1f2937;">📁 Gestión de Temas</h3>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Eliminar tema existente:</label>
+                        <select id="deleteTopicSelect" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
+                            <option value="">-- Selecciona un tema para eliminar --</option>
+                            ${existingTopicsHtml}
+                        </select>
+                        <button onclick="executeDeleteTopic()" style="background: #ef4444; color: white; border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer; margin-top: 10px; width: 100%;">
+                            🗑️ Eliminar Tema Seleccionado
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 20px; text-align: center;">
+                        <button onclick="showTopicStats()" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-right: 10px;">📊 Ver Estadísticas</button>
+                        <button onclick="closeManageTopicsModal()" style="background: #6b7280; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        console.log('📁 Modal de gestión de temas actualizado con nuevo orden');
+    };
+}
+
+console.log('✅ Parche de drag & drop aplicado correctamente');
+console.log('🔄 Funcionalidades añadidas:');
+console.log('   - Arrastrar y soltar temas para reordenar');
+console.log('   - Funciona con temas con preguntas y temas vacíos');
+console.log('   - El orden se refleja en la gestión de temas');
+console.log('   - Se guarda automáticamente en localStorage');
+console.log('   - Indicadores visuales durante el arrastre');
+console.log('💡 Arrastra cualquier tema para cambiar su posición');
+</script>
 </body>
 </html>
+
 
 
 
