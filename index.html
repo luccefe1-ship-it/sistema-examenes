@@ -20207,13 +20207,16 @@ console.log('✅ Parche aplicado');
 console.log('📝 Las preguntas nuevas del editor múltiple aparecerán como ☆ (no verificadas)');
 </script>
 <!-- 
-PARCHE: ARRASTRAR Y SOLTAR TEMAS
+PARCHE: ARRASTRAR Y SOLTAR TEMAS - VERSIÓN CORREGIDA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche permite reordenar temas arrastrando y soltando
+Este parche permite reordenar temas arrastrando y soltando (CORREGIDO)
 -->
 
 <script>
-console.log('🔄 Aplicando parche: Arrastrar y soltar temas...');
+console.log('🔄 Aplicando parche CORREGIDO: Arrastrar y soltar temas...');
+
+// Variable global para el tema que se está arrastrando
+let draggedTopicId = null;
 
 // INTERCEPTAR renderQuestionsByTopic PARA AÑADIR FUNCIONALIDAD DE DRAG & DROP
 const originalRenderQuestionsByTopicDrag = renderQuestionsByTopic;
@@ -20244,20 +20247,23 @@ renderQuestionsByTopic = function() {
             const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
             
             return `
-                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" style="margin-bottom: 30px; cursor: move;">
-                    <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" style="margin-bottom: 30px; border: 2px solid transparent; border-radius: 8px;" 
+                     ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
+                     ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
+                     ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                    <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
                         <span>🔷 ${topic.name}</span>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 14px; opacity: 0.9;">${questions.length} preguntas</span>
-                            <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
+                            <button id="toggle-btn-${topicId}" onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
                                     style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
                                     title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
                                 ${isCollapsed ? '▶' : '▼'}
                             </button>
-                            <button onclick="editTopicSimple('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema">
+                            <button onclick="event.stopPropagation(); editTopicSimple('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema">
                                 ✏️
                             </button>
-                            <button onclick="deleteTopicSimple('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema">
+                            <button onclick="event.stopPropagation(); deleteTopicSimple('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema">
                                 🗑️
                             </button>
                         </div>
@@ -20273,15 +20279,18 @@ renderQuestionsByTopic = function() {
         } else {
             // Tema vacío
             return `
-                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" style="margin-bottom: 30px; opacity: 0.7; cursor: move;">
-                    <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" style="margin-bottom: 30px; opacity: 0.7; border: 2px solid transparent; border-radius: 8px;"
+                     ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
+                     ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
+                     ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                    <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
                         <span>🔶 ${topic.name}</span>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 14px; opacity: 0.9;">0 preguntas</span>
-                            <button onclick="editTopicEmpty('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema vacío">
+                            <button onclick="event.stopPropagation(); editTopicEmpty('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema vacío">
                                 ✏️
                             </button>
-                            <button onclick="deleteTopicEmpty('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema vacío">
+                            <button onclick="event.stopPropagation(); deleteTopicEmpty('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema vacío">
                                 🗑️
                             </button>
                         </div>
@@ -20309,79 +20318,57 @@ renderQuestionsByTopic = function() {
     `;
 };
 
-// AÑADIR EVENTOS DE DRAG & DROP
-document.addEventListener('DOMContentLoaded', function() {
-    setupDragAndDrop();
-});
+// FUNCIONES PARA MANEJAR DRAG & DROP
+window.handleDragStart = function(e) {
+    draggedTopicId = e.currentTarget.dataset.topicId;
+    e.currentTarget.style.opacity = '0.5';
+    e.dataTransfer.effectAllowed = 'move';
+    console.log('🔄 Iniciando arrastre del tema:', draggedTopicId);
+};
 
-// Si ya se cargó el DOM, configurar inmediatamente
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupDragAndDrop);
-} else {
-    setupDragAndDrop();
-}
+window.handleDragEnd = function(e) {
+    e.currentTarget.style.opacity = '';
+    draggedTopicId = null;
+    // Limpiar todos los indicadores visuales
+    document.querySelectorAll('.draggable-topic').forEach(topic => {
+        topic.style.borderColor = 'transparent';
+    });
+};
 
-function setupDragAndDrop() {
-    // Usar delegación de eventos para elementos dinámicos
-    document.addEventListener('dragstart', function(e) {
-        if (e.target.classList.contains('draggable-topic')) {
-            e.target.style.opacity = '0.5';
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/html', e.target.dataset.topicId);
-        }
-    });
+window.handleDragOver = function(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+};
+
+window.handleDragEnter = function(e) {
+    e.preventDefault();
+    if (draggedTopicId && e.currentTarget.dataset.topicId !== draggedTopicId) {
+        e.currentTarget.style.borderColor = '#3b82f6';
+    }
+};
+
+window.handleDragLeave = function(e) {
+    // Solo remover el borde si realmente salimos del elemento
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+        e.currentTarget.style.borderColor = 'transparent';
+    }
+};
+
+window.handleDrop = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
     
-    document.addEventListener('dragend', function(e) {
-        if (e.target.classList.contains('draggable-topic')) {
-            e.target.style.opacity = '';
-        }
-    });
+    const targetTopicId = e.currentTarget.dataset.topicId;
     
-    document.addEventListener('dragover', function(e) {
-        if (e.target.closest('.draggable-topic')) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-        }
-    });
+    console.log('🎯 Soltando tema:', draggedTopicId, 'en:', targetTopicId);
     
-    document.addEventListener('dragenter', function(e) {
-        if (e.target.closest('.draggable-topic')) {
-            e.preventDefault();
-            const targetTopic = e.target.closest('.draggable-topic');
-            if (targetTopic) {
-                targetTopic.style.borderTop = '3px solid #3b82f6';
-            }
-        }
-    });
+    if (draggedTopicId && targetTopicId && draggedTopicId !== targetTopicId) {
+        reorderTopics(draggedTopicId, targetTopicId);
+    }
     
-    document.addEventListener('dragleave', function(e) {
-        if (e.target.closest('.draggable-topic')) {
-            const targetTopic = e.target.closest('.draggable-topic');
-            if (targetTopic && !targetTopic.contains(e.relatedTarget)) {
-                targetTopic.style.borderTop = '';
-            }
-        }
-    });
-    
-    document.addEventListener('drop', function(e) {
-        if (e.target.closest('.draggable-topic')) {
-            e.preventDefault();
-            
-            const draggedTopicId = e.dataTransfer.getData('text/html');
-            const targetTopic = e.target.closest('.draggable-topic');
-            const targetTopicId = targetTopic.dataset.topicId;
-            
-            if (draggedTopicId && targetTopicId && draggedTopicId !== targetTopicId) {
-                reorderTopics(draggedTopicId, targetTopicId);
-            }
-            
-            // Limpiar estilos
-            targetTopic.style.borderTop = '';
-        }
-    });
-    
-    console.log('🔄 Eventos de drag & drop configurados');
-}
+    // Limpiar estilos
+    e.currentTarget.style.borderColor = 'transparent';
+};
 
 // FUNCIÓN PARA REORDENAR TEMAS
 function reorderTopics(draggedTopicId, targetTopicId) {
@@ -20412,7 +20399,6 @@ function reorderTopics(draggedTopicId, targetTopicId) {
     render();
     
     const draggedName = draggedTopic.name;
-    const targetName = state.topics[targetIndex === 0 ? 0 : targetIndex].name;
     
     if (typeof showMessage === 'function') {
         showMessage(`🔄 Tema "${draggedName}" movido`, 'success');
@@ -20461,17 +20447,18 @@ if (typeof window.manageTopicsModal === 'function') {
     };
 }
 
-console.log('✅ Parche de drag & drop aplicado correctamente');
-console.log('🔄 Funcionalidades añadidas:');
+console.log('✅ Parche de drag & drop CORREGIDO aplicado');
+console.log('🔄 Funcionalidades:');
 console.log('   - Arrastrar y soltar temas para reordenar');
-console.log('   - Funciona con temas con preguntas y temas vacíos');
-console.log('   - El orden se refleja en la gestión de temas');
-console.log('   - Se guarda automáticamente en localStorage');
-console.log('   - Indicadores visuales durante el arrastre');
-console.log('💡 Arrastra cualquier tema para cambiar su posición');
+console.log('   - Indicadores visuales (borde azul) al arrastrar');
+console.log('   - Funciona con temas con preguntas y vacíos');
+console.log('   - El orden se sincroniza con gestión de temas');
+console.log('   - Botones no interfieren con el arrastre');
+console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 </body>
 </html>
+
 
 
 
