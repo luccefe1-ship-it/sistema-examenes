@@ -18960,44 +18960,81 @@ function performTopicExport() {
         return;
     }
     
+    console.log('🔍 DEBUG performTopicExport:');
+    console.log('Selected Topic ID:', selectedTopicId);
+    console.log('Available Topics:', state.topics.map(t => ({id: t.id, name: t.name})));
+    
     try {
-        // Obtener tema seleccionado
-        const selectedTopic = state.topics.find(t => t.id === selectedTopicId);
+        // Obtener tema seleccionado usando múltiples métodos
+        let selectedTopic = state.topics.find(t => t.id === selectedTopicId);
+        
+        // Si no lo encuentra por ID, buscar por índice o nombre
         if (!selectedTopic) {
+            selectedTopic = state.topics.find(t => t.id == selectedTopicId); // comparación no estricta
+        }
+        
+        // Como último recurso, usar el nombre del data attribute
+        if (!selectedTopic) {
+            const selectedOption = selector.options[selector.selectedIndex];
+            const topicName = selectedOption.dataset.name;
+            selectedTopic = state.topics.find(t => t.name === topicName);
+            console.log('🔍 Buscando por nombre:', topicName);
+        }
+        
+        if (!selectedTopic) {
+            console.error('❌ Topic no encontrado:', selectedTopicId);
             throw new Error('Tema no encontrado');
         }
+        
+        console.log('✅ Tema encontrado:', selectedTopic);
         
         // Filtrar preguntas del tema seleccionado usando múltiples métodos
         let topicQuestions = [];
         
-        // Método 1: Por topicId
+        // Método 1: Por topicId exacto
         topicQuestions = state.questions.filter(q => q.topicId === selectedTopicId);
+        console.log('Método 1 (topicId exacto):', topicQuestions.length);
         
-        // Método 2: Por nombre de tema (si topicId no funciona)
+        // Método 2: Por nombre de tema
         if (topicQuestions.length === 0) {
             topicQuestions = state.questions.filter(q => 
                 q.topic === selectedTopic.name || 
                 q.topicName === selectedTopic.name ||
                 (q.topic && q.topic.toLowerCase() === selectedTopic.name.toLowerCase())
             );
+            console.log('Método 2 (por nombre):', topicQuestions.length);
         }
         
-        // Método 3: Buscar por ID numérico o string
+        // Método 3: Por ID no estricto
         if (topicQuestions.length === 0) {
             topicQuestions = state.questions.filter(q => 
+                q.topicId == selectedTopicId || // comparación no estricta
                 q.topicId === selectedTopic.name || 
-                q.topicId === selectedTopicId.toString() ||
-                q.topic_id === selectedTopicId
+                q.topic_id === selectedTopicId ||
+                q.topic_id == selectedTopicId
             );
+            console.log('Método 3 (ID no estricto):', topicQuestions.length);
+        }
+        
+        // Método 4: Buscar en propiedades anidadas
+        if (topicQuestions.length === 0) {
+            topicQuestions = state.questions.filter(q => {
+                if (q.topicData && q.topicData.id === selectedTopicId) return true;
+                if (q.topicData && q.topicData.name === selectedTopic.name) return true;
+                if (typeof q.topicId === 'object' && q.topicId.id === selectedTopicId) return true;
+                return false;
+            });
+            console.log('Método 4 (propiedades anidadas):', topicQuestions.length);
         }
         
         // Debug: mostrar información de búsqueda
-        console.log('🔍 Búsqueda de preguntas:', {
+        console.log('🔍 Resumen de búsqueda:', {
             selectedTopicId,
             selectedTopicName: selectedTopic.name,
             totalQuestions: state.questions.length,
             foundQuestions: topicQuestions.length,
-            sampleQuestion: state.questions[0] || null
+            sampleQuestion: state.questions[0] || null,
+            questionSample: topicQuestions[0] || null
         });
         
         if (topicQuestions.length === 0) {
@@ -19536,6 +19573,7 @@ console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
