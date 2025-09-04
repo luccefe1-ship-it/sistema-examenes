@@ -20117,122 +20117,98 @@ console.log('   - Sincronización con gestión de temas existente');
 console.log('💡 Los temas vacíos aparecen en gris con 0 preguntas');
 </script>
 <!-- 
-PARCHE AGRESIVO: PREGUNTAS NO VERIFICADAS 
+PARCHE: PREGUNTAS NUEVAS NO VERIFICADAS
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche FUERZA que las preguntas nuevas sean NO verificadas
+Este parche intercepta específicamente parseTextoSimple para que las preguntas sean NO verificadas
 -->
 
 <script>
-console.log('🔥 PARCHE AGRESIVO: Forzando preguntas NO verificadas...');
+console.log('🔧 Aplicando parche: Preguntas nuevas NO verificadas...');
 
-// MÉTODO 1: Interceptar TODAS las operaciones que añaden preguntas
-const originalPush = Array.prototype.push;
-Array.prototype.push = function(...items) {
-    // Solo actuar si es el array de preguntas del estado global
-    if (this === window.state?.questions) {
-        console.log('📋 Interceptando push al array de preguntas...');
-        items.forEach(item => {
-            if (item && typeof item === 'object' && item.question) {
-                // FORZAR isVerified = false para preguntas nuevas del banco
-                if (item.isVerified === undefined || item.isVerified === true) {
-                    item.isVerified = false;
-                    console.log('✅ Pregunta marcada como NO verificada:', item.question.substring(0, 40));
-                }
-            }
-        });
-    }
-    return originalPush.apply(this, items);
-};
-
-// MÉTODO 2: Interceptar localStorage.setItem para modificar antes de guardar
-const originalSetItem = localStorage.setItem;
-localStorage.setItem = function(key, value) {
-    if (key === 'questions' && typeof value === 'string') {
-        try {
-            const questions = JSON.parse(value);
-            let modified = false;
-            
-            questions.forEach(q => {
-                // Si no tiene isVerified definido, ponerlo como false
-                if (q.isVerified === undefined) {
-                    q.isVerified = false;
-                    modified = true;
-                    console.log('🔧 Corrigiendo pregunta a NO verificada en localStorage');
-                }
-            });
-            
-            if (modified) {
-                value = JSON.stringify(questions);
-            }
-        } catch (e) {
-            console.warn('Error parseando preguntas en localStorage');
-        }
-    }
+// INTERCEPTAR parseTextoSimple específicamente
+if (typeof window.parseTextoSimple === 'function') {
+    const originalParseTextoSimple = window.parseTextoSimple;
     
-    return originalSetItem.call(this, key, value);
-};
-
-// MÉTODO 3: Modificar directamente el estado cada vez que cambie
-let lastQuestionsLength = window.state?.questions?.length || 0;
-setInterval(function() {
-    if (window.state && window.state.questions && window.state.questions.length > lastQuestionsLength) {
-        console.log('🔍 Detectado cambio en el número de preguntas, verificando...');
+    window.parseTextoSimple = function(texto) {
+        if (!texto.trim()) return [];
         
-        let modified = false;
-        window.state.questions.forEach(q => {
-            if (q.isVerified === undefined || (q.isVerified === true && !q.wasImported)) {
-                q.isVerified = false;
-                modified = true;
-                console.log('⚡ Pregunta forzada a NO verificada:', q.question?.substring(0, 30));
-            }
-        });
+        const preguntas = [];
+        const lineas = texto.split('\n');
         
-        if (modified) {
-            localStorage.setItem('questions', JSON.stringify(window.state.questions));
-            console.log('💾 Estado corregido y guardado');
+        let preguntaActual = null;
+        let opciones = [];
+        let respuestaCorrecta = null;
+        
+        for (let i = 0; i < lineas.length; i++) {
+            const linea = lineas[i].trim();
+            if (!linea) continue;
             
-            // Forzar re-render si existe la función
-            if (typeof window.render === 'function') {
-                setTimeout(() => window.render(), 100);
-            }
-        }
-        
-        lastQuestionsLength = window.state.questions.length;
-    }
-}, 500); // Verificar cada 500ms
-
-// MÉTODO 4: Hook en la función render para corregir en tiempo real
-if (typeof window.render === 'function') {
-    const originalRender = window.render;
-    window.render = function() {
-        // Corregir preguntas antes de renderizar
-        if (window.state && window.state.questions) {
-            let corrected = false;
-            window.state.questions.forEach(q => {
-                if (q.isVerified === undefined) {
-                    q.isVerified = false;
-                    corrected = true;
+            // Detectar nueva pregunta (número.)
+            if (/^\d+\s+\.\s+.*[:\?]\s*$/.test(linea)) {
+                // Guardar pregunta anterior
+                if (preguntaActual && opciones.length >= 2) {
+                    preguntas.push({
+                        id: Date.now() + Math.random(),
+                        question: preguntaActual,
+                        options: opciones.slice(),
+                        correctAnswer: respuestaCorrecta !== null ? respuestaCorrecta : 0,
+                        topicId: null,
+                        isVerified: false,  // CAMBIADO DE true A false
+                        source: 'bulk_simple'
+                    });
                 }
-            });
-            
-            if (corrected) {
-                console.log('🎨 Preguntas corregidas antes del render');
+                
+                // Nueva pregunta
+                preguntaActual = linea.replace(/^\d+\s+\.\s*/, '');
+                opciones = [];
+                respuestaCorrecta = null;
+            }
+            // Detectar opciones
+            else if (/^[A-D]\)/.test(linea)) {
+                // DETECCIÓN ULTRA ESPECÍFICA: buscar )** en la línea
+                const esCorrecta = /^[A-D]\)\*\*/.test(linea);
+                
+                if (esCorrecta) {
+                    respuestaCorrecta = opciones.length;
+                    console.log(`🎯 Detectada correcta: ${linea}`);
+                }
+                
+                // Limpiar texto (quitar letra) y asteriscos)
+                let textoOpcion = linea.replace(/^[A-D]\)/, '').trim();
+                textoOpcion = textoOpcion.replace(/^\*+/, '').trim(); // Quitar asteriscos del inicio
+                
+                opciones.push(textoOpcion);
             }
         }
         
-        return originalRender.apply(this, arguments);
+        // Guardar última pregunta
+        if (preguntaActual && opciones.length >= 2) {
+            preguntas.push({
+                id: Date.now() + Math.random(),
+                question: preguntaActual,
+                options: opciones.slice(),
+                correctAnswer: respuestaCorrecta !== null ? respuestaCorrecta : 0,
+                topicId: null,
+                isVerified: false,  // CAMBIADO DE true A false
+                source: 'bulk_simple'
+            });
+        }
+        
+        console.log(`📊 Detectadas ${preguntas.length} preguntas como NO verificadas`);
+        return preguntas;
     };
+    
+    console.log('✅ Función parseTextoSimple reemplazada correctamente');
+} else {
+    console.warn('⚠️ Función parseTextoSimple no encontrada');
 }
 
-console.log('🚀 PARCHE AGRESIVO APLICADO - 4 métodos activos');
-console.log('📋 Métodos de intercepción:');
-console.log('  1️⃣ Array.prototype.push interceptado');
-console.log('  2️⃣ localStorage.setItem interceptado');
-console.log('  3️⃣ Vigilancia continua del estado');
-console.log('  4️⃣ Hook en la función render');
+console.log('✅ Parche aplicado');
+console.log('📝 Las preguntas nuevas del editor múltiple aparecerán como ☆ (no verificadas)');
 </script>
 </body>
 </html>
+
 
 
 
