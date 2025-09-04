@@ -18967,8 +18967,38 @@ function performTopicExport() {
             throw new Error('Tema no encontrado');
         }
         
-        // Filtrar preguntas del tema seleccionado
-        const topicQuestions = state.questions.filter(q => q.topicId === selectedTopicId);
+        // Filtrar preguntas del tema seleccionado usando múltiples métodos
+        let topicQuestions = [];
+        
+        // Método 1: Por topicId
+        topicQuestions = state.questions.filter(q => q.topicId === selectedTopicId);
+        
+        // Método 2: Por nombre de tema (si topicId no funciona)
+        if (topicQuestions.length === 0) {
+            topicQuestions = state.questions.filter(q => 
+                q.topic === selectedTopic.name || 
+                q.topicName === selectedTopic.name ||
+                (q.topic && q.topic.toLowerCase() === selectedTopic.name.toLowerCase())
+            );
+        }
+        
+        // Método 3: Buscar por ID numérico o string
+        if (topicQuestions.length === 0) {
+            topicQuestions = state.questions.filter(q => 
+                q.topicId === selectedTopic.name || 
+                q.topicId === selectedTopicId.toString() ||
+                q.topic_id === selectedTopicId
+            );
+        }
+        
+        // Debug: mostrar información de búsqueda
+        console.log('🔍 Búsqueda de preguntas:', {
+            selectedTopicId,
+            selectedTopicName: selectedTopic.name,
+            totalQuestions: state.questions.length,
+            foundQuestions: topicQuestions.length,
+            sampleQuestion: state.questions[0] || null
+        });
         
         if (topicQuestions.length === 0) {
             showMessage('❌ No hay preguntas en el tema seleccionado', 'error');
@@ -19506,6 +19536,7 @@ console.log('   - 4ª: Amarillo, 5ª: Morado, 6ª: Rosa');
 </script>
 </body>
 </html>
+
 
 
 
