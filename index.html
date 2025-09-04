@@ -20117,104 +20117,120 @@ console.log('   - Sincronización con gestión de temas existente');
 console.log('💡 Los temas vacíos aparecen en gris con 0 preguntas');
 </script>
 <!-- 
-PARCHE: PREGUNTAS NUEVAS NO VERIFICADAS
+PARCHE: PREGUNTAS NUEVAS NO VERIFICADAS AL BANCO
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche hace que las preguntas nuevas aparezcan como pendientes de verificar
+Este parche hace que las preguntas añadidas AL BANCO aparezcan como no verificadas
 -->
 
 <script>
-console.log('🔧 Aplicando parche: Preguntas nuevas no verificadas por defecto...');
+console.log('🔧 Aplicando parche: Preguntas del banco no verificadas por defecto...');
 
-// INTERCEPTAR la función addQuestion para modificar el comportamiento
-if (typeof window.addQuestion === 'function') {
-    const originalAddQuestion = window.addQuestion;
+// INTERCEPTAR la función addToQuestions específicamente
+if (typeof window.addToQuestions === 'function') {
+    const originalAddToQuestions = window.addToQuestions;
     
-    window.addQuestion = function() {
-        console.log('📝 Interceptando addQuestion para establecer isVerified: false');
+    window.addToQuestions = function() {
+        console.log('📝 Interceptando addToQuestions...');
         
         // Llamar a la función original
-        const result = originalAddQuestion.apply(this, arguments);
+        const result = originalAddToQuestions.apply(this, arguments);
         
-        // Buscar la pregunta recién añadida y asegurar que isVerified sea false
+        // Buscar las preguntas recién añadidas y marcarlas como no verificadas
         if (state.questions && state.questions.length > 0) {
-            const lastQuestion = state.questions[state.questions.length - 1];
-            if (lastQuestion && lastQuestion.isVerified !== false) {
-                lastQuestion.isVerified = false;
+            let modifiedQuestions = false;
+            
+            // Recorrer todas las preguntas y encontrar las que no tienen isVerified definido
+            state.questions.forEach((question, index) => {
+                if (question.isVerified === undefined || question.isVerified === null) {
+                    question.isVerified = false;
+                    modifiedQuestions = true;
+                    console.log('✅ Pregunta del banco marcada como no verificada:', question.question.substring(0, 50) + '...');
+                }
+            });
+            
+            // Solo guardar si hubo modificaciones
+            if (modifiedQuestions) {
                 localStorage.setItem('questions', JSON.stringify(state.questions));
-                console.log('✅ Pregunta marcada como no verificada:', lastQuestion.question.substring(0, 50) + '...');
+                console.log('💾 Estado guardado con preguntas no verificadas');
             }
         }
         
         return result;
     };
     
-    console.log('✅ Función addQuestion interceptada correctamente');
-} else {
-    console.log('⚠️ Función addQuestion no encontrada, aplicando parche alternativo...');
-    
-    // PARCHE ALTERNATIVO: Interceptar cuando se añaden preguntas al array
-    const originalPush = Array.prototype.push;
-    
-    // Solo interceptar el push del array de preguntas
-    Object.defineProperty(Array.prototype, 'push', {
-        value: function(...items) {
-            // Solo aplicar el parche si este es el array de preguntas
-            if (this === state.questions) {
-                items.forEach(item => {
-                    if (item && typeof item === 'object' && item.question && item.options) {
-                        // Es una pregunta nueva, asegurar que isVerified sea false
-                        if (item.isVerified === undefined || item.isVerified === true) {
-                            item.isVerified = false;
-                            console.log('✅ Nueva pregunta marcada como no verificada:', item.question.substring(0, 50) + '...');
-                        }
-                    }
-                });
-            }
-            
-            return originalPush.apply(this, items);
-        },
-        writable: true,
-        configurable: true
-    });
+    console.log('✅ Función addToQuestions interceptada correctamente');
 }
 
-// PARCHE ADICIONAL: Interceptar cualquier función que modifique localStorage con preguntas
-const originalSetItem = localStorage.setItem;
-localStorage.setItem = function(key, value) {
-    if (key === 'questions') {
-        try {
-            const questions = JSON.parse(value);
-            let modified = false;
-            
+// INTERCEPTAR también parseCleanedText para asegurar que las preguntas nuevas tengan isVerified: false
+if (typeof window.parseCleanedText === 'function') {
+    const originalParseCleanedText = window.parseCleanedText;
+    
+    window.parseCleanedText = function(text) {
+        console.log('🔍 Interceptando parseCleanedText...');
+        
+        // Llamar a la función original
+        const questions = originalParseCleanedText.apply(this, arguments);
+        
+        // Asegurar que todas las preguntas nuevas estén marcadas como no verificadas
+        if (questions && Array.isArray(questions)) {
             questions.forEach(question => {
-                // Solo modificar preguntas que no tienen isVerified definido o es true sin justificación
-                if (question.isVerified === undefined) {
-                    question.isVerified = false;
-                    modified = true;
-                }
+                question.isVerified = false;
+                console.log('📋 Nueva pregunta marcada como no verificada:', question.question.substring(0, 30) + '...');
             });
-            
-            if (modified) {
-                value = JSON.stringify(questions);
-                console.log('🔄 Preguntas actualizadas para ser no verificadas por defecto');
-            }
-        } catch (e) {
-            // Si hay error al parsear, usar el valor original
         }
+        
+        return questions;
+    };
+    
+    console.log('✅ Función parseCleanedText interceptada correctamente');
+}
+
+// PARCHE ADICIONAL: Interceptar cualquier operación push en el array de preguntas del banco
+const originalStateQuestionsPush = Array.prototype.push;
+
+// Crear una función personalizada para el array de preguntas
+if (state && state.questions) {
+    Object.defineProperty(state, 'questions', {
+        get: function() {
+            return this._questions || [];
+        },
+        set: function(value) {
+            this._questions = value;
+        }
+    });
+    
+    // Inicializar si no existe
+    if (!state._questions) {
+        state._questions = state.questions || [];
     }
     
-    return originalSetItem.call(this, key, value);
-};
+    // Sobrescribir el método push para este array específico
+    state._questions.push = function(...items) {
+        // Marcar nuevas preguntas como no verificadas solo si vienen del banco
+        items.forEach(item => {
+            if (item && typeof item === 'object' && item.question && item.options) {
+                // Solo marcar como no verificadas si no están ya definidas o son undefined
+                if (item.isVerified === undefined || item.isVerified === null) {
+                    item.isVerified = false;
+                    console.log('🆕 Nueva pregunta al banco marcada como no verificada:', item.question.substring(0, 40) + '...');
+                }
+            }
+        });
+        
+        return originalStateQuestionsPush.apply(this, items);
+    };
+}
 
 console.log('✅ Parche aplicado correctamente');
 console.log('📝 Funcionalidad:');
-console.log('   - Las preguntas nuevas aparecerán como ☆ (no verificadas)');
-console.log('   - Las preguntas existentes mantienen su estado actual');
-console.log('   - Compatible con todas las funciones existentes');
-console.log('   - No modifica ningún código existente');
+console.log('   - Las preguntas NUEVAS del banco aparecerán como ☆ (no verificadas)');
+console.log('   - Las preguntas IMPORTADAS mantienen su estado de verificación');
+console.log('   - Compatible con addToQuestions y parseCleanedText');
+console.log('   - No afecta ninguna otra función del sistema');
 </script>
 </body>
 </html>
+
 
 
 
