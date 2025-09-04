@@ -20117,119 +20117,74 @@ console.log('   - Sincronización con gestión de temas existente');
 console.log('💡 Los temas vacíos aparecen en gris con 0 preguntas');
 </script>
 <!-- 
-PARCHE: PREGUNTAS NUEVAS NO VERIFICADAS AL BANCO
+PARCHE: PREGUNTAS DEL BANCO NO VERIFICADAS
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche hace que las preguntas añadidas AL BANCO aparezcan como no verificadas
+Este parche intercepta parseCleanedText para que las preguntas del banco sean NO verificadas
 -->
 
 <script>
-console.log('🔧 Aplicando parche: Preguntas del banco no verificadas por defecto...');
+console.log('🔧 Aplicando parche: Preguntas del banco NO verificadas...');
 
-// INTERCEPTAR la función addToQuestions específicamente
-if (typeof window.addToQuestions === 'function') {
-    const originalAddToQuestions = window.addToQuestions;
-    
-    window.addToQuestions = function() {
-        console.log('📝 Interceptando addToQuestions...');
-        
-        // Llamar a la función original
-        const result = originalAddToQuestions.apply(this, arguments);
-        
-        // Buscar las preguntas recién añadidas y marcarlas como no verificadas
-        if (state.questions && state.questions.length > 0) {
-            let modifiedQuestions = false;
-            
-            // Recorrer todas las preguntas y encontrar las que no tienen isVerified definido
-            state.questions.forEach((question, index) => {
-                if (question.isVerified === undefined || question.isVerified === null) {
-                    question.isVerified = false;
-                    modifiedQuestions = true;
-                    console.log('✅ Pregunta del banco marcada como no verificada:', question.question.substring(0, 50) + '...');
-                }
-            });
-            
-            // Solo guardar si hubo modificaciones
-            if (modifiedQuestions) {
-                localStorage.setItem('questions', JSON.stringify(state.questions));
-                console.log('💾 Estado guardado con preguntas no verificadas');
-            }
-        }
-        
-        return result;
-    };
-    
-    console.log('✅ Función addToQuestions interceptada correctamente');
-}
-
-// INTERCEPTAR también parseCleanedText para asegurar que las preguntas nuevas tengan isVerified: false
+// REEMPLAZAR la función parseCleanedText para añadir isVerified: false
 if (typeof window.parseCleanedText === 'function') {
     const originalParseCleanedText = window.parseCleanedText;
     
     window.parseCleanedText = function(text) {
-        console.log('🔍 Interceptando parseCleanedText...');
+        const questions = [];
+        const sections = text.split(/PREGUNTA:/i).filter(section => section.trim());
         
-        // Llamar a la función original
-        const questions = originalParseCleanedText.apply(this, arguments);
-        
-        // Asegurar que todas las preguntas nuevas estén marcadas como no verificadas
-        if (questions && Array.isArray(questions)) {
-            questions.forEach(question => {
-                question.isVerified = false;
-                console.log('📋 Nueva pregunta marcada como no verificada:', question.question.substring(0, 30) + '...');
-            });
-        }
-        
-        return questions;
-    };
-    
-    console.log('✅ Función parseCleanedText interceptada correctamente');
-}
-
-// PARCHE ADICIONAL: Interceptar cualquier operación push en el array de preguntas del banco
-const originalStateQuestionsPush = Array.prototype.push;
-
-// Crear una función personalizada para el array de preguntas
-if (state && state.questions) {
-    Object.defineProperty(state, 'questions', {
-        get: function() {
-            return this._questions || [];
-        },
-        set: function(value) {
-            this._questions = value;
-        }
-    });
-    
-    // Inicializar si no existe
-    if (!state._questions) {
-        state._questions = state.questions || [];
-    }
-    
-    // Sobrescribir el método push para este array específico
-    state._questions.push = function(...items) {
-        // Marcar nuevas preguntas como no verificadas solo si vienen del banco
-        items.forEach(item => {
-            if (item && typeof item === 'object' && item.question && item.options) {
-                // Solo marcar como no verificadas si no están ya definidas o son undefined
-                if (item.isVerified === undefined || item.isVerified === null) {
-                    item.isVerified = false;
-                    console.log('🆕 Nueva pregunta al banco marcada como no verificada:', item.question.substring(0, 40) + '...');
+        sections.forEach(section => {
+            const lines = section.trim().split('\n').filter(line => line.trim());
+            if (lines.length === 0) return;
+            
+            const questionText = lines[0].trim();
+            const options = [];
+            let correctAnswer = 0;
+            
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line.match(/^[A-Da-d][\)\.]?\s*(.+)/)) {
+                    const optionText = line.replace(/^[A-Da-d][\)\.]?\s*/, '').trim();
+                    if (optionText.startsWith('**') && optionText.endsWith('**')) {
+                        options.push(optionText.slice(2, -2));
+                        correctAnswer = options.length - 1;
+                    } else {
+                        options.push(optionText);
+                    }
                 }
+            }
+            
+            if (questionText && options.length >= 2) {
+                questions.push({
+                    id: Date.now() + Math.random(),
+                    question: questionText,
+                    options: options,
+                    correctAnswer: correctAnswer,
+                    isVerified: false  // ✅ AQUÍ ESTÁ LA CLAVE
+                });
+                
+                console.log('📋 Nueva pregunta del banco marcada como NO verificada:', questionText.substring(0, 40) + '...');
             }
         });
         
-        return originalStateQuestionsPush.apply(this, items);
+        console.log(`✅ ${questions.length} preguntas procesadas como NO verificadas`);
+        return questions;
     };
+    
+    console.log('✅ Función parseCleanedText reemplazada correctamente');
+} else {
+    console.warn('⚠️ Función parseCleanedText no encontrada');
 }
 
 console.log('✅ Parche aplicado correctamente');
 console.log('📝 Funcionalidad:');
-console.log('   - Las preguntas NUEVAS del banco aparecerán como ☆ (no verificadas)');
-console.log('   - Las preguntas IMPORTADAS mantienen su estado de verificación');
-console.log('   - Compatible con addToQuestions y parseCleanedText');
-console.log('   - No afecta ninguna otra función del sistema');
+console.log('   - Las preguntas del BANCO aparecerán como ☆ (no verificadas)');
+console.log('   - Las preguntas IMPORTADAS mantienen su estado original');
+console.log('   - No afecta el resto del código');
 </script>
 </body>
 </html>
+
 
 
 
