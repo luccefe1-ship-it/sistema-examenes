@@ -19664,44 +19664,26 @@ console.log('   - Exportar: Botón naranja "Exportar por Tema" en menú principa
 console.log('   - Importar: Botón morado "Importar Preguntas" en menú principal');
 </script>
 <!-- 
-PARCHE DEFINITIVO: FORZAR SINCRONIZACIÓN DE TEMAS EN MULTIJUGADOR
+PARCHE SIMPLE Y DIRECTO: RESTAURAR TEMAS EN MULTIJUGADOR
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche fuerza la sincronización inmediata de temas en multijugador
+Basado en la versión que funcionaba originalmente
 -->
 
 <script>
-// ========== PARCHE DEFINITIVO: SINCRONIZACIÓN FORZADA DE TEMAS ==========
-console.log('🚨 APLICANDO PARCHE DEFINITIVO: Sincronización forzada de temas multijugador...');
+// ========== PARCHE SIMPLE: RESTAURAR TEMAS MULTIJUGADOR ==========
+console.log('🔧 Restaurando temas en multijugador (versión simple y directa)...');
 
-// PASO 1: FORZAR REGENERACIÓN DE BANCOS CADA VEZ QUE SE RENDERIZA MULTIJUGADOR
-function forceRegenerateAllBanks() {
-    if (!state.questions || !state.topics) {
-        console.error('❌ Sin preguntas o temas para generar bancos');
-        return;
-    }
+// PASO 1: ASEGURAR QUE LA FUNCIÓN organizeQuestionsForFirebase FUNCIONA CORRECTAMENTE
+window.organizeQuestionsForFirebase = function(questions, topics) {
+    const organized = {};
     
-    const verifiedQuestions = state.questions.filter(q => q.isVerified);
-    if (verifiedQuestions.length === 0) {
-        console.error('❌ Sin preguntas verificadas');
-        return;
-    }
-    
-    console.log('🔄 FORZANDO regeneración completa de bancos...');
-    console.log('📊 Datos disponibles:', {
-        preguntas: verifiedQuestions.length,
-        temas: state.topics.length,
-        temaDetalle: state.topics.map(t => ({ id: t.id, nombre: t.name }))
-    });
-    
-    // Crear banco organizado
-    const organizedBank = {};
-    state.topics.forEach(topic => {
-        const topicQuestions = verifiedQuestions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+    topics.forEach(topic => {
+        const topicQuestions = questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
         
         if (topicQuestions.length > 0) {
-            organizedBank[topic.id] = {
+            organized[topic.id] = {
                 name: topic.name,
-                questions: topicQuestions.map((q, index) => ({
+                questions: topicQuestions.map(q => ({
                     id: q.id,
                     question: q.question,
                     options: q.options,
@@ -19715,265 +19697,218 @@ function forceRegenerateAllBanks() {
         }
     });
     
-    console.log('✅ Banco organizado creado:', {
-        temas: Object.keys(organizedBank).length,
-        preguntas: Object.values(organizedBank).reduce((sum, topic) => sum + topic.questions.length, 0),
-        detalle: organizedBank
-    });
-    
-    // Asignar a ambos roles
-    multiplayerState.hostQuestionBank = organizedBank;
-    multiplayerState.guestQuestionBank = organizedBank;
-    
-    // Si hay sala activa, actualizar Firebase inmediatamente
-    if (multiplayerState.currentRoom && typeof database !== 'undefined' && database) {
-        console.log('🔥 Actualizando Firebase con bancos...');
-        
-        const updates = {};
-        updates[`rooms/${multiplayerState.currentRoom}/questionBanks/host`] = organizedBank;
-        updates[`rooms/${multiplayerState.currentRoom}/questionBanks/guest`] = organizedBank;
-        
-        database.ref().update(updates).then(() => {
-            console.log('✅ Firebase actualizado correctamente');
-        }).catch(error => {
-            console.error('❌ Error actualizando Firebase:', error);
-        });
-    }
-    
-    return organizedBank;
-}
+    return organized;
+};
 
-// PASO 2: INTERCEPTAR renderDuelInterface PARA FORZAR BANCOS
-const originalRenderDuelInterface = window.renderDuelInterface;
-if (originalRenderDuelInterface) {
-    window.renderDuelInterface = function() {
-        console.log('🎮 Interceptando renderDuelInterface...');
-        
-        // FORZAR regeneración de bancos SIEMPRE
-        const forcedBank = forceRegenerateAllBanks();
-        
-        // Asegurar que multiplayerState tiene los bancos
-        if (!multiplayerState.hostQuestionBank || Object.keys(multiplayerState.hostQuestionBank).length === 0) {
-            console.log('🔧 Forzando banco del anfitrión...');
-            multiplayerState.hostQuestionBank = forcedBank;
-        }
-        
-        if (!multiplayerState.guestQuestionBank || Object.keys(multiplayerState.guestQuestionBank).length === 0) {
-            console.log('🔧 Forzando banco del invitado...');
-            multiplayerState.guestQuestionBank = forcedBank;
-        }
-        
-        // Llamar a la función original
-        return originalRenderDuelInterface.call(this);
-    };
-} else {
-    console.warn('⚠️ renderDuelInterface no encontrada - creando una básica...');
-    
-    window.renderDuelInterface = function() {
-        forceRegenerateAllBanks();
-        
-        return `
-            <div style="padding: 20px; text-align: center;">
-                <h1>🎮 Modo Multijugador</h1>
-                <p>Bancos de preguntas regenerados</p>
-                <button onclick="exitMultiplayerMode()">Salir</button>
-            </div>
-        `;
-    };
-}
-
-// PASO 3: INTERCEPTAR getMyQuestionBank Y getOpponentQuestionBank
+// PASO 2: SOBRESCRIBIR COMPLETAMENTE getMyQuestionBank
 window.getMyQuestionBank = function() {
-    console.log('📦 getMyQuestionBank llamado...');
+    const verifiedQuestions = state.questions.filter(q => q.isVerified);
+    const myBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
     
-    let myBank = multiplayerState.isHost ? multiplayerState.hostQuestionBank : multiplayerState.guestQuestionBank;
-    
-    if (!myBank || Object.keys(myBank).length === 0) {
-        console.log('🔧 Mi banco está vacío - Regenerando...');
-        myBank = forceRegenerateAllBanks();
+    // Asignar al estado correcto
+    if (multiplayerState.isHost) {
+        multiplayerState.hostQuestionBank = myBank;
+    } else {
+        multiplayerState.guestQuestionBank = myBank;
     }
     
-    console.log('📊 Mi banco devuelto:', {
+    console.log('Mi banco regenerado:', {
         isHost: multiplayerState.isHost,
-        temas: Object.keys(myBank).length,
-        banco: myBank
+        topics: Object.keys(myBank).length,
+        questions: Object.values(myBank).reduce((sum, topic) => sum + topic.questions.length, 0)
     });
     
     return myBank;
 };
 
+// PASO 3: SOBRESCRIBIR COMPLETAMENTE getOpponentQuestionBank
 window.getOpponentQuestionBank = function() {
-    console.log('👥 getOpponentQuestionBank llamado...');
+    let opponentBank;
     
-    let opponentBank = multiplayerState.isHost ? multiplayerState.guestQuestionBank : multiplayerState.hostQuestionBank;
-    
-    if (!opponentBank || Object.keys(opponentBank).length === 0) {
-        console.log('🔧 Banco del oponente está vacío - Usando mi banco...');
-        opponentBank = forceRegenerateAllBanks();
+    if (multiplayerState.isHost) {
+        opponentBank = multiplayerState.guestQuestionBank || {};
+    } else {
+        opponentBank = multiplayerState.hostQuestionBank || {};
     }
     
-    console.log('📊 Banco del oponente devuelto:', {
-        isHost: multiplayerState.isHost,
-        temas: Object.keys(opponentBank).length,
-        banco: opponentBank
-    });
+    // Si el banco del oponente está vacío, usar mi banco como fallback
+    if (Object.keys(opponentBank).length === 0) {
+        console.log('Banco del oponente vacío, usando mi banco como fallback');
+        opponentBank = getMyQuestionBank();
+    }
     
     return opponentBank;
 };
 
-// PASO 4: INTERCEPTAR CREACIÓN Y UNIÓN DE SALAS
-const originalCreateMultiplayerRoom = window.createMultiplayerRoom;
-if (originalCreateMultiplayerRoom) {
-    window.createMultiplayerRoom = function() {
-        console.log('🏗️ Interceptando creación de sala...');
-        
-        // Regenerar bancos ANTES de crear
-        forceRegenerateAllBanks();
-        
-        // Llamar función original
-        return originalCreateMultiplayerRoom.call(this);
-    };
-}
-
-const originalJoinMultiplayerRoom = window.joinMultiplayerRoom;
-if (originalJoinMultiplayerRoom) {
-    window.joinMultiplayerRoom = function() {
-        console.log('🚪 Interceptando unión a sala...');
-        
-        // Regenerar bancos ANTES de unirse
-        forceRegenerateAllBanks();
-        
-        // Llamar función original
-        return originalJoinMultiplayerRoom.call(this);
-    };
-}
-
-// PASO 5: FUNCIÓN DE EMERGENCIA MEJORADA
-window.repararMultijugador = function() {
-    console.log('🚨 REPARACIÓN DE EMERGENCIA DEL MULTIJUGADOR');
-    console.log('===========================================');
-    
-    // Mostrar estado actual
-    console.log('Estado actual:', {
-        isHost: multiplayerState.isHost,
-        currentRoom: multiplayerState.currentRoom,
-        gameState: multiplayerState.gameState
-    });
-    
-    console.log('Preguntas disponibles:', {
-        total: state.questions.length,
-        verificadas: state.questions.filter(q => q.isVerified).length,
-        temas: state.topics.length
-    });
-    
-    console.log('Bancos actuales:', {
-        hostBank: multiplayerState.hostQuestionBank ? Object.keys(multiplayerState.hostQuestionBank).length : 0,
-        guestBank: multiplayerState.guestQuestionBank ? Object.keys(multiplayerState.guestQuestionBank).length : 0
-    });
-    
-    // Forzar regeneración
-    const newBank = forceRegenerateAllBanks();
-    
-    // Forzar re-renderizado
-    if (typeof render === 'function') {
-        render();
+// PASO 4: SOBRESCRIBIR LA FUNCIÓN renderMyTopicsForDisplay 
+window.renderMyTopicsForDisplay = function(questionBank) {
+    if (!questionBank || Object.keys(questionBank).length === 0) {
+        // Si no hay banco, intentar generarlo
+        questionBank = getMyQuestionBank();
     }
     
-    console.log('✅ REPARACIÓN COMPLETADA');
-    showMessage('🛠️ Multijugador reparado - Bancos regenerados', 'success');
-    
-    return newBank;
-};
+    if (Object.keys(questionBank).length === 0) {
+        return `
+            <div style="text-align: center; padding: 20px; color: #6b7280;">
+                <div style="font-size: 2rem; margin-bottom: 10px;">📚</div>
+                <p style="margin: 0; font-size: 14px;">Sin temas disponibles</p>
+            </div>
+        `;
+    }
 
-// PASO 6: AUTO-REPARACIÓN AL ENTRAR EN MULTIJUGADOR
-const originalRender = window.render;
-if (originalRender) {
-    window.render = function() {
-        // Ejecutar render original
-        const result = originalRender.call(this);
-        
-        // Si estamos en multijugador, auto-reparar
-        if (multiplayerState && multiplayerState.gameState === 'playing') {
-            setTimeout(() => {
-                console.log('🔍 Auto-verificación multijugador...');
-                
-                const myBank = multiplayerState.isHost ? multiplayerState.hostQuestionBank : multiplayerState.guestQuestionBank;
-                
-                if (!myBank || Object.keys(myBank).length === 0) {
-                    console.log('🚨 Auto-reparación activada');
-                    repararMultijugador();
-                }
-            }, 1000);
+    let html = '';
+    Object.keys(questionBank).forEach(topicKey => {
+        const topic = questionBank[topicKey];
+        if (topic.questions && topic.questions.length > 0) {
+            html += `
+                <div style="margin-bottom: 12px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                    <div style="background: #f9fafb; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 500; color: #374151; font-size: 13px;">${topic.name}</span>
+                        <span style="background: #22c55e; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                            ${topic.questions.length}
+                        </span>
+                    </div>
+                </div>
+            `;
         }
-        
-        return result;
-    };
-}
+    });
 
-// PASO 7: SOBRESCRIBIR organizeQuestionsForFirebase SI NO EXISTE
-if (typeof organizeQuestionsForFirebase !== 'function') {
-    window.organizeQuestionsForFirebase = function(questions, topics) {
-        return forceRegenerateAllBanks();
-    };
-}
-
-// PASO 8: COMANDO PARA MOSTRAR ESTADO COMPLETO
-window.estadoMultijugador = function() {
-    console.log('🔍 ESTADO COMPLETO DEL MULTIJUGADOR:');
-    console.log('===================================');
-    
-    console.log('1. Estado general:', {
-        isHost: multiplayerState.isHost,
-        currentRoom: multiplayerState.currentRoom,
-        gameState: multiplayerState.gameState,
-        myTurn: multiplayerState.myTurn
-    });
-    
-    console.log('2. Datos locales:', {
-        totalQuestions: state.questions.length,
-        verifiedQuestions: state.questions.filter(q => q.isVerified).length,
-        topics: state.topics.length,
-        topicDetails: state.topics.map(t => ({ id: t.id, name: t.name }))
-    });
-    
-    console.log('3. Bancos multijugador:', {
-        hostBankExists: !!multiplayerState.hostQuestionBank,
-        hostBankTopics: multiplayerState.hostQuestionBank ? Object.keys(multiplayerState.hostQuestionBank).length : 0,
-        guestBankExists: !!multiplayerState.guestQuestionBank,
-        guestBankTopics: multiplayerState.guestQuestionBank ? Object.keys(multiplayerState.guestQuestionBank).length : 0
-    });
-    
-    console.log('4. Banco del anfitrión:', multiplayerState.hostQuestionBank);
-    console.log('5. Banco del invitado:', multiplayerState.guestQuestionBank);
-    
-    console.log('===================================');
-    console.log('Comandos disponibles:');
-    console.log('- repararMultijugador() - Fuerza reparación');
-    console.log('- estadoMultijugador() - Muestra este estado');
-    
-    return {
-        hostBank: multiplayerState.hostQuestionBank,
-        guestBank: multiplayerState.guestQuestionBank
-    };
+    return html || `
+        <div style="text-align: center; padding: 20px; color: #6b7280;">
+            <p style="margin: 0; font-size: 14px;">Sin preguntas en tus temas</p>
+        </div>
+    `;
 };
 
-// INICIALIZACIÓN INMEDIATA
+// PASO 5: SOBRESCRIBIR renderOpponentTopicsForSelection
+window.renderOpponentTopicsForSelection = function(questionBank, canSelect) {
+    if (!questionBank || Object.keys(questionBank).length === 0) {
+        // Si no hay banco del oponente, usar el mío
+        questionBank = getMyQuestionBank();
+    }
+    
+    if (Object.keys(questionBank).length === 0) {
+        return `
+            <div style="text-align: center; padding: 50px 20px; color: #bfdbfe;">
+                <div style="font-size: 4rem; margin-bottom: 20px;">⏳</div>
+                <p style="margin: 0; font-size: 18px; font-weight: bold;">Cargando temas...</p>
+            </div>
+        `;
+    }
+
+    let html = '';
+    Object.keys(questionBank).forEach(topicKey => {
+        const topic = questionBank[topicKey];
+        if (topic.questions && topic.questions.length > 0) {
+            html += `
+                <div style="margin-bottom: 15px; border: 2px solid ${canSelect ? '#fbbf24' : 'rgba(255,255,255,0.2)'}; 
+                            border-radius: 12px; overflow: hidden; background: rgba(255,255,255,0.1);">
+                    
+                    <div style="background: ${canSelect ? 'linear-gradient(135deg, #fbbf24, #f59e0b)' : 'rgba(255,255,255,0.1)'}; 
+                                padding: 15px; border-bottom: 1px solid ${canSelect ? '#f59e0b' : 'rgba(255,255,255,0.2)'}; 
+                                cursor: pointer;" onclick="toggleTopicQuestions('opponent-${topicKey}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 700; color: ${canSelect ? '#92400e' : '#bfdbfe'}; font-size: 15px;">
+                                ${topic.name}
+                            </span>
+                            <span style="background: ${canSelect ? '#f59e0b' : 'rgba(255,255,255,0.2)'}; 
+                                         color: ${canSelect ? 'white' : '#bfdbfe'}; padding: 4px 10px; border-radius: 14px; 
+                                         font-size: 13px; font-weight: bold;">
+                                ${topic.questions.length}
+                            </span>
+                        </div>
+                        ${canSelect ? '<div style="margin-top: 8px; font-size: 12px; color: #92400e;">👆 Clic para ver preguntas</div>' : ''}
+                    </div>
+                    
+                    <div id="opponent-questions-${topicKey}" style="display: none; max-height: 300px; overflow-y: auto; 
+                                background: rgba(255,255,255,0.95);">
+                        ${topic.questions.map((question, index) => `
+                            <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; 
+                                       ${canSelect ? 'cursor: pointer;' : ''} font-size: 14px;"
+                                 ${canSelect ? `onclick="selectQuestionFromOpponent('${topicKey}', '${question.firebaseKey}')"` : ''}>
+                                <div style="display: flex; align-items: flex-start; gap: 10px;">
+                                    <strong style="color: ${canSelect ? '#f59e0b' : '#6b7280'}; min-width: 30px; font-size: 13px;">
+                                        P${index + 1}:
+                                    </strong>
+                                    <span style="color: ${canSelect ? '#374151' : '#6b7280'}; flex: 1;">
+                                        ${question.question}
+                                    </span>
+                                </div>
+                                ${canSelect ? '<div style="text-align: right; margin-top: 5px;"><span style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px;">🎯 SELECCIONAR</span></div>' : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    return html;
+};
+
+// PASO 6: FORZAR REGENERACIÓN AL CREAR/UNIRSE A SALAS
+const originalCreateRoom = window.createMultiplayerRoom;
+if (originalCreateRoom) {
+    window.createMultiplayerRoom = function() {
+        // Regenerar banco antes de crear
+        getMyQuestionBank();
+        return originalCreateRoom.call(this);
+    };
+}
+
+const originalJoinRoom = window.joinMultiplayerRoom;
+if (originalJoinRoom) {
+    window.joinMultiplayerRoom = function() {
+        // Regenerar banco antes de unirse
+        getMyQuestionBank();
+        return originalJoinRoom.call(this);
+    };
+}
+
+// PASO 7: ASEGURAR toggleTopicQuestions FUNCIONA
+window.toggleTopicQuestions = function(fullTopicKey) {
+    let questionsId;
+    
+    if (fullTopicKey.startsWith('my-')) {
+        const topicKey = fullTopicKey.replace('my-', '');
+        questionsId = `my-questions-${topicKey}`;
+    } else if (fullTopicKey.startsWith('opponent-')) {
+        const topicKey = fullTopicKey.replace('opponent-', '');
+        questionsId = `opponent-questions-${topicKey}`;
+    } else {
+        questionsId = `questions-${fullTopicKey}`;
+    }
+    
+    const questionsDiv = document.getElementById(questionsId);
+    if (questionsDiv) {
+        questionsDiv.style.display = questionsDiv.style.display === 'none' ? 'block' : 'none';
+    }
+};
+
+// PASO 8: AUTO-REGENERACIÓN CADA VEZ QUE SE RENDERIZA
 setTimeout(() => {
     if (multiplayerState && multiplayerState.gameState === 'playing') {
-        console.log('🚀 Inicialización automática de bancos...');
-        repararMultijugador();
+        console.log('Auto-regenerando bancos para multijugador activo...');
+        getMyQuestionBank();
+        
+        // Forzar re-render después de 1 segundo
+        setTimeout(() => {
+            if (typeof render === 'function') {
+                render();
+            }
+        }, 1000);
     }
-}, 2000);
+}, 500);
 
-console.log('✅ PARCHE DEFINITIVO APLICADO');
-console.log('🛠️ Funciones de emergencia disponibles:');
-console.log('   - repararMultijugador() - Reparación completa');
-console.log('   - estadoMultijugador() - Diagnóstico completo');
-console.log('🔧 El parche intercepta TODAS las funciones críticas');
-console.log('⚡ Auto-reparación activada en render y multijugador');
+console.log('✅ Parche simple aplicado - Temas restaurados');
+console.log('📊 Estado:', {
+    preguntas: state.questions ? state.questions.filter(q => q.isVerified).length : 0,
+    temas: state.topics ? state.topics.length : 0
+});
 </script>
 </body>
 </html>
+
 
 
 
