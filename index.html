@@ -19907,36 +19907,189 @@ console.log('📊 Estado:', {
 });
 </script>
 <!-- 
-PARCHE: MOSTRAR TEMAS VACÍOS PARA PODER ELIMINARLOS (ORDENADOS ALFABÉTICAMENTE)
+PARCHE: REORDENAR TODOS LOS TEMAS CON DRAG & DROP + ELIMINAR TEMAS VACÍOS
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche permite ver y eliminar temas que no tienen preguntas
+Este parche permite reordenar todos los temas y gestionar los vacíos
 -->
 
 <script>
-// ========== PARCHE: MOSTRAR TEMAS VACÍOS PARA ELIMINAR ==========
-console.log('📁 Aplicando parche: Mostrar temas vacíos para eliminar...');
+// ========== PARCHE: REORDENAR TODOS LOS TEMAS + GESTIÓN VACÍOS ==========
+console.log('📁 Aplicando parche: Reordenar todos los temas...');
 
-// INTERCEPTAR renderQuestionsByTopic PARA AÑADIR TEMAS VACÍOS
-const originalRenderQuestionsByTopicEmpty = renderQuestionsByTopic;
+// INTERCEPTAR renderQuestionsByTopic PARA REORDENAR TODOS LOS TEMAS
+const originalRenderQuestionsByTopicReorder = renderQuestionsByTopic;
 
 renderQuestionsByTopic = function() {
-    // Ejecutar la función original para obtener el HTML de temas con preguntas
-    let originalHTML = originalRenderQuestionsByTopicEmpty.call(this);
+    // Obtener todos los temas organizados
+    let allTopics = [...state.topics];
     
-    // Encontrar temas vacíos (sin preguntas) y ordenarlos alfabéticamente
-    const emptyTopics = state.topics.filter(topic => {
+    // Aplicar orden personalizado si existe
+    const customOrder = localStorage.getItem('allTopicsOrder');
+    if (customOrder) {
+        try {
+            const orderArray = JSON.parse(customOrder);
+            const orderedTopics = [];
+            
+            // Primero añadir temas en el orden guardado
+            orderArray.forEach(topicId => {
+                const topic = allTopics.find(t => t.id.toString() === topicId.toString());
+                if (topic) orderedTopics.push(topic);
+            });
+            
+            // Luego añadir temas nuevos que no estén en el orden guardado
+            allTopics.forEach(topic => {
+                if (!orderedTopics.find(t => t.id.toString() === topic.id.toString())) {
+                    orderedTopics.push(topic);
+                }
+            });
+            
+            allTopics = orderedTopics;
+        } catch (e) {
+            console.log('Error al cargar orden personalizado, usando orden por defecto');
+            // Orden automático inteligente
+            allTopics.sort((a, b) => {
+                const getNumericValue = (name) => {
+                    const match = name.match(/(\d+)/);
+                    return match ? parseInt(match[1]) : 0;
+                };
+                
+                const aHasNumber = /\d/.test(a.name);
+                const bHasNumber = /\d/.test(b.name);
+                
+                if (aHasNumber && bHasNumber) {
+                    const aNum = getNumericValue(a.name);
+                    const bNum = getNumericValue(b.name);
+                    if (aNum !== bNum) return aNum - bNum;
+                }
+                
+                if (aHasNumber && !bHasNumber) return -1;
+                if (!aHasNumber && bHasNumber) return 1;
+                
+                return a.name.localeCompare(b.name);
+            });
+        }
+    } else {
+        // Orden automático inteligente por defecto
+        allTopics.sort((a, b) => {
+            const getNumericValue = (name) => {
+                const match = name.match(/(\d+)/);
+                return match ? parseInt(match[1]) : 0;
+            };
+            
+            const aHasNumber = /\d/.test(a.name);
+            const bHasNumber = /\d/.test(b.name);
+            
+            if (aHasNumber && bHasNumber) {
+                const aNum = getNumericValue(a.name);
+                const bNum = getNumericValue(b.name);
+                if (aNum !== bNum) return aNum - bNum;
+            }
+            
+            if (aHasNumber && !bHasNumber) return -1;
+            if (!aHasNumber && bHasNumber) return 1;
+            
+            return a.name.localeCompare(b.name);
+        });
+    }
+    
+    // Separar temas con preguntas y temas vacíos
+    const topicsWithQuestions = [];
+    const emptyTopics = [];
+    
+    allTopics.forEach(topic => {
         const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
-        return topicQuestions.length === 0;
-    }).sort((a, b) => a.name.localeCompare(b.name));
+        if (topicQuestions.length > 0) {
+            topicsWithQuestions.push(topic);
+        } else {
+            emptyTopics.push(topic);
+        }
+    });
     
-    // Si hay temas vacíos, añadirlos al final
+    // Generar HTML para temas con preguntas
+    let topicsHTML = topicsWithQuestions.map(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        
+        return `
+            <div id="topic-container-${topic.id}" 
+                 draggable="true" 
+                 data-topic-id="${topic.id}"
+                 data-has-questions="true"
+                 ondragstart="handleTopicDragStart(event)"
+                 ondragover="handleTopicDragOver(event)"
+                 ondrop="handleTopicDrop(event)"
+                 ondragend="handleTopicDragEnd(event)"
+                 style="margin-bottom: 30px; cursor: grab; transition: all 0.3s ease;"
+                 onmouseenter="this.style.transform='scale(1.01)'"
+                 onmouseleave="this.style.transform='scale(1)'">
+                <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📁 ${topic.name}</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
+                        <span style="font-size: 11px; opacity: 0.7;">🔧 Arrastra</span>
+                        <button onclick="toggleTopicQuestions('${topic.id}')" style="background: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                            ▼
+                        </button>
+                        <button onclick="editTopic('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                            ✏️
+                        </button>
+                        <button onclick="deleteTopic('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                            🗑️
+                        </button>
+                    </div>
+                </h3>
+                <div id="topic-questions-${topic.id}" style="display: none;">
+                    ${renderQuestionsForTopic(topic.id)}
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Generar HTML para temas vacíos
     if (emptyTopics.length > 0) {
+        const separatorHTML = topicsHTML !== '' ? `
+            <div style="margin: 40px 0 30px 0; border-top: 2px solid #e5e7eb; padding-top: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h4 style="color: #6b7280; margin: 0; font-size: 16px;">
+                            📂 Temas sin preguntas (${emptyTopics.length})
+                        </h4>
+                        <p style="color: #9ca3af; margin: 10px 0 0 0; font-size: 14px;">
+                            Estos temas están vacíos - puedes reordenarlos o eliminarlos
+                        </p>
+                    </div>
+                    <button onclick="deleteAllEmptyTopics()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold;">
+                        🗑️ Eliminar Todos los Vacíos
+                    </button>
+                </div>
+            </div>
+        ` : `
+            <div style="margin: 20px 0; text-align: center;">
+                <h4 style="color: #6b7280; margin: 0 0 15px 0; font-size: 16px;">
+                    📂 Temas sin preguntas (${emptyTopics.length})
+                </h4>
+                <button onclick="deleteAllEmptyTopics()" style="background: #dc2626; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold;">
+                    🗑️ Eliminar Todos los Vacíos
+                </button>
+            </div>
+        `;
+        
         const emptyTopicsHTML = emptyTopics.map(topic => `
-            <div style="margin-bottom: 30px; opacity: 0.7;">
+            <div id="topic-container-${topic.id}" 
+                 draggable="true" 
+                 data-topic-id="${topic.id}"
+                 data-has-questions="false"
+                 ondragstart="handleTopicDragStart(event)"
+                 ondragover="handleTopicDragOver(event)"
+                 ondrop="handleTopicDrop(event)"
+                 ondragend="handleTopicDragEnd(event)"
+                 style="margin-bottom: 30px; opacity: 0.7; cursor: grab; transition: all 0.3s ease;"
+                 onmouseenter="this.style.transform='scale(1.02)'"
+                 onmouseleave="this.style.transform='scale(1)'">
                 <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
                     <span>📂 ${topic.name}</span>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="font-size: 14px; opacity: 0.9;">0 preguntas</span>
+                        <span style="font-size: 11px; opacity: 0.7;">🔧 Arrastra</span>
                         <button onclick="editTopicEmpty('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema vacío">
                             ✏️
                         </button>
@@ -19950,28 +20103,198 @@ renderQuestionsByTopic = function() {
                         📝 Este tema no tiene preguntas asignadas
                     </div>
                     <div style="margin-top: 10px; font-size: 14px; color: #9ca3af;">
-                        Puedes editarlo para cambiar su nombre o eliminarlo si ya no lo necesitas
+                        Puedes editarlo, eliminarlo o arrastrarlo para reordenarlo
                     </div>
                 </div>
             </div>
         `).join('');
         
-        // Añadir una sección separadora si hay tanto temas con preguntas como temas vacíos
-        const separatorHTML = originalHTML.trim() !== '' ? `
-            <div style="margin: 40px 0 30px 0; border-top: 2px solid #e5e7eb; padding-top: 20px;">
-                <h4 style="color: #6b7280; text-align: center; margin: 0; font-size: 16px;">
-                    📂 Temas sin preguntas (${emptyTopics.length})
-                </h4>
-                <p style="color: #9ca3af; text-align: center; margin: 10px 0 0 0; font-size: 14px;">
-                    Estos temas están vacíos y se pueden eliminar
-                </p>
-            </div>
-        ` : '';
-        
-        originalHTML = originalHTML + separatorHTML + emptyTopicsHTML;
+        topicsHTML = topicsHTML + separatorHTML + emptyTopicsHTML;
     }
     
-    return originalHTML;
+    return topicsHTML;
+};
+
+// ========== FUNCIONES DRAG & DROP PARA TODOS LOS TEMAS ==========
+
+let draggedTopic = null;
+
+// INICIAR ARRASTRE
+window.handleTopicDragStart = function(e) {
+    draggedTopic = e.target.closest('[data-topic-id]');
+    if (draggedTopic) {
+        e.target.style.opacity = '0.5';
+        e.target.style.cursor = 'grabbing';
+        console.log('🔧 Iniciando arrastre de tema:', draggedTopic.dataset.topicId);
+    }
+};
+
+// PERMITIR SOLTAR
+window.handleTopicDragOver = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const targetElement = e.target.closest('[data-topic-id]');
+    if (targetElement && targetElement !== draggedTopic) {
+        // Limpiar otros elementos
+        document.querySelectorAll('[data-topic-id]').forEach(el => {
+            if (el !== targetElement) {
+                el.style.borderTop = '';
+                el.style.borderBottom = '';
+            }
+        });
+        
+        // Determinar si insertar antes o después
+        const rect = targetElement.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        
+        if (e.clientY < midY) {
+            targetElement.style.borderTop = '4px solid #3b82f6';
+            targetElement.style.borderBottom = '';
+        } else {
+            targetElement.style.borderBottom = '4px solid #3b82f6';
+            targetElement.style.borderTop = '';
+        }
+    }
+};
+
+// SOLTAR ELEMENTO
+window.handleTopicDrop = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const targetElement = e.target.closest('[data-topic-id]');
+    
+    if (targetElement && targetElement !== draggedTopic && draggedTopic) {
+        const draggedId = draggedTopic.dataset.topicId;
+        const targetId = targetElement.dataset.topicId;
+        
+        // Obtener orden actual de todos los temas
+        const allTopicElements = Array.from(document.querySelectorAll('[data-topic-id]'));
+        const currentOrder = allTopicElements.map(el => el.dataset.topicId);
+        
+        // Crear nuevo orden
+        const newOrder = [...currentOrder];
+        const draggedIndex = newOrder.indexOf(draggedId);
+        const targetIndex = newOrder.indexOf(targetId);
+        
+        if (draggedIndex !== -1 && targetIndex !== -1) {
+            // Remover elemento arrastrado
+            newOrder.splice(draggedIndex, 1);
+            
+            // Determinar posición de inserción
+            const rect = targetElement.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            let insertIndex = targetIndex;
+            
+            if (e.clientY >= midY) {
+                insertIndex = targetIndex + 1;
+            }
+            
+            // Si el elemento arrastrado estaba antes del target, ajustar índice
+            if (draggedIndex < targetIndex) {
+                insertIndex--;
+            }
+            
+            // Insertar en nueva posición
+            newOrder.splice(insertIndex, 0, draggedId);
+            
+            // Guardar nuevo orden
+            localStorage.setItem('allTopicsOrder', JSON.stringify(newOrder));
+            
+            console.log('🔧 Nuevo orden guardado:', newOrder);
+            
+            // Re-renderizar para aplicar cambios
+            render();
+            
+            showMessage('✅ Orden de temas actualizado', 'success');
+        }
+    }
+    
+    // Limpiar estilos
+    document.querySelectorAll('[data-topic-id]').forEach(el => {
+        el.style.borderTop = '';
+        el.style.borderBottom = '';
+    });
+};
+
+// FINALIZAR ARRASTRE
+window.handleTopicDragEnd = function(e) {
+    if (e.target) {
+        e.target.style.opacity = '';
+        e.target.style.cursor = 'grab';
+    }
+    draggedTopic = null;
+    
+    // Limpiar todos los estilos de arrastre
+    document.querySelectorAll('[data-topic-id]').forEach(el => {
+        el.style.borderTop = '';
+        el.style.borderBottom = '';
+    });
+};
+
+// FUNCIÓN PARA RESTABLECER ORDEN AUTOMÁTICO
+window.resetAllTopicsOrder = function() {
+    const confirmReset = confirm('¿Restablecer el orden automático de TODOS los temas?\n\nEsto eliminará tu orden personalizado y volverá al orden numérico/alfabético automático.');
+    
+    if (confirmReset) {
+        localStorage.removeItem('allTopicsOrder');
+        render();
+        showMessage('✅ Orden restablecido al automático', 'success');
+        console.log('🔧 Orden personalizado eliminado, volviendo al automático');
+    }
+};
+
+// FUNCIÓN PARA ELIMINAR TODOS LOS TEMAS VACÍOS
+window.deleteAllEmptyTopics = function() {
+    const emptyTopics = state.topics.filter(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        return topicQuestions.length === 0;
+    });
+    
+    if (emptyTopics.length === 0) {
+        showMessage('ℹ️ No hay temas vacíos para eliminar', 'info');
+        return;
+    }
+    
+    const confirmDelete = confirm(`¿Eliminar TODOS los temas vacíos (${emptyTopics.length} temas)?\n\nEsta acción no se puede deshacer.\n\nTemas a eliminar:\n${emptyTopics.map(t => '• ' + t.name).join('\n')}`);
+    
+    if (confirmDelete) {
+        const deletedNames = emptyTopics.map(t => t.name);
+        
+        // Eliminar todos los temas vacíos
+        state.topics = state.topics.filter(topic => {
+            const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+            return topicQuestions.length > 0; // Mantener solo temas con preguntas
+        });
+        
+        // Limpiar orden personalizado si incluía temas eliminados
+        const customOrder = localStorage.getItem('allTopicsOrder');
+        if (customOrder) {
+            try {
+                const orderArray = JSON.parse(customOrder);
+                const validIds = state.topics.map(t => t.id.toString());
+                const newOrder = orderArray.filter(id => validIds.includes(id.toString()));
+                localStorage.setItem('allTopicsOrder', JSON.stringify(newOrder));
+            } catch (e) {
+                localStorage.removeItem('allTopicsOrder');
+            }
+        }
+        
+        // Guardar cambios
+        if (typeof saveData === 'function') {
+            saveData();
+        } else {
+            localStorage.setItem('topics', JSON.stringify(state.topics));
+        }
+        
+        // Re-renderizar
+        render();
+        
+        showMessage(`✅ Eliminados ${deletedNames.length} temas vacíos: ${deletedNames.join(', ')}`, 'success');
+        
+        console.log(`🗑️ Temas vacíos eliminados en lote:`, deletedNames);
+    }
 };
 
 // FUNCIÓN PARA EDITAR TEMA VACÍO
@@ -20067,7 +20390,7 @@ window.showTopicStats = function() {
 📝 Temas con preguntas: ${topicsWithQuestions}
 📂 Temas vacíos: ${emptyTopics}
 
-${emptyTopics > 0 ? '💡 Puedes eliminar los temas vacíos desde el banco de preguntas.' : '✅ Todos los temas tienen preguntas asignadas.'}`;
+${emptyTopics > 0 ? '💡 Puedes eliminar los temas vacíos individualmente o todos a la vez.' : '✅ Todos los temas tienen preguntas asignadas.'}`;
     
     alert(stats);
     
@@ -20080,13 +20403,13 @@ ${emptyTopics > 0 ? '💡 Puedes eliminar los temas vacíos desde el banco de pr
     return { total: totalTopics, withQuestions: topicsWithQuestions, empty: emptyTopics };
 };
 
-// INTERCEPTAR managedTopicsModal PARA SINCRONIZAR ELIMINACIONES
+// INTERCEPTAR managedTopicsModal PARA AÑADIR BOTONES
 const originalManageTopicsModal = window.manageTopicsModal;
 if (typeof manageTopicsModal === 'function') {
     window.manageTopicsModal = function() {
         const result = originalManageTopicsModal.call(this);
         
-        // Añadir botón para ver estadísticas en el modal
+        // Añadir botones en el modal
         setTimeout(() => {
             const modal = document.getElementById('manage-topics-modal');
             if (modal) {
@@ -20095,8 +20418,20 @@ if (typeof manageTopicsModal === 'function') {
                 statsButton.style.cssText = 'background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin: 10px 5px 0 0;';
                 statsButton.onclick = showTopicStats;
                 
+                const resetOrderButton = document.createElement('button');
+                resetOrderButton.innerHTML = '🔧 Restablecer Orden';
+                resetOrderButton.style.cssText = 'background: #6366f1; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin: 10px 5px 0 0;';
+                resetOrderButton.onclick = resetAllTopicsOrder;
+                
+                const deleteAllEmptyButton = document.createElement('button');
+                deleteAllEmptyButton.innerHTML = '🗑️ Eliminar Todos Vacíos';
+                deleteAllEmptyButton.style.cssText = 'background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin: 10px 5px 0 0;';
+                deleteAllEmptyButton.onclick = deleteAllEmptyTopics;
+                
                 const buttonsDiv = modal.querySelector('[style*="margin-top: 20px"]');
                 if (buttonsDiv) {
+                    buttonsDiv.insertBefore(deleteAllEmptyButton, buttonsDiv.firstChild);
+                    buttonsDiv.insertBefore(resetOrderButton, buttonsDiv.firstChild);
                     buttonsDiv.insertBefore(statsButton, buttonsDiv.firstChild);
                 }
             }
@@ -20106,19 +20441,22 @@ if (typeof manageTopicsModal === 'function') {
     };
 }
 
-console.log('✅ Parche de temas vacíos aplicado correctamente');
+console.log('✅ Parche completo de reordenamiento aplicado correctamente');
 console.log('📁 Funcionalidades añadidas:');
-console.log('   - Mostrar temas vacíos al final del banco de preguntas');
-console.log('   - Ordenamiento inteligente de temas vacíos (numérico + alfabético)');
-console.log('   - Botón editar (✏️) para cambiar nombre de tema vacío');
-console.log('   - Botón eliminar (🗑️) para eliminar tema vacío');
-console.log('   - Sección separadora "Temas sin preguntas"');
-console.log('   - Función showTopicStats() para ver estadísticas');
-console.log('   - Sincronización con gestión de temas existente');
-console.log('💡 Los temas vacíos aparecen en gris con 0 preguntas ordenados alfabéticamente');
+console.log('   - 🔧 DRAG & DROP: Arrastra CUALQUIER tema para reordenarlo');
+console.log('   - 📊 Orden inteligente por defecto (numérico + alfabético)');
+console.log('   - 💾 Orden personalizado guardado automáticamente');
+console.log('   - 🗑️ Botón "Eliminar Todos los Vacíos" con confirmación');
+console.log('   - ✏️ Editar nombres de temas vacíos');
+console.log('   - 🗑️ Eliminar temas vacíos individualmente');
+console.log('   - 📊 Estadísticas completas de temas');
+console.log('   - 🔧 Restablecer orden automático');
+console.log('🎯 ¡Ahora puedes reordenar TODOS los temas (con y sin preguntas)!');
+console.log('💡 El orden se mantiene entre sesiones y afecta a todo el sistema');
 </script>
 </body>
 </html>
+
 
 
 
