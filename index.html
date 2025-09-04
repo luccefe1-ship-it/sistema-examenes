@@ -19907,7 +19907,7 @@ console.log('📊 Estado:', {
 });
 </script>
 <!-- 
-PARCHE: MOSTRAR TEMAS VACÍOS PARA PODER ELIMINARLOS
+PARCHE: MOSTRAR TEMAS VACÍOS PARA PODER ELIMINARLOS (ORDENADOS ALFABÉTICAMENTE)
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 Este parche permite ver y eliminar temas que no tienen preguntas
 -->
@@ -19923,11 +19923,11 @@ renderQuestionsByTopic = function() {
     // Ejecutar la función original para obtener el HTML de temas con preguntas
     let originalHTML = originalRenderQuestionsByTopicEmpty.call(this);
     
-    // Encontrar temas vacíos (sin preguntas)
+    // Encontrar temas vacíos (sin preguntas) y ordenarlos alfabéticamente
     const emptyTopics = state.topics.filter(topic => {
         const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
         return topicQuestions.length === 0;
-    });
+    }).sort((a, b) => a.name.localeCompare(b.name));
     
     // Si hay temas vacíos, añadirlos al final
     if (emptyTopics.length > 0) {
@@ -20109,15 +20109,17 @@ if (typeof manageTopicsModal === 'function') {
 console.log('✅ Parche de temas vacíos aplicado correctamente');
 console.log('📁 Funcionalidades añadidas:');
 console.log('   - Mostrar temas vacíos al final del banco de preguntas');
+console.log('   - Ordenamiento alfabético de temas vacíos');
 console.log('   - Botón editar (✏️) para cambiar nombre de tema vacío');
 console.log('   - Botón eliminar (🗑️) para eliminar tema vacío');
 console.log('   - Sección separadora "Temas sin preguntas"');
 console.log('   - Función showTopicStats() para ver estadísticas');
 console.log('   - Sincronización con gestión de temas existente');
-console.log('💡 Los temas vacíos aparecen en gris con 0 preguntas');
+console.log('💡 Los temas vacíos aparecen en gris con 0 preguntas ordenados alfabéticamente');
 </script>
 </body>
 </html>
+
 
 
 
