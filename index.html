@@ -20457,311 +20457,214 @@ console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 <!-- 
-PARCHE: CARPETAS MODO SEGURO - SOLO DETECCIÓN VISUAL
+PARCHE MINIMALISTA: SOLO INDICADOR VISUAL
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche SOLO añade la diferenciación visual para detectar dónde quieres soltar
+Este parche SOLO añade un indicador visual cuando arrastras sobre el centro
 -->
 
 <script>
-console.log('📁 Aplicando parche MODO SEGURO: Solo detección visual...');
+console.log('🎯 Aplicando parche MINIMALISTA: Solo indicador visual...');
 
-// Variables para la detección visual
-let isOverCenter = false;
-let currentHoverElement = null;
+// Variable para detectar posición del mouse
+let isMouseOverCenter = false;
 
-// INTERCEPTAR SOLO LOS EVENTOS DE DRAG SIN MODIFICAR LAS FUNCIONES EXISTENTES
-document.addEventListener('DOMContentLoaded', function() {
-    setupVisualDetection();
-});
-
-// Si ya está cargado
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupVisualDetection);
-} else {
-    setupVisualDetection();
-}
-
-function setupVisualDetection() {
-    // Esperar un poco para que el DOM esté completamente listo
-    setTimeout(function() {
-        addVisualDetectionToTopics();
-    }, 1000);
-}
-
-function addVisualDetectionToTopics() {
-    // Buscar todos los temas draggable
-    const draggableTopics = document.querySelectorAll('.draggable-topic');
-    
-    draggableTopics.forEach(topic => {
-        // SOLO añadir eventos de mouse para detección visual
-        topic.addEventListener('dragenter', handleVisualDragEnter);
-        topic.addEventListener('dragleave', handleVisualDragLeave);
-        topic.addEventListener('dragover', handleVisualDragOver);
+// Función para añadir el CSS de la zona central
+function addCenterZoneCSS() {
+    const style = document.createElement('style');
+    style.id = 'center-zone-style';
+    style.textContent = `
+        .draggable-topic.center-hover {
+            background-color: rgba(59, 130, 246, 0.15) !important;
+            border: 3px dashed #3b82f6 !important;
+        }
         
-        // Modificar el evento drop original para añadir la confirmación
-        const originalOnDrop = topic.getAttribute('ondrop');
-        topic.removeAttribute('ondrop');
-        topic.addEventListener('drop', function(e) {
-            handleVisualDrop(e, originalOnDrop);
-        });
-    });
-    
-    console.log(`✅ Detección visual añadida a ${draggableTopics.length} temas`);
+        .draggable-topic.center-hover::after {
+            content: "📁 Zona de carpeta - Suelta para agrupar";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(59, 130, 246, 0.9);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+        
+        .draggable-topic.reorder-hover {
+            border: 2px solid #3b82f6 !important;
+        }
+    `;
+    document.head.appendChild(style);
 }
 
-function handleVisualDragEnter(e) {
-    e.preventDefault();
-    
-    // Solo procesar si hay un tema siendo arrastrado
-    if (!draggedTopicId || e.currentTarget.dataset.topicId === draggedTopicId) {
-        return;
-    }
-    
-    currentHoverElement = e.currentTarget;
-    updateVisualFeedback(e);
-}
-
-function handleVisualDragLeave(e) {
-    // Solo limpiar si realmente salimos del elemento
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-        clearVisualFeedback(e.currentTarget);
-        currentHoverElement = null;
-        isOverCenter = false;
-    }
-}
-
-function handleVisualDragOver(e) {
-    e.preventDefault();
-    
-    if (!draggedTopicId || e.currentTarget.dataset.topicId === draggedTopicId) {
-        return;
-    }
-    
-    updateVisualFeedback(e);
-}
-
-function updateVisualFeedback(e) {
-    const element = e.currentTarget;
+// Función para detectar si el mouse está en el centro
+function isMouseInCenter(element, clientY) {
     const rect = element.getBoundingClientRect();
-    const mouseY = e.clientY;
-    
-    // Calcular zonas: 30% superior, 40% centro, 30% inferior
-    const topZone = rect.top + (rect.height * 0.3);
-    const bottomZone = rect.bottom - (rect.height * 0.3);
-    
-    // Limpiar estilos previos
-    clearVisualFeedback(element);
-    
-    if (mouseY > topZone && mouseY < bottomZone) {
-        // ZONA CENTRAL - CARPETA
-        element.style.backgroundColor = 'rgba(59, 130, 246, 0.2)'; // Azul clarito
-        element.style.borderColor = '#3b82f6';
-        element.style.borderWidth = '3px';
-        element.style.borderStyle = 'dashed';
-        isOverCenter = true;
-        
-        // Añadir indicador visual
-        if (!element.querySelector('.folder-indicator')) {
-            const indicator = document.createElement('div');
-            indicator.className = 'folder-indicator';
-            indicator.style.cssText = `
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background: rgba(59, 130, 246, 0.9);
-                color: white;
-                padding: 8px 16px;
-                border-radius: 20px;
-                font-size: 14px;
-                font-weight: bold;
-                pointer-events: none;
-                z-index: 1000;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            `;
-            indicator.textContent = '📁 Crear carpeta';
-            element.style.position = 'relative';
-            element.appendChild(indicator);
-        }
-    } else {
-        // ZONA SUPERIOR/INFERIOR - REORDENAR
-        element.style.borderColor = '#3b82f6';
-        element.style.borderWidth = '2px';
-        element.style.borderStyle = 'solid';
-        isOverCenter = false;
-        
-        // Añadir indicador de reordenamiento
-        if (!element.querySelector('.reorder-indicator')) {
-            const indicator = document.createElement('div');
-            indicator.className = 'reorder-indicator';
-            indicator.style.cssText = `
-                position: absolute;
-                ${mouseY < (rect.top + rect.height / 2) ? 'top: -10px;' : 'bottom: -10px;'}
-                left: 50%;
-                transform: translateX(-50%);
-                background: rgba(59, 130, 246, 0.9);
-                color: white;
-                padding: 4px 12px;
-                border-radius: 12px;
-                font-size: 12px;
-                font-weight: bold;
-                pointer-events: none;
-                z-index: 1000;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            `;
-            indicator.textContent = mouseY < (rect.top + rect.height / 2) ? '⬆️ Mover arriba' : '⬇️ Mover abajo';
-            element.style.position = 'relative';
-            element.appendChild(indicator);
-        }
-    }
+    const centerTop = rect.top + (rect.height * 0.3);
+    const centerBottom = rect.bottom - (rect.height * 0.3);
+    return clientY > centerTop && clientY < centerBottom;
 }
 
-function clearVisualFeedback(element) {
-    // Limpiar estilos
-    element.style.backgroundColor = '';
-    element.style.borderColor = 'transparent';
-    element.style.borderWidth = '';
-    element.style.borderStyle = '';
+// Función para interceptar el dragover existente
+function interceptDragEvents() {
+    document.addEventListener('dragover', function(e) {
+        if (!draggedTopicId) return;
+        
+        const dragTarget = e.target.closest('.draggable-topic');
+        if (!dragTarget || dragTarget.dataset.topicId === draggedTopicId) return;
+        
+        // Limpiar clases de todos los elementos
+        document.querySelectorAll('.draggable-topic').forEach(el => {
+            el.classList.remove('center-hover', 'reorder-hover');
+            el.style.position = '';
+        });
+        
+        // Detectar zona y añadir clase apropiada
+        if (isMouseInCenter(dragTarget, e.clientY)) {
+            dragTarget.classList.add('center-hover');
+            dragTarget.style.position = 'relative';
+            isMouseOverCenter = true;
+        } else {
+            dragTarget.classList.add('reorder-hover');
+            isMouseOverCenter = false;
+        }
+    }, true);
     
-    // Eliminar indicadores
-    const indicators = element.querySelectorAll('.folder-indicator, .reorder-indicator');
-    indicators.forEach(indicator => indicator.remove());
+    document.addEventListener('dragleave', function(e) {
+        const dragTarget = e.target.closest('.draggable-topic');
+        if (dragTarget && !dragTarget.contains(e.relatedTarget)) {
+            dragTarget.classList.remove('center-hover', 'reorder-hover');
+            dragTarget.style.position = '';
+        }
+    }, true);
+    
+    document.addEventListener('dragend', function(e) {
+        // Limpiar todas las clases al terminar el arrastre
+        document.querySelectorAll('.draggable-topic').forEach(el => {
+            el.classList.remove('center-hover', 'reorder-hover');
+            el.style.position = '';
+        });
+        isMouseOverCenter = false;
+    }, true);
 }
 
-function handleVisualDrop(e, originalOnDrop) {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const targetTopicId = e.currentTarget.dataset.topicId;
-    
-    // Limpiar indicadores visuales
-    clearVisualFeedback(e.currentTarget);
-    
-    if (!draggedTopicId || !targetTopicId || draggedTopicId === targetTopicId) {
-        return;
-    }
-    
-    if (isOverCenter) {
-        // CARPETA - Mostrar confirmación
+// Interceptar el drop para añadir confirmación en zona central
+function interceptDropEvent() {
+    document.addEventListener('drop', function(e) {
+        if (!isMouseOverCenter || !draggedTopicId) return;
+        
+        const dropTarget = e.target.closest('.draggable-topic');
+        if (!dropTarget || dropTarget.dataset.topicId === draggedTopicId) return;
+        
+        // Prevenir el drop normal temporalmente
+        e.stopImmediatePropagation();
+        
+        // Buscar nombres de temas
         const draggedTopic = state.topics.find(t => t.id.toString() === draggedTopicId);
-        const targetTopic = state.topics.find(t => t.id.toString() === targetTopicId);
+        const targetTopic = state.topics.find(t => t.id.toString() === dropTarget.dataset.topicId);
         
         if (draggedTopic && targetTopic) {
-            const confirmGroup = confirm(`¿Estás seguro que quieres meter el tema "${draggedTopic.name}" dentro de "${targetTopic.name}"?\n\nEsto creará una carpeta visual.`);
+            const confirmGroup = confirm(`¿Estás seguro que quieres meter el tema "${draggedTopic.name}" dentro de "${targetTopic.name}"?\n\nEsto creará una carpeta visual.\n\n(Actualmente solo se mostrará el indicador visual, la funcionalidad completa requiere más desarrollo)`);
             
             if (confirmGroup) {
-                createSimpleFolder(draggedTopicId, targetTopicId);
-            }
-        }
-    } else {
-        // REORDENAR - Ejecutar función original
-        if (originalOnDrop) {
-            // Re-crear el evento original
-            const script = `(function(event) { ${originalOnDrop.replace('handleDrop(event)', '')} })`;
-            try {
-                eval(script)(e);
-            } catch (error) {
-                console.log('Ejecutando reordenamiento alternativo...');
-                // Fallback: llamar directamente a reorderTopics si existe
-                if (typeof reorderTopics === 'function') {
-                    reorderTopics(draggedTopicId, targetTopicId);
+                // Guardar la relación en localStorage
+                let folders = JSON.parse(localStorage.getItem('topicFolders') || '{}');
+                folders[draggedTopicId] = dropTarget.dataset.topicId;
+                localStorage.setItem('topicFolders', JSON.stringify(folders));
+                
+                if (typeof showMessage === 'function') {
+                    showMessage(`📁 Tema "${draggedTopic.name}" marcado para agrupar en "${targetTopic.name}"`, 'success');
+                } else {
+                    alert(`📁 Tema "${draggedTopic.name}" marcado para agrupar en "${targetTopic.name}"`);
                 }
+                
+                console.log(`📁 Carpeta guardada: ${targetTopic.name} > ${draggedTopic.name}`);
             }
         }
+        
+        // Limpiar estilos
+        dropTarget.classList.remove('center-hover', 'reorder-hover');
+        dropTarget.style.position = '';
+        isMouseOverCenter = false;
+        
+    }, true);
+}
+
+// Función para mostrar carpetas guardadas en consola
+window.showSavedFolders = function() {
+    const folders = JSON.parse(localStorage.getItem('topicFolders') || '{}');
+    console.log('📁 Carpetas guardadas:', folders);
+    
+    if (Object.keys(folders).length === 0) {
+        console.log('📂 No hay carpetas guardadas');
+        if (typeof showMessage === 'function') {
+            showMessage('📂 No hay carpetas guardadas', 'info');
+        }
+        return;
     }
     
-    // Reset variables
-    isOverCenter = false;
-    currentHoverElement = null;
-}
-
-// FUNCIÓN SIMPLE PARA CREAR CARPETA VISUAL
-function createSimpleFolder(childId, parentId) {
-    try {
-        // Guardar en localStorage simple
-        let folders = JSON.parse(localStorage.getItem('visualFolders') || '{}');
-        folders[childId] = parentId;
-        localStorage.setItem('visualFolders', JSON.stringify(folders));
+    // Mostrar relaciones padre-hijo
+    Object.keys(folders).forEach(childId => {
+        const parentId = folders[childId];
+        const childTopic = state.topics.find(t => t.id.toString() === childId);
+        const parentTopic = state.topics.find(t => t.id.toString() === parentId);
         
-        if (typeof showMessage === 'function') {
-            showMessage(`📁 Carpeta creada visualmente (funcionalidad básica)`, 'success');
-        } else {
-            alert('📁 Carpeta creada visualmente');
-        }
-        
-        console.log(`✅ Carpeta visual creada: ${parentId} > ${childId}`);
-        
-        // Nota para el usuario
-        setTimeout(() => {
-            if (typeof showMessage === 'function') {
-                showMessage(`💡 La carpeta se ha guardado. Para funcionalidad completa, será necesario implementar el renderizado`, 'info');
-            }
-        }, 2000);
-        
-    } catch (error) {
-        console.error('Error creando carpeta:', error);
-        if (typeof showMessage === 'function') {
-            showMessage('❌ Error al crear carpeta', 'error');
-        }
-    }
-}
-
-// FUNCIÓN PARA RE-APLICAR LA DETECCIÓN CUANDO SE ACTUALICE EL DOM
-function reapplyVisualDetection() {
-    setTimeout(() => {
-        addVisualDetectionToTopics();
-    }, 500);
-}
-
-// Interceptar render si existe para re-aplicar detección
-const originalRender = window.render;
-if (typeof originalRender === 'function') {
-    window.render = function() {
-        const result = originalRender.apply(this, arguments);
-        reapplyVisualDetection();
-        return result;
-    };
-}
-
-// Observer para detectar cambios en el DOM
-const observer = new MutationObserver(function(mutations) {
-    let shouldReapply = false;
-    mutations.forEach(function(mutation) {
-        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-            for (let node of mutation.addedNodes) {
-                if (node.nodeType === 1 && (node.classList.contains('draggable-topic') || node.querySelector('.draggable-topic'))) {
-                    shouldReapply = true;
-                    break;
-                }
-            }
+        if (childTopic && parentTopic) {
+            console.log(`📁 ${parentTopic.name} > ${childTopic.name}`);
         }
     });
     
-    if (shouldReapply) {
-        reapplyVisualDetection();
+    if (typeof showMessage === 'function') {
+        showMessage(`📁 ${Object.keys(folders).length} carpetas guardadas (ver consola)`, 'info');
     }
-});
+};
 
-// Observar cambios en el contenedor principal
-setTimeout(() => {
-    const container = document.getElementById('sortable-topics-container') || document.body;
-    observer.observe(container, {
-        childList: true,
-        subtree: true
-    });
-}, 1000);
+// Función para limpiar carpetas guardadas
+window.clearSavedFolders = function() {
+    const confirmClear = confirm('¿Eliminar todas las carpetas guardadas?');
+    if (confirmClear) {
+        localStorage.removeItem('topicFolders');
+        console.log('🗑️ Carpetas limpiadas');
+        if (typeof showMessage === 'function') {
+            showMessage('🗑️ Carpetas limpiadas', 'success');
+        }
+    }
+};
 
-console.log('✅ Parche MODO SEGURO aplicado');
-console.log('🎯 Funcionalidades:');
-console.log('   - Detección visual: Centro = azul clarito (carpeta)');
-console.log('   - Detección visual: Arriba/Abajo = borde azul (reordenar)');
-console.log('   - Confirmación antes de crear carpeta');
-console.log('   - NO modifica funciones existentes');
-console.log('   - Indicadores visuales claros');
-console.log('💡 ¡Modo seguro activado - sin conflictos!');
+// Inicializar todo cuando el DOM esté listo
+function initMinimalPatch() {
+    addCenterZoneCSS();
+    interceptDragEvents();
+    interceptDropEvent();
+    
+    console.log('✅ Parche minimalista aplicado');
+    console.log('🎯 Funciones disponibles:');
+    console.log('   - showSavedFolders() - Ver carpetas guardadas');
+    console.log('   - clearSavedFolders() - Limpiar carpetas');
+    console.log('💡 Arrastra al centro de un tema para ver el indicador');
+}
+
+// Ejecutar cuando esté listo
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMinimalPatch);
+} else {
+    initMinimalPatch();
+}
+
+// Ejecutar también con delay para asegurar que todo esté cargado
+setTimeout(initMinimalPatch, 1000);
+
+console.log('🎯 Parche MINIMALISTA cargado - esperando inicialización...');
 </script>
 </body>
 </html>
+
 
 
 
