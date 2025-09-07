@@ -20457,395 +20457,333 @@ console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 <!-- 
-PARCHE: MOVER TEMAS A CARPETAS EXISTENTES + RENDERIZADO VISUAL
+PARCHE: SISTEMA PARALELO SIN CONFLICTOS
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Solo mueve temas a carpetas existentes y los muestra visualmente anidados
+No modifica NADA del código existente, crea sistema paralelo
 -->
 
 <script>
-console.log('📁 Aplicando parche: Mover a carpetas + renderizado visual...');
+console.log('🔧 Aplicando parche SISTEMA PARALELO...');
 
-// Variables para carpetas
-let topicFolders = JSON.parse(localStorage.getItem('topicFolders') || '{}');
-let expandedFolders = JSON.parse(localStorage.getItem('expandedFolders') || '{}');
+// Variables globales para carpetas
+let carpetas = JSON.parse(localStorage.getItem('tema_carpetas') || '{}');
 
-// Esperar a que todo esté cargado
-setTimeout(function() {
-    // Solo modificar la función handleDrop existente
-    if (typeof window.handleDrop === 'function') {
-        const originalHandleDrop = window.handleDrop;
-        
-        window.handleDrop = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const targetTopicId = e.currentTarget.dataset.topicId;
-            
-            if (draggedTopicId && targetTopicId && draggedTopicId !== targetTopicId) {
-                // Detectar posición del mouse
-                const rect = e.currentTarget.getBoundingClientRect();
-                const mouseY = e.clientY;
-                const centerTop = rect.top + (rect.height * 0.25);
-                const centerBottom = rect.bottom - (rect.height * 0.25);
-                const isInCenter = mouseY > centerTop && mouseY < centerBottom;
-                
-                const draggedTopic = state.topics.find(t => t.id.toString() === draggedTopicId);
-                const targetTopic = state.topics.find(t => t.id.toString() === targetTopicId);
-                
-                if (isInCenter) {
-                    // ZONA CENTRAL - Mover dentro de carpeta
-                    const confirmGroup = confirm(`¿Mover "${draggedTopic.name}" DENTRO de "${targetTopic.name}"?\n\nSe mostrará como subcarpeta.`);
-                    
-                    if (confirmGroup) {
-                        // Guardar relación de carpeta
-                        topicFolders[draggedTopicId] = targetTopicId;
-                        localStorage.setItem('topicFolders', JSON.stringify(topicFolders));
-                        
-                        // Expandir carpeta padre automáticamente
-                        expandedFolders[targetTopicId] = true;
-                        localStorage.setItem('expandedFolders', JSON.stringify(expandedFolders));
-                        
-                        if (typeof showMessage === 'function') {
-                            showMessage(`📁 "${draggedTopic.name}" movido dentro de "${targetTopic.name}"`, 'success');
-                        }
-                        
-                        // Re-renderizar con nueva estructura
-                        renderWithFolders();
-                        
-                        console.log(`📁 Tema movido a carpeta: ${targetTopic.name} > ${draggedTopic.name}`);
-                    }
-                } else {
-                    // ZONA SUPERIOR/INFERIOR - Detectar si quiere poner encima o reordenar
-                    const isTopHalf = mouseY < (rect.top + rect.height / 2);
-                    
-                    if (isTopHalf) {
-                        // PARTE SUPERIOR - Poner ENCIMA (al mismo nivel)
-                        const confirmAbove = confirm(`¿Poner "${draggedTopic.name}" ENCIMA de "${targetTopic.name}"?\n\nSe colocará al mismo nivel, justo antes.`);
-                        
-                        if (confirmAbove) {
-                            // Reordenar normal pero explicando que va encima
-                            originalHandleDrop.call(this, e);
-                        }
-                    } else {
-                        // PARTE INFERIOR - Reordenar normal
-                        originalHandleDrop.call(this, e);
-                    }
-                }
-            }
-            
-            // Limpiar estilos
-            e.currentTarget.style.borderColor = 'transparent';
-        };
-        
-        console.log('✅ Función handleDrop modificada para carpetas');
-        
-    } else {
-        console.warn('⚠️ Función handleDrop no encontrada');
-    }
+// Función para añadir indicadores visuales con CSS puro
+function crearEstilosCarpetas() {
+    if (document.getElementById('carpetas-style')) return;
     
-}, 2000);
-
-// INTERCEPTAR renderQuestionsByTopic PARA MOSTRAR ESTRUCTURA DE CARPETAS
-const originalRenderQuestionsByTopic = renderQuestionsByTopic;
-
-renderQuestionsByTopic = function() {
-    // Si no hay carpetas, mostrar normal
-    if (Object.keys(topicFolders).length === 0) {
-        return originalRenderQuestionsByTopic.call(this);
-    }
-    
-    // Renderizar con estructura de carpetas
-    return renderTopicsWithFolderStructure();
-};
-
-function renderTopicsWithFolderStructure() {
-    const childTopics = new Set(Object.keys(topicFolders));
-    let html = '<div id="sortable-topics-container">';
-    
-    // Procesar solo temas padre (que no son hijos de otros)
-    state.topics.forEach(topic => {
-        if (!childTopics.has(topic.id.toString())) {
-            html += renderTopicWithChildren(topic, 0);
+    const style = document.createElement('style');
+    style.id = 'carpetas-style';
+    style.textContent = `
+        /* Indicadores visuales para zonas de drop */
+        .zona-carpeta {
+            background: rgba(59, 130, 246, 0.15) !important;
+            border: 3px dashed #3b82f6 !important;
         }
+        
+        .zona-carpeta::after {
+            content: "📁 Soltar para meter en carpeta";
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            background: rgba(59, 130, 246, 0.9) !important;
+            color: white !important;
+            padding: 8px 16px !important;
+            border-radius: 20px !important;
+            font-size: 14px !important;
+            font-weight: bold !important;
+            pointer-events: none !important;
+            z-index: 9999 !important;
+            white-space: nowrap !important;
+        }
+        
+        .zona-reorden {
+            border: 2px solid #3b82f6 !important;
+        }
+        
+        /* Estilos para temas en carpetas */
+        .tema-en-carpeta {
+            margin-left: 30px !important;
+            border-left: 3px solid #8b5cf6 !important;
+            opacity: 0.9 !important;
+        }
+        
+        .tema-en-carpeta h3 {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+        }
+        
+        .carpeta-padre {
+            border-left: 4px solid #8b5cf6 !important;
+        }
+        
+        .carpeta-padre h3 {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed) !important;
+        }
+        
+        .carpeta-padre h3::before {
+            content: "📁 ";
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// Sistema de detección de mouse sin modificar eventos existentes
+let mouseOverElement = null;
+let mousePosition = { x: 0, y: 0 };
+
+document.addEventListener('mousemove', function(e) {
+    mousePosition.x = e.clientX;
+    mousePosition.y = e.clientY;
+    
+    const element = e.target.closest('.draggable-topic');
+    if (element && draggedTopicId && element.dataset.topicId !== draggedTopicId) {
+        mouseOverElement = element;
+        actualizarIndicadorVisual(element, e.clientY);
+    }
+});
+
+document.addEventListener('dragend', function() {
+    limpiarIndicadores();
+    mouseOverElement = null;
+});
+
+// Función para actualizar indicador visual
+function actualizarIndicadorVisual(element, mouseY) {
+    // Limpiar todos los indicadores
+    document.querySelectorAll('.draggable-topic').forEach(el => {
+        el.classList.remove('zona-carpeta', 'zona-reorden');
+        el.style.position = '';
     });
     
-    html += '</div>';
-    html += `
-        <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
-            📁 <strong>Carpetas:</strong> Centro = Mover dentro • Arriba = Poner encima • Abajo = Reordenar
-        </div>
-    `;
+    // Detectar zona
+    const rect = element.getBoundingClientRect();
+    const centerTop = rect.top + (rect.height * 0.3);
+    const centerBottom = rect.bottom - (rect.height * 0.3);
     
-    return html;
-}
-
-function renderTopicWithChildren(topic, level = 0) {
-    const topicId = topic.id.toString();
-    const indent = level * 20;
-    const children = getDirectChildren(topicId);
-    const hasChildren = children.length > 0;
-    
-    // Obtener preguntas del tema
-    const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId);
-    const hasQuestions = topicQuestions.length > 0;
-    
-    let html = '';
-    
-    if (hasChildren) {
-        // TEMA CON SUBCARPETAS
-        const isExpanded = expandedFolders[topicId] !== false;
-        const totalQuestions = hasQuestions ? topicQuestions.length : 0;
-        
-        html += `
-            <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" 
-                 style="margin-left: ${indent}px; margin-bottom: 15px; border: 2px solid transparent; border-radius: 8px;"
-                 ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
-                 ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
-                 ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                
-                <h3 style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                    <span style="display: flex; align-items: center; gap: 8px;">
-                        <button onclick="event.stopPropagation(); toggleFolderExpansion('${topicId}')" 
-                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                            ${isExpanded ? '📂' : '📁'}
-                        </button>
-                        <span>📁 ${topic.name}</span>
-                    </span>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 14px; opacity: 0.9;">${totalQuestions} preguntas • ${children.length} subcarpetas</span>
-                        <button onclick="event.stopPropagation(); sacarDeFolder('${topicId}')" style="background: #ec4899; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Sacar elementos de carpeta">
-                            📤
-                        </button>
-                        <button onclick="event.stopPropagation(); editTopicSimple('${topicId}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar">
-                            ✏️
-                        </button>
-                        <button onclick="event.stopPropagation(); deleteTopicSimple('${topicId}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar">
-                            🗑️
-                        </button>
-                    </div>
-                </h3>
-                
-                ${hasQuestions ? renderTopicQuestionsInFolder(topic, topicQuestions) : ''}
-                
-                <div id="folder-content-${topicId}" style="display: ${isExpanded ? 'block' : 'none'}; border-left: 1px solid #8b5cf6; border-right: 1px solid #8b5cf6; border-bottom: 1px solid #8b5cf6; border-radius: 0 0 8px 8px; background: #faf5ff; padding: 10px;">
-                    ${children.map(child => renderTopicWithChildren(child, level + 1)).join('')}
-                </div>
-            </div>
-        `;
+    if (mouseY > centerTop && mouseY < centerBottom) {
+        // Zona central - carpeta
+        element.classList.add('zona-carpeta');
+        element.style.position = 'relative';
     } else {
-        // TEMA NORMAL (sin subcarpetas)
-        html += renderNormalTopicInStructure(topic, topicQuestions, hasQuestions, indent);
+        // Zona superior/inferior - reorden
+        element.classList.add('zona-reorden');
     }
-    
-    return html;
 }
 
-function getDirectChildren(parentId) {
-    return state.topics.filter(topic => topicFolders[topic.id.toString()] === parentId);
+function limpiarIndicadores() {
+    document.querySelectorAll('.draggable-topic').forEach(el => {
+        el.classList.remove('zona-carpeta', 'zona-reorden');
+        el.style.position = '';
+    });
 }
 
-function renderTopicQuestionsInFolder(topic, questions) {
-    const topicId = topic.id.toString();
-    const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
-    
-    return `
-        <div style="border-left: 1px solid #8b5cf6; border-right: 1px solid #8b5cf6; background: white;">
-            <div style="padding: 8px 15px; background: rgba(139, 92, 246, 0.1); display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #7c3aed; font-weight: 500; font-size: 13px;">📝 Preguntas de la carpeta principal</span>
-                <button onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
-                        style="background: #8b5cf6; color: white; border: none; padding: 3px 6px; border-radius: 3px; cursor: pointer; font-size: 11px;">
-                    ${isCollapsed ? '▶' : '▼'}
-                </button>
-            </div>
-            <div id="topic-content-${topicId}" style="display: ${isCollapsed ? 'none' : 'block'};">
-                ${questions.map((q, qIndex) => {
-                    const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                    return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
-                }).join('')}
-            </div>
-        </div>
-    `;
-}
-
-function renderNormalTopicInStructure(topic, topicQuestions, hasQuestions, indent) {
-    const topicId = topic.id.toString();
-    
-    if (hasQuestions) {
-        const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+// Interceptar SOLO los clicks después del drop (no el drop en sí)
+document.addEventListener('click', function(e) {
+    // Si acabamos de hacer un drop en zona central, preguntar
+    if (mouseOverElement && draggedTopicId) {
+        const rect = mouseOverElement.getBoundingClientRect();
+        const isInCenter = mousePosition.y > rect.top + (rect.height * 0.3) && 
+                          mousePosition.y < rect.bottom - (rect.height * 0.3);
         
-        return `
-            <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" 
-                 style="margin-left: ${indent}px; margin-bottom: 15px; border: 2px solid transparent; border-radius: 8px;"
-                 ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
-                 ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
-                 ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                
-                <h3 style="background: ${indent > 0 ? '#6366f1' : '#4f46e5'}; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                    <span>${indent > 0 ? '📄' : '🔷'} ${topic.name}</span>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
-                        <button id="toggle-btn-${topicId}" onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
-                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">
-                            ${isCollapsed ? '▶' : '▼'}
-                        </button>
-                        ${indent > 0 ? `<button onclick="event.stopPropagation(); sacarDeCarpeta('${topicId}')" style="background: #ec4899; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Sacar de carpeta">📤</button>` : ''}
-                        <button onclick="event.stopPropagation(); editTopicSimple('${topicId}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️</button>
-                        <button onclick="event.stopPropagation(); deleteTopicSimple('${topicId}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️</button>
-                    </div>
-                </h3>
-                <div id="topic-content-${topicId}" style="border: 1px solid ${indent > 0 ? '#6366f1' : '#4f46e5'}; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
-                    ${topicQuestions.map((q, qIndex) => {
-                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                        return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
-                    }).join('')}
-                </div>
-            </div>
-        `;
-    } else {
-        return `
-            <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" 
-                 style="margin-left: ${indent}px; margin-bottom: 15px; opacity: 0.7; border: 2px solid transparent; border-radius: 8px;"
-                 ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
-                 ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
-                 ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                    <span>🔶 ${topic.name}</span>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 14px; opacity: 0.9;">0 preguntas</span>
-                        ${indent > 0 ? `<button onclick="event.stopPropagation(); sacarDeCarpeta('${topicId}')" style="background: #ec4899; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Sacar de carpeta">📤</button>` : ''}
-                        <button onclick="event.stopPropagation(); editTopicEmpty('${topicId}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️</button>
-                        <button onclick="event.stopPropagation(); deleteTopicEmpty('${topicId}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️</button>
-                    </div>
-                </h3>
-            </div>
-        `;
+        if (isInCenter) {
+            setTimeout(() => {
+                manejarDropEnCarpeta(draggedTopicId, mouseOverElement.dataset.topicId);
+            }, 100);
+        }
+    }
+}, true);
+
+// Función para manejar drop en carpeta
+function manejarDropEnCarpeta(draggedId, targetId) {
+    if (!draggedId || !targetId || draggedId === targetId) return;
+    
+    const draggedTopic = state.topics.find(t => t.id.toString() === draggedId);
+    const targetTopic = state.topics.find(t => t.id.toString() === targetId);
+    
+    if (!draggedTopic || !targetTopic) return;
+    
+    const confirmar = confirm(`¿Meter "${draggedTopic.name}" DENTRO de "${targetTopic.name}"?`);
+    
+    if (confirmar) {
+        // Guardar en carpeta
+        carpetas[draggedId] = targetId;
+        localStorage.setItem('tema_carpetas', JSON.stringify(carpetas));
+        
+        if (typeof showMessage === 'function') {
+            showMessage(`📁 "${draggedTopic.name}" movido a carpeta "${targetTopic.name}"`, 'success');
+        }
+        
+        // Aplicar estilos visuales
+        aplicarEstilosCarpetas();
+        
+        console.log(`📁 Carpeta creada: ${targetTopic.name} > ${draggedTopic.name}`);
     }
 }
 
-// FUNCIONES DE UTILIDAD
-window.toggleFolderExpansion = function(topicId) {
-    expandedFolders[topicId] = !expandedFolders[topicId];
-    localStorage.setItem('expandedFolders', JSON.stringify(expandedFolders));
+// Función para aplicar estilos visuales a las carpetas existentes
+function aplicarEstilosCarpetas() {
+    // Limpiar estilos previos
+    document.querySelectorAll('.draggable-topic').forEach(el => {
+        el.classList.remove('tema-en-carpeta', 'carpeta-padre');
+    });
     
-    const folderContent = document.getElementById(`folder-content-${topicId}`);
-    if (folderContent) {
-        folderContent.style.display = expandedFolders[topicId] ? 'block' : 'none';
-    }
-    
-    // Actualizar icono
-    const buttons = document.querySelectorAll(`[data-topic-id="${topicId}"] h3 button`);
-    buttons.forEach(btn => {
-        if (btn.textContent.includes('📂') || btn.textContent.includes('📁')) {
-            btn.textContent = expandedFolders[topicId] ? '📂' : '📁';
+    // Aplicar nuevos estilos
+    Object.keys(carpetas).forEach(hijoId => {
+        const padreId = carpetas[hijoId];
+        
+        // Marcar hijo como en carpeta
+        const hijoElement = document.querySelector(`[data-topic-id="${hijoId}"]`);
+        if (hijoElement) {
+            hijoElement.classList.add('tema-en-carpeta');
+        }
+        
+        // Marcar padre como carpeta
+        const padreElement = document.querySelector(`[data-topic-id="${padreId}"]`);
+        if (padreElement) {
+            padreElement.classList.add('carpeta-padre');
         }
     });
-};
+}
 
-window.sacarDeCarpeta = function(topicId) {
-    if (topicFolders[topicId]) {
+// Función para sacar tema de carpeta
+function sacarDeCarpeta(topicId) {
+    if (carpetas[topicId]) {
         const topic = state.topics.find(t => t.id.toString() === topicId);
-        const confirmRemove = confirm(`¿Sacar "${topic.name}" de su carpeta?\n\nSe moverá al nivel principal.`);
+        const confirmar = confirm(`¿Sacar "${topic.name}" de su carpeta?`);
         
-        if (confirmRemove) {
-            delete topicFolders[topicId];
-            localStorage.setItem('topicFolders', JSON.stringify(topicFolders));
+        if (confirmar) {
+            delete carpetas[topicId];
+            localStorage.setItem('tema_carpetas', JSON.stringify(carpetas));
             
             if (typeof showMessage === 'function') {
                 showMessage(`📤 "${topic.name}" sacado de carpeta`, 'success');
             }
             
-            renderWithFolders();
-        }
-    }
-};
-
-window.sacarDeFolder = function(parentId) {
-    const children = state.topics.filter(t => topicFolders[t.id.toString()] === parentId);
-    
-    if (children.length === 0) {
-        if (typeof showMessage === 'function') {
-            showMessage('📁 Esta carpeta no tiene elementos', 'warning');
-        }
-        return;
-    }
-    
-    const parentTopic = state.topics.find(t => t.id.toString() === parentId);
-    const confirmRemoveAll = confirm(`¿Sacar todos los elementos de "${parentTopic.name}"?\n\nSe moverán ${children.length} elementos al nivel principal.`);
-    
-    if (confirmRemoveAll) {
-        children.forEach(child => {
-            delete topicFolders[child.id.toString()];
-        });
-        
-        localStorage.setItem('topicFolders', JSON.stringify(topicFolders));
-        
-        if (typeof showMessage === 'function') {
-            showMessage(`📤 ${children.length} elementos sacados de "${parentTopic.name}"`, 'success');
-        }
-        
-        renderWithFolders();
-    }
-};
-
-function renderWithFolders() {
-    if (typeof render === 'function') {
-        render();
-    } else {
-        const container = document.getElementById('sortable-topics-container');
-        if (container && container.parentElement) {
-            container.parentElement.innerHTML = renderQuestionsByTopic();
+            aplicarEstilosCarpetas();
+            console.log(`📤 Tema sacado de carpeta: ${topic.name}`);
         }
     }
 }
 
-// Funciones debug
-window.verCarpetas = function() {
-    console.log('📁 Estructura de carpetas:', topicFolders);
-    if (Object.keys(topicFolders).length === 0) {
-        alert('📂 No hay carpetas organizadas');
+// Función para mostrar carpetas creadas
+window.mostrarCarpetas = function() {
+    if (Object.keys(carpetas).length === 0) {
+        alert('📂 No hay carpetas creadas');
         return;
     }
     
-    let mensaje = '📁 ESTRUCTURA DE CARPETAS:\n\n';
-    Object.keys(topicFolders).forEach(childId => {
-        const parentId = topicFolders[childId];
-        const childTopic = state.topics.find(t => t.id.toString() === childId);
-        const parentTopic = state.topics.find(t => t.id.toString() === parentId);
+    let mensaje = '📁 CARPETAS CREADAS:\n\n';
+    Object.keys(carpetas).forEach(hijoId => {
+        const padreId = carpetas[hijoId];
+        const hijo = state.topics.find(t => t.id.toString() === hijoId);
+        const padre = state.topics.find(t => t.id.toString() === padreId);
         
-        if (childTopic && parentTopic) {
-            mensaje += `📁 ${parentTopic.name}\n   └── ${childTopic.name}\n\n`;
+        if (hijo && padre) {
+            mensaje += `📁 ${padre.name}\n   └── ${hijo.name}\n\n`;
         }
     });
     
     alert(mensaje);
+    console.log('📁 Carpetas:', carpetas);
 };
 
-window.limpiarCarpetas = function() {
-    if (confirm('¿Sacar todos los temas de sus carpetas?')) {
-        topicFolders = {};
-        expandedFolders = {};
-        localStorage.removeItem('topicFolders');
-        localStorage.removeItem('expandedFolders');
+// Función para limpiar todas las carpetas
+window.limpiarTodasCarpetas = function() {
+    if (confirm('¿Eliminar todas las carpetas y sacar todos los temas?')) {
+        carpetas = {};
+        localStorage.removeItem('tema_carpetas');
         
         if (typeof showMessage === 'function') {
             showMessage('🗑️ Todas las carpetas eliminadas', 'success');
         }
         
-        renderWithFolders();
+        aplicarEstilosCarpetas();
+        console.log('🗑️ Todas las carpetas eliminadas');
     }
 };
 
-console.log('✅ Parche de carpetas aplicado');
-console.log('📁 Funciones:');
-console.log('   - Centro = Mover DENTRO de carpeta');
-console.log('   - Arriba = Poner ENCIMA (mismo nivel)');
-console.log('   - Abajo = Reordenar normal');
-console.log('   - verCarpetas() - Ver estructura');
-console.log('   - limpiarCarpetas() - Limpiar todo');
-console.log('💡 Los temas se muestran anidados visualmente');
+// Añadir botones de gestión al DOM
+function añadirBotonesGestion() {
+    // Buscar un lugar para añadir los botones
+    const container = document.querySelector('#sortable-topics-container') || 
+                     document.querySelector('.draggable-topic')?.parentElement;
+    
+    if (container && !document.getElementById('botones-carpetas')) {
+        const botonesDiv = document.createElement('div');
+        botonesDiv.id = 'botones-carpetas';
+        botonesDiv.style.cssText = `
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        `;
+        
+        botonesDiv.innerHTML = `
+            <div style="margin-bottom: 10px; color: #475569; font-weight: 500;">
+                📁 Gestión de Carpetas
+            </div>
+            <button onclick="mostrarCarpetas()" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; margin: 0 5px; cursor: pointer;">
+                📋 Ver Carpetas
+            </button>
+            <button onclick="limpiarTodasCarpetas()" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; margin: 0 5px; cursor: pointer;">
+                🗑️ Limpiar Todo
+            </button>
+            <div style="margin-top: 8px; font-size: 12px; color: #64748b;">
+                Arrastra al centro de un tema para crear carpeta
+            </div>
+        `;
+        
+        if (container.nextSibling) {
+            container.parentNode.insertBefore(botonesDiv, container.nextSibling);
+        } else {
+            container.parentNode.appendChild(botonesDiv);
+        }
+    }
+}
+
+// Inicializar todo
+function inicializarSistemaParalelo() {
+    crearEstilosCarpetas();
+    aplicarEstilosCarpetas(); // Aplicar carpetas existentes
+    añadirBotonesGestion();
+    
+    console.log('✅ Sistema paralelo de carpetas inicializado');
+    console.log('📁 Funciones disponibles:');
+    console.log('   - mostrarCarpetas() - Ver estructura');
+    console.log('   - limpiarTodasCarpetas() - Eliminar todo');
+    console.log('💡 Arrastra al centro de un tema para crear carpeta');
+}
+
+// Ejecutar cuando esté listo
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(inicializarSistemaParalelo, 1000);
+    });
+} else {
+    setTimeout(inicializarSistemaParalelo, 1000);
+}
+
+// Re-aplicar cuando se actualice el DOM
+const observer = new MutationObserver(() => {
+    setTimeout(() => {
+        aplicarEstilosCarpetas();
+        añadirBotonesGestion();
+    }, 500);
+});
+
+setTimeout(() => {
+    const target = document.body;
+    observer.observe(target, { childList: true, subtree: true });
+}, 2000);
+
+console.log('🔧 Sistema paralelo cargado - no modifica código existente');
 </script>
 </body>
 </html>
+
 
 
 
