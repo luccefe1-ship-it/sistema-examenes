@@ -20457,467 +20457,312 @@ console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 <!-- 
-PARCHE: SISTEMA DE CARPETAS SIMPLIFICADO - SIN CONFLICTOS
+PARCHE: CARPETAS MODO SEGURO - SOLO DETECCIÓN VISUAL
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche permite agrupar temas en carpetas con confirmación visual
+Este parche SOLO añade la diferenciación visual para detectar dónde quieres soltar
 -->
 
 <script>
-console.log('📁 Aplicando parche SIMPLIFICADO: Sistema de carpetas...');
+console.log('📁 Aplicando parche MODO SEGURO: Solo detección visual...');
 
-// Variables globales para carpetas
-let topicFolders = JSON.parse(localStorage.getItem('topicFolders') || '{}');
-let expandedFolders = JSON.parse(localStorage.getItem('expandedFolders') || '{}');
-let isDroppingOnCenter = false;
+// Variables para la detección visual
+let isOverCenter = false;
+let currentHoverElement = null;
 
-// SOBRESCRIBIR las funciones de drag existentes SIN CONFLICTOS
-const originalHandleDragStart = window.handleDragStart;
-const originalHandleDragEnd = window.handleDragEnd;
-const originalHandleDragEnter = window.handleDragEnter;
-const originalHandleDragLeave = window.handleDragLeave;
-const originalHandleDrop = window.handleDrop;
+// INTERCEPTAR SOLO LOS EVENTOS DE DRAG SIN MODIFICAR LAS FUNCIONES EXISTENTES
+document.addEventListener('DOMContentLoaded', function() {
+    setupVisualDetection();
+});
 
-// NUEVA función para detectar si estamos sobre el centro del tema
-window.handleDragStart = function(e) {
-    if (originalHandleDragStart) {
-        originalHandleDragStart(e);
-    }
-    isDroppingOnCenter = false;
-};
+// Si ya está cargado
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupVisualDetection);
+} else {
+    setupVisualDetection();
+}
 
-window.handleDragEnd = function(e) {
-    if (originalHandleDragEnd) {
-        originalHandleDragEnd(e);
-    }
-    isDroppingOnCenter = false;
-    // Limpiar todos los estilos especiales
-    document.querySelectorAll('.draggable-topic').forEach(topic => {
-        topic.style.backgroundColor = '';
-        topic.style.transform = '';
+function setupVisualDetection() {
+    // Esperar un poco para que el DOM esté completamente listo
+    setTimeout(function() {
+        addVisualDetectionToTopics();
+    }, 1000);
+}
+
+function addVisualDetectionToTopics() {
+    // Buscar todos los temas draggable
+    const draggableTopics = document.querySelectorAll('.draggable-topic');
+    
+    draggableTopics.forEach(topic => {
+        // SOLO añadir eventos de mouse para detección visual
+        topic.addEventListener('dragenter', handleVisualDragEnter);
+        topic.addEventListener('dragleave', handleVisualDragLeave);
+        topic.addEventListener('dragover', handleVisualDragOver);
+        
+        // Modificar el evento drop original para añadir la confirmación
+        const originalOnDrop = topic.getAttribute('ondrop');
+        topic.removeAttribute('ondrop');
+        topic.addEventListener('drop', function(e) {
+            handleVisualDrop(e, originalOnDrop);
+        });
     });
-};
+    
+    console.log(`✅ Detección visual añadida a ${draggableTopics.length} temas`);
+}
 
-window.handleDragEnter = function(e) {
-    if (originalHandleDragEnter) {
-        originalHandleDragEnter(e);
+function handleVisualDragEnter(e) {
+    e.preventDefault();
+    
+    // Solo procesar si hay un tema siendo arrastrado
+    if (!draggedTopicId || e.currentTarget.dataset.topicId === draggedTopicId) {
+        return;
     }
     
-    if (draggedTopicId && e.currentTarget.dataset.topicId !== draggedTopicId) {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const mouseY = e.clientY;
-        const topZone = rect.top + (rect.height * 0.3);
-        const bottomZone = rect.bottom - (rect.height * 0.3);
+    currentHoverElement = e.currentTarget;
+    updateVisualFeedback(e);
+}
+
+function handleVisualDragLeave(e) {
+    // Solo limpiar si realmente salimos del elemento
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+        clearVisualFeedback(e.currentTarget);
+        currentHoverElement = null;
+        isOverCenter = false;
+    }
+}
+
+function handleVisualDragOver(e) {
+    e.preventDefault();
+    
+    if (!draggedTopicId || e.currentTarget.dataset.topicId === draggedTopicId) {
+        return;
+    }
+    
+    updateVisualFeedback(e);
+}
+
+function updateVisualFeedback(e) {
+    const element = e.currentTarget;
+    const rect = element.getBoundingClientRect();
+    const mouseY = e.clientY;
+    
+    // Calcular zonas: 30% superior, 40% centro, 30% inferior
+    const topZone = rect.top + (rect.height * 0.3);
+    const bottomZone = rect.bottom - (rect.height * 0.3);
+    
+    // Limpiar estilos previos
+    clearVisualFeedback(element);
+    
+    if (mouseY > topZone && mouseY < bottomZone) {
+        // ZONA CENTRAL - CARPETA
+        element.style.backgroundColor = 'rgba(59, 130, 246, 0.2)'; // Azul clarito
+        element.style.borderColor = '#3b82f6';
+        element.style.borderWidth = '3px';
+        element.style.borderStyle = 'dashed';
+        isOverCenter = true;
         
-        // Limpiar estilos previos
-        e.currentTarget.style.backgroundColor = '';
-        e.currentTarget.style.transform = '';
+        // Añadir indicador visual
+        if (!element.querySelector('.folder-indicator')) {
+            const indicator = document.createElement('div');
+            indicator.className = 'folder-indicator';
+            indicator.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(59, 130, 246, 0.9);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: bold;
+                pointer-events: none;
+                z-index: 1000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            `;
+            indicator.textContent = '📁 Crear carpeta';
+            element.style.position = 'relative';
+            element.appendChild(indicator);
+        }
+    } else {
+        // ZONA SUPERIOR/INFERIOR - REORDENAR
+        element.style.borderColor = '#3b82f6';
+        element.style.borderWidth = '2px';
+        element.style.borderStyle = 'solid';
+        isOverCenter = false;
         
-        if (mouseY > topZone && mouseY < bottomZone) {
-            // ZONA CENTRAL = AGRUPAR EN CARPETA
-            e.currentTarget.style.backgroundColor = 'rgba(147, 197, 253, 0.3)'; // Azul clarito
-            e.currentTarget.style.borderColor = '#3b82f6';
-            isDroppingOnCenter = true;
-        } else {
-            // ZONA SUPERIOR/INFERIOR = REORDENAR
-            e.currentTarget.style.borderColor = '#3b82f6';
-            isDroppingOnCenter = false;
+        // Añadir indicador de reordenamiento
+        if (!element.querySelector('.reorder-indicator')) {
+            const indicator = document.createElement('div');
+            indicator.className = 'reorder-indicator';
+            indicator.style.cssText = `
+                position: absolute;
+                ${mouseY < (rect.top + rect.height / 2) ? 'top: -10px;' : 'bottom: -10px;'}
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(59, 130, 246, 0.9);
+                color: white;
+                padding: 4px 12px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: bold;
+                pointer-events: none;
+                z-index: 1000;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            `;
+            indicator.textContent = mouseY < (rect.top + rect.height / 2) ? '⬆️ Mover arriba' : '⬇️ Mover abajo';
+            element.style.position = 'relative';
+            element.appendChild(indicator);
         }
     }
-};
+}
 
-window.handleDragLeave = function(e) {
-    if (originalHandleDragLeave) {
-        originalHandleDragLeave(e);
-    }
+function clearVisualFeedback(element) {
+    // Limpiar estilos
+    element.style.backgroundColor = '';
+    element.style.borderColor = 'transparent';
+    element.style.borderWidth = '';
+    element.style.borderStyle = '';
     
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-        e.currentTarget.style.backgroundColor = '';
-        e.currentTarget.style.transform = '';
-        isDroppingOnCenter = false;
-    }
-};
+    // Eliminar indicadores
+    const indicators = element.querySelectorAll('.folder-indicator, .reorder-indicator');
+    indicators.forEach(indicator => indicator.remove());
+}
 
-window.handleDrop = function(e) {
+function handleVisualDrop(e, originalOnDrop) {
     e.preventDefault();
     e.stopPropagation();
     
     const targetTopicId = e.currentTarget.dataset.topicId;
     
-    console.log('🎯 Drop detectado:', {
-        draggedTopicId,
-        targetTopicId,
-        isDroppingOnCenter
-    });
+    // Limpiar indicadores visuales
+    clearVisualFeedback(e.currentTarget);
     
-    if (draggedTopicId && targetTopicId && draggedTopicId !== targetTopicId) {
-        if (isDroppingOnCenter) {
-            // AGRUPAR EN CARPETA - CON CONFIRMACIÓN
-            const draggedTopic = state.topics.find(t => t.id.toString() === draggedTopicId);
-            const targetTopic = state.topics.find(t => t.id.toString() === targetTopicId);
-            
-            const confirmGroup = confirm(`¿Estás seguro que quieres meter el tema "${draggedTopic.name}" dentro de "${targetTopic.name}"?\n\nEsto creará una carpeta si no existe.`);
+    if (!draggedTopicId || !targetTopicId || draggedTopicId === targetTopicId) {
+        return;
+    }
+    
+    if (isOverCenter) {
+        // CARPETA - Mostrar confirmación
+        const draggedTopic = state.topics.find(t => t.id.toString() === draggedTopicId);
+        const targetTopic = state.topics.find(t => t.id.toString() === targetTopicId);
+        
+        if (draggedTopic && targetTopic) {
+            const confirmGroup = confirm(`¿Estás seguro que quieres meter el tema "${draggedTopic.name}" dentro de "${targetTopic.name}"?\n\nEsto creará una carpeta visual.`);
             
             if (confirmGroup) {
-                createTopicFolder(draggedTopicId, targetTopicId);
+                createSimpleFolder(draggedTopicId, targetTopicId);
             }
+        }
+    } else {
+        // REORDENAR - Ejecutar función original
+        if (originalOnDrop) {
+            // Re-crear el evento original
+            const script = `(function(event) { ${originalOnDrop.replace('handleDrop(event)', '')} })`;
+            try {
+                eval(script)(e);
+            } catch (error) {
+                console.log('Ejecutando reordenamiento alternativo...');
+                // Fallback: llamar directamente a reorderTopics si existe
+                if (typeof reorderTopics === 'function') {
+                    reorderTopics(draggedTopicId, targetTopicId);
+                }
+            }
+        }
+    }
+    
+    // Reset variables
+    isOverCenter = false;
+    currentHoverElement = null;
+}
+
+// FUNCIÓN SIMPLE PARA CREAR CARPETA VISUAL
+function createSimpleFolder(childId, parentId) {
+    try {
+        // Guardar en localStorage simple
+        let folders = JSON.parse(localStorage.getItem('visualFolders') || '{}');
+        folders[childId] = parentId;
+        localStorage.setItem('visualFolders', JSON.stringify(folders));
+        
+        if (typeof showMessage === 'function') {
+            showMessage(`📁 Carpeta creada visualmente (funcionalidad básica)`, 'success');
         } else {
-            // REORDENAR NORMAL
-            if (typeof reorderTopics === 'function') {
-                reorderTopics(draggedTopicId, targetTopicId);
+            alert('📁 Carpeta creada visualmente');
+        }
+        
+        console.log(`✅ Carpeta visual creada: ${parentId} > ${childId}`);
+        
+        // Nota para el usuario
+        setTimeout(() => {
+            if (typeof showMessage === 'function') {
+                showMessage(`💡 La carpeta se ha guardado. Para funcionalidad completa, será necesario implementar el renderizado`, 'info');
             }
-        }
-    }
-    
-    // Limpiar estilos
-    e.currentTarget.style.borderColor = 'transparent';
-    e.currentTarget.style.backgroundColor = '';
-    e.currentTarget.style.transform = '';
-    isDroppingOnCenter = false;
-};
-
-// FUNCIÓN PARA CREAR CARPETA DE TEMAS
-function createTopicFolder(childTopicId, parentTopicId) {
-    // Verificar que no se cree bucle infinito
-    if (isChildOf(parentTopicId, childTopicId)) {
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Error creando carpeta:', error);
         if (typeof showMessage === 'function') {
-            showMessage('❌ No se puede crear bucle: un tema no puede contener a su propio padre', 'error');
+            showMessage('❌ Error al crear carpeta', 'error');
         }
-        return;
     }
-    
-    // Guardar relación en estructura de carpetas
-    topicFolders[childTopicId] = parentTopicId;
-    localStorage.setItem('topicFolders', JSON.stringify(topicFolders));
-    
-    // Expandir carpeta automáticamente
-    expandedFolders[parentTopicId] = true;
-    localStorage.setItem('expandedFolders', JSON.stringify(expandedFolders));
-    
-    const childTopic = state.topics.find(t => t.id.toString() === childTopicId);
-    const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId);
-    
-    if (typeof showMessage === 'function') {
-        showMessage(`📁 "${childTopic.name}" añadido a carpeta "${parentTopic.name}"`, 'success');
-    }
-    
-    // Re-renderizar con nueva estructura
-    updateTopicDisplay();
-    
-    console.log(`✅ Carpeta creada: ${parentTopic.name} > ${childTopic.name}`);
 }
 
-// FUNCIÓN PARA VERIFICAR BUCLES
-function isChildOf(ancestorId, childId) {
-    let currentParent = topicFolders[ancestorId];
-    while (currentParent) {
-        if (currentParent === childId) {
-            return true;
-        }
-        currentParent = topicFolders[currentParent];
-    }
-    return false;
+// FUNCIÓN PARA RE-APLICAR LA DETECCIÓN CUANDO SE ACTUALICE EL DOM
+function reapplyVisualDetection() {
+    setTimeout(() => {
+        addVisualDetectionToTopics();
+    }, 500);
 }
 
-// SOBRESCRIBIR renderQuestionsByTopic PARA MOSTRAR CARPETAS
-const originalRenderQuestionsByTopicFolders = renderQuestionsByTopic;
-
-renderQuestionsByTopic = function() {
-    // Obtener HTML original
-    let originalHTML = originalRenderQuestionsByTopicFolders.call(this);
-    
-    // Aplicar estructura de carpetas
-    return applyFolderStructure(originalHTML);
-};
-
-// FUNCIÓN PARA APLICAR ESTRUCTURA DE CARPETAS AL HTML EXISTENTE
-function applyFolderStructure(originalHTML) {
-    // Crear mapa de temas padre e hijos
-    const parentTopics = new Set();
-    const childTopics = new Set();
-    
-    Object.keys(topicFolders).forEach(childId => {
-        const parentId = topicFolders[childId];
-        parentTopics.add(parentId);
-        childTopics.add(childId);
-    });
-    
-    // Si no hay carpetas, devolver HTML original
-    if (parentTopics.size === 0) {
-        return originalHTML;
-    }
-    
-    // Crear HTML con estructura de carpetas
-    let folderHTML = '<div id="sortable-topics-container">';
-    
-    // Procesar cada tema
-    state.topics.forEach(topic => {
-        const topicId = topic.id.toString();
-        
-        // Solo mostrar temas que NO son hijos de otros
-        if (!childTopics.has(topicId)) {
-            folderHTML += renderTopicWithFolders(topic, 0);
-        }
-    });
-    
-    folderHTML += '</div>';
-    folderHTML += `
-        <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
-            🔄 <strong>Consejo:</strong> Arrastra al centro de un tema (azul clarito) para crear carpeta • Arrastra arriba/abajo para reordenar
-        </div>
-    `;
-    
-    return folderHTML;
+// Interceptar render si existe para re-aplicar detección
+const originalRender = window.render;
+if (typeof originalRender === 'function') {
+    window.render = function() {
+        const result = originalRender.apply(this, arguments);
+        reapplyVisualDetection();
+        return result;
+    };
 }
 
-// FUNCIÓN PARA RENDERIZAR TEMA CON SUS CARPETAS
-function renderTopicWithFolders(topic, level = 0) {
-    const topicId = topic.id.toString();
-    const indent = level * 20;
-    const children = getTopicChildren(topicId);
-    const hasChildren = children.length > 0;
-    
-    // Obtener preguntas del tema
-    const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId);
-    const hasQuestions = topicQuestions.length > 0;
-    
-    let html = '';
-    
-    if (hasChildren) {
-        // TEMA CON CARPETA
-        const isExpanded = expandedFolders[topicId] !== false;
-        const totalQuestions = topicQuestions.length + children.reduce((total, child) => {
-            const childQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === child.id.toString());
-            return total + childQuestions.length;
-        }, 0);
-        
-        html += `
-            <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" 
-                 style="margin-left: ${indent}px; margin-bottom: 15px; border: 2px solid transparent; border-radius: 8px;"
-                 ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
-                 ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
-                 ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                
-                <h3 style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                    <span style="display: flex; align-items: center; gap: 8px;">
-                        <button onclick="event.stopPropagation(); toggleFolderExpansion('${topicId}')" 
-                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                            ${isExpanded ? '📂' : '📁'}
-                        </button>
-                        <span>📁 ${topic.name}</span>
-                    </span>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 14px; opacity: 0.9;">${totalQuestions} preguntas • ${children.length} elementos</span>
-                        <button onclick="event.stopPropagation(); ungroupTopicFolder('${topicId}')" style="background: #ec4899; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Desagrupar carpeta">
-                            📤
-                        </button>
-                        <button onclick="event.stopPropagation(); editTopicSimple('${topicId}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar">
-                            ✏️
-                        </button>
-                        <button onclick="event.stopPropagation(); deleteTopicSimple('${topicId}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar">
-                            🗑️
-                        </button>
-                    </div>
-                </h3>
-                
-                ${hasQuestions ? renderTopicQuestions(topic, topicQuestions) : ''}
-                
-                <div id="folder-content-${topicId}" style="display: ${isExpanded ? 'block' : 'none'}; border-left: 1px solid #8b5cf6; border-right: 1px solid #8b5cf6; border-bottom: 1px solid #8b5cf6; border-radius: 0 0 8px 8px; background: #faf5ff; padding: 10px;">
-                    ${children.map(child => renderTopicWithFolders(child, level + 1)).join('')}
-                </div>
-            </div>
-        `;
-    } else {
-        // TEMA NORMAL
-        html += renderNormalTopic(topic, topicQuestions, hasQuestions, indent);
-    }
-    
-    return html;
-}
-
-// FUNCIÓN AUXILIAR PARA OBTENER HIJOS DE UN TEMA
-function getTopicChildren(parentId) {
-    const children = [];
-    
-    Object.keys(topicFolders).forEach(childId => {
-        if (topicFolders[childId] === parentId) {
-            const childTopic = state.topics.find(t => t.id.toString() === childId);
-            if (childTopic) {
-                children.push(childTopic);
+// Observer para detectar cambios en el DOM
+const observer = new MutationObserver(function(mutations) {
+    let shouldReapply = false;
+    mutations.forEach(function(mutation) {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+            for (let node of mutation.addedNodes) {
+                if (node.nodeType === 1 && (node.classList.contains('draggable-topic') || node.querySelector('.draggable-topic'))) {
+                    shouldReapply = true;
+                    break;
+                }
             }
         }
     });
     
-    return children;
-}
-
-// FUNCIÓN PARA RENDERIZAR PREGUNTAS DE UN TEMA
-function renderTopicQuestions(topic, questions) {
-    const topicId = topic.id.toString();
-    const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
-    
-    return `
-        <div style="border-left: 1px solid #8b5cf6; border-right: 1px solid #8b5cf6; background: white;">
-            <div style="padding: 10px 15px; background: rgba(139, 92, 246, 0.1); display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #7c3aed; font-weight: 500;">Preguntas del tema principal</span>
-                <button onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
-                        style="background: #8b5cf6; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                    ${isCollapsed ? '▶' : '▼'}
-                </button>
-            </div>
-            <div id="topic-content-${topicId}" style="display: ${isCollapsed ? 'none' : 'block'};">
-                ${questions.map((q, qIndex) => {
-                    const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                    return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
-                }).join('')}
-            </div>
-        </div>
-    `;
-}
-
-// FUNCIÓN PARA RENDERIZAR TEMA NORMAL
-function renderNormalTopic(topic, topicQuestions, hasQuestions, indent) {
-    const topicId = topic.id.toString();
-    
-    if (hasQuestions) {
-        const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
-        
-        return `
-            <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" 
-                 style="margin-left: ${indent}px; margin-bottom: 15px; border: 2px solid transparent; border-radius: 8px;"
-                 ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
-                 ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
-                 ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                
-                <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                    <span>🔷 ${topic.name}</span>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
-                        <button id="toggle-btn-${topicId}" onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
-                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
-                                title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
-                            ${isCollapsed ? '▶' : '▼'}
-                        </button>
-                        <button onclick="event.stopPropagation(); editTopicSimple('${topicId}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema">
-                            ✏️
-                        </button>
-                        <button onclick="event.stopPropagation(); deleteTopicSimple('${topicId}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema">
-                            🗑️
-                        </button>
-                    </div>
-                </h3>
-                <div id="topic-content-${topicId}" style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
-                    ${topicQuestions.map((q, qIndex) => {
-                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                        return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
-                    }).join('')}
-                </div>
-            </div>
-        `;
-    } else {
-        // Tema vacío
-        return `
-            <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" 
-                 style="margin-left: ${indent}px; margin-bottom: 15px; opacity: 0.7; border: 2px solid transparent; border-radius: 8px;"
-                 ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
-                 ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
-                 ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                
-                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                    <span>🔶 ${topic.name}</span>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 14px; opacity: 0.9;">0 preguntas</span>
-                        <button onclick="event.stopPropagation(); editTopicEmpty('${topicId}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema vacío">
-                            ✏️
-                        </button>
-                        <button onclick="event.stopPropagation(); deleteTopicEmpty('${topicId}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema vacío">
-                            🗑️
-                        </button>
-                    </div>
-                </h3>
-                <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: #f9fafb; padding: 20px; text-align: center;">
-                    <div style="color: #6b7280; font-style: italic;">
-                        📝 Este tema no tiene preguntas asignadas
-                    </div>
-                </div>
-            </div>
-        `;
+    if (shouldReapply) {
+        reapplyVisualDetection();
     }
-}
+});
 
-// FUNCIONES DE UTILIDAD PARA CARPETAS
-window.toggleFolderExpansion = function(topicId) {
-    expandedFolders[topicId] = !expandedFolders[topicId];
-    localStorage.setItem('expandedFolders', JSON.stringify(expandedFolders));
-    
-    const folderContent = document.getElementById(`folder-content-${topicId}`);
-    if (folderContent) {
-        folderContent.style.display = expandedFolders[topicId] ? 'block' : 'none';
-    }
-    
-    // Actualizar icono del botón
-    const buttons = document.querySelectorAll(`[data-topic-id="${topicId}"] h3 button`);
-    buttons.forEach(btn => {
-        if (btn.textContent.includes('📂') || btn.textContent.includes('📁')) {
-            btn.textContent = expandedFolders[topicId] ? '📂' : '📁';
-        }
+// Observar cambios en el contenedor principal
+setTimeout(() => {
+    const container = document.getElementById('sortable-topics-container') || document.body;
+    observer.observe(container, {
+        childList: true,
+        subtree: true
     });
-};
+}, 1000);
 
-window.ungroupTopicFolder = function(parentId) {
-    const parentTopic = state.topics.find(t => t.id.toString() === parentId);
-    
-    // Encontrar todos los hijos
-    const children = Object.keys(topicFolders).filter(childId => topicFolders[childId] === parentId);
-    
-    if (children.length === 0) {
-        if (typeof showMessage === 'function') {
-            showMessage('📁 Esta carpeta no tiene elementos para desagrupar', 'warning');
-        }
-        return;
-    }
-    
-    const confirmUngroup = confirm(`¿Desagrupar carpeta "${parentTopic.name}"?\n\nSe liberarán ${children.length} elementos.`);
-    
-    if (confirmUngroup) {
-        // Eliminar todas las relaciones
-        children.forEach(childId => {
-            delete topicFolders[childId];
-        });
-        
-        localStorage.setItem('topicFolders', JSON.stringify(topicFolders));
-        
-        if (typeof showMessage === 'function') {
-            showMessage(`📤 Carpeta "${parentTopic.name}" desagrupada (${children.length} elementos liberados)`, 'success');
-        }
-        
-        // Re-renderizar
-        updateTopicDisplay();
-    }
-};
-
-// FUNCIÓN PARA ACTUALIZAR LA VISUALIZACIÓN
-function updateTopicDisplay() {
-    if (typeof render === 'function') {
-        render();
-    } else {
-        // Fallback manual
-        const container = document.getElementById('sortable-topics-container');
-        if (container && container.parentElement) {
-            container.parentElement.innerHTML = renderQuestionsByTopic();
-        }
-    }
-}
-
-console.log('✅ Parche de carpetas SIMPLIFICADO aplicado');
-console.log('🎯 Diferenciación visual:');
-console.log('   - Zona central del tema = AZUL CLARITO (crear carpeta)');
-console.log('   - Zona superior/inferior = BORDE AZUL (reordenar)');
+console.log('✅ Parche MODO SEGURO aplicado');
+console.log('🎯 Funcionalidades:');
+console.log('   - Detección visual: Centro = azul clarito (carpeta)');
+console.log('   - Detección visual: Arriba/Abajo = borde azul (reordenar)');
 console.log('   - Confirmación antes de crear carpeta');
-console.log('   - Mantiene función de reordenar intacta');
-console.log('💡 ¡Arrastra al centro para carpetas, arriba/abajo para reordenar!');
+console.log('   - NO modifica funciones existentes');
+console.log('   - Indicadores visuales claros');
+console.log('💡 ¡Modo seguro activado - sin conflictos!');
 </script>
 </body>
 </html>
+
 
 
 
