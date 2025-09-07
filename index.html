@@ -20457,371 +20457,395 @@ console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 <!-- 
-PARCHE: SISTEMA DE CARPETAS PARA TEMAS
+PARCHE: SISTEMA DE CARPETAS SIMPLIFICADO - SIN CONFLICTOS
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche permite agrupar temas en carpetas visuales mediante drag & drop
+Este parche permite agrupar temas en carpetas con confirmación visual
 -->
 
 <script>
-console.log('📁 Aplicando parche: Sistema de carpetas para temas...');
+console.log('📁 Aplicando parche SIMPLIFICADO: Sistema de carpetas...');
 
-// Variables globales para el sistema de carpetas
-let folderedTopics = JSON.parse(localStorage.getItem('folderedTopics') || '{}');
+// Variables globales para carpetas
+let topicFolders = JSON.parse(localStorage.getItem('topicFolders') || '{}');
 let expandedFolders = JSON.parse(localStorage.getItem('expandedFolders') || '{}');
-let dragOverFolder = false;
-let dragOverFolderTimeout = null;
+let isDroppingOnCenter = false;
 
-// INTERCEPTAR renderQuestionsByTopic PARA AÑADIR SISTEMA DE CARPETAS
-const originalRenderQuestionsByTopicFolders = renderQuestionsByTopic;
+// SOBRESCRIBIR las funciones de drag existentes SIN CONFLICTOS
+const originalHandleDragStart = window.handleDragStart;
+const originalHandleDragEnd = window.handleDragEnd;
+const originalHandleDragEnter = window.handleDragEnter;
+const originalHandleDragLeave = window.handleDragLeave;
+const originalHandleDrop = window.handleDrop;
 
-renderQuestionsByTopic = function() {
-    // Crear estructura jerárquica de temas
-    const topicHierarchy = buildTopicHierarchy();
-    
-    // Generar HTML con carpetas
-    const topicsHTML = renderTopicHierarchy(topicHierarchy);
-    
-    return `
-        <div id="sortable-topics-container">
-            ${topicsHTML}
-        </div>
-        <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
-            🔄 <strong>Consejo:</strong> Arrastra un tema sobre otro para crear carpetas • Arrastra arriba/abajo para reordenar
-        </div>
-    `;
-};
-
-// FUNCIÓN PARA CONSTRUIR JERARQUÍA DE TEMAS
-function buildTopicHierarchy() {
-    const hierarchy = [];
-    const processedTopics = new Set();
-    
-    // Primero, procesar temas padre (sin parentId)
-    state.topics.forEach(topic => {
-        if (!folderedTopics[topic.id]) {
-            const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
-            const children = getTopicChildren(topic.id);
-            
-            hierarchy.push({
-                topic: topic,
-                hasQuestions: topicQuestions.length > 0,
-                questions: topicQuestions,
-                children: children,
-                isFolder: children.length > 0
-            });
-            
-            processedTopics.add(topic.id.toString());
-        }
-    });
-    
-    return hierarchy;
-}
-
-// FUNCIÓN PARA OBTENER HIJOS DE UN TEMA
-function getTopicChildren(parentId) {
-    const children = [];
-    
-    state.topics.forEach(topic => {
-        if (folderedTopics[topic.id] === parentId.toString()) {
-            const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
-            const grandChildren = getTopicChildren(topic.id);
-            
-            children.push({
-                topic: topic,
-                hasQuestions: topicQuestions.length > 0,
-                questions: topicQuestions,
-                children: grandChildren,
-                isFolder: grandChildren.length > 0
-            });
-        }
-    });
-    
-    return children;
-}
-
-// FUNCIÓN PARA RENDERIZAR JERARQUÍA DE TEMAS
-function renderTopicHierarchy(hierarchy, level = 0) {
-    return hierarchy.map(topicData => {
-        return renderTopicWithChildren(topicData, level);
-    }).join('');
-}
-
-// FUNCIÓN PARA RENDERIZAR UN TEMA Y SUS HIJOS
-function renderTopicWithChildren(topicData, level = 0) {
-    const { topic, hasQuestions, questions, children, isFolder } = topicData;
-    const indent = level * 20;
-    const topicId = topic.id.toString();
-    
-    let html = '';
-    
-    if (isFolder) {
-        // CARPETA (tema con hijos)
-        const isExpanded = expandedFolders[topicId] !== false;
-        const totalQuestions = hasQuestions ? questions.length : 0;
-        const childQuestions = children.reduce((total, child) => total + (child.hasQuestions ? child.questions.length : 0), 0);
-        const totalAllQuestions = totalQuestions + childQuestions;
-        
-        html += `
-            <div class="draggable-topic folder-topic" draggable="true" data-topic-id="${topic.id}" data-is-folder="true"
-                 style="margin-left: ${indent}px; margin-bottom: 15px; border: 2px solid transparent; border-radius: 8px;"
-                 ondragstart="handleFolderDragStart(event)" ondragend="handleFolderDragEnd(event)" 
-                 ondragover="handleFolderDragOver(event)" ondrop="handleFolderDrop(event)"
-                 ondragenter="handleFolderDragEnter(event)" ondragleave="handleFolderDragLeave(event)">
-                
-                <h3 style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                    <span style="display: flex; align-items: center; gap: 8px;">
-                        <button onclick="event.stopPropagation(); toggleFolder('${topicId}')" 
-                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                            ${isExpanded ? '📂' : '📁'}
-                        </button>
-                        <span>📁 ${topic.name}</span>
-                    </span>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 14px; opacity: 0.9;">${totalAllQuestions} preguntas • ${children.length} elementos</span>
-                        <button onclick="event.stopPropagation(); editTopicSimple('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar carpeta">
-                            ✏️
-                        </button>
-                        <button onclick="event.stopPropagation(); ungroupFolder('${topic.id}')" style="background: #ec4899; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Desagrupar carpeta">
-                            📤
-                        </button>
-                        <button onclick="event.stopPropagation(); deleteTopicSimple('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar carpeta">
-                            🗑️
-                        </button>
-                    </div>
-                </h3>
-                
-                ${hasQuestions ? `
-                    <div style="border-left: 1px solid #8b5cf6; border-right: 1px solid #8b5cf6; background: white;">
-                        ${questions.map((q, qIndex) => {
-                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                            return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
-                        }).join('')}
-                    </div>
-                ` : ''}
-                
-                <div id="folder-content-${topicId}" style="display: ${isExpanded ? 'block' : 'none'}; border-left: 1px solid #8b5cf6; border-right: 1px solid #8b5cf6; border-bottom: 1px solid #8b5cf6; border-radius: 0 0 8px 8px; background: #faf5ff; padding: 10px;">
-                    ${renderTopicHierarchy(children, level + 1)}
-                </div>
-            </div>
-        `;
-        
-    } else {
-        // TEMA NORMAL (sin hijos)
-        if (hasQuestions) {
-            const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
-            
-            html += `
-                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" 
-                     style="margin-left: ${indent}px; margin-bottom: 15px; border: 2px solid transparent; border-radius: 8px;"
-                     ondragstart="handleFolderDragStart(event)" ondragend="handleFolderDragEnd(event)" 
-                     ondragover="handleFolderDragOver(event)" ondrop="handleFolderDrop(event)"
-                     ondragenter="handleFolderDragEnter(event)" ondragleave="handleFolderDragLeave(event)">
-                    
-                    <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                        <span>🔷 ${topic.name}</span>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 14px; opacity: 0.9;">${questions.length} preguntas</span>
-                            <button id="toggle-btn-${topicId}" onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
-                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
-                                    title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
-                                ${isCollapsed ? '▶' : '▼'}
-                            </button>
-                            <button onclick="event.stopPropagation(); editTopicSimple('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema">
-                                ✏️
-                            </button>
-                            <button onclick="event.stopPropagation(); deleteTopicSimple('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema">
-                                🗑️
-                            </button>
-                        </div>
-                    </h3>
-                    <div id="topic-content-${topicId}" style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
-                        ${questions.map((q, qIndex) => {
-                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                            return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
-                        }).join('')}
-                    </div>
-                </div>
-            `;
-        } else {
-            // Tema vacío
-            html += `
-                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" 
-                     style="margin-left: ${indent}px; margin-bottom: 15px; opacity: 0.7; border: 2px solid transparent; border-radius: 8px;"
-                     ondragstart="handleFolderDragStart(event)" ondragend="handleFolderDragEnd(event)" 
-                     ondragover="handleFolderDragOver(event)" ondrop="handleFolderDrop(event)"
-                     ondragenter="handleFolderDragEnter(event)" ondragleave="handleFolderDragLeave(event)">
-                    
-                    <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                        <span>🔶 ${topic.name}</span>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 14px; opacity: 0.9;">0 preguntas</span>
-                            <button onclick="event.stopPropagation(); editTopicEmpty('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema vacío">
-                                ✏️
-                            </button>
-                            <button onclick="event.stopPropagation(); deleteTopicEmpty('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema vacío">
-                                🗑️
-                            </button>
-                        </div>
-                    </h3>
-                    <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: #f9fafb; padding: 20px; text-align: center;">
-                        <div style="color: #6b7280; font-style: italic;">
-                            📝 Este tema no tiene preguntas asignadas
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
+// NUEVA función para detectar si estamos sobre el centro del tema
+window.handleDragStart = function(e) {
+    if (originalHandleDragStart) {
+        originalHandleDragStart(e);
     }
-    
-    return html;
-}
-
-// FUNCIONES PARA MANEJAR DRAG & DROP CON CARPETAS
-window.handleFolderDragStart = function(e) {
-    draggedTopicId = e.currentTarget.dataset.topicId;
-    e.currentTarget.style.opacity = '0.5';
-    e.dataTransfer.effectAllowed = 'move';
-    dragOverFolder = false;
-    console.log('🔄 Iniciando arrastre del tema:', draggedTopicId);
+    isDroppingOnCenter = false;
 };
 
-window.handleFolderDragEnd = function(e) {
-    e.currentTarget.style.opacity = '';
-    draggedTopicId = null;
-    dragOverFolder = false;
-    // Limpiar todos los indicadores visuales
+window.handleDragEnd = function(e) {
+    if (originalHandleDragEnd) {
+        originalHandleDragEnd(e);
+    }
+    isDroppingOnCenter = false;
+    // Limpiar todos los estilos especiales
     document.querySelectorAll('.draggable-topic').forEach(topic => {
-        topic.style.borderColor = 'transparent';
         topic.style.backgroundColor = '';
+        topic.style.transform = '';
     });
-    if (dragOverFolderTimeout) {
-        clearTimeout(dragOverFolderTimeout);
-        dragOverFolderTimeout = null;
+};
+
+window.handleDragEnter = function(e) {
+    if (originalHandleDragEnter) {
+        originalHandleDragEnter(e);
     }
-};
-
-window.handleFolderDragOver = function(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-};
-
-window.handleFolderDragEnter = function(e) {
-    e.preventDefault();
+    
     if (draggedTopicId && e.currentTarget.dataset.topicId !== draggedTopicId) {
-        const isFolder = e.currentTarget.dataset.isFolder === 'true';
+        const rect = e.currentTarget.getBoundingClientRect();
+        const mouseY = e.clientY;
+        const topZone = rect.top + (rect.height * 0.3);
+        const bottomZone = rect.bottom - (rect.height * 0.3);
         
-        // Indicador visual diferente para carpetas vs reordenamiento
-        if (isFolder) {
-            e.currentTarget.style.borderColor = '#22c55e'; // Verde para carpetas
-            e.currentTarget.style.backgroundColor = 'rgba(34, 197, 94, 0.1)';
-            dragOverFolder = true;
-        } else {
-            e.currentTarget.style.borderColor = '#3b82f6'; // Azul para reordenamiento
-            dragOverFolder = false;
-        }
-        
-        // Auto-expandir carpetas al pasar por encima
-        if (isFolder && dragOverFolderTimeout) {
-            clearTimeout(dragOverFolderTimeout);
-        }
-        if (isFolder) {
-            dragOverFolderTimeout = setTimeout(() => {
-                const topicId = e.currentTarget.dataset.topicId;
-                if (expandedFolders[topicId] === false) {
-                    toggleFolder(topicId);
-                }
-            }, 1000);
-        }
-    }
-};
-
-window.handleFolderDragLeave = function(e) {
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-        e.currentTarget.style.borderColor = 'transparent';
+        // Limpiar estilos previos
         e.currentTarget.style.backgroundColor = '';
-        dragOverFolder = false;
-        if (dragOverFolderTimeout) {
-            clearTimeout(dragOverFolderTimeout);
-            dragOverFolderTimeout = null;
+        e.currentTarget.style.transform = '';
+        
+        if (mouseY > topZone && mouseY < bottomZone) {
+            // ZONA CENTRAL = AGRUPAR EN CARPETA
+            e.currentTarget.style.backgroundColor = 'rgba(147, 197, 253, 0.3)'; // Azul clarito
+            e.currentTarget.style.borderColor = '#3b82f6';
+            isDroppingOnCenter = true;
+        } else {
+            // ZONA SUPERIOR/INFERIOR = REORDENAR
+            e.currentTarget.style.borderColor = '#3b82f6';
+            isDroppingOnCenter = false;
         }
     }
 };
 
-window.handleFolderDrop = function(e) {
+window.handleDragLeave = function(e) {
+    if (originalHandleDragLeave) {
+        originalHandleDragLeave(e);
+    }
+    
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+        e.currentTarget.style.backgroundColor = '';
+        e.currentTarget.style.transform = '';
+        isDroppingOnCenter = false;
+    }
+};
+
+window.handleDrop = function(e) {
     e.preventDefault();
     e.stopPropagation();
     
     const targetTopicId = e.currentTarget.dataset.topicId;
-    const isTargetFolder = e.currentTarget.dataset.isFolder === 'true';
     
-    console.log('🎯 Soltando tema:', draggedTopicId, 'en:', targetTopicId, 'Es carpeta:', isTargetFolder);
+    console.log('🎯 Drop detectado:', {
+        draggedTopicId,
+        targetTopicId,
+        isDroppingOnCenter
+    });
     
     if (draggedTopicId && targetTopicId && draggedTopicId !== targetTopicId) {
-        if (dragOverFolder && isTargetFolder) {
-            // AGRUPAR: Mover tema dentro de carpeta
-            addTopicToFolder(draggedTopicId, targetTopicId);
+        if (isDroppingOnCenter) {
+            // AGRUPAR EN CARPETA - CON CONFIRMACIÓN
+            const draggedTopic = state.topics.find(t => t.id.toString() === draggedTopicId);
+            const targetTopic = state.topics.find(t => t.id.toString() === targetTopicId);
+            
+            const confirmGroup = confirm(`¿Estás seguro que quieres meter el tema "${draggedTopic.name}" dentro de "${targetTopic.name}"?\n\nEsto creará una carpeta si no existe.`);
+            
+            if (confirmGroup) {
+                createTopicFolder(draggedTopicId, targetTopicId);
+            }
         } else {
-            // REORDENAR: Cambiar posición en lista
-            reorderTopics(draggedTopicId, targetTopicId);
+            // REORDENAR NORMAL
+            if (typeof reorderTopics === 'function') {
+                reorderTopics(draggedTopicId, targetTopicId);
+            }
         }
     }
     
     // Limpiar estilos
     e.currentTarget.style.borderColor = 'transparent';
     e.currentTarget.style.backgroundColor = '';
-    dragOverFolder = false;
-    if (dragOverFolderTimeout) {
-        clearTimeout(dragOverFolderTimeout);
-        dragOverFolderTimeout = null;
-    }
+    e.currentTarget.style.transform = '';
+    isDroppingOnCenter = false;
 };
 
-// FUNCIÓN PARA AÑADIR TEMA A CARPETA
-function addTopicToFolder(topicId, parentId) {
+// FUNCIÓN PARA CREAR CARPETA DE TEMAS
+function createTopicFolder(childTopicId, parentTopicId) {
     // Verificar que no se cree bucle infinito
-    if (isDescendantOf(parentId, topicId)) {
+    if (isChildOf(parentTopicId, childTopicId)) {
         if (typeof showMessage === 'function') {
-            showMessage('❌ No se puede crear bucle: una carpeta no puede estar dentro de sus propios elementos', 'error');
+            showMessage('❌ No se puede crear bucle: un tema no puede contener a su propio padre', 'error');
         }
-        console.error('❌ Intento de crear bucle detectado');
         return;
     }
     
-    // Guardar relación padre-hijo
-    folderedTopics[topicId] = parentId;
-    localStorage.setItem('folderedTopics', JSON.stringify(folderedTopics));
+    // Guardar relación en estructura de carpetas
+    topicFolders[childTopicId] = parentTopicId;
+    localStorage.setItem('topicFolders', JSON.stringify(topicFolders));
     
-    // Expandir carpeta padre automáticamente
-    expandedFolders[parentId] = true;
+    // Expandir carpeta automáticamente
+    expandedFolders[parentTopicId] = true;
     localStorage.setItem('expandedFolders', JSON.stringify(expandedFolders));
     
-    // Re-renderizar
-    render();
-    
-    const draggedTopic = state.topics.find(t => t.id.toString() === topicId);
-    const parentTopic = state.topics.find(t => t.id.toString() === parentId);
+    const childTopic = state.topics.find(t => t.id.toString() === childTopicId);
+    const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId);
     
     if (typeof showMessage === 'function') {
-        showMessage(`📁 "${draggedTopic.name}" movido a carpeta "${parentTopic.name}"`, 'success');
+        showMessage(`📁 "${childTopic.name}" añadido a carpeta "${parentTopic.name}"`, 'success');
     }
     
-    console.log(`✅ Tema "${draggedTopic.name}" añadido a carpeta "${parentTopic.name}"`);
+    // Re-renderizar con nueva estructura
+    updateTopicDisplay();
+    
+    console.log(`✅ Carpeta creada: ${parentTopic.name} > ${childTopic.name}`);
 }
 
-// FUNCIÓN PARA VERIFICAR DESCENDENCIA (EVITAR BUCLES)
-function isDescendantOf(ancestorId, topicId) {
-    let currentParent = folderedTopics[ancestorId];
+// FUNCIÓN PARA VERIFICAR BUCLES
+function isChildOf(ancestorId, childId) {
+    let currentParent = topicFolders[ancestorId];
     while (currentParent) {
-        if (currentParent === topicId) {
+        if (currentParent === childId) {
             return true;
         }
-        currentParent = folderedTopics[currentParent];
+        currentParent = topicFolders[currentParent];
     }
     return false;
 }
 
-// FUNCIÓN PARA EXPANDIR/CONTRAER CARPETAS
-window.toggleFolder = function(topicId) {
+// SOBRESCRIBIR renderQuestionsByTopic PARA MOSTRAR CARPETAS
+const originalRenderQuestionsByTopicFolders = renderQuestionsByTopic;
+
+renderQuestionsByTopic = function() {
+    // Obtener HTML original
+    let originalHTML = originalRenderQuestionsByTopicFolders.call(this);
+    
+    // Aplicar estructura de carpetas
+    return applyFolderStructure(originalHTML);
+};
+
+// FUNCIÓN PARA APLICAR ESTRUCTURA DE CARPETAS AL HTML EXISTENTE
+function applyFolderStructure(originalHTML) {
+    // Crear mapa de temas padre e hijos
+    const parentTopics = new Set();
+    const childTopics = new Set();
+    
+    Object.keys(topicFolders).forEach(childId => {
+        const parentId = topicFolders[childId];
+        parentTopics.add(parentId);
+        childTopics.add(childId);
+    });
+    
+    // Si no hay carpetas, devolver HTML original
+    if (parentTopics.size === 0) {
+        return originalHTML;
+    }
+    
+    // Crear HTML con estructura de carpetas
+    let folderHTML = '<div id="sortable-topics-container">';
+    
+    // Procesar cada tema
+    state.topics.forEach(topic => {
+        const topicId = topic.id.toString();
+        
+        // Solo mostrar temas que NO son hijos de otros
+        if (!childTopics.has(topicId)) {
+            folderHTML += renderTopicWithFolders(topic, 0);
+        }
+    });
+    
+    folderHTML += '</div>';
+    folderHTML += `
+        <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
+            🔄 <strong>Consejo:</strong> Arrastra al centro de un tema (azul clarito) para crear carpeta • Arrastra arriba/abajo para reordenar
+        </div>
+    `;
+    
+    return folderHTML;
+}
+
+// FUNCIÓN PARA RENDERIZAR TEMA CON SUS CARPETAS
+function renderTopicWithFolders(topic, level = 0) {
+    const topicId = topic.id.toString();
+    const indent = level * 20;
+    const children = getTopicChildren(topicId);
+    const hasChildren = children.length > 0;
+    
+    // Obtener preguntas del tema
+    const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId);
+    const hasQuestions = topicQuestions.length > 0;
+    
+    let html = '';
+    
+    if (hasChildren) {
+        // TEMA CON CARPETA
+        const isExpanded = expandedFolders[topicId] !== false;
+        const totalQuestions = topicQuestions.length + children.reduce((total, child) => {
+            const childQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === child.id.toString());
+            return total + childQuestions.length;
+        }, 0);
+        
+        html += `
+            <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" 
+                 style="margin-left: ${indent}px; margin-bottom: 15px; border: 2px solid transparent; border-radius: 8px;"
+                 ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
+                 ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
+                 ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                
+                <h3 style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <button onclick="event.stopPropagation(); toggleFolderExpansion('${topicId}')" 
+                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                            ${isExpanded ? '📂' : '📁'}
+                        </button>
+                        <span>📁 ${topic.name}</span>
+                    </span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 14px; opacity: 0.9;">${totalQuestions} preguntas • ${children.length} elementos</span>
+                        <button onclick="event.stopPropagation(); ungroupTopicFolder('${topicId}')" style="background: #ec4899; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Desagrupar carpeta">
+                            📤
+                        </button>
+                        <button onclick="event.stopPropagation(); editTopicSimple('${topicId}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar">
+                            ✏️
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteTopicSimple('${topicId}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar">
+                            🗑️
+                        </button>
+                    </div>
+                </h3>
+                
+                ${hasQuestions ? renderTopicQuestions(topic, topicQuestions) : ''}
+                
+                <div id="folder-content-${topicId}" style="display: ${isExpanded ? 'block' : 'none'}; border-left: 1px solid #8b5cf6; border-right: 1px solid #8b5cf6; border-bottom: 1px solid #8b5cf6; border-radius: 0 0 8px 8px; background: #faf5ff; padding: 10px;">
+                    ${children.map(child => renderTopicWithFolders(child, level + 1)).join('')}
+                </div>
+            </div>
+        `;
+    } else {
+        // TEMA NORMAL
+        html += renderNormalTopic(topic, topicQuestions, hasQuestions, indent);
+    }
+    
+    return html;
+}
+
+// FUNCIÓN AUXILIAR PARA OBTENER HIJOS DE UN TEMA
+function getTopicChildren(parentId) {
+    const children = [];
+    
+    Object.keys(topicFolders).forEach(childId => {
+        if (topicFolders[childId] === parentId) {
+            const childTopic = state.topics.find(t => t.id.toString() === childId);
+            if (childTopic) {
+                children.push(childTopic);
+            }
+        }
+    });
+    
+    return children;
+}
+
+// FUNCIÓN PARA RENDERIZAR PREGUNTAS DE UN TEMA
+function renderTopicQuestions(topic, questions) {
+    const topicId = topic.id.toString();
+    const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+    
+    return `
+        <div style="border-left: 1px solid #8b5cf6; border-right: 1px solid #8b5cf6; background: white;">
+            <div style="padding: 10px 15px; background: rgba(139, 92, 246, 0.1); display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #7c3aed; font-weight: 500;">Preguntas del tema principal</span>
+                <button onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
+                        style="background: #8b5cf6; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                    ${isCollapsed ? '▶' : '▼'}
+                </button>
+            </div>
+            <div id="topic-content-${topicId}" style="display: ${isCollapsed ? 'none' : 'block'};">
+                ${questions.map((q, qIndex) => {
+                    const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                    return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+// FUNCIÓN PARA RENDERIZAR TEMA NORMAL
+function renderNormalTopic(topic, topicQuestions, hasQuestions, indent) {
+    const topicId = topic.id.toString();
+    
+    if (hasQuestions) {
+        const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+        
+        return `
+            <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" 
+                 style="margin-left: ${indent}px; margin-bottom: 15px; border: 2px solid transparent; border-radius: 8px;"
+                 ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
+                 ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
+                 ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                
+                <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
+                    <span>🔷 ${topic.name}</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
+                        <button id="toggle-btn-${topicId}" onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
+                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
+                                title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                            ${isCollapsed ? '▶' : '▼'}
+                        </button>
+                        <button onclick="event.stopPropagation(); editTopicSimple('${topicId}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema">
+                            ✏️
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteTopicSimple('${topicId}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema">
+                            🗑️
+                        </button>
+                    </div>
+                </h3>
+                <div id="topic-content-${topicId}" style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                    ${topicQuestions.map((q, qIndex) => {
+                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                        return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    } else {
+        // Tema vacío
+        return `
+            <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" 
+                 style="margin-left: ${indent}px; margin-bottom: 15px; opacity: 0.7; border: 2px solid transparent; border-radius: 8px;"
+                 ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
+                 ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
+                 ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                
+                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
+                    <span>🔶 ${topic.name}</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 14px; opacity: 0.9;">0 preguntas</span>
+                        <button onclick="event.stopPropagation(); editTopicEmpty('${topicId}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema vacío">
+                            ✏️
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteTopicEmpty('${topicId}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema vacío">
+                            🗑️
+                        </button>
+                    </div>
+                </h3>
+                <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: #f9fafb; padding: 20px; text-align: center;">
+                    <div style="color: #6b7280; font-style: italic;">
+                        📝 Este tema no tiene preguntas asignadas
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// FUNCIONES DE UTILIDAD PARA CARPETAS
+window.toggleFolderExpansion = function(topicId) {
     expandedFolders[topicId] = !expandedFolders[topicId];
     localStorage.setItem('expandedFolders', JSON.stringify(expandedFolders));
     
@@ -20830,33 +20854,20 @@ window.toggleFolder = function(topicId) {
         folderContent.style.display = expandedFolders[topicId] ? 'block' : 'none';
     }
     
-    // Actualizar icono
-    const folderElements = document.querySelectorAll(`[data-topic-id="${topicId}"] button`);
-    folderElements.forEach(btn => {
+    // Actualizar icono del botón
+    const buttons = document.querySelectorAll(`[data-topic-id="${topicId}"] h3 button`);
+    buttons.forEach(btn => {
         if (btn.textContent.includes('📂') || btn.textContent.includes('📁')) {
             btn.textContent = expandedFolders[topicId] ? '📂' : '📁';
         }
     });
-    
-    console.log(`📁 Carpeta ${topicId} ${expandedFolders[topicId] ? 'expandida' : 'contraída'}`);
 };
 
-// FUNCIÓN PARA DESAGRUPAR CARPETA
-window.ungroupFolder = function(folderId) {
-    const folderTopic = state.topics.find(t => t.id.toString() === folderId);
+window.ungroupTopicFolder = function(parentId) {
+    const parentTopic = state.topics.find(t => t.id.toString() === parentId);
     
-    if (!folderTopic) {
-        console.error('❌ Carpeta no encontrada');
-        return;
-    }
-    
-    // Encontrar todos los hijos de esta carpeta
-    const children = [];
-    Object.keys(folderedTopics).forEach(childId => {
-        if (folderedTopics[childId] === folderId) {
-            children.push(childId);
-        }
-    });
+    // Encontrar todos los hijos
+    const children = Object.keys(topicFolders).filter(childId => topicFolders[childId] === parentId);
     
     if (children.length === 0) {
         if (typeof showMessage === 'function') {
@@ -20865,77 +20876,49 @@ window.ungroupFolder = function(folderId) {
         return;
     }
     
-    const confirmUngroup = confirm(`¿Desagrupar carpeta "${folderTopic.name}"?\n\nSe sacarán ${children.length} elementos de la carpeta.\n\nLa carpeta se convertirá en un tema normal.`);
+    const confirmUngroup = confirm(`¿Desagrupar carpeta "${parentTopic.name}"?\n\nSe liberarán ${children.length} elementos.`);
     
     if (confirmUngroup) {
-        // Eliminar relaciones padre-hijo de todos los hijos
+        // Eliminar todas las relaciones
         children.forEach(childId => {
-            delete folderedTopics[childId];
+            delete topicFolders[childId];
         });
         
-        // Guardar cambios
-        localStorage.setItem('folderedTopics', JSON.stringify(folderedTopics));
-        
-        // Re-renderizar
-        render();
+        localStorage.setItem('topicFolders', JSON.stringify(topicFolders));
         
         if (typeof showMessage === 'function') {
-            showMessage(`📤 Carpeta "${folderTopic.name}" desagrupada (${children.length} elementos liberados)`, 'success');
+            showMessage(`📤 Carpeta "${parentTopic.name}" desagrupada (${children.length} elementos liberados)`, 'success');
         }
         
-        console.log(`📤 Carpeta desagrupada: ${folderTopic.name} (${children.length} hijos)`);
+        // Re-renderizar
+        updateTopicDisplay();
     }
 };
 
-// MODIFICAR reorderTopics PARA QUE RESPETE LAS CARPETAS
-function reorderTopics(draggedTopicId, targetTopicId) {
-    console.log(`🔄 Reordenando: ${draggedTopicId} -> posición de ${targetTopicId}`);
-    
-    const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedTopicId);
-    const targetIndex = state.topics.findIndex(t => t.id.toString() === targetTopicId);
-    
-    if (draggedIndex === -1 || targetIndex === -1) {
-        console.error('❌ No se encontraron los temas para reordenar');
-        return;
-    }
-    
-    // Remover el tema arrastrado de su posición actual
-    const [draggedTopic] = state.topics.splice(draggedIndex, 1);
-    
-    // Insertar en la nueva posición
-    state.topics.splice(targetIndex, 0, draggedTopic);
-    
-    // Guardar cambios
-    if (typeof saveData === 'function') {
-        saveData();
+// FUNCIÓN PARA ACTUALIZAR LA VISUALIZACIÓN
+function updateTopicDisplay() {
+    if (typeof render === 'function') {
+        render();
     } else {
-        localStorage.setItem('topics', JSON.stringify(state.topics));
+        // Fallback manual
+        const container = document.getElementById('sortable-topics-container');
+        if (container && container.parentElement) {
+            container.parentElement.innerHTML = renderQuestionsByTopic();
+        }
     }
-    
-    // Re-renderizar
-    render();
-    
-    const draggedName = draggedTopic.name;
-    
-    if (typeof showMessage === 'function') {
-        showMessage(`🔄 Tema "${draggedName}" reordenado`, 'success');
-    }
-    
-    console.log(`✅ Tema "${draggedName}" reordenado correctamente`);
 }
 
-console.log('✅ Parche de carpetas aplicado correctamente');
-console.log('📁 Funcionalidades nuevas:');
-console.log('   - Arrastra un tema SOBRE otro para crear carpeta');
-console.log('   - Arrastra un tema ARRIBA/ABAJO de otro para reordenar');
-console.log('   - Indicadores visuales: Verde=carpeta, Azul=reordenar');
-console.log('   - Botón 📤 para desagrupar carpetas');
-console.log('   - Auto-expansión al arrastrar sobre carpetas');
-console.log('   - Prevención de buclos infinitos');
-console.log('💡 ¡Tus temas ahora pueden organizarse en carpetas!');
+console.log('✅ Parche de carpetas SIMPLIFICADO aplicado');
+console.log('🎯 Diferenciación visual:');
+console.log('   - Zona central del tema = AZUL CLARITO (crear carpeta)');
+console.log('   - Zona superior/inferior = BORDE AZUL (reordenar)');
+console.log('   - Confirmación antes de crear carpeta');
+console.log('   - Mantiene función de reordenar intacta');
+console.log('💡 ¡Arrastra al centro para carpetas, arriba/abajo para reordenar!');
 </script>
 </body>
 </html>
+
 
 
 
