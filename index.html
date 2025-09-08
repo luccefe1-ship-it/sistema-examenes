@@ -21071,42 +21071,33 @@ console.log('🔄 Arrastra cualquier header para reordenar');
 console.log('💡 Usa diagnosticSubfolders() en la consola para debugging');
 </script>
 <!-- 
-PARCHE FINAL: SISTEMA COMPLETO DE SUBCARPETAS CON DRAG & DROP
+PARCHE CORREGIDO: SISTEMA DE SUBCARPETAS COMPATIBLE CON MULTIJUGADOR
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche reemplaza completamente la función de renderizado
+Este parche NO interfiere con el modo multijugador
 -->
 
 <script>
-// ========== PARCHE FINAL: SISTEMA COMPLETO DE SUBCARPETAS ==========
-console.log('🔄 Aplicando PARCHE FINAL: Sistema completo de subcarpetas con drag & drop...');
+// ========== PARCHE COMPATIBLE: SUBCARPETAS SIN INTERFERIR MULTIJUGADOR ==========
+console.log('🔄 Aplicando parche compatible: Subcarpetas que respeta multijugador...');
 
 // ==================== ESPERAR A QUE TODO ESTÉ CARGADO ====================
 setTimeout(() => {
-    console.log('⏳ Inicializando sistema de subcarpetas...');
+    console.log('⏳ Inicializando sistema de subcarpetas compatible...');
     
     // ==================== ESTRUCTURA DE DATOS ====================
-    // Estructura global para manejar las integraciones
     window.topicIntegrations = JSON.parse(localStorage.getItem('topicIntegrations') || '{}');
-    // Formato: { "parentTopicId": ["childTopicId1", "childTopicId2"] }
-
-    // Estado de carpetas colapsadas
     window.collapsedTopics = JSON.parse(localStorage.getItem('collapsedTopics') || '{}');
-
-    // Variables para drag & drop
     window.draggedTopicId = null;
     window.draggedSubtopicId = null;
     window.draggedSubtopicParent = null;
 
     // ==================== FUNCIONES AUXILIARES ====================
-
-    // Función para verificar si un tema es hijo de otro
     function isChildTopic(topicId) {
         return Object.values(window.topicIntegrations).some(children => 
             children.includes(topicId.toString())
         );
     }
 
-    // Función para obtener el ID del tema padre
     function getParentTopicId(childTopicId) {
         const parentEntry = Object.entries(window.topicIntegrations).find(([parent, children]) => 
             children.includes(childTopicId.toString())
@@ -21114,7 +21105,6 @@ setTimeout(() => {
         return parentEntry ? parentEntry[0] : null;
     }
 
-    // Función para obtener temas hijos de un padre (ordenados)
     function getOrderedChildTopics(parentTopicId) {
         const childTopics = window.topicIntegrations[parentTopicId.toString()] || [];
         const orderedChildren = JSON.parse(localStorage.getItem(`subtopicOrder_${parentTopicId}`) || 'null');
@@ -21128,19 +21118,21 @@ setTimeout(() => {
         return childTopics;
     }
 
-    // Función para guardar orden de subtemas
     function saveSubtopicOrder(parentTopicId, orderedChildIds) {
         localStorage.setItem(`subtopicOrder_${parentTopicId}`, JSON.stringify(orderedChildIds));
     }
 
-    // Función para contar preguntas de un tema
     function getTopicQuestionCountSubfolders(topicId) {
         return state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
     }
 
-    // ==================== FUNCIONES DE INTEGRACIÓN ====================
+    // ==================== DETECTAR SI ESTAMOS EN MULTIJUGADOR ====================
+    function isInMultiplayerMode() {
+        return (state.currentTab === 'multiplayer') || 
+               (typeof multiplayerState !== 'undefined' && multiplayerState.gameState === 'playing');
+    }
 
-    // Función para abrir el modal de integración
+    // ==================== FUNCIONES DE INTEGRACIÓN ====================
     window.openIntegrationModal = function(parentTopicId) {
         const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId.toString());
         if (!parentTopic) return;
@@ -21201,13 +21193,11 @@ setTimeout(() => {
         document.body.insertAdjacentHTML('beforeend', modalHTML);
     };
 
-    // Función para cerrar el modal
     window.closeIntegrationModal = function() {
         const modal = document.getElementById('integrationModal');
         if (modal) modal.remove();
     };
 
-    // Función para procesar la integración
     window.processIntegration = function(parentTopicId) {
         const checkboxes = document.querySelectorAll('#topicCheckboxes input[type="checkbox"]:checked');
         const selectedTopicIds = Array.from(checkboxes).map(cb => cb.value);
@@ -21229,14 +21219,17 @@ setTimeout(() => {
 
         localStorage.setItem('topicIntegrations', JSON.stringify(window.topicIntegrations));
         closeIntegrationModal();
-        render();
+        
+        // Solo renderizar si NO estamos en multijugador
+        if (!isInMultiplayerMode() && typeof render === 'function') {
+            render();
+        }
         
         if (typeof showMessage === 'function') {
             showMessage(`📁 ${selectedTopicIds.length} tema(s) integrado(s)`, 'success');
         }
     };
 
-    // Función para desintegrar un tema hijo
     window.disintegrateTopic = function(childTopicId) {
         const parentTopicId = getParentTopicId(childTopicId);
         if (!parentTopicId) return;
@@ -21251,7 +21244,11 @@ setTimeout(() => {
             }
             
             localStorage.setItem('topicIntegrations', JSON.stringify(window.topicIntegrations));
-            render();
+            
+            // Solo renderizar si NO estamos en multijugador
+            if (!isInMultiplayerMode() && typeof render === 'function') {
+                render();
+            }
             
             if (typeof showMessage === 'function') {
                 showMessage(`🔗 "${childTopic.name}" desintegrado`, 'success');
@@ -21259,11 +21256,19 @@ setTimeout(() => {
         }
     };
 
-    // ==================== FUNCIONES DE TOGGLE ====================
-
+    // ==================== TOGGLE COMPATIBLE ====================
+    // Guardar la función original si existe
+    const originalToggleTopicVisibility = window.toggleTopicVisibility;
+    
     window.toggleTopicVisibility = function(topicId) {
         console.log('🔄 Toggle para:', topicId);
         
+        // Si estamos en multijugador, usar la función original
+        if (isInMultiplayerMode() && originalToggleTopicVisibility) {
+            return originalToggleTopicVisibility(topicId);
+        }
+        
+        // Lógica para modo normal (subcarpetas)
         const element = document.getElementById(`topic-content-${topicId}`);
         const button = document.querySelector(`[onclick*="toggleTopicVisibility('${topicId}')"]`);
         
@@ -21277,20 +21282,21 @@ setTimeout(() => {
             localStorage.setItem('collapsedTopics', JSON.stringify(window.collapsedTopics));
             
             console.log('✅ Toggle ejecutado:', topicId, isHidden ? 'mostrado' : 'ocultado');
-        } else {
-            console.error('❌ No se encontró elemento para:', topicId);
         }
     };
 
-    // ==================== FUNCIONES DE DRAG & DROP TEMAS PRINCIPALES ====================
-
+    // ==================== DRAG & DROP FUNCIONES ====================
     window.handleDragStart = function(e) {
+        if (isInMultiplayerMode()) return; // No drag en multijugador
+        
         window.draggedTopicId = e.currentTarget.dataset.topicId;
         e.currentTarget.style.opacity = '0.5';
         e.dataTransfer.effectAllowed = 'move';
     };
 
     window.handleDragEnd = function(e) {
+        if (isInMultiplayerMode()) return;
+        
         e.currentTarget.style.opacity = '';
         window.draggedTopicId = null;
         document.querySelectorAll('.draggable-topic').forEach(topic => {
@@ -21299,11 +21305,13 @@ setTimeout(() => {
     };
 
     window.handleDragOver = function(e) {
+        if (isInMultiplayerMode()) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
     };
 
     window.handleDragEnter = function(e) {
+        if (isInMultiplayerMode()) return;
         e.preventDefault();
         if (window.draggedTopicId && e.currentTarget.dataset.topicId !== window.draggedTopicId) {
             e.currentTarget.style.borderColor = '#3b82f6';
@@ -21311,12 +21319,14 @@ setTimeout(() => {
     };
 
     window.handleDragLeave = function(e) {
+        if (isInMultiplayerMode()) return;
         if (!e.currentTarget.contains(e.relatedTarget)) {
             e.currentTarget.style.borderColor = 'transparent';
         }
     };
 
     window.handleDrop = function(e) {
+        if (isInMultiplayerMode()) return;
         e.preventDefault();
         e.stopPropagation();
         
@@ -21327,6 +21337,71 @@ setTimeout(() => {
         }
         
         e.currentTarget.style.borderColor = 'transparent';
+    };
+
+    // Funciones de drag para subtemas
+    window.handleSubtopicDragStart = function(e) {
+        if (isInMultiplayerMode()) return;
+        window.draggedSubtopicId = e.currentTarget.dataset.subtopicId;
+        window.draggedSubtopicParent = e.currentTarget.dataset.parentId;
+        e.currentTarget.style.opacity = '0.5';
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    window.handleSubtopicDragEnd = function(e) {
+        if (isInMultiplayerMode()) return;
+        e.currentTarget.style.opacity = '';
+        window.draggedSubtopicId = null;
+        window.draggedSubtopicParent = null;
+        document.querySelectorAll('.draggable-subtopic').forEach(subtopic => {
+            subtopic.style.borderColor = '#5ba8db';
+        });
+    };
+
+    window.handleSubtopicDragOver = function(e) {
+        if (isInMultiplayerMode()) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    window.handleSubtopicDragEnter = function(e) {
+        if (isInMultiplayerMode()) return;
+        e.preventDefault();
+        const targetParentId = e.currentTarget.dataset.parentId;
+        const targetSubtopicId = e.currentTarget.dataset.subtopicId;
+        
+        if (window.draggedSubtopicId && 
+            window.draggedSubtopicParent === targetParentId && 
+            window.draggedSubtopicId !== targetSubtopicId) {
+            e.currentTarget.style.borderColor = '#3b82f6';
+            e.currentTarget.style.borderWidth = '2px';
+        }
+    };
+
+    window.handleSubtopicDragLeave = function(e) {
+        if (isInMultiplayerMode()) return;
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            e.currentTarget.style.borderColor = '#5ba8db';
+            e.currentTarget.style.borderWidth = '2px';
+        }
+    };
+
+    window.handleSubtopicDrop = function(e) {
+        if (isInMultiplayerMode()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const targetSubtopicId = e.currentTarget.dataset.subtopicId;
+        const targetParentId = e.currentTarget.dataset.parentId;
+        
+        if (window.draggedSubtopicId && 
+            window.draggedSubtopicParent === targetParentId && 
+            window.draggedSubtopicId !== targetSubtopicId) {
+            reorderSubtopics(window.draggedSubtopicParent, window.draggedSubtopicId, targetSubtopicId);
+        }
+        
+        e.currentTarget.style.borderColor = '#5ba8db';
+        e.currentTarget.style.borderWidth = '2px';
     };
 
     function reorderTopics(draggedTopicId, targetTopicId) {
@@ -21344,72 +21419,14 @@ setTimeout(() => {
             localStorage.setItem('topics', JSON.stringify(state.topics));
         }
         
-        render();
+        if (!isInMultiplayerMode() && typeof render === 'function') {
+            render();
+        }
         
         if (typeof showMessage === 'function') {
             showMessage(`🔄 Tema "${draggedTopic.name}" movido`, 'success');
         }
     }
-
-    // ==================== FUNCIONES DE DRAG & DROP SUBTEMAS ====================
-
-    window.handleSubtopicDragStart = function(e) {
-        window.draggedSubtopicId = e.currentTarget.dataset.subtopicId;
-        window.draggedSubtopicParent = e.currentTarget.dataset.parentId;
-        e.currentTarget.style.opacity = '0.5';
-        e.dataTransfer.effectAllowed = 'move';
-    };
-
-    window.handleSubtopicDragEnd = function(e) {
-        e.currentTarget.style.opacity = '';
-        window.draggedSubtopicId = null;
-        window.draggedSubtopicParent = null;
-        document.querySelectorAll('.draggable-subtopic').forEach(subtopic => {
-            subtopic.style.borderColor = '#5ba8db';
-        });
-    };
-
-    window.handleSubtopicDragOver = function(e) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-    };
-
-    window.handleSubtopicDragEnter = function(e) {
-        e.preventDefault();
-        const targetParentId = e.currentTarget.dataset.parentId;
-        const targetSubtopicId = e.currentTarget.dataset.subtopicId;
-        
-        if (window.draggedSubtopicId && 
-            window.draggedSubtopicParent === targetParentId && 
-            window.draggedSubtopicId !== targetSubtopicId) {
-            e.currentTarget.style.borderColor = '#3b82f6';
-            e.currentTarget.style.borderWidth = '2px';
-        }
-    };
-
-    window.handleSubtopicDragLeave = function(e) {
-        if (!e.currentTarget.contains(e.relatedTarget)) {
-            e.currentTarget.style.borderColor = '#5ba8db';
-            e.currentTarget.style.borderWidth = '2px';
-        }
-    };
-
-    window.handleSubtopicDrop = function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const targetSubtopicId = e.currentTarget.dataset.subtopicId;
-        const targetParentId = e.currentTarget.dataset.parentId;
-        
-        if (window.draggedSubtopicId && 
-            window.draggedSubtopicParent === targetParentId && 
-            window.draggedSubtopicId !== targetSubtopicId) {
-            reorderSubtopics(window.draggedSubtopicParent, window.draggedSubtopicId, targetSubtopicId);
-        }
-        
-        e.currentTarget.style.borderColor = '#5ba8db';
-        e.currentTarget.style.borderWidth = '2px';
-    };
 
     function reorderSubtopics(parentTopicId, draggedSubtopicId, targetSubtopicId) {
         const orderedChildren = getOrderedChildTopics(parentTopicId);
@@ -21422,7 +21439,10 @@ setTimeout(() => {
         orderedChildren.splice(targetIndex, 0, draggedSubtopic);
         
         saveSubtopicOrder(parentTopicId, orderedChildren);
-        render();
+        
+        if (!isInMultiplayerMode() && typeof render === 'function') {
+            render();
+        }
         
         const draggedTopic = state.topics.find(t => t.id.toString() === draggedSubtopicId);
         if (typeof showMessage === 'function') {
@@ -21430,17 +21450,24 @@ setTimeout(() => {
         }
     }
 
-    // ==================== FUNCIÓN DE RENDERIZADO COMPLETA ====================
-
-    // REEMPLAZAR COMPLETAMENTE renderQuestionsByTopic
+    // ==================== RENDERIZADO COMPATIBLE ====================
+    
+    // Guardar la función original
+    const originalRenderQuestionsByTopic = window.renderQuestionsByTopic;
+    
+    // Nueva función que respeta el multijugador
     window.renderQuestionsByTopic = function() {
+        // SI ESTAMOS EN MULTIJUGADOR, usar función original
+        if (isInMultiplayerMode() && originalRenderQuestionsByTopic) {
+            return originalRenderQuestionsByTopic.call(this);
+        }
+        
+        // MODO NORMAL: renderizado con subcarpetas
         const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
         let html = '';
 
-        // Obtener solo temas padre (que no son hijos de otros) y temas sin integrar
         const parentAndStandaloneTopics = state.topics.filter(topic => !isChildTopic(topic.id));
 
-        // Renderizar cada tema padre o independiente
         parentAndStandaloneTopics.forEach(topic => {
             const topicId = topic.id.toString();
             const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId);
@@ -21448,7 +21475,6 @@ setTimeout(() => {
             const hasChildren = childTopicIds.length > 0;
             const isCollapsed = window.collapsedTopics[topicId] || false;
 
-            // Solo mostrar si tiene preguntas propias O tiene hijos
             if (topicQuestions.length > 0 || hasChildren) {
                 
                 const headerColor = '#4f46e5';
@@ -21572,7 +21598,7 @@ setTimeout(() => {
             }
         });
 
-        // Mostrar preguntas sin tema asignado (si existen)
+        // Preguntas sin tema
         if (questionsWithoutTopic.length > 0) {
             const topicId = 'sin-tema';
             const isCollapsed = window.collapsedTopics[topicId] || false;
@@ -21600,12 +21626,10 @@ setTimeout(() => {
             `;
         }
 
-        // Si no hay contenido, mostrar mensaje
         if (html === '') {
             return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
         }
 
-        // Añadir consejos
         html += `
             <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
                 🔄 <strong>Consejos:</strong><br>
@@ -21618,47 +21642,33 @@ setTimeout(() => {
     };
 
     // ==================== FUNCIONES DE DIAGNÓSTICO ====================
-
     window.diagnosticSubfolders = function() {
-        console.log('📁 DIAGNÓSTICO DEL SISTEMA DE SUBCARPETAS:');
+        console.log('📁 DIAGNÓSTICO DEL SISTEMA DE SUBCARPETAS COMPATIBLE:');
+        console.log('En modo multijugador:', isInMultiplayerMode());
         console.log('Integraciones actuales:', window.topicIntegrations);
         console.log('Estados colapsados:', window.collapsedTopics);
-        
-        Object.entries(window.topicIntegrations).forEach(([parentId, children]) => {
-            const parentTopic = state.topics.find(t => t.id.toString() === parentId);
-            const orderedChildren = getOrderedChildTopics(parentId);
-            
-            console.log(`Padre: ${parentTopic ? parentTopic.name : 'NO ENCONTRADO'} (ID: ${parentId})`);
-            console.log(`  - Hijos originales: [${children.join(', ')}]`);
-            console.log(`  - Hijos ordenados: [${orderedChildren.join(', ')}]`);
-        });
     };
 
-    // ==================== INICIALIZACIÓN ====================
-
-    // Forzar re-renderizado
-    if (typeof render === 'function') {
-        render();
-    }
-
-    console.log('✅ SISTEMA COMPLETO DE SUBCARPETAS IMPLEMENTADO');
+    console.log('✅ SISTEMA DE SUBCARPETAS COMPATIBLE IMPLEMENTADO');
     console.log('🔄 Funcionalidades:');
+    console.log('   - ✅ Compatible con multijugador (no interfiere)');
     console.log('   - ✅ Drag & drop de temas principales');
     console.log('   - ✅ Drag & drop de subtemas (color celeste)');
     console.log('   - ✅ Toggle funcional para expandir/colapsar');
     console.log('   - ✅ Sistema de integración de temas');
     console.log('   - ✅ Persistencia completa en localStorage');
     console.log('💡 Uso:');
-    console.log('   - Arrastra temas azules para reordenar generalmente');
-    console.log('   - Arrastra subtemas celestes para reordenar dentro de su carpeta');
+    console.log('   - Funciona SOLO en modo normal (no en multijugador)');
+    console.log('   - En multijugador preserva funcionalidad original');
     console.log('   - Usa diagnosticSubfolders() para debugging');
 
-}, 2000); // Esperamos 2 segundos para asegurar que todo esté cargado
+}, 1000); // Reducido a 1 segundo
 
-console.log('⏳ Parche final programado - esperando inicialización...');
+console.log('⏳ Parche compatible programado...');
 </script>
 </body>
 </html>
+
 
 
 
