@@ -21657,8 +21657,278 @@ setTimeout(() => {
 
 console.log('⏳ Parche final programado - esperando inicialización...');
 </script>
+<!-- 
+PARCHE COMPLEMENTARIO: ARREGLAR SOLO EL MULTIJUGADOR
+Añadir este código DESPUÉS del parche de subcarpetas, antes de </body>
+Este parche solo restaura la funcionalidad del multijugador
+-->
+
+<script>
+// ========== PARCHE COMPLEMENTARIO: SOLO MULTIJUGADOR ==========
+console.log('🎮 Aplicando parche complementario para multijugador...');
+
+// ==================== DETECCIÓN DE MULTIJUGADOR ====================
+function isInMultiplayerMode() {
+    return (state && state.currentTab === 'multiplayer') || 
+           (typeof multiplayerState !== 'undefined' && 
+            multiplayerState && 
+            (multiplayerState.gameState === 'playing' || 
+             multiplayerState.gameState === 'waiting' || 
+             multiplayerState.gameState === 'ready'));
+}
+
+// ==================== FUNCIONES ESPECÍFICAS DEL MULTIJUGADOR ====================
+
+// Función para organizar preguntas para Firebase (multijugador)
+window.organizeQuestionsForFirebaseMultiplayer = function(questions, topics) {
+    const organized = {};
+    
+    topics.forEach(topic => {
+        const topicQuestions = questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        
+        if (topicQuestions.length > 0) {
+            const processedQuestions = topicQuestions.map((q, index) => ({
+                firebaseKey: `q${index + 1}`,
+                question: q.question,
+                options: q.options,
+                correctAnswer: q.correctAnswer,
+                explanation: q.explanation || '',
+                isVerified: q.isVerified || false
+            }));
+            
+            const cleanKey = topic.name.replace(/[.#$[\]]/g, '_').substring(0, 50);
+            
+            organized[cleanKey] = {
+                name: topic.name,
+                id: topic.id,
+                questions: processedQuestions
+            };
+        }
+    });
+    
+    return organized;
+};
+
+// Toggle específico para multijugador
+window.toggleTopicQuestionsMultiplayer = function(fullTopicKey) {
+    let questionsId;
+    
+    if (fullTopicKey.startsWith('my-')) {
+        const topicKey = fullTopicKey.replace('my-', '');
+        questionsId = `my-questions-${topicKey}`;
+    } else if (fullTopicKey.startsWith('opponent-')) {
+        const topicKey = fullTopicKey.replace('opponent-', '');
+        questionsId = `opponent-questions-${topicKey}`;
+    } else {
+        questionsId = `questions-${fullTopicKey}`;
+    }
+    
+    const questionsDiv = document.getElementById(questionsId);
+    if (questionsDiv) {
+        questionsDiv.style.display = questionsDiv.style.display === 'none' ? 'block' : 'none';
+    }
+};
+
+// Función para seleccionar pregunta en duelo
+window.selectQuestionForDuelFixed = function(topicKey, questionFirebaseKey) {
+    console.log('🎯 selectQuestionForDuel llamada:', { topicKey, questionFirebaseKey });
+    
+    if (!multiplayerState || !multiplayerState.myTurn) {
+        if (typeof showMessage === 'function') {
+            showMessage('No es tu turno para seleccionar preguntas', 'warning');
+        }
+        return;
+    }
+
+    // Obtener banco del oponente
+    const opponentBank = multiplayerState.isHost ? 
+        (multiplayerState.guestQuestionBank || {}) : 
+        (multiplayerState.hostQuestionBank || {});
+    
+    if (!opponentBank[topicKey] || !opponentBank[topicKey].questions) {
+        console.error('❌ Tema no encontrado:', topicKey);
+        if (typeof showMessage === 'function') {
+            showMessage('Error: Tema no encontrado', 'error');
+        }
+        return;
+    }
+
+    const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionFirebaseKey);
+    if (!question) {
+        console.error('❌ Pregunta no encontrada:', questionFirebaseKey);
+        if (typeof showMessage === 'function') {
+            showMessage('Error: Pregunta no encontrada', 'error');
+        }
+        return;
+    }
+
+    console.log('✅ Enviando pregunta al oponente:', question.question.substring(0, 50) + '...');
+
+    // Actualizar Firebase con la pregunta seleccionada
+    if (typeof database !== 'undefined' && database && multiplayerState.currentRoom) {
+        database.ref('rooms/' + multiplayerState.currentRoom).update({
+            'gameData/currentQuestionData': question,
+            'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
+            'gameData/waitingForAnswer': true,
+            lastActivity: firebase.database.ServerValue.TIMESTAMP
+        }).then(() => {
+            if (typeof showMessage === 'function') {
+                showMessage(`✅ Pregunta enviada: ${question.question.substring(0, 40)}...`, 'success');
+            }
+        }).catch(error => {
+            console.error('❌ Error enviando pregunta:', error);
+            if (typeof showMessage === 'function') {
+                showMessage('Error al enviar la pregunta', 'error');
+            }
+        });
+    }
+};
+
+// ==================== INTERCEPTAR FUNCIONES SEGÚN CONTEXTO ====================
+
+// Guardar funciones originales si existen
+const originalToggleTopicQuestions = window.toggleTopicQuestions;
+const originalSelectQuestionForDuel = window.selectQuestionForDuel;
+const originalSelectQuestionFromOpponent = window.selectQuestionFromOpponent;
+const originalOrganizeQuestionsForFirebase = window.organizeQuestionsForFirebase;
+
+// Interceptar toggleTopicQuestions
+window.toggleTopicQuestions = function(topicKey) {
+    if (isInMultiplayerMode()) {
+        return toggleTopicQuestionsMultiplayer(topicKey);
+    } else if (originalToggleTopicQuestions) {
+        return originalToggleTopicQuestions(topicKey);
+    }
+};
+
+// Interceptar selectQuestionForDuel
+window.selectQuestionForDuel = function(topicKey, questionFirebaseKey) {
+    if (isInMultiplayerMode()) {
+        return selectQuestionForDuelFixed(topicKey, questionFirebaseKey);
+    } else if (originalSelectQuestionForDuel) {
+        return originalSelectQuestionForDuel(topicKey, questionFirebaseKey);
+    }
+};
+
+// Interceptar selectQuestionFromOpponent
+window.selectQuestionFromOpponent = function(topicKey, questionFirebaseKey) {
+    if (isInMultiplayerMode()) {
+        return selectQuestionForDuelFixed(topicKey, questionFirebaseKey);
+    } else if (originalSelectQuestionFromOpponent) {
+        return originalSelectQuestionFromOpponent(topicKey, questionFirebaseKey);
+    }
+};
+
+// Interceptar organizeQuestionsForFirebase
+window.organizeQuestionsForFirebase = function(questions, topics) {
+    if (isInMultiplayerMode()) {
+        return organizeQuestionsForFirebaseMultiplayer(questions, topics);
+    } else if (originalOrganizeQuestionsForFirebase) {
+        return originalOrganizeQuestionsForFirebase(questions, topics);
+    } else {
+        return organizeQuestionsForFirebaseMultiplayer(questions, topics);
+    }
+};
+
+// ==================== HABILITAR SCROLL EN MULTIJUGADOR ====================
+
+function enableScrollForMultiplayer() {
+    if (isInMultiplayerMode()) {
+        // Habilitar scroll en body
+        document.body.style.overflow = 'auto';
+        document.body.style.height = 'auto';
+        document.documentElement.style.overflow = 'auto';
+        document.documentElement.style.height = 'auto';
+        
+        // Habilitar scroll en contenedores principales
+        const app = document.getElementById('app');
+        if (app) {
+            app.style.overflow = 'auto';
+            app.style.height = 'auto';
+        }
+        
+        // Habilitar scroll en sidebars del multijugador
+        const sidebars = document.querySelectorAll('[style*="overflow: hidden"]');
+        sidebars.forEach(sidebar => {
+            if (sidebar.closest('[style*="grid-template-columns"]')) {
+                sidebar.style.overflow = 'auto';
+                sidebar.style.height = 'auto';
+                sidebar.style.maxHeight = '80vh';
+            }
+        });
+        
+        console.log('✅ Scroll habilitado para multijugador');
+    }
+}
+
+// ==================== OBSERVADOR PARA CAMBIOS EN EL DOM ====================
+
+// Observar cambios en el DOM para aplicar scroll cuando sea necesario
+const multiplayerObserver = new MutationObserver((mutations) => {
+    if (isInMultiplayerMode()) {
+        enableScrollForMultiplayer();
+    }
+});
+
+// Iniciar observación
+multiplayerObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['style']
+});
+
+// ==================== APLICAR CONFIGURACIÓN INICIAL ====================
+
+// Aplicar configuración inmediatamente si ya estamos en multijugador
+setTimeout(() => {
+    if (isInMultiplayerMode()) {
+        enableScrollForMultiplayer();
+        console.log('🎮 Configuración inicial de multijugador aplicada');
+    }
+}, 100);
+
+// Aplicar cada segundo como respaldo
+setInterval(() => {
+    if (isInMultiplayerMode()) {
+        enableScrollForMultiplayer();
+    }
+}, 1000);
+
+// ==================== FUNCIONES DE DEBUGGING ====================
+
+window.debugMultiplayerPatch = function() {
+    console.log('🎮 DIAGNÓSTICO DEL PARCHE DE MULTIJUGADOR:');
+    console.log('En modo multijugador:', isInMultiplayerMode());
+    console.log('Estado multijugador:', typeof multiplayerState !== 'undefined' ? multiplayerState : 'No definido');
+    console.log('Tab actual:', state?.currentTab);
+    console.log('Funciones disponibles:', {
+        toggleTopicQuestions: typeof window.toggleTopicQuestions,
+        selectQuestionForDuel: typeof window.selectQuestionForDuel,
+        organizeQuestionsForFirebase: typeof window.organizeQuestionsForFirebase
+    });
+    
+    const bodyOverflow = getComputedStyle(document.body).overflow;
+    const docOverflow = getComputedStyle(document.documentElement).overflow;
+    console.log('Overflow body:', bodyOverflow);
+    console.log('Overflow document:', docOverflow);
+};
+
+// ==================== LOG FINAL ====================
+
+console.log('✅ PARCHE COMPLEMENTARIO APLICADO');
+console.log('🎮 Funcionalidades restauradas para multijugador:');
+console.log('   - ✅ selectQuestionForDuel() funcional');
+console.log('   - ✅ toggleTopicQuestions() funcional');
+console.log('   - ✅ Scroll habilitado automáticamente');
+console.log('   - ✅ Detección automática de contexto');
+console.log('📁 Subcarpetas: Mantenidas intactas en modo normal');
+console.log('💡 Debug: usa debugMultiplayerPatch() en consola');
+
+</script>
 </body>
 </html>
+
 
 
 
