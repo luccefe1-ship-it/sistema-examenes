@@ -21498,190 +21498,969 @@ console.log('   - ✅ Mantener jerarquía visual en dropdowns');
 console.log('   - ✅ Actualizar automáticamente tras cambios');
 </script>
 <!-- 
-PARCHE SIMPLE: SOLO ARREGLAR PROBLEMAS ESPECÍFICOS
+SISTEMA COMPLETO: JERARQUÍAS + DRAG & DROP + IMPORTACIÓN + SINCRONIZACIÓN
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche se enfoca únicamente en los problemas de importación y dropdowns
+Este parche único incluye todas las funcionalidades necesarias
 -->
 
 <script>
-console.log('Aplicando parche simple...');
+// ========== PARCHE ÚNICO COMPLETO ==========
+console.log('🔄 Aplicando parche único completo...');
 
-// 1. ARREGLAR DROPDOWN DE GESTIÓN DE TEMAS
-function arreglarDropdownGestion() {
-    setTimeout(() => {
-        const dropdown = document.querySelector('#manageTopicsModal select');
-        if (dropdown && state && state.topics) {
-            const valorActual = dropdown.value;
-            let opciones = '<option value="">Todos los temas</option>';
-            
-            // Solo temas principales (sin jerarquía complicada)
-            state.topics.forEach(tema => {
-                const preguntasCount = state.questions ? 
-                    state.questions.filter(q => q.topicId && q.topicId.toString() === tema.id.toString()).length : 0;
-                const textoCount = preguntasCount > 0 ? ` (${preguntasCount})` : '';
-                opciones += `<option value="${tema.id}">${tema.name}${textoCount}</option>`;
-            });
-            
-            dropdown.innerHTML = opciones;
-            dropdown.value = valorActual;
-            console.log('Dropdown de gestión actualizado');
-        }
-    }, 500);
+// Variables globales para drag & drop
+window.draggedTopicData = null;
+
+// Función para asegurar estructura de temas
+function ensureTopicStructure() {
+    if (!state.topics) state.topics = [];
+    
+    state.topics.forEach(topic => {
+        if (!topic.parentId) topic.parentId = null;
+        if (!topic.childrenIds) topic.childrenIds = [];
+        if (!topic.level) topic.level = 0;
+        if (!topic.order) topic.order = 0;
+    });
 }
 
-// 2. INTERCEPTAR IMPORTACIÓN DE PREGUNTAS
-function interceptarImportacion() {
-    // Buscar botón de importar
-    const botonImportar = document.querySelector('button[onclick*="import"], #importBtn, [onclick*="Import"]');
-    if (botonImportar && !botonImportar._interceptado) {
-        const onclickOriginal = botonImportar.onclick;
+// ELIMINAR FUNCIONES PROBLEMÁTICAS QUE CAUSAN ERRORES
+function eliminarFuncionesProblematicas() {
+    const funcionesProblematicas = [
+        'forzarActualizacionDropdownBanco',
+        'forzarSincronizacionBanco'
+    ];
+    
+    funcionesProblematicas.forEach(nombreFuncion => {
+        if (typeof window[nombreFuncion] !== 'undefined') {
+            delete window[nombreFuncion];
+            console.log(`🗑️ Función problemática eliminada: ${nombreFuncion}`);
+        }
+    });
+    
+    // Crear función de respaldo para evitar errores
+    window.forzarActualizacionDropdownBanco = function() {
+        console.log('⚠️ Llamada a función eliminada interceptada');
+        actualizarDropdownTemas();
+    };
+}
+
+// REEMPLAZAR renderQuestionsByTopic con sistema completo
+setTimeout(() => {
+    window.renderQuestionsByTopic = function() {
+        ensureTopicStructure();
         
-        botonImportar.onclick = function(e) {
-            console.log('Interceptando importación...');
+        const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+        let html = '';
+        
+        // Obtener TODOS los temas raíz (sin padre) y ordenarlos - INCLUSO LOS VACÍOS
+        const rootTopics = state.topics
+            .filter(topic => !topic.parentId)
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+        
+        console.log('📁 Temas raíz encontrados:', rootTopics.map(t => t.name));
+        
+        // Función para renderizar tema con toda su jerarquía
+        function renderTopicWithHierarchy(topic, level = 0) {
+            const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+            const hasQuestions = topicQuestions.length > 0;
             
-            if (onclickOriginal) {
-                const resultado = onclickOriginal.call(this, e);
-                
-                // Después de importar, forzar actualización
-                setTimeout(() => {
-                    console.log('Forzando actualización después de importar...');
-                    if (typeof render === 'function') {
-                        render();
-                    }
-                    if (typeof renderQuestionsByTopic === 'function') {
-                        // Buscar contenedor del banco y actualizarlo
-                        const contenedor = document.querySelector('#questionsContainer, .questions-container, [id*="questions"]');
-                        if (contenedor) {
-                            contenedor.innerHTML = renderQuestionsByTopic();
-                        }
-                    }
-                    arreglarDropdownGestion();
-                }, 1000);
-                
-                return resultado;
-            }
-        };
+            // Obtener hijos ordenados
+            const children = state.topics
+                .filter(t => t.parentId && t.parentId.toString() === topic.id.toString())
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+            const hasChildren = children.length > 0;
+            
+            const topicId = topic.id.toString();
+            const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+            
+            // Colores e iconos por nivel
+            const headerColors = ['#4f46e5', '#7c3aed', '#059669', '#dc2626', '#ea580c'];
+            const levelIcons = ['📁', '📂', '📄', '📋', '📝'];
+            const headerColor = headerColors[Math.min(level, headerColors.length - 1)];
+            const icon = levelIcons[Math.min(level, levelIcons.length - 1)];
+            
+            // Indentación
+            const indentStyle = level > 0 ? `margin-left: ${level * 20}px; border-left: 3px solid #e5e7eb;` : '';
+            
+            return `
+                <div class="topic-container" 
+                     data-topic-id="${topic.id}" 
+                     data-level="${level}" 
+                     style="margin-bottom: 15px; ${indentStyle} position: relative;"
+                     draggable="true">
+                    
+                    <!-- Header del tema -->
+                    <div class="topic-header" 
+                         style="background: ${headerColor}; color: white; padding: 12px 15px; border-radius: 8px 8px 0 0; margin: 0; 
+                                display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none;
+                                border: 2px solid transparent; transition: all 0.2s ease;">
+                        
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 16px;">${icon}</span>
+                            <span style="font-weight: 600;">${topic.name}</span>
+                            ${level > 0 ? `<span style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; font-size: 10px;">Nivel ${level}</span>` : ''}
+                        </div>
+                        
+                        <div class="botones-tema" style="display: flex; align-items: center; gap: 6px; z-index: 100; position: relative;">
+                            ${hasQuestions ? `<span style="font-size: 12px; opacity: 0.9; color: white;">${topicQuestions.length} preguntas</span>` : ''}
+                            ${hasChildren ? `<span style="font-size: 12px; opacity: 0.9; color: white;">${children.length} subtemas</span>` : ''}
+                            
+                            <button class="btn-mover" data-tema="${topic.id}" style="background: #10b981; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;" title="Mover dentro">📥</button>
+                            
+                            <button class="btn-subtema" data-tema="${topic.id}" style="background: #0ea5e9; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;" title="Crear subtema">📁+</button>
+                            
+                            ${level > 0 ? `<button class="btn-desvincular" data-tema="${topic.id}" style="background: #f97316; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;" title="Desvincular (hacer independiente)">🔗</button>` : ''}
+                            
+                            <button class="btn-colapsar" data-tema="${topicId}" style="background: rgba(255,255,255,0.3); border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">${isCollapsed ? '▶' : '▼'}</button>
+                            
+                            <button class="btn-editar" data-tema="${topic.id}" style="background: #f59e0b; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar">✏️</button>
+                            
+                            <button class="btn-eliminar" data-tema="${topic.id}" style="background: #dc2626; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar">🗑️</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Contenido del tema -->
+                    <div class="topic-content" 
+                         style="border: 1px solid ${headerColor}; border-top: none; border-radius: 0 0 8px 8px; background: white; 
+                                display: ${isCollapsed ? 'none' : 'block'};">
+                        
+                        <!-- Preguntas del tema -->
+                        ${hasQuestions ? topicQuestions.map(q => {
+                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                            return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : renderQuestionFallback(q, actualIndex));
+                        }).join('') : ''}
+                        
+                        <!-- Subtemas -->
+                        ${hasChildren ? children.map(child => renderTopicWithHierarchy(child, level + 1)).join('') : ''}
+                        
+                        ${!hasQuestions && !hasChildren ? `
+                        <div style="padding: 20px; text-align: center; color: #6b7280; font-style: italic;">
+                            📂 Tema vacío - Puedes añadir preguntas o crear subtemas
+                        </div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
         
-        botonImportar._interceptado = true;
-        console.log('Botón de importar interceptado');
+        // Renderizar todos los temas raíz
+        rootTopics.forEach(topic => {
+            html += renderTopicWithHierarchy(topic, 0);
+        });
+        
+        // Preguntas sin tema
+        if (questionsWithoutTopic.length > 0) {
+            const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics['sin-tema']) || false;
+            
+            html += `
+                <div style="margin-top: 30px;">
+                    <div style="background: #6b7280; color: white; padding: 12px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📂 Sin tema asignado</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 12px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                            <button onclick="toggleTopicVisibilityDefinitivo('sin-tema')" 
+                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                                ${isCollapsed ? '▶' : '▼'}
+                            </button>
+                        </div>
+                    </div>
+                    <div id="topic-content-sin-tema" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                        ${questionsWithoutTopic.map(q => {
+                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                            return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : renderQuestionFallback(q, actualIndex));
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        if (html === '') {
+            return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay temas disponibles</div>';
+        }
+        
+        return html;
+    };
+    
+    renderQuestionsByTopic = window.renderQuestionsByTopic;
+    
+}, 100);
+
+// FUNCIÓN PARA ACTUALIZAR DROPDOWNS SINCRONIZADOS
+function actualizarDropdownTemas() {
+    console.log('🔄 Actualizando dropdown de temas...');
+    
+    // Función auxiliar para crear opciones jerárquicas
+    function crearOpcionesJerarquicas() {
+        let opciones = '<option value="">Todos los temas</option>';
+        
+        function agregarTemasRecursivo(parentId = null, nivel = 0) {
+            const temas = state.topics
+                .filter(t => t.parentId === parentId)
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+            
+            temas.forEach(tema => {
+                const indentacion = '│  '.repeat(nivel);
+                const prefijo = nivel > 0 ? indentacion + '└─ ' : '';
+                const preguntasCount = state.questions.filter(q => q.topicId && q.topicId.toString() === tema.id.toString()).length;
+                const textoCount = preguntasCount > 0 ? ` (${preguntasCount})` : '';
+                
+                opciones += `<option value="${tema.id}">${prefijo}${tema.name}${textoCount}</option>`;
+                
+                // Agregar subtemas recursivamente
+                agregarTemasRecursivo(tema.id.toString(), nivel + 1);
+            });
+        }
+        
+        agregarTemasRecursivo();
+        return opciones;
     }
     
-    // También interceptar mediante event listeners
-    document.addEventListener('click', function(e) {
-        if (e.target && (e.target.textContent.includes('Importar') || e.target.textContent.includes('Import'))) {
-            setTimeout(() => {
-                console.log('Detectado clic en importar, actualizando...');
-                if (typeof render === 'function') {
-                    render();
+    // BUSCAR Y ACTUALIZAR TODOS LOS DROPDOWNS POSIBLES
+    const selectores = [
+        '#topicFilter',
+        'select[name="topicFilter"]',
+        'select.topic-filter',
+        '#filterByTopic',
+        'select[onchange*="topic"]',
+        '#manageTopicsModal select',
+        '[id*="topic"] select',
+        'select[name*="topic"]'
+    ];
+    
+    selectores.forEach(selector => {
+        try {
+            const elementos = document.querySelectorAll(selector);
+            elementos.forEach(dropdown => {
+                if (dropdown && dropdown.tagName === 'SELECT') {
+                    const valorActual = dropdown.value;
+                    dropdown.innerHTML = crearOpcionesJerarquicas();
+                    dropdown.value = valorActual;
+                    console.log(`✅ Dropdown actualizado: ${selector}`);
                 }
-                arreglarDropdownGestion();
+            });
+        } catch (e) {
+            // Ignorar errores de selectores inválidos
+        }
+    });
+    
+    console.log('✅ Todos los dropdowns actualizados con jerarquía completa');
+}
+
+// CONFIGURAR EVENTOS DESPUÉS DEL RENDER
+function configurarEventosDefinitivos() {
+    setTimeout(() => {
+        console.log('🔥 Configurando eventos definitivos...');
+        
+        // DRAG & DROP
+        const temasDraggables = document.querySelectorAll('.topic-container');
+        temasDraggables.forEach(tema => {
+            tema.addEventListener('dragstart', function(e) {
+                window.temaDragData = {
+                    id: this.getAttribute('data-topic-id'),
+                    nivel: parseInt(this.getAttribute('data-level'))
+                };
+                this.style.opacity = '0.5';
+                console.log('🎯 Arrastrando:', window.temaDragData);
+            });
+            
+            tema.addEventListener('dragend', function(e) {
+                this.style.opacity = '1';
+                this.style.borderColor = 'transparent';
+                document.querySelectorAll('.topic-header').forEach(h => h.style.borderColor = 'transparent');
+                window.temaDragData = null;
+            });
+            
+            tema.addEventListener('dragover', function(e) {
+                e.preventDefault();
+            });
+            
+            tema.addEventListener('dragenter', function(e) {
+                e.preventDefault();
+                if (window.temaDragData && this.getAttribute('data-topic-id') !== window.temaDragData.id) {
+                    this.querySelector('.topic-header').style.borderColor = '#3b82f6';
+                    this.querySelector('.topic-header').style.borderStyle = 'dashed';
+                }
+            });
+            
+            tema.addEventListener('dragleave', function(e) {
+                if (!this.contains(e.relatedTarget)) {
+                    this.querySelector('.topic-header').style.borderColor = 'transparent';
+                }
+            });
+            
+            tema.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                this.querySelector('.topic-header').style.borderColor = 'transparent';
+                
+                if (window.temaDragData && this.getAttribute('data-topic-id') !== window.temaDragData.id) {
+                    reorderTopicsWithHierarchy(window.temaDragData.id, this.getAttribute('data-topic-id'));
+                }
+            });
+        });
+        
+        // BOTONES CON MODAL VISUAL
+        document.querySelectorAll('.btn-mover').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                mostrarModalVisual(temaId);
+            });
+        });
+        
+        document.querySelectorAll('.btn-subtema').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                crearSubtopicDefinitivo(temaId);
+            });
+        });
+        
+        document.querySelectorAll('.btn-colapsar').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                toggleTopicVisibilityDefinitivo(temaId);
+            });
+        });
+        
+        document.querySelectorAll('.btn-editar').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                editTopicNameDefinitivo(temaId);
+            });
+        });
+        
+        document.querySelectorAll('.btn-desvincular').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                desvincularTemaDefinitivo(temaId);
+            });
+        });
+        
+        document.querySelectorAll('.btn-eliminar').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                deleteTopicCompleteDefinitivo(temaId);
+            });
+        });
+        
+        console.log(`✅ Eventos configurados para ${temasDraggables.length} temas`);
+        
+    }, 200);
+}
+
+// MODAL VISUAL CON BOTONES CLICABLES
+function mostrarModalVisual(temaId) {
+    console.log('🎨 Abriendo modal VISUAL para tema:', temaId);
+    
+    const modalExistente = document.getElementById('modalMoverTema');
+    if (modalExistente) {
+        modalExistente.remove();
+    }
+    
+    const tema = state.topics.find(t => t.id.toString() === temaId.toString());
+    if (!tema) return;
+    
+    const descendientes = [];
+    function obtenerDescendientes(id) {
+        const hijos = state.topics.filter(t => t.parentId && t.parentId.toString() === id.toString());
+        hijos.forEach(hijo => {
+            descendientes.push(hijo.id.toString());
+            obtenerDescendientes(hijo.id);
+        });
+    }
+    obtenerDescendientes(temaId);
+    
+    const temasDisponibles = state.topics.filter(t => 
+        t.id.toString() !== temaId.toString() && 
+        !descendientes.includes(t.id.toString())
+    );
+    
+    const modal = document.createElement('div');
+    modal.id = 'modalMoverTema';
+    modal.style.cssText = `
+        position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+        background: rgba(0,0,0,0.8) !important; display: flex !important; align-items: center !important; justify-content: center !important;
+        z-index: 99999 !important; padding: 20px !important;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background: white !important; border-radius: 12px !important; padding: 25px !important; max-width: 600px !important; width: 90% !important; max-height: 80vh !important; overflow-y: auto !important;">
+            <div style="display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 20px !important;">
+                <h3 style="margin: 0 !important; color: #1f2937 !important;">📥 Mover Tema</h3>
+                <button onclick="cerrarModalVisual()" style="background: none !important; border: none !important; font-size: 20px !important; color: #6b7280 !important; cursor: pointer !important;">✕</button>
+            </div>
+            
+            <div style="margin-bottom: 20px !important; padding: 15px !important; background: #f3f4f6 !important; border-radius: 8px !important;">
+                <strong>Tema a mover:</strong> ${tema.name}
+                <div style="font-size: 12px !important; color: #6b7280 !important; margin-top: 5px !important;">
+                    Haz clic en el destino donde quieres moverlo
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 20px !important;">
+                <div style="margin-bottom: 15px !important; font-weight: 600 !important;">Destinos disponibles:</div>
+                
+                <button onclick="ejecutarMoverVisual('${temaId}', null)" 
+                        style="width: 100% !important; margin-bottom: 10px !important; padding: 15px !important; border: 2px solid #10b981 !important; border-radius: 10px !important; background: white !important; cursor: pointer !important; text-align: left !important; font-size: 15px !important; transition: all 0.3s !important;"
+                        onmouseover="this.style.background='#f0fdf4'; this.style.transform='translateY(-2px)';"
+                        onmouseout="this.style.background='white'; this.style.transform='translateY(0)';">
+                    🏠 <strong>Nivel raíz (independiente)</strong>
+                </button>
+                
+                ${temasDisponibles.map(t => {
+                    const nivel = t.level || 0;
+                    const indentacion = '  '.repeat(nivel);
+                    const colores = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b'];
+                    const color = colores[Math.min(nivel, 3)];
+                    
+                    return `
+                        <button onclick="ejecutarMoverVisual('${temaId}', '${t.id}')" 
+                                style="width: 100% !important; margin-bottom: 8px !important; padding: 12px !important; border: 2px solid ${color} !important; border-radius: 8px !important; background: white !important; cursor: pointer !important; text-align: left !important; font-size: 14px !important; transition: all 0.3s !important;"
+                                onmouseover="this.style.background='#f8fafc'; this.style.transform='translateX(5px)';"
+                                onmouseout="this.style.background='white'; this.style.transform='translateX(0)';">
+                            ${indentacion}📁 <strong>${t.name}</strong> ${nivel > 0 ? `<span style="color: #6b7280; font-size: 12px;">(Nivel ${nivel})</span>` : ''}
+                        </button>
+                    `;
+                }).join('')}
+                
+                ${temasDisponibles.length === 0 ? `
+                    <div style="padding: 20px !important; text-align: center !important; color: #6b7280 !important; font-style: italic !important;">
+                        No hay otros temas disponibles
+                    </div>
+                ` : ''}
+            </div>
+            
+            <div style="text-align: right !important;">
+                <button onclick="cerrarModalVisual()" 
+                        style="background: #6b7280 !important; color: white !important; border: none !important; padding: 10px 20px !important; border-radius: 6px !important; cursor: pointer !important;">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            cerrarModalVisual();
+        }
+    });
+}
+
+// Funciones del modal visual
+window.cerrarModalVisual = function() {
+    const modal = document.getElementById('modalMoverTema');
+    if (modal) modal.remove();
+};
+
+window.ejecutarMoverVisual = function(temaId, nuevoParentId) {
+    cerrarModalVisual();
+    moverTemaAPadreDefinitivo(temaId, nuevoParentId);
+};
+
+// TODAS LAS FUNCIONES PRINCIPALES
+function reorderTopicsWithHierarchy(draggedId, targetId) {
+    console.log(`🔄 Intercambiando posiciones: ${draggedId} ↔ ${targetId}`);
+    
+    const draggedTopic = state.topics.find(t => t.id.toString() === draggedId);
+    const targetTopic = state.topics.find(t => t.id.toString() === targetId);
+    
+    if (!draggedTopic || !targetTopic) {
+        console.error('❌ Temas no encontrados para reordenar');
+        return;
+    }
+    
+    console.log(`📋 Intercambiando "${draggedTopic.name}" con "${targetTopic.name}"`);
+    
+    const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedId);
+    const targetIndex = state.topics.findIndex(t => t.id.toString() === targetId);
+    
+    if (draggedIndex !== -1 && targetIndex !== -1) {
+        const [movedTopic] = state.topics.splice(draggedIndex, 1);
+        const newIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+        state.topics.splice(newIndex, 0, movedTopic);
+        
+        console.log(`✅ "${draggedTopic.name}" movido de posición ${draggedIndex} a ${newIndex}`);
+    } else {
+        console.error('❌ Error: Índices no encontrados');
+        return;
+    }
+    
+    let temasRecuperados = 0;
+    state.topics.forEach(tema => {
+        if (tema.parentId) {
+            const padre = state.topics.find(t => t.id.toString() === tema.parentId.toString());
+            if (!padre) {
+                console.warn(`⚠️ Padre perdido para "${tema.name}", moviendo a raíz`);
+                tema.parentId = null;
+                tema.level = 0;
+                temasRecuperados++;
+            }
+        }
+    });
+    
+    if (temasRecuperados > 0) {
+        console.log(`🔧 Recuperados ${temasRecuperados} temas huérfanos`);
+    }
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    if (typeof saveData === 'function') saveData();
+    
+    actualizarDropdownTemas();
+    
+    if (typeof render === 'function') render();
+    if (typeof showMessage === 'function') showMessage(`✅ Subtema "${nombre.trim()}" creado`, 'success');
+}
+
+function toggleTopicVisibilityDefinitivo(topicId) {
+    if (typeof window.collapsedTopics === 'undefined') {
+        window.collapsedTopics = JSON.parse(localStorage.getItem('collapsedTopics') || '{}');
+    }
+    
+    window.collapsedTopics[topicId] = !window.collapsedTopics[topicId];
+    localStorage.setItem('collapsedTopics', JSON.stringify(window.collapsedTopics));
+    
+    const temaContainer = document.querySelector(`[data-topic-id="${topicId}"]`);
+    
+    if (temaContainer) {
+        const contenidoElement = temaContainer.querySelector('.topic-content');
+        const botonElement = temaContainer.querySelector(`[data-tema="${topicId}"].btn-colapsar`);
+        
+        if (contenidoElement && botonElement) {
+            const isCollapsed = window.collapsedTopics[topicId];
+            
+            if (isCollapsed) {
+                contenidoElement.style.display = 'none';
+                botonElement.textContent = '▶';
+            } else {
+                contenidoElement.style.display = 'block';
+                botonElement.textContent = '▼';
+            }
+        }
+    } else if (topicId === 'sin-tema') {
+        const elemento = document.getElementById('topic-content-sin-tema');
+        const boton = document.querySelector(`button[onclick*="toggleTopicVisibilityDefinitivo('sin-tema')"]`);
+        
+        if (elemento && boton) {
+            if (window.collapsedTopics[topicId]) {
+                elemento.style.display = 'none';
+                boton.textContent = '▶';
+            } else {
+                elemento.style.display = 'block';
+                boton.textContent = '▼';
+            }
+        }
+    } else {
+        if (typeof render === 'function') render();
+    }
+}
+
+function editTopicNameDefinitivo(temaId) {
+    const tema = state.topics.find(t => t.id.toString() === temaId.toString());
+    if (!tema) return;
+    
+    const nuevoNombre = prompt(`Editar nombre:\n\nActual: "${tema.name}"\n\nNuevo:`, tema.name);
+    if (!nuevoNombre || !nuevoNombre.trim() || nuevoNombre.trim() === tema.name) return;
+    
+    tema.name = nuevoNombre.trim();
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    if (typeof saveData === 'function') saveData();
+    
+    actualizarDropdownTemas();
+    
+    if (typeof render === 'function') render();
+    if (typeof showMessage === 'function') showMessage(`✅ Renombrado a "${nuevoNombre.trim()}"`, 'success');
+}
+
+function desvincularTemaDefinitivo(temaId) {
+    const tema = state.topics.find(t => t.id.toString() === temaId.toString());
+    if (!tema || !tema.parentId) return;
+    
+    const padre = state.topics.find(t => t.id.toString() === tema.parentId.toString());
+    const nombrePadre = padre ? padre.name : 'tema padre';
+    
+    if (!confirm(`¿Desvincular "${tema.name}" de "${nombrePadre}"?\n\nSe convertirá en tema independiente.`)) return;
+    
+    if (padre && padre.childrenIds) {
+        padre.childrenIds = padre.childrenIds.filter(id => id.toString() !== temaId.toString());
+    }
+    
+    tema.parentId = null;
+    tema.level = 0;
+    
+    function actualizarNivelesDescendientes(temaIdBase) {
+        const temaBase = state.topics.find(t => t.id.toString() === temaIdBase.toString());
+        if (!temaBase) return;
+        
+        const hijos = state.topics.filter(t => t.parentId && t.parentId.toString() === temaIdBase.toString());
+        hijos.forEach(hijo => {
+            hijo.level = temaBase.level + 1;
+            actualizarNivelesDescendientes(hijo.id);
+        });
+    }
+    
+    actualizarNivelesDescendientes(temaId);
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    if (typeof saveData === 'function') saveData();
+    
+    actualizarDropdownTemas();
+    
+    if (typeof render === 'function') render();
+    if (typeof showMessage === 'function') showMessage(`✅ "${tema.name}" desvinculado`, 'success');
+}
+
+function deleteTopicCompleteDefinitivo(temaId) {
+    const tema = state.topics.find(t => t.id.toString() === temaId.toString());
+    if (!tema) return;
+    
+    const descendientes = [];
+    function obtenerDescendientes(id) {
+        const hijos = state.topics.filter(t => t.parentId && t.parentId.toString() === id.toString());
+        hijos.forEach(hijo => {
+            descendientes.push(hijo.id.toString());
+            obtenerDescendientes(hijo.id);
+        });
+    }
+    obtenerDescendientes(temaId);
+    
+    const todosParaEliminar = [temaId, ...descendientes];
+    const preguntasAEliminar = state.questions.filter(q => q.topicId && todosParaEliminar.includes(q.topicId.toString()));
+    
+    let mensaje = `¿Eliminar "${tema.name}"?`;
+    if (descendientes.length > 0) mensaje += `\n\nEliminará ${descendientes.length} subtemas`;
+    if (preguntasAEliminar.length > 0) mensaje += ` y ${preguntasAEliminar.length} preguntas`;
+    mensaje += '\n\nNo se puede deshacer.';
+    
+    if (!confirm(mensaje)) return;
+    
+    if (tema.parentId) {
+        const padre = state.topics.find(t => t.id.toString() === tema.parentId.toString());
+        if (padre && padre.childrenIds) {
+            padre.childrenIds = padre.childrenIds.filter(id => id.toString() !== temaId.toString());
+        }
+    }
+    
+    state.topics = state.topics.filter(t => !todosParaEliminar.includes(t.id.toString()));
+    state.questions = state.questions.filter(q => !q.topicId || !todosParaEliminar.includes(q.topicId.toString()));
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    localStorage.setItem('questions', JSON.stringify(state.questions));
+    if (typeof saveData === 'function') saveData();
+    
+    actualizarDropdownTemas();
+    
+    if (typeof render === 'function') render();
+    if (typeof showMessage === 'function') showMessage(`✅ "${tema.name}" eliminado`, 'success');
+}
+
+function renderQuestionFallback(q, actualIndex) {
+    return `
+        <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
+            <div style="flex: 1;">
+                <div style="font-weight: 500; margin-bottom: 8px;">P${actualIndex + 1}: ${q.question}</div>
+                <ul style="list-style: none; margin: 0; padding: 0;">
+                    ${q.options.map((opt, optIndex) => `
+                        <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'};">
+                            ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✓' : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        </div>
+    `;
+}
+
+// INTERCEPTAR IMPORTACIÓN DE PREGUNTAS
+function interceptarImportacion() {
+    // Interceptar eventos de importación
+    document.addEventListener('click', function(e) {
+        if (e.target && (
+            e.target.textContent.includes('Importar Preguntas') || 
+            e.target.textContent.includes('Importar') ||
+            e.target.id === 'importBtn' ||
+            (e.target.onclick && e.target.onclick.toString().includes('import'))
+        )) {
+            console.log('Detectado intento de importación');
+            
+            setTimeout(() => {
+                console.log('Forzando actualización post-importación...');
+                
+                if (typeof window.renderQuestionsByTopic === 'function') {
+                    const questionsContainer = document.querySelector('#questionsContainer, .questions-container, [id*="questions"]');
+                    if (questionsContainer) {
+                        questionsContainer.innerHTML = window.renderQuestionsByTopic();
+                    }
+                }
+                
+                if (typeof window.render === 'function') {
+                    window.render();
+                }
+                
+                actualizarDropdownTemas();
+                configurarEventosDefinitivos();
+                
+                if (state && state.topics && state.questions) {
+                    state.topics.forEach(tema => {
+                        const preguntasDelTema = state.questions.filter(q => 
+                            q.topicId && q.topicId.toString() === tema.id.toString()
+                        );
+                        console.log(`Tema "${tema.name}": ${preguntasDelTema.length} preguntas`);
+                    });
+                }
+                
+                console.log('Actualización post-importación completada');
             }, 1500);
         }
     });
-}
-
-// 3. ARREGLAR FUNCIÓN createTopic SIN ERRORES
-function arreglarCreateTopic() {
-    if (typeof createTopic === 'function' && !createTopic._arreglado) {
-        const createTopicOriginal = createTopic;
-        
-        window.createTopic = function() {
-            try {
-                const resultado = createTopicOriginal.apply(this, arguments);
-                
-                // Después de crear tema, actualizar dropdown
-                setTimeout(() => {
-                    arreglarDropdownGestion();
-                }, 300);
-                
-                return resultado;
-            } catch (error) {
-                // Si hay error, intentar sin las funciones problemáticas
-                console.warn('Error en createTopic, ejecutando versión segura:', error);
-                
-                // Versión simplificada de createTopic
-                const nombre = prompt('Nombre del tema:');
-                if (nombre && nombre.trim()) {
-                    if (!state.topics) state.topics = [];
-                    
-                    const nuevoTema = {
-                        id: Date.now(),
-                        name: nombre.trim(),
-                        createdAt: new Date().toISOString()
-                    };
-                    
-                    state.topics.push(nuevoTema);
-                    localStorage.setItem('topics', JSON.stringify(state.topics));
-                    
-                    if (typeof render === 'function') {
-                        render();
-                    }
-                    
-                    arreglarDropdownGestion();
-                    return nuevoTema;
-                }
-            }
-        };
-        
-        createTopic._arreglado = true;
-        console.log('createTopic arreglado');
-    }
-}
-
-// 4. ELIMINAR FUNCIONES PROBLEMÁTICAS QUE CAUSAN ERRORES
-function eliminarErrores() {
-    // Crear funciones vacías para evitar errores "is not defined"
-    const funcionesProblematicas = [
-        'forzarActualizacionDropdownBanco',
-        'forzarSincronizacionBanco',
-        'sincronizarDropdownBanco'
-    ];
     
-    funcionesProblematicas.forEach(func => {
-        if (typeof window[func] === 'undefined') {
-            window[func] = function() {
-                console.log(`Función ${func} interceptada - ejecutando arreglarDropdownGestion`);
-                arreglarDropdownGestion();
-            };
+    // Interceptar formularios
+    const formularios = document.querySelectorAll('form, [id*="import"], [class*="import"]');
+    formularios.forEach(form => {
+        if (!form._interceptado) {
+            form.addEventListener('submit', function(e) {
+                setTimeout(() => {
+                    console.log('Formulario de importación enviado, actualizando...');
+                    if (typeof window.render === 'function') {
+                        window.render();
+                    }
+                    actualizarDropdownTemas();
+                    configurarEventosDefinitivos();
+                }, 2000);
+            });
+            form._interceptado = true;
         }
     });
 }
 
-// 5. INICIALIZACIÓN SIMPLE
-function inicializar() {
-    console.log('Inicializando parche simple...');
+// INTERCEPTAR FUNCIONES EXISTENTES
+function interceptarFunciones() {
+    // Interceptar createTopic
+    if (typeof window.createTopic === 'function' && !window.createTopic._interceptado) {
+        const createTopicOriginal = window.createTopic;
+        window.createTopic = function() {
+            try {
+                const resultado = createTopicOriginal.apply(this, arguments);
+                setTimeout(() => actualizarDropdownTemas(), 200);
+                return resultado;
+            } catch (error) {
+                console.error('Error en createTopic:', error);
+                setTimeout(() => actualizarDropdownTemas(), 200);
+                throw error;
+            }
+        };
+        window.createTopic._interceptado = true;
+        console.log('✅ createTopic interceptado');
+    }
     
-    // Eliminar errores primero
-    eliminarErrores();
+    // Interceptar render
+    if (typeof window.render === 'function' && !window.render._interceptadoFinal) {
+        const renderOriginal = window.render;
+        window.render = function() {
+            try {
+                const resultado = renderOriginal.apply(this, arguments);
+                setTimeout(() => {
+                    actualizarDropdownTemas();
+                    configurarEventosDefinitivos();
+                }, 300);
+                return resultado;
+            } catch (error) {
+                console.error('Error en render:', error);
+                setTimeout(() => {
+                    actualizarDropdownTemas();
+                    configurarEventosDefinitivos();
+                }, 300);
+                throw error;
+            }
+        };
+        window.render._interceptadoFinal = true;
+        console.log('✅ render interceptado');
+    }
+}
+
+// OBSERVER PARA DETECTAR CAMBIOS
+function configurarObserver() {
+    const observer = new MutationObserver((mutations) => {
+        let needsUpdate = false;
+        
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === 1) {
+                        if (node.tagName === 'SELECT' || 
+                            (node.querySelector && node.querySelector('select')) ||
+                            node.id === 'manageTopicsModal' ||
+                            (node.textContent && node.textContent.includes('Importar'))) {
+                            needsUpdate = true;
+                        }
+                    }
+                });
+            }
+        });
+        
+        if (needsUpdate) {
+            setTimeout(() => {
+                actualizarDropdownTemas();
+                configurarEventosDefinitivos();
+                interceptarImportacion();
+            }, 500);
+        }
+    });
     
-    // Arreglar dropdown inicial
-    setTimeout(() => arreglarDropdownGestion(), 1000);
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
     
-    // Interceptar importación
-    setTimeout(() => interceptarImportacion(), 1500);
+    console.log('✅ Observer configurado');
+}
+
+// INICIALIZACIÓN PRINCIPAL
+function inicializarSistemaCompleto() {
+    console.log('🚀 Inicializando sistema completo...');
     
-    // Arreglar createTopic
-    setTimeout(() => arreglarCreateTopic(), 2000);
+    // Paso 1: Eliminar funciones problemáticas
+    eliminarFuncionesProblematicas();
     
-    // Actualización periódica del dropdown (menos frecuente)
+    // Paso 2: Sincronización inicial
+    setTimeout(() => {
+        actualizarDropdownTemas();
+    }, 1000);
+    
+    // Paso 3: Configurar interceptores
+    setTimeout(() => {
+        interceptarFunciones();
+        interceptarImportacion();
+    }, 1500);
+    
+    // Paso 4: Configurar observer
+    setTimeout(() => {
+        configurarObserver();
+    }, 2000);
+    
+    // Paso 5: Sincronización periódica
     setInterval(() => {
-        arreglarDropdownGestion();
-    }, 15000);
+        actualizarDropdownTemas();
+    }, 10000);
     
-    console.log('Parche simple inicializado');
+    console.log('✅ Sistema completo inicializado');
 }
 
-// EJECUTAR
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', inicializar);
-} else {
-    inicializar();
+// EJECUCIÓN PRINCIPAL
+try {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', inicializarSistemaCompleto);
+    } else {
+        inicializarSistemaCompleto();
+    }
+} catch (error) {
+    console.error('Error en sistema completo:', error);
+    setTimeout(() => {
+        try {
+            actualizarDropdownTemas();
+        } catch (e) {
+            console.error('Error en sincronización de respaldo:', e);
+        }
+    }, 3000);
 }
 
-console.log('Parche simple aplicado - enfoque minimalista');
-</script>
+console.log('✅ Parche único completo aplicado');
+console.log('🎯 Funcionalidades incluidas:');
+console.log('   - ✅ Jerarquías visuales con colores por nivel');
+console.log('   - ✅ Drag & drop para reordenar temas');
+console.log('   - ✅ Modal con botones clicables para mover');
+console.log('   - ✅ Botones colapsar en TODOS los temas/subtemas');
+console.log('   - ✅ Sincronización de dropdowns automática');
+console.log('   - ✅ Importación de preguntas corregida');
+console.log('   - ✅ Eliminación de errores "function not defined"');
+console.log('   - ✅ Observer para detectar cambios dinámicos');
+console.log('🚀 ¡Sistema completo funcional!');
+</script> 'function') saveData();
+    
+    actualizarDropdownTemas();
+    
+    if (typeof render === 'function') {
+        render();
+    }
+    
+    if (typeof showMessage === 'function') {
+        showMessage(`✅ "${draggedTopic.name}" reordenado`, 'success');
+    }
+}
+
+function moverTemaAPadreDefinitivo(temaId, nuevoParentId) {
+    const tema = state.topics.find(t => t.id.toString() === temaId.toString());
+    if (!tema) return;
+    
+    if (tema.parentId) {
+        const padreAnterior = state.topics.find(t => t.id.toString() === tema.parentId.toString());
+        if (padreAnterior && padreAnterior.childrenIds) {
+            padreAnterior.childrenIds = padreAnterior.childrenIds.filter(id => id.toString() !== temaId.toString());
+        }
+    }
+    
+    tema.parentId = nuevoParentId;
+    tema.level = nuevoParentId ? ((state.topics.find(t => t.id.toString() === nuevoParentId.toString())?.level || 0) + 1) : 0;
+    
+    if (nuevoParentId) {
+        const nuevoPadre = state.topics.find(t => t.id.toString() === nuevoParentId.toString());
+        if (nuevoPadre) {
+            if (!nuevoPadre.childrenIds) nuevoPadre.childrenIds = [];
+            if (!nuevoPadre.childrenIds.includes(temaId.toString())) {
+                nuevoPadre.childrenIds.push(temaId.toString());
+            }
+        }
+    }
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    if (typeof saveData === 'function') saveData();
+    
+    actualizarDropdownTemas();
+    
+    if (typeof render === 'function') render();
+    
+    const destino = nuevoParentId ? (state.topics.find(t => t.id.toString() === nuevoParentId.toString())?.name || 'tema') : 'raíz';
+    if (typeof showMessage === 'function') showMessage(`✅ "${tema.name}" movido a "${destino}"`, 'success');
+}
+
+function crearSubtopicDefinitivo(parentId) {
+    const padre = state.topics.find(t => t.id.toString() === parentId.toString());
+    if (!padre) return;
+    
+    const nombre = prompt(`Crear subtema dentro de "${padre.name}":\n\nNombre:`);
+    if (!nombre || !nombre.trim()) return;
+    
+    const nuevoTema = {
+        id: Date.now() + Math.random(),
+        name: nombre.trim(),
+        parentId: parentId.toString(),
+        childrenIds: [],
+        level: padre.level + 1,
+        order: 0,
+        createdAt: new Date().toISOString()
+    };
+    
+    state.topics.push(nuevoTema);
+    
+    if (!padre.childrenIds) padre.childrenIds = [];
+    padre.childrenIds.push(nuevoTema.id.toString());
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    if (typeof saveData === '
 </body>
 </html>
+
 
 
 
