@@ -20689,124 +20689,138 @@ function ejecutarMovimientoBrutal(temaId, nuevoParentId) {
 setTimeout(() => {
     console.log('🔥 REEMPLAZANDO render para usar modal BRUTAL...');
     
-    // Interceptar renderQuestionsByTopic BRUTALMENTE
+    // NO reemplazar renderQuestionsByTopic completamente, solo interceptar los botones
     const renderOriginalBrutal = window.renderQuestionsByTopic || renderQuestionsByTopic;
     
-    function renderConModalBrutal() {
-        if (!state.topics) state.topics = [];
-        
-        // Estructura básica
-        state.topics.forEach(topic => {
-            if (!topic.parentId) topic.parentId = null;
-            if (!topic.childrenIds) topic.childrenIds = [];
-            if (!topic.level) topic.level = 0;
-        });
-        
-        const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
-        let html = '';
-        
-        // Temas raíz
-        const rootTopics = state.topics.filter(topic => !topic.parentId);
-        
-        function renderTema(topic, level = 0) {
-            const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
-            const hasQuestions = topicQuestions.length > 0;
-            const children = state.topics.filter(t => t.parentId && t.parentId.toString() === topic.id.toString());
-            const hasChildren = children.length > 0;
-            const topicId = topic.id.toString();
-            const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+    // Solo interceptar después del render para añadir eventos
+    function interceptarBotonesDespuesDeRender() {
+        setTimeout(() => {
+            // Buscar todos los botones de mover existentes y reemplazar su onclick
+            document.querySelectorAll('button[onclick*="showMoveModal"], button[onclick*="mostrarModalMover"], button[onclick*="openInsertTopicModal"]').forEach(btn => {
+                const onclickOriginal = btn.getAttribute('onclick');
+                if (onclickOriginal && onclickOriginal.includes("'") && onclickOriginal.includes(")")) {
+                    // Extraer el ID del tema del onclick original
+                    const matches = onclickOriginal.match(/'([^']+)'/);
+                    if (matches && matches[1]) {
+                        const temaId = matches[1];
+                        btn.setAttribute('onclick', `event.stopPropagation(); modalVisualForzado('${temaId}')`);
+                        btn.style.background = '#10b981';
+                        btn.title = 'Mover tema (Modal Visual)';
+                        console.log('🔄 Botón interceptado para tema:', temaId);
+                    }
+                }
+            });
             
-            const colors = ['#4f46e5', '#7c3aed', '#059669', '#dc2626', '#ea580c'];
-            const icons = ['📁', '📂', '📄', '📋', '📝'];
-            const color = colors[Math.min(level, colors.length - 1)];
-            const icon = icons[Math.min(level, icons.length - 1)];
-            const indent = level > 0 ? `margin-left: ${level * 20}px; border-left: 3px solid #e5e7eb;` : '';
+            // Buscar botones que contengan el emoji 📥
+            document.querySelectorAll('button').forEach(btn => {
+                if (btn.textContent.includes('📥') && btn.getAttribute('onclick') && !btn.getAttribute('onclick').includes('modalVisualForzado')) {
+                    const onclickOriginal = btn.getAttribute('onclick');
+                    const matches = onclickOriginal.match(/'([^']+)'/);
+                    if (matches && matches[1]) {
+                        const temaId = matches[1];
+                        btn.setAttribute('onclick', `event.stopPropagation(); modalVisualForzado('${temaId}')`);
+                        console.log('🔄 Botón 📥 interceptado para tema:', temaId);
+                    }
+                }
+            });
             
-            return `
-                <div data-tema-id="${topic.id}" data-nivel="${level}" draggable="true" style="margin-bottom: 15px; ${indent} border: 2px solid transparent; border-radius: 8px;">
-                    <h3 style="background: ${color}; color: white; padding: 12px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span>${icon}</span>
-                            <span style="font-weight: 600;">${topic.name}</span>
-                            ${level > 0 ? `<span style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; font-size: 10px;">Nivel ${level}</span>` : ''}
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            ${hasQuestions ? `<span style="font-size: 12px; opacity: 0.9;">${topicQuestions.length} preguntas</span>` : ''}
-                            ${hasChildren ? `<span style="font-size: 12px; opacity: 0.9;">${children.length} subtemas</span>` : ''}
-                            
-                            <button onclick="event.stopPropagation(); modalVisualForzado('${topic.id}')" style="background: #10b981; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;" title="Mover">📥</button>
-                            
-                            <button onclick="event.stopPropagation(); crearSubtemaBrutal('${topic.id}')" style="background: #0ea5e9; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;" title="Crear subtema">📁+</button>
-                            
-                            ${level > 0 ? `<button onclick="event.stopPropagation(); desvincularBrutal('${topic.id}')" style="background: #f97316; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;" title="Desvincular">🔗</button>` : ''}
-                            
-                            ${(hasQuestions || hasChildren) ? `<button onclick="event.stopPropagation(); toggleBrutal('${topicId}')" style="background: rgba(255,255,255,0.3); border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">${isCollapsed ? '▶' : '▼'}</button>` : ''}
-                            
-                            <button onclick="event.stopPropagation(); editarBrutal('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar">✏️</button>
-                            
-                            <button onclick="event.stopPropagation(); eliminarBrutal('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar">🗑️</button>
-                        </div>
-                    </h3>
-                    <div style="border: 1px solid ${color}; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
-                        ${hasQuestions ? topicQuestions.map(q => {
-                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                            return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : `
-                                <div style="padding: 15px; border-bottom: 1px solid #f3f4f6;">
-                                    <div style="font-weight: 500; margin-bottom: 8px;">P${actualIndex + 1}: ${q.question}</div>
-                                    <ul style="list-style: none; margin: 0; padding: 0;">
-                                        ${q.options.map((opt, optIndex) => `
-                                            <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'};">
-                                                ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✓' : ''}
-                                            </li>
-                                        `).join('')}
-                                    </ul>
-                                </div>
-                            `);
-                        }).join('') : ''}
-                        ${hasChildren ? children.map(child => renderTema(child, level + 1)).join('') : ''}
-                        ${!hasQuestions && !hasChildren ? `<div style="padding: 20px; text-align: center; color: #6b7280; font-style: italic;">📂 Tema vacío</div>` : ''}
-                    </div>
-                </div>
-            `;
-        }
-        
-        rootTopics.forEach(topic => { html += renderTema(topic, 0); });
-        
-        if (questionsWithoutTopic.length > 0) {
-            const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics['sin-tema']) || false;
-            html += `
-                <div style="margin-top: 30px;">
-                    <h3 style="background: #6b7280; color: white; padding: 12px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
-                        <span>📂 Sin tema asignado</span>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 12px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
-                            <button onclick="toggleBrutal('sin-tema')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">${isCollapsed ? '▶' : '▼'}</button>
-                        </div>
-                    </h3>
-                    <div id="topic-content-sin-tema" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
-                        ${questionsWithoutTopic.map(q => {
-                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                            return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : `
-                                <div style="padding: 15px; border-bottom: 1px solid #f3f4f6;">
-                                    <div style="font-weight: 500; margin-bottom: 8px;">P${actualIndex + 1}: ${q.question}</div>
-                                </div>
-                            `);
-                        }).join('')}
-                    </div>
-                </div>
-            `;
-        }
-        
-        return html || '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay temas disponibles</div>';
+        }, 100);
     }
     
-    // FORZAR REEMPLAZO
-    window.renderQuestionsByTopic = renderConModalBrutal;
-    renderQuestionsByTopic = renderConModalBrutal;
+    // Interceptar el render original para añadir los eventos después
+    if (typeof window.render === 'function') {
+        const renderOriginalCompleto = window.render;
+        window.render = function() {
+            renderOriginalCompleto.call(this);
+            interceptarBotonesDespuesDeRender();
+        };
+    }
     
-    console.log('✅ Render BRUTAL instalado');
+    console.log('✅ Interceptor de botones instalado (manteniendo render original)');
     
 }, 200);
+
+// PASO 4: ARREGLAR FUNCIONES DE CREAR TEMA
+setTimeout(() => {
+    console.log('🔧 Arreglando funciones de crear tema...');
+    
+    // Asegurar que createTopic funcione
+    if (typeof window.createTopic !== 'function') {
+        window.createTopic = function() {
+            console.log('🆕 Ejecutando createTopic reparado...');
+            
+            const name = prompt('Nombre del nuevo tema:');
+            if (!name || name.trim().length === 0) return;
+            
+            // Verificar duplicados
+            if (state.topics.find(t => t.name.toLowerCase() === name.trim().toLowerCase())) {
+                alert('Ya existe un tema con ese nombre');
+                return;
+            }
+            
+            // Crear tema
+            const newTopic = {
+                id: Date.now() + Math.random(),
+                name: name.trim(),
+                parentId: null,
+                childrenIds: [],
+                level: 0,
+                createdAt: new Date().toISOString()
+            };
+            
+            if (!state.topics) state.topics = [];
+            state.topics.push(newTopic);
+            
+            // Seleccionar automáticamente
+            state.selectedTopicForNewQuestions = newTopic.id;
+            
+            // Guardar
+            localStorage.setItem('topics', JSON.stringify(state.topics));
+            if (typeof saveData === 'function') saveData();
+            
+            // Re-renderizar
+            if (typeof render === 'function') render();
+            
+            if (typeof showMessage === 'function') {
+                showMessage(`✅ Tema "${name.trim()}" creado exitosamente`, 'success');
+            }
+            
+            console.log('✅ Tema creado:', newTopic);
+        };
+    } else {
+        console.log('✅ createTopic ya existe, manteniéndola');
+    }
+    
+    // Asegurar que updateSelectedTopic funcione
+    if (typeof window.updateSelectedTopic !== 'function') {
+        window.updateSelectedTopic = function() {
+            console.log('🔄 Ejecutando updateSelectedTopic reparado...');
+            
+            const selector = document.getElementById('topic-selector');
+            if (selector && selector.value) {
+                const selectedValue = selector.value;
+                const selectedTopic = state.topics.find(t => t.id == selectedValue);
+                if (selectedTopic) {
+                    state.selectedTopicForNewQuestions = selectedTopic.id;
+                    if (typeof showMessage === 'function') {
+                        showMessage(`Tema "${selectedTopic.name}" seleccionado`, 'success');
+                    }
+                } else {
+                    state.selectedTopicForNewQuestions = selectedValue;
+                }
+            } else {
+                state.selectedTopicForNewQuestions = null;
+            }
+            
+            if (typeof render === 'function') render();
+        };
+    } else {
+        console.log('✅ updateSelectedTopic ya existe, manteniéndola');
+    }
+    
+    console.log('✅ Funciones de crear tema reparadas');
+    
+}, 300);
 
 // FUNCIONES AUXILIARES BRUTALES
 window.crearSubtemaBrutal = function(parentId) {
@@ -20943,6 +20957,7 @@ console.log('🚀 ¡Ahora el modal 📥 debería mostrar BOTONES en lugar de nú
 </script>
 </body>
 </html>
+
 
 
 
