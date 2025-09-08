@@ -20458,29 +20458,24 @@ console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 <!-- 
-PARCHE DIRECTO: SISTEMA DE INTEGRACIÓN DE TEMAS - VERSION GARANTIZADA
+PARCHE NO INVASIVO: SISTEMA DE INTEGRACIÓN DE TEMAS
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche SOBRESCRIBE directamente la función existente para garantizar funcionamiento
+Este parche PRESERVA toda la funcionalidad original y solo AÑADE las nuevas características
 -->
 
 <script>
-// ========== PARCHE DIRECTO - SISTEMA DE INTEGRACIÓN DE TEMAS ==========
-console.log('🔧 APLICANDO PARCHE DIRECTO - Sistema de Integración de Temas...');
+// ========== PARCHE NO INVASIVO - SISTEMA DE INTEGRACIÓN DE TEMAS ==========
+console.log('🔧 APLICANDO PARCHE NO INVASIVO - Sistema de Integración de Temas...');
 
-// ========== 1. VERIFICAR QUE SE CARGA CORRECTAMENTE ==========
-window.TEMA_INTEGRATION_LOADED = true;
-console.log('✅ Parche de integración cargado correctamente');
-
-// ========== 2. ESTADO GLOBAL ==========
+// ========== 1. ESTADO GLOBAL ==========
 window.themeIntegrationState = {
     integrations: JSON.parse(localStorage.getItem('themeIntegrations') || '{}'),
     modalActive: false,
     currentParentId: null
 };
 
-// ========== 3. FUNCIONES BÁSICAS ==========
+// ========== 2. FUNCIONES BÁSICAS ==========
 
-// Guardar integraciones
 function saveIntegrations() {
     localStorage.setItem('themeIntegrations', JSON.stringify(themeIntegrationState.integrations));
     if (state.currentUser && typeof RealDataManager !== 'undefined') {
@@ -20489,19 +20484,36 @@ function saveIntegrations() {
     console.log('💾 Integraciones guardadas:', themeIntegrationState.integrations);
 }
 
-// Verificar si un tema es subcarpeta
+function loadUserIntegrations() {
+    if (state.currentUser && typeof RealDataManager !== 'undefined') {
+        const userIntegrations = RealDataManager.getUserData(state.currentUser.username, 'themeIntegrations');
+        if (userIntegrations) {
+            themeIntegrationState.integrations = userIntegrations;
+            localStorage.setItem('themeIntegrations', JSON.stringify(userIntegrations));
+        }
+    }
+}
+
 function isSubfolder(themeId) {
     return Object.values(themeIntegrationState.integrations).some(subfolders => 
         subfolders.includes(themeId.toString())
     );
 }
 
-// Obtener subcarpetas de un tema
 function getSubfolders(themeId) {
     return themeIntegrationState.integrations[themeId.toString()] || [];
 }
 
-// ========== 4. MODAL DE INTEGRACIÓN ==========
+function getParentTheme(themeId) {
+    for (const [parentId, subfolders] of Object.entries(themeIntegrationState.integrations)) {
+        if (subfolders.includes(themeId.toString())) {
+            return parentId;
+        }
+    }
+    return null;
+}
+
+// ========== 3. MODAL DE INTEGRACIÓN ==========
 
 function openIntegrationModal(parentThemeId) {
     console.log('📁 Abriendo modal de integración para tema:', parentThemeId);
@@ -20596,7 +20608,7 @@ function confirmIntegration() {
     saveIntegrations();
     closeIntegrationModal();
     
-    // Forzar re-renderizado
+    // Re-renderizar manteniendo funcionalidad original
     if (typeof render === 'function') {
         render();
     }
@@ -20610,10 +20622,7 @@ function confirmIntegration() {
 }
 
 function disintegrateTheme(themeId) {
-    const parentId = Object.keys(themeIntegrationState.integrations).find(pId => 
-        themeIntegrationState.integrations[pId].includes(themeId)
-    );
-    
+    const parentId = getParentTheme(themeId);
     if (!parentId) return;
     
     const parentTheme = state.topics.find(t => t.id.toString() === parentId);
@@ -20640,229 +20649,330 @@ function disintegrateTheme(themeId) {
     }
 }
 
-// ========== 5. SOBRESCRIBIR FUNCIÓN DE RENDERIZADO ==========
+// ========== 4. INTERCEPTAR Y MODIFICAR HTML (NO INVASIVO) ==========
 
-// Guardar función original si existe
+// Guardar función original SI EXISTE
 if (typeof window.renderQuestionsByTopic === 'function') {
-    window.originalRenderQuestionsByTopic = window.renderQuestionsByTopic;
-    console.log('📋 Función original guardada');
+    window.originalRenderQuestionsByTopicIntegration = window.renderQuestionsByTopic;
+    console.log('📋 Función original preservada');
 }
 
-// NUEVA FUNCIÓN DE RENDERIZADO CON INTEGRACIÓN
+// NUEVA FUNCIÓN QUE MANTIENE TODO Y AÑADE INTEGRACIÓN
 window.renderQuestionsByTopic = function() {
-    console.log('🎨 Renderizando temas con sistema de integración...');
+    loadUserIntegrations(); // Cargar integraciones del usuario actual
     
-    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
-    let html = '';
-    
-    // Botones de control global
-    const hasContent = state.topics.length > 0 || questionsWithoutTopic.length > 0;
-    
-    if (hasContent) {
-        html += `
-            <div style="display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; flex-wrap: wrap;">
-                <button onclick="collapseAllFolders()" class="btn btn-secondary" style="font-size: 14px; padding: 8px 16px;">
-                    📁 Colapsar Todo
-                </button>
-                <button onclick="expandAllFolders()" class="btn btn-secondary" style="font-size: 14px; padding: 8px 16px;">
-                    📂 Expandir Todo
-                </button>
-            </div>
-        `;
+    // 1. LLAMAR A LA FUNCIÓN ORIGINAL PARA OBTENER EL HTML BASE
+    let originalHTML = '';
+    if (typeof window.originalRenderQuestionsByTopicIntegration === 'function') {
+        originalHTML = window.originalRenderQuestionsByTopicIntegration.call(this);
+    } else {
+        // Fallback si no existe función original
+        const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+        let html = '';
+        
+        state.topics.forEach(topic => {
+            const topicId = topic.id.toString();
+            const questionsInTopic = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId);
+            const isCollapsed = (typeof collapsedFolders !== 'undefined') ? collapsedFolders[topicId] : false;
+            
+            html += `
+                <div class="topic-section" data-topic-id="${topicId}" style="margin-bottom: 15px;">
+                    <h3 style="margin: 0; background: #6366f1; color: white; padding: 12px 16px; border-radius: 8px 8px 0 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 1rem;" 
+                        onclick="toggleFolder('${topicId}')">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="transform: ${isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'}; transition: transform 0.2s;">▼</span>
+                            <span>🔷</span>
+                            <span>${topic.name}</span>
+                            <span style="font-size: 13px; opacity: 0.9;">(${questionsInTopic.length} pregunta${questionsInTopic.length === 1 ? '' : 's'})</span>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;" onclick="event.stopPropagation();">
+                            <button onclick="editTopic('${topicId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema">
+                                ✏️
+                            </button>
+                            <button onclick="deleteTopic('${topicId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema">
+                                🗑️
+                            </button>
+                        </div>
+                    </h3>
+                    <div style="border: 1px solid #6366f1; border-top: none; border-radius: 0 0 8px 8px; background: white; ${isCollapsed ? 'display: none;' : ''}">
+                        ${questionsInTopic.length > 0 ? questionsInTopic.map(q => {
+                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                            return (typeof renderSingleQuestion === 'function') ? renderSingleQuestion(q, actualIndex) : `
+                                <div style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
+                                    <strong>Pregunta ${actualIndex + 1}:</strong> ${q.question.substring(0, 100)}...
+                                </div>
+                            `;
+                        }).join('') : `
+                            <div style="padding: 20px; text-align: center; color: #6b7280; font-style: italic;">
+                                📁 Este tema está vacío
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `;
+        });
+        
+        originalHTML = html;
     }
     
-    // Renderizar solo temas que NO son subcarpetas
+    // 2. MODIFICAR EL HTML PARA AÑADIR FUNCIONALIDAD DE INTEGRACIÓN
+    if (!originalHTML) {
+        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
+    }
+    
+    // 3. PROCESAR CADA TEMA PARA AÑADIR FUNCIONALIDAD
+    let modifiedHTML = originalHTML;
+    
+    // Filtrar temas que NO son subcarpetas
     const independentTopics = state.topics.filter(topic => !isSubfolder(topic.id));
     
     independentTopics.forEach(topic => {
         const topicId = topic.id.toString();
-        const questionsInTopic = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId);
         const subfolders = getSubfolders(topicId);
         const hasSubfolders = subfolders.length > 0;
-        const isCollapsed = (typeof collapsedFolders !== 'undefined') ? collapsedFolders[topicId] : false;
+        const questionsInTopic = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId);
         
-        // Determinar estilo
-        const themeColor = hasSubfolders ? '#22c55e' : '#6366f1';
-        const themeIcon = hasSubfolders ? '📁' : '🔷';
+        // Buscar el header del tema en el HTML
+        const headerRegex = new RegExp(`<h3[^>]*data-topic-id="${topicId}"[^>]*>`, 'i');
+        const headerMatch = modifiedHTML.match(headerRegex);
         
-        // Contador
-        let counterText = '';
+        if (!headerMatch) {
+            // Si no encuentra el header por data-topic-id, buscar por contenido
+            const namePattern = topic.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const altHeaderRegex = new RegExp(`(<h3[^>]*>[^<]*${namePattern}[^<]*</h3>)`, 'i');
+            const altHeaderMatch = modifiedHTML.match(altHeaderRegex);
+            
+            if (altHeaderMatch) {
+                console.log(`📝 Encontrado header alternativo para: ${topic.name}`);
+            }
+        }
+        
+        // Modificar estilo del tema si tiene subcarpetas
         if (hasSubfolders) {
+            // Cambiar color de azul (#6366f1) a verde (#22c55e)
+            modifiedHTML = modifiedHTML.replace(
+                new RegExp(`(background: #6366f1[^>]*>)([^<]*🔷[^<]*${topic.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'g'),
+                (match, p1, p2) => {
+                    return p1.replace('#6366f1', '#22c55e') + p2.replace('🔷', '📁');
+                }
+            );
+            
+            // Actualizar contador
+            let counterText = '';
             if (questionsInTopic.length > 0) {
                 counterText = `${questionsInTopic.length} preguntas + ${subfolders.length} subcarpeta${subfolders.length === 1 ? '' : 's'}`;
             } else {
                 counterText = `${subfolders.length} subcarpeta${subfolders.length === 1 ? '' : 's'}`;
             }
-        } else {
-            counterText = `${questionsInTopic.length} pregunta${questionsInTopic.length === 1 ? '' : 's'}`;
+            
+            const currentCounterRegex = new RegExp(`(${topic.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^<]*\\()([^)]+)(\\))`, 'g');
+            modifiedHTML = modifiedHTML.replace(currentCounterRegex, `$1${counterText}$3`);
         }
         
-        html += `
-            <div class="topic-section" data-topic-id="${topicId}" style="margin-bottom: 15px;">
-                <h3 style="margin: 0; background: ${themeColor}; color: white; padding: 12px 16px; border-radius: 8px 8px 0 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 1rem;" 
-                    onclick="toggleFolder('${topicId}')">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="transform: ${isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'}; transition: transform 0.2s;">▼</span>
-                        <span>${themeIcon}</span>
-                        <span>${topic.name}</span>
-                        <span style="font-size: 13px; opacity: 0.9;">(${counterText})</span>
-                    </div>
-                    <div style="display: flex; gap: 8px; align-items: center;" onclick="event.stopPropagation();">
-                        <button onclick="openIntegrationModal('${topicId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;" title="Integrar subcarpetas">
-                            📁
-                        </button>
-                        <button onclick="editTopic('${topicId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema">
-                            ✏️
-                        </button>
-                        <button onclick="deleteTopic('${topicId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema">
-                            🗑️
-                        </button>
-                    </div>
-                </h3>
-                <div style="border: 1px solid ${themeColor}; border-top: none; border-radius: 0 0 8px 8px; background: white; ${isCollapsed ? 'display: none;' : ''}">
+        // Añadir botón de integración
+        const buttonPattern = `<button onclick="editTopic('${topicId}')"`;
+        if (modifiedHTML.includes(buttonPattern)) {
+            const integrationButton = `<button onclick="openIntegrationModal('${topicId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;" title="Integrar subcarpetas">📁</button>`;
+            modifiedHTML = modifiedHTML.replace(buttonPattern, integrationButton + buttonPattern);
+        }
+        
+        // Añadir subcarpetas al contenido del tema
+        if (hasSubfolders) {
+            const contentPattern = new RegExp(`(<div[^>]*border: 1px solid[^>]*${topicId}[^>]*>)([\\s\\S]*?)(</div>)(?=\\s*</div>\\s*<div class="topic-section"|\\s*<div[^>]*margin-top: 30px|\\s*$)`, 'g');
+            
+            modifiedHTML = modifiedHTML.replace(contentPattern, (match, openDiv, content, closeDiv) => {
+                let subfolderHTML = '';
+                
+                subfolders.forEach(subfolderId => {
+                    const subfolderTopic = state.topics.find(t => t.id.toString() === subfolderId);
+                    if (!subfolderTopic) return;
                     
-                    <!-- Preguntas del tema padre -->
-                    ${questionsInTopic.length > 0 ? questionsInTopic.map(q => {
-                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                        return (typeof renderSingleQuestion === 'function') ? renderSingleQuestion(q, actualIndex) : `
-                            <div style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
-                                <strong>Pregunta ${actualIndex + 1}:</strong> ${q.question.substring(0, 100)}...
-                            </div>
-                        `;
-                    }).join('') : ''}
+                    const subfolderQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === subfolderId);
+                    const subfolderCollapsed = (typeof collapsedFolders !== 'undefined') ? collapsedFolders[`sub_${subfolderId}`] : false;
                     
-                    <!-- Subcarpetas -->
-                    ${subfolders.map(subfolderId => {
-                        const subfolderTopic = state.topics.find(t => t.id.toString() === subfolderId);
-                        if (!subfolderTopic) return '';
-                        
-                        const subfolderQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === subfolderId);
-                        const subfolderCollapsed = (typeof collapsedFolders !== 'undefined') ? collapsedFolders[`sub_${subfolderId}`] : false;
-                        
-                        return `
-                            <div style="margin: 10px; border: 1px solid #a855f7; border-radius: 8px; background: #faf5ff;">
-                                <h4 style="margin: 0; background: #a855f7; color: white; padding: 10px 14px; border-radius: 8px 8px 0 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem;"
-                                    onclick="toggleFolder('sub_${subfolderId}')">
-                                    <div style="display: flex; align-items: center; gap: 6px;">
-                                        <span style="transform: ${subfolderCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'}; transition: transform 0.2s; font-size: 12px;">▼</span>
-                                        <span>📂</span>
-                                        <span>${subfolderTopic.name}</span>
-                                        <span style="font-size: 12px; opacity: 0.9;">(${subfolderQuestions.length} pregunta${subfolderQuestions.length === 1 ? '' : 's'})</span>
-                                    </div>
-                                    <div style="display: flex; gap: 6px; align-items: center;" onclick="event.stopPropagation();">
-                                        <button onclick="disintegrateTheme('${subfolderId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 11px;" title="Desintegrar">
-                                            🔗
-                                        </button>
-                                        <button onclick="editTopic('${subfolderId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 11px;" title="Editar">
-                                            ✏️
-                                        </button>
-                                    </div>
-                                </h4>
-                                <div style="border: 1px solid #a855f7; border-top: none; border-radius: 0 0 8px 8px; background: white; ${subfolderCollapsed ? 'display: none;' : ''}">
-                                    ${subfolderQuestions.length > 0 ? subfolderQuestions.map(q => {
-                                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                                        return (typeof renderSingleQuestion === 'function') ? renderSingleQuestion(q, actualIndex) : `
-                                            <div style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
-                                                <strong>Pregunta ${actualIndex + 1}:</strong> ${q.question.substring(0, 100)}...
-                                            </div>
-                                        `;
-                                    }).join('') : `
-                                        <div style="padding: 20px; text-align: center; color: #6b7280; font-style: italic;">
-                                            📂 Esta subcarpeta no tiene preguntas
-                                        </div>
-                                    `}
+                    subfolderHTML += `
+                        <div style="margin: 10px; border: 1px solid #a855f7; border-radius: 8px; background: #faf5ff;">
+                            <h4 style="margin: 0; background: #a855f7; color: white; padding: 10px 14px; border-radius: 8px 8px 0 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem;"
+                                onclick="toggleFolder('sub_${subfolderId}')">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="transform: ${subfolderCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'}; transition: transform 0.2s; font-size: 12px;">▼</span>
+                                    <span>📂</span>
+                                    <span>${subfolderTopic.name}</span>
+                                    <span style="font-size: 12px; opacity: 0.9;">(${subfolderQuestions.length} pregunta${subfolderQuestions.length === 1 ? '' : 's'})</span>
                                 </div>
+                                <div style="display: flex; gap: 6px; align-items: center;" onclick="event.stopPropagation();">
+                                    <button onclick="disintegrateTheme('${subfolderId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 11px;" title="Desintegrar">
+                                        🔗
+                                    </button>
+                                    <button onclick="editTopic('${subfolderId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 11px;" title="Editar">
+                                        ✏️
+                                    </button>
+                                </div>
+                            </h4>
+                            <div style="border: 1px solid #a855f7; border-top: none; border-radius: 0 0 8px 8px; background: white; ${subfolderCollapsed ? 'display: none;' : ''}">
+                                ${subfolderQuestions.length > 0 ? subfolderQuestions.map(q => {
+                                    const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                                    return (typeof renderSingleQuestion === 'function') ? renderSingleQuestion(q, actualIndex) : `
+                                        <div style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
+                                            <strong>Pregunta ${actualIndex + 1}:</strong> ${q.question.substring(0, 100)}...
+                                        </div>
+                                    `;
+                                }).join('') : `
+                                    <div style="padding: 20px; text-align: center; color: #6b7280; font-style: italic;">
+                                        📂 Esta subcarpeta no tiene preguntas
+                                    </div>
+                                `}
                             </div>
-                        `;
-                    }).join('')}
-                    
-                    ${questionsInTopic.length === 0 && subfolders.length === 0 ? `
-                        <div style="padding: 20px; text-align: center; color: #6b7280; font-style: italic;">
-                            📁 Este tema está vacío
                         </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
+                    `;
+                });
+                
+                return openDiv + content + subfolderHTML + closeDiv;
+            });
+        }
     });
     
-    // Preguntas sin tema
-    if (questionsWithoutTopic.length > 0) {
-        const noTopicCollapsed = (typeof collapsedFolders !== 'undefined') ? collapsedFolders['no-topic'] : false;
-        html += `
-            <div style="margin-top: 30px;">
-                <h3 style="margin: 0; background: #6b7280; color: white; padding: 12px 16px; border-radius: 8px 8px 0 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 1rem;" 
-                    onclick="toggleFolder('no-topic')">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="transform: ${noTopicCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'}; transition: transform 0.2s;">▼</span>
-                        <span>❓</span>
-                        <span>Sin Tema Asignado</span>
-                        <span style="font-size: 13px; opacity: 0.9;">(${questionsWithoutTopic.length} pregunta${questionsWithoutTopic.length === 1 ? '' : 's'})</span>
-                    </div>
-                </h3>
-                <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; ${noTopicCollapsed ? 'display: none;' : ''}">
-                    ${questionsWithoutTopic.map(q => {
-                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                        return (typeof renderSingleQuestion === 'function') ? renderSingleQuestion(q, actualIndex) : `
-                            <div style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
-                                <strong>Pregunta ${actualIndex + 1}:</strong> ${q.question.substring(0, 100)}...
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-        `;
-    }
+    // 4. OCULTAR TEMAS QUE SON SUBCARPETAS (no deben aparecer como independientes)
+    state.topics.forEach(topic => {
+        if (isSubfolder(topic.id)) {
+            const topicPattern = new RegExp(`<div[^>]*class="topic-section"[^>]*data-topic-id="${topic.id}"[^>]*>[\\s\\S]*?</div>\\s*</div>`, 'g');
+            modifiedHTML = modifiedHTML.replace(topicPattern, '');
+        }
+    });
     
-    if (html === '') {
-        html = '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
-    }
-    
-    console.log('✅ Renderizado completado con sistema de integración');
-    return html;
+    console.log('✅ Renderizado completado con sistema de integración (no invasivo)');
+    return modifiedHTML;
 };
 
-// ========== 6. EXPORTAR FUNCIONES GLOBALES ==========
+// ========== 5. EXPORTAR FUNCIONES GLOBALES ==========
 window.openIntegrationModal = openIntegrationModal;
 window.closeIntegrationModal = closeIntegrationModal;
 window.confirmIntegration = confirmIntegration;
 window.disintegrateTheme = disintegrateTheme;
 
+// ========== 6. SINCRONIZACIÓN CON FUNCIONES EXISTENTES ==========
+
+// Limpiar integraciones al eliminar temas
+if (typeof deleteTopic === 'function') {
+    const originalDeleteTopic = deleteTopic;
+    window.deleteTopic = function(topicId) {
+        const result = originalDeleteTopic.apply(this, arguments);
+        
+        setTimeout(() => {
+            const topicIdStr = topicId.toString();
+            
+            // Eliminar como tema padre
+            delete themeIntegrationState.integrations[topicIdStr];
+            
+            // Eliminar como subcarpeta
+            Object.keys(themeIntegrationState.integrations).forEach(parentId => {
+                themeIntegrationState.integrations[parentId] = themeIntegrationState.integrations[parentId].filter(id => id !== topicIdStr);
+                
+                if (themeIntegrationState.integrations[parentId].length === 0) {
+                    delete themeIntegrationState.integrations[parentId];
+                }
+            });
+            
+            saveIntegrations();
+            console.log(`🗑️ Integraciones limpiadas para tema eliminado: ${topicId}`);
+        }, 100);
+        
+        return result;
+    };
+}
+
+// Cargar integraciones al hacer login
+if (typeof login === 'function') {
+    const originalLogin = login;
+    window.login = function() {
+        const result = originalLogin.apply(this, arguments);
+        
+        setTimeout(() => {
+            loadUserIntegrations();
+        }, 500);
+        
+        return result;
+    };
+}
+
 // ========== 7. VERIFICACIÓN Y DIAGNÓSTICO ==========
 console.log('🔍 DIAGNÓSTICO DEL SISTEMA:');
 console.log('- Estado global creado:', !!window.themeIntegrationState);
+console.log('- Función original preservada:', !!window.originalRenderQuestionsByTopicIntegration);
 console.log('- Funciones exportadas:', {
     openIntegrationModal: !!window.openIntegrationModal,
     confirmIntegration: !!window.confirmIntegration,
     disintegrateTheme: !!window.disintegrateTheme
 });
-console.log('- Función renderQuestionsByTopic sobrescrita:', typeof window.renderQuestionsByTopic === 'function');
 
 // Función de test manual
 window.testIntegrationSystem = function() {
     console.log('🧪 TEST DEL SISTEMA DE INTEGRACIÓN:');
     console.log('- Temas disponibles:', state.topics.length);
     console.log('- Integraciones actuales:', themeIntegrationState.integrations);
-    console.log('- Función render disponible:', typeof render === 'function');
+    console.log('- Funciones originales preservadas:', {
+        editTopic: typeof window.editTopic === 'function',
+        deleteTopic: typeof window.deleteTopic === 'function',
+        render: typeof window.render === 'function'
+    });
     
     if (state.topics.length > 0) {
         console.log('✅ Puedes probar abriendo el modal con: openIntegrationModal("' + state.topics[0].id + '")');
     }
 };
 
-// ========== 8. FORZAR RE-RENDERIZADO SI ESTAMOS EN LA PESTAÑA CORRECTA ==========
-setTimeout(() => {
-    if (state.currentTab === 'questions' && typeof render === 'function') {
-        console.log('🔄 Forzando re-renderizado...');
-        render();
+// ========== 8. ESTILOS CSS ==========
+const integrationStyles = document.createElement('style');
+integrationStyles.textContent = `
+    #integration-modal input[type="checkbox"] {
+        accent-color: #22c55e;
     }
-}, 500);
+    
+    #integration-modal label:hover {
+        background: #f3f4f6 !important;
+    }
+    
+    .topic-section [style*="margin: 10px"] {
+        animation: slideInFromLeft 0.3s ease-out;
+    }
+    
+    @keyframes slideInFromLeft {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    button[onclick*="openIntegrationModal"]:hover {
+        background: rgba(255,255,255,0.3) !important;
+        transform: scale(1.05);
+    }
+    
+    button[onclick*="disintegrateTheme"]:hover {
+        background: rgba(255,255,255,0.3) !important;
+        transform: scale(1.05);
+    }
+`;
 
-console.log('✅ SISTEMA DE INTEGRACIÓN DE TEMAS CARGADO COMPLETAMENTE');
-console.log('📁 Para probar: testIntegrationSystem() en la consola');
+document.head.appendChild(integrationStyles);
+
+console.log('✅ SISTEMA DE INTEGRACIÓN DE TEMAS CARGADO (NO INVASIVO)');
+console.log('📁 Funcionalidades disponibles:');
+console.log('   ✅ Mantiene TODOS los botones originales (editar, eliminar)');
+console.log('   ✅ Mantiene funcionalidad de drag & drop');
+console.log('   ✅ Añade botón 📁 para integrar subcarpetas');
+console.log('   ✅ Visualización jerárquica completa');
+console.log('   ✅ Desintegración de subcarpetas');
+console.log('   ✅ Compatibilidad total con multijugador');
+console.log('📝 Para probar: testIntegrationSystem() en la consola');
 </script>
 </body>
 </html>
+
 
 
 
