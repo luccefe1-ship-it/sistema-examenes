@@ -20458,201 +20458,141 @@ console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 <!-- 
-PARCHE: INTEGRACIÓN DE TEMAS COMO SUBCARPETAS - VERSIÓN CORREGIDA
+PARCHE: INTEGRACIÓN DE TEMAS COMO SUBCARPETAS - VERSIÓN SIMPLIFICADA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche permite integrar temas dentro de otros temas como subcarpetas
-CORRIGE: Temas padre sin preguntas ahora aparecen con header completo
+Este parche añade el botón de integración sin romper la funcionalidad existente
 -->
 
 <script>
-console.log('📁 Aplicando parche CORREGIDO: Integración de temas como subcarpetas...');
+console.log('📁 Aplicando parche SIMPLIFICADO: Integración de temas...');
 
 // Variable global para almacenar la estructura de integración
 let topicIntegrations = JSON.parse(localStorage.getItem('topicIntegrations') || '{}');
 
-// INTERCEPTAR renderQuestionsByTopic PARA AÑADIR BOTÓN DE INTEGRACIÓN
-const originalRenderQuestionsByTopicIntegration = renderQuestionsByTopic;
+// INTERCEPTAR renderQuestionsByTopic PARA AÑADIR BOTÓN 📁
+const originalRenderQuestionsByTopicSimple = renderQuestionsByTopic;
 
 renderQuestionsByTopic = function() {
-    // Obtener HTML original
-    let originalHTML = originalRenderQuestionsByTopicIntegration.call(this);
+    // Ejecutar función original
+    let originalHTML = originalRenderQuestionsByTopicSimple.call(this);
     
-    // Crear array completo de temas (con y sin preguntas) en el orden actual
-    const allTopicsInOrder = state.topics.map(topic => {
-        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
-        return {
-            topic: topic,
-            hasQuestions: topicQuestions.length > 0,
-            questions: topicQuestions
-        };
-    });
+    console.log('🔍 HTML original obtenido, aplicando modificaciones...');
     
-    // Crear estructura jerárquica considerando integraciones
-    const renderTopicTree = (topicData, isIntegrated = false, parentId = null) => {
-        const topic = topicData.topic;
-        const hasQuestions = topicData.hasQuestions;
-        const questions = topicData.questions;
-        const topicId = topic.id.toString();
+    // Buscar y reemplazar los botones de cada tema para añadir el botón 📁
+    const modifiedHTML = originalHTML.replace(
+        /(<button onclick="event\.stopPropagation\(\); editTopic(?:Simple|Empty)\('([^']+)'\)"[^>]*>[\s\S]*?<\/button>)/g,
+        (match, editButtonHtml, topicId) => {
+            // Insertar botón 📁 antes del botón de editar
+            const integrateButton = `<button onclick="event.stopPropagation(); showIntegrateTopicModal('${topicId}')" style="background: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Integrar tema">📁</button>`;
+            return integrateButton + editButtonHtml;
+        }
+    );
+    
+    console.log('📁 Botones de integración añadidos');
+    
+    // Aplicar estructura jerárquica si hay integraciones
+    if (Object.keys(topicIntegrations).length > 0) {
+        return applyTopicHierarchy(modifiedHTML);
+    }
+    
+    return modifiedHTML;
+};
+
+// FUNCIÓN PARA APLICAR JERARQUÍA VISUAL
+function applyTopicHierarchy(html) {
+    console.log('📂 Aplicando jerarquía visual...');
+    
+    // Crear lista de temas integrados para ocultarlos del nivel principal
+    const integratedTopicIds = Object.values(topicIntegrations).flat();
+    
+    // Dividir HTML en temas individuales
+    const topicSections = html.split('<div class="draggable-topic"');
+    if (topicSections.length <= 1) return html;
+    
+    let rebuiltHTML = topicSections[0]; // Conservar el inicio
+    
+    for (let i = 1; i < topicSections.length; i++) {
+        const section = topicSections[i];
         
-        // Verificar si este tema está integrado en otro
-        if (!isIntegrated) {
-            const isIntegratedInAnother = Object.values(topicIntegrations).some(integrations => 
-                integrations.includes(topicId)
-            );
-            if (isIntegratedInAnother) {
-                return ''; // No renderizar temas que están integrados en otros
-            }
+        // Extraer ID del tema
+        const topicIdMatch = section.match(/data-topic-id="([^"]+)"/);
+        if (!topicIdMatch) {
+            rebuiltHTML += '<div class="draggable-topic"' + section;
+            continue;
         }
         
-        // Verificar si este tema tiene temas integrados (es tema padre)
-        const hasIntegratedTopics = topicIntegrations[topicId] && topicIntegrations[topicId].length > 0;
+        const topicId = topicIdMatch[1];
         
-        const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
-        const indentLevel = isIntegrated ? 20 : 0;
-        
-        // Obtener temas integrados
-        const integratedTopicsIds = topicIntegrations[topicId] || [];
-        const integratedTopics = integratedTopicsIds.map(integId => {
-            const integTopic = state.topics.find(t => t.id.toString() === integId);
-            if (integTopic) {
-                const integQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === integId);
-                return {
-                    topic: integTopic,
-                    hasQuestions: integQuestions.length > 0,
-                    questions: integQuestions
-                };
-            }
-            return null;
-        }).filter(Boolean);
-        
-        let topicHTML = '';
-        
-        // Si tiene preguntas O es tema padre con integraciones, usar formato completo
-        if (hasQuestions || hasIntegratedTopics) {
-            // Tema con header completo (con o sin preguntas propias)
-            topicHTML = `
-                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" 
-                     style="margin-bottom: 30px; margin-left: ${indentLevel}px; border: 2px solid transparent; border-radius: 8px;" 
-                     ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
-                     ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
-                     ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                    <h3 style="background: ${isIntegrated ? '#8b5cf6' : (hasIntegratedTopics ? '#059669' : '#4f46e5')}; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                        <span>${isIntegrated ? '📂' : (hasIntegratedTopics ? '📁' : '🔷')} ${topic.name}</span>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 14px; opacity: 0.9;">
-                                ${questions.length} pregunta${questions.length === 1 ? '' : 's'}
-                                ${hasIntegratedTopics ? ` + ${integratedTopics.length} subcarpeta${integratedTopics.length === 1 ? '' : 's'}` : ''}
-                            </span>
-                            ${(hasQuestions || hasIntegratedTopics) ? `
-                            <button id="toggle-btn-${topicId}" onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
-                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
-                                    title="${isCollapsed ? 'Mostrar contenido' : 'Ocultar contenido'}">
-                                ${isCollapsed ? '▶' : '▼'}
-                            </button>
-                            ` : ''}
-                            ${!isIntegrated ? `
-                            <button onclick="event.stopPropagation(); showIntegrateTopicModal('${topic.id}')" 
-                                    style="background: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="Integrar tema">
-                                📁
-                            </button>
-                            ` : ''}
-                            <button onclick="event.stopPropagation(); ${hasQuestions ? 'editTopicSimple' : 'editTopicEmpty'}('${topic.id}')" 
-                                    style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="Editar tema">
-                                ✏️
-                            </button>
-                            <button onclick="event.stopPropagation(); ${isIntegrated ? `removeIntegratedTopic('${parentId}', '${topic.id}')` : (hasQuestions ? `deleteTopicSimple('${topic.id}')` : `deleteTopicEmpty('${topic.id}')`)" 
-                                    style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="${isIntegrated ? 'Desintegrar tema' : 'Eliminar tema'}">
-                                ${isIntegrated ? '🔗' : '🗑️'}
-                            </button>
-                        </div>
-                    </h3>
-                    <div id="topic-content-${topicId}" style="border: 1px solid ${isIntegrated ? '#8b5cf6' : (hasIntegratedTopics ? '#059669' : '#4f46e5')}; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
-                        ${hasQuestions ? questions.map((q, qIndex) => {
-                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                            return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
-                        }).join('') : (hasIntegratedTopics && !hasQuestions ? `
-                            <div style="padding: 15px; background: #f0fdf4; text-align: center; color: #059669; font-size: 14px; font-style: italic;">
-                                📁 Este tema contiene ${integratedTopics.length} subcarpeta${integratedTopics.length === 1 ? '' : 's'}
-                            </div>
-                        ` : '')}
-                    </div>
-                </div>
-            `;
-        } else {
-            // Tema vacío sin integraciones (formato simplificado)
-            topicHTML = `
-                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" 
-                     style="margin-bottom: 30px; margin-left: ${indentLevel}px; opacity: 0.7; border: 2px solid transparent; border-radius: 8px;"
-                     ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
-                     ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
-                     ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                    <h3 style="background: ${isIntegrated ? '#94a3b8' : '#6b7280'}; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                        <span>${isIntegrated ? '📁' : '🔶'} ${topic.name}</span>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 14px; opacity: 0.9;">0 preguntas</span>
-                            ${!isIntegrated ? `
-                            <button onclick="event.stopPropagation(); showIntegrateTopicModal('${topic.id}')" 
-                                    style="background: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="Integrar tema">
-                                📁
-                            </button>
-                            ` : ''}
-                            <button onclick="event.stopPropagation(); editTopicEmpty('${topic.id}')" 
-                                    style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="Editar tema vacío">
-                                ✏️
-                            </button>
-                            <button onclick="event.stopPropagation(); ${isIntegrated ? `removeIntegratedTopic('${parentId}', '${topic.id}')` : `deleteTopicEmpty('${topic.id}')`}" 
-                                    style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="${isIntegrated ? 'Desintegrar tema' : 'Eliminar tema vacío'}">
-                                ${isIntegrated ? '🔗' : '🗑️'}
-                            </button>
-                        </div>
-                    </h3>
-                    <div style="border: 1px solid ${isIntegrated ? '#94a3b8' : '#6b7280'}; border-top: none; border-radius: 0 0 8px 8px; background: #f9fafb; padding: 20px; text-align: center;">
-                        <div style="color: #6b7280; font-style: italic;">
-                            📝 Este tema no tiene preguntas asignadas
-                        </div>
-                        <div style="margin-top: 10px; font-size: 14px; color: #9ca3af;">
-                            Puedes editarlo para cambiar su nombre o eliminarlo si ya no lo necesitas
-                        </div>
-                    </div>
-                </div>
-            `;
+        // Si este tema está integrado en otro, no lo mostramos aquí
+        if (integratedTopicIds.includes(topicId)) {
+            continue;
         }
         
-        // Añadir temas integrados
-        if (integratedTopics.length > 0) {
-            integratedTopics.forEach(integratedTopic => {
-                topicHTML += renderTopicTree(integratedTopic, true, topicId);
+        // Añadir el tema principal
+        rebuiltHTML += '<div class="draggable-topic"' + section;
+        
+        // Si este tema tiene integraciones, añadir los temas hijo
+        if (topicIntegrations[topicId]) {
+            topicIntegrations[topicId].forEach(integratedId => {
+                // Buscar la sección del tema integrado
+                for (let j = 1; j < topicSections.length; j++) {
+                    if (topicSections[j].includes(`data-topic-id="${integratedId}"`)) {
+                        let integratedSection = topicSections[j];
+                        
+                        // Modificar para que aparezca como subcarpeta
+                        integratedSection = integratedSection.replace(
+                            /style="margin-bottom: 30px;([^"]*)/,
+                            'style="margin-bottom: 30px; margin-left: 30px;$1'
+                        );
+                        
+                        // Cambiar color a morado para subcarpetas
+                        integratedSection = integratedSection.replace(
+                            /background: #[^;]+;/,
+                            'background: #8b5cf6;'
+                        );
+                        
+                        // Cambiar icono
+                        integratedSection = integratedSection.replace(
+                            /🔷|🔶/,
+                            '📂'
+                        );
+                        
+                        // Añadir botón de desintegrar
+                        integratedSection = integratedSection.replace(
+                            /deleteTopicSimple\('([^']+)'\)/g,
+                            `removeIntegratedTopic('${topicId}', '$1')`
+                        );
+                        integratedSection = integratedSection.replace(
+                            /deleteTopicEmpty\('([^']+)'\)/g,
+                            `removeIntegratedTopic('${topicId}', '$1')`
+                        );
+                        integratedSection = integratedSection.replace(
+                            /🗑️/g,
+                            '🔗'
+                        );
+                        
+                        rebuiltHTML += '<div class="draggable-topic"' + integratedSection;
+                        break;
+                    }
+                }
             });
         }
-        
-        return topicHTML;
-    };
+    }
     
-    // Generar HTML completo con estructura jerárquica
-    const topicsHTML = allTopicsInOrder.map(topicData => renderTopicTree(topicData)).join('');
-    
-    return `
-        <div id="sortable-topics-container">
-            ${topicsHTML}
-        </div>
-        <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
-            🔄 <strong>Consejo:</strong> Puedes arrastrar y soltar los temas para cambiar su orden, y usar el botón 📁 para integrar temas como subcarpetas
-        </div>
-    `;
-};
+    return rebuiltHTML;
+}
 
 // FUNCIÓN PARA MOSTRAR MODAL DE INTEGRACIÓN
 window.showIntegrateTopicModal = function(parentTopicId) {
-    const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId);
-    if (!parentTopic) return;
+    console.log('📁 Abriendo modal para tema:', parentTopicId);
     
-    // Obtener temas disponibles para integrar (no integrados ya)
+    const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId);
+    if (!parentTopic) {
+        console.error('❌ Tema padre no encontrado');
+        return;
+    }
+    
+    // Obtener temas disponibles
     const integratedInParent = topicIntegrations[parentTopicId] || [];
     const alreadyIntegrated = Object.values(topicIntegrations).flat();
     
@@ -20665,17 +20605,19 @@ window.showIntegrateTopicModal = function(parentTopicId) {
     if (availableTopics.length === 0) {
         if (typeof showMessage === 'function') {
             showMessage('No hay temas disponibles para integrar', 'warning');
+        } else {
+            alert('No hay temas disponibles para integrar');
         }
         return;
     }
     
     const modalHtml = `
-        <div id="integrate-topic-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
-            <div style="background: white; border-radius: 16px; padding: 30px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
-                <h3 style="margin-bottom: 20px; color: #1f2937;">📁 Integrar Tema en "${parentTopic.name}"</h3>
+        <div id="integrate-topic-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 10000;">
+            <div style="background: white; border-radius: 16px; padding: 30px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                <h3 style="margin-bottom: 20px; color: #1f2937; text-align: center;">📁 Integrar en "${parentTopic.name}"</h3>
                 
                 <div style="margin-bottom: 20px;">
-                    <p style="color: #6b7280; font-size: 14px; margin-bottom: 15px;">
+                    <p style="color: #6b7280; font-size: 14px; margin-bottom: 15px; text-align: center;">
                         Selecciona el tema que quieres integrar como subcarpeta:
                     </p>
                     
@@ -20684,22 +20626,22 @@ window.showIntegrateTopicModal = function(parentTopicId) {
                             const questionCount = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length;
                             return `
                                 <div onclick="integrateTopicInto('${parentTopicId}', '${topic.id}')" 
-                                     style="padding: 12px 15px; border-bottom: 1px solid #f3f4f6; cursor: pointer; hover:background-color: #f9fafb; display: flex; justify-content: space-between; align-items: center;" 
-                                     onmouseover="this.style.backgroundColor='#f9fafb'" 
+                                     style="padding: 15px; border-bottom: 1px solid #f3f4f6; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background-color 0.2s;" 
+                                     onmouseover="this.style.backgroundColor='#f0f9ff'" 
                                      onmouseout="this.style.backgroundColor='white'">
                                     <div>
-                                        <div style="font-weight: 500; color: #374151;">${topic.name}</div>
-                                        <div style="font-size: 12px; color: #6b7280;">${questionCount} preguntas</div>
+                                        <div style="font-weight: 600; color: #374151; margin-bottom: 4px;">${topic.name}</div>
+                                        <div style="font-size: 12px; color: #6b7280;">${questionCount} pregunta${questionCount === 1 ? '' : 's'}</div>
                                     </div>
-                                    <div style="color: #8b5cf6; font-size: 18px;">📂</div>
+                                    <div style="color: #8b5cf6; font-size: 20px;">📂</div>
                                 </div>
                             `;
                         }).join('')}
                     </div>
                 </div>
                 
-                <div style="text-align: center; margin-top: 20px;">
-                    <button onclick="closeIntegrateTopicModal()" style="background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer;">
+                <div style="text-align: center; margin-top: 25px;">
+                    <button onclick="closeIntegrateTopicModal()" style="background: #6b7280; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">
                         Cancelar
                     </button>
                 </div>
@@ -20708,21 +20650,23 @@ window.showIntegrateTopicModal = function(parentTopicId) {
     `;
     
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+    console.log('✅ Modal mostrado');
 };
 
-// FUNCIÓN PARA CERRAR MODAL DE INTEGRACIÓN
+// FUNCIÓN PARA CERRAR MODAL
 window.closeIntegrateTopicModal = function() {
     const modal = document.getElementById('integrate-topic-modal');
     if (modal) {
         modal.remove();
+        console.log('✅ Modal cerrado');
     }
 };
 
-// FUNCIÓN PARA EJECUTAR LA INTEGRACIÓN
+// FUNCIÓN PARA EJECUTAR INTEGRACIÓN
 window.integrateTopicInto = function(parentTopicId, childTopicId) {
-    console.log(`📁 Integrando tema ${childTopicId} en ${parentTopicId}`);
+    console.log(`📁 Integrando ${childTopicId} en ${parentTopicId}`);
     
-    // Inicializar array si no existe
+    // Inicializar si no existe
     if (!topicIntegrations[parentTopicId]) {
         topicIntegrations[parentTopicId] = [];
     }
@@ -20730,7 +20674,7 @@ window.integrateTopicInto = function(parentTopicId, childTopicId) {
     // Añadir el tema hijo
     topicIntegrations[parentTopicId].push(childTopicId);
     
-    // Guardar en localStorage
+    // Guardar
     localStorage.setItem('topicIntegrations', JSON.stringify(topicIntegrations));
     
     // Cerrar modal
@@ -20745,28 +20689,27 @@ window.integrateTopicInto = function(parentTopicId, childTopicId) {
     const childTopic = state.topics.find(t => t.id.toString() === childTopicId);
     
     if (typeof showMessage === 'function') {
-        showMessage(`📁 Tema "${childTopic.name}" integrado en "${parentTopic.name}"`, 'success');
+        showMessage(`📁 "${childTopic.name}" integrado en "${parentTopic.name}"`, 'success');
+    } else {
+        alert(`Tema "${childTopic.name}" integrado exitosamente`);
     }
     
     console.log('✅ Integración completada');
 };
 
-// FUNCIÓN PARA REMOVER TEMA INTEGRADO
+// FUNCIÓN PARA REMOVER INTEGRACIÓN
 window.removeIntegratedTopic = function(parentTopicId, childTopicId) {
-    console.log(`🔗 Removiendo integración: ${childTopicId} de ${parentTopicId}`);
+    console.log(`🔗 Removiendo ${childTopicId} de ${parentTopicId}`);
     
     if (topicIntegrations[parentTopicId]) {
         topicIntegrations[parentTopicId] = topicIntegrations[parentTopicId].filter(id => id !== childTopicId);
         
-        // Si no quedan temas integrados, eliminar la entrada
         if (topicIntegrations[parentTopicId].length === 0) {
             delete topicIntegrations[parentTopicId];
         }
         
-        // Guardar en localStorage
         localStorage.setItem('topicIntegrations', JSON.stringify(topicIntegrations));
         
-        // Re-renderizar
         if (typeof render === 'function') {
             render();
         }
@@ -20774,72 +20717,29 @@ window.removeIntegratedTopic = function(parentTopicId, childTopicId) {
         const childTopic = state.topics.find(t => t.id.toString() === childTopicId);
         
         if (typeof showMessage === 'function') {
-            showMessage(`🔗 Tema "${childTopic.name}" desintegrado`, 'success');
+            showMessage(`🔗 "${childTopic.name}" desintegrado`, 'success');
+        } else {
+            alert(`Tema "${childTopic.name}" desintegrado exitosamente`);
         }
         
         console.log('✅ Desintegración completada');
     }
 };
 
-// INTERCEPTAR FUNCIÓN DE ELIMINACIÓN DE TEMAS PARA LIMPIAR INTEGRACIONES
-const originalDeleteTopicSimple = window.deleteTopicSimple;
-if (typeof originalDeleteTopicSimple === 'function') {
-    window.deleteTopicSimple = function(topicId) {
-        // Limpiar integraciones antes de eliminar
-        cleanupTopicIntegrations(topicId);
-        
-        // Ejecutar eliminación original
-        return originalDeleteTopicSimple(topicId);
-    };
-}
+// FUNCIÓN DE DEBUG
+window.debugIntegrations = function() {
+    console.log('🔍 DEBUG - Estado actual de integraciones:');
+    console.log('topicIntegrations:', topicIntegrations);
+    console.log('Temas disponibles:', state.topics.map(t => `${t.id}: ${t.name}`));
+};
 
-const originalDeleteTopicEmpty = window.deleteTopicEmpty;
-if (typeof originalDeleteTopicEmpty === 'function') {
-    window.deleteTopicEmpty = function(topicId) {
-        // Limpiar integraciones antes de eliminar
-        cleanupTopicIntegrations(topicId);
-        
-        // Ejecutar eliminación original
-        return originalDeleteTopicEmpty(topicId);
-    };
-}
-
-// FUNCIÓN PARA LIMPIAR INTEGRACIONES AL ELIMINAR UN TEMA
-function cleanupTopicIntegrations(topicIdToDelete) {
-    const topicIdStr = topicIdToDelete.toString();
-    
-    // Remover como tema padre
-    if (topicIntegrations[topicIdStr]) {
-        delete topicIntegrations[topicIdStr];
-    }
-    
-    // Remover como tema hijo de otros
-    Object.keys(topicIntegrations).forEach(parentId => {
-        topicIntegrations[parentId] = topicIntegrations[parentId].filter(childId => childId !== topicIdStr);
-        
-        // Si no quedan hijos, eliminar entrada
-        if (topicIntegrations[parentId].length === 0) {
-            delete topicIntegrations[parentId];
-        }
-    });
-    
-    // Guardar cambios
-    localStorage.setItem('topicIntegrations', JSON.stringify(topicIntegrations));
-}
-
-console.log('✅ Parche CORREGIDO de integración de temas aplicado');
-console.log('📁 Funcionalidades:');
-console.log('   - Temas padre SIN preguntas ahora aparecen con header completo');
-console.log('   - Botón 📁 en cada tema para integrar otros temas');
-console.log('   - Estructura jerárquica visual con subcarpetas');
-console.log('   - Temas integrados aparecen con icono 📂');
-console.log('   - Temas padre con subcarpetas usan icono 📁 verde');
-console.log('   - Botón 🔗 para desintegrar temas');
-console.log('   - Limpieza automática al eliminar temas');
-console.log('💡 Usa el botón 📁 en cualquier tema para crear subcarpetas');
+console.log('✅ Parche de integración aplicado correctamente');
+console.log('📁 Para debuggear, usa: debugIntegrations() en la consola');
+console.log('💡 El botón 📁 debería aparecer antes del botón de editar en cada tema');
 </script>
 </body>
 </html>
+
 
 
 
