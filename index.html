@@ -20909,6 +20909,72 @@ function editarTemaDefinitivo(temaId) {
     }
 }
 
+// Función para desvincular tema (hacerlo independiente)
+function desvincularTema(temaId) {
+    const tema = state.topics.find(t => t.id.toString() === temaId.toString());
+    if (!tema) return;
+    
+    if (!tema.parentId) {
+        if (typeof showMessage === 'function') {
+            showMessage('⚠️ Este tema ya es independiente', 'warning');
+        }
+        return;
+    }
+    
+    const padre = state.topics.find(t => t.id.toString() === tema.parentId.toString());
+    const nombrePadre = padre ? padre.name : 'tema padre';
+    
+    const confirmar = confirm(`¿Desvincular "${tema.name}" de "${nombrePadre}"?\n\nSe convertirá en un tema independiente en el nivel raíz.`);
+    if (!confirmar) return;
+    
+    try {
+        // Remover del padre
+        if (padre && padre.childrenIds) {
+            padre.childrenIds = padre.childrenIds.filter(id => id.toString() !== temaId.toString());
+            console.log(`📤 Removido "${tema.name}" del padre "${padre.name}"`);
+        }
+        
+        // Convertir en independiente
+        tema.parentId = null;
+        tema.level = 0;
+        
+        // Actualizar niveles de descendientes recursivamente
+        function actualizarNivelesDescendientes(temaIdBase) {
+            const temaBase = state.topics.find(t => t.id.toString() === temaIdBase.toString());
+            if (!temaBase) return;
+            
+            const hijos = state.topics.filter(t => t.parentId && t.parentId.toString() === temaIdBase.toString());
+            hijos.forEach(hijo => {
+                hijo.level = temaBase.level + 1;
+                actualizarNivelesDescendientes(hijo.id);
+            });
+        }
+        
+        actualizarNivelesDescendientes(temaId);
+        
+        // Guardar cambios
+        localStorage.setItem('topics', JSON.stringify(state.topics));
+        if (typeof saveData === 'function') saveData();
+        
+        if (typeof render === 'function') render();
+        
+        if (typeof showMessage === 'function') {
+            showMessage(`✅ "${tema.name}" desvinculado y convertido en tema independiente`, 'success');
+        }
+        
+        console.log(`🔗 Tema "${tema.name}" desvinculado correctamente`);
+        
+    } catch (error) {
+        console.error('❌ Error desvinculando tema:', error);
+        if (typeof showMessage === 'function') {
+            showMessage('❌ Error al desvincular tema: ' + error.message, 'error');
+        }
+    }
+}
+
+// Hacer la función disponible globalmente
+window.desvincularTema = desvincularTema;
+
 function eliminarTemaDefinitivo(temaId) {
     const tema = state.topics.find(t => t.id.toString() === temaId.toString());
     if (!tema) return;
@@ -21037,6 +21103,7 @@ console.log('   - Reemplazo agresivo de todas las funciones');
 </script>
 </body>
 </html>
+
 
 
 
