@@ -20575,11 +20575,14 @@ function applyIndentedHierarchy(html) {
                     childHTML = childHTML.replace(/🗑️/g, '🔗');
                     childHTML = childHTML.replace(/title="Eliminar tema[^"]*"/g, 'title="Desintegrar"');
                     
-                    // Quitar botón de integración de subcarpetas
-                    childHTML = childHTML.replace(
-                        /<button[^>]*title="Integrar tema"[^>]*>📁<\/button>\s*/g,
-                        ''
-                    );
+                    // MANTENER BOTÓN DE INTEGRACIÓN EN TEMAS PADRE
+                    if (!topicIntegrations[childId] || topicIntegrations[childId].length === 0) {
+                        // Solo quitar botón de integración si NO es tema padre
+                        childHTML = childHTML.replace(
+                            /<button[^>]*title="Integrar tema"[^>]*>📁<\/button>\s*/g,
+                            ''
+                        );
+                    }
                     
                     newHTML += childHTML;
                 }
@@ -20770,6 +20773,7 @@ function cleanupTopicIntegrations(topicIdToDelete) {
 </script>
 </body>
 </html>
+
 
 
 
