@@ -20458,377 +20458,504 @@ console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 <!-- 
-SOLUCIÓN BRUTAL - MODAL VISUAL FORZADO
+RESTAURAR VERSIÓN FUNCIONAL + MODAL VISUAL
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Esta solución DESTRUYE cualquier modal existente y fuerza el nuevo
+Esta versión mantiene TODO lo que funcionaba y solo cambia el modal de números por botones
 -->
 
 <script>
-// ========== SOLUCIÓN BRUTAL - REEMPLAZO TOTAL ==========
-console.log('💥 INICIANDO SOLUCIÓN BRUTAL...');
+// ========== VERSIÓN FUNCIONAL RESTAURADA ==========
+console.log('🔄 Restaurando versión funcional + modal visual...');
 
-// PASO 1: DESTRUIR TODAS LAS FUNCIONES DE MODAL EXISTENTES
-setTimeout(() => {
-    console.log('🔥 DESTRUYENDO modales existentes...');
-    
-    // Eliminar TODAS las versiones
-    delete window.showMoveModal;
-    delete window.mostrarModalMover;
-    delete window.showMoveTopicModal;
-    delete window.openInsertTopicModal;
-    delete window.executeTopicExportOnly;
-    
-    // Interceptar cualquier prompt que contenga "Mover"
-    const originalPrompt = window.prompt;
-    window.prompt = function(...args) {
-        const texto = args[0] || '';
-        if (texto.includes('Mover') || texto.includes('mover') || texto.includes('tema')) {
-            console.log('🚫 Prompt interceptado, usando modal visual');
-            return null; // Cancelar prompt
-        }
-        return originalPrompt.apply(this, args);
-    };
-    
-}, 100);
+// Variables globales para drag & drop
+window.draggedTopicData = null;
 
-// PASO 2: FUNCIÓN DE MODAL VISUAL ULTRA FORZADA
-function modalVisualForzado(temaId) {
-    console.log('💥 MODAL VISUAL FORZADO para tema:', temaId);
+// Función para asegurar estructura de temas
+function ensureTopicStructure() {
+    if (!state.topics) state.topics = [];
     
-    // DESTRUIR cualquier modal existente
-    document.querySelectorAll('#modalMoverTema, [id*="modal"], [id*="Modal"]').forEach(modal => {
-        modal.remove();
+    state.topics.forEach(topic => {
+        if (!topic.parentId) topic.parentId = null;
+        if (!topic.childrenIds) topic.childrenIds = [];
+        if (!topic.level) topic.level = 0;
+        if (!topic.order) topic.order = 0;
     });
-    
-    const tema = state.topics.find(t => t.id.toString() === temaId.toString());
-    if (!tema) {
-        alert('❌ Tema no encontrado: ' + temaId);
-        return;
-    }
-    
-    // Calcular destinos válidos
-    const descendientes = [];
-    function getDescendants(id) {
-        state.topics.filter(t => t.parentId && t.parentId.toString() === id.toString()).forEach(hijo => {
-            descendientes.push(hijo.id.toString());
-            getDescendants(hijo.id);
-        });
-    }
-    getDescendants(temaId);
-    
-    const destinos = state.topics.filter(t => 
-        t.id.toString() !== temaId.toString() && 
-        !descendientes.includes(t.id.toString())
-    );
-    
-    // Crear modal HTML ULTRA FORZADO
-    const modalHTML = `
-        <div id="modalMoverTema" style="position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; background: rgba(0,0,0,0.9) !important; z-index: 999999 !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 20px !important;">
-            <div style="background: white !important; border-radius: 15px !important; padding: 30px !important; max-width: 700px !important; width: 95% !important; max-height: 85vh !important; overflow-y: auto !important; box-shadow: 0 25px 50px rgba(0,0,0,0.5) !important;">
-                
-                <!-- Header -->
-                <div style="display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 25px !important; padding-bottom: 20px !important; border-bottom: 3px solid #e5e7eb !important;">
-                    <h2 style="margin: 0 !important; color: #1f2937 !important; font-size: 24px !important; font-weight: bold !important;">📥 Mover Tema</h2>
-                    <button onclick="cerrarModalBrutal()" style="background: #ef4444 !important; color: white !important; border: none !important; width: 40px !important; height: 40px !important; border-radius: 50% !important; font-size: 18px !important; cursor: pointer !important; display: flex !important; align-items: center !important; justify-content: center !important;">✕</button>
-                </div>
-                
-                <!-- Tema actual -->
-                <div style="margin-bottom: 30px !important; padding: 20px !important; background: linear-gradient(135deg, #dbeafe, #bfdbfe) !important; border-radius: 12px !important; border: 2px solid #3b82f6 !important;">
-                    <div style="font-size: 16px !important; font-weight: bold !important; color: #1e40af !important; margin-bottom: 8px !important;">Tema a mover:</div>
-                    <div style="font-size: 20px !important; color: #1e3a8a !important; font-weight: bold !important;">📁 ${tema.name}</div>
-                    <div style="font-size: 14px !important; color: #3730a3 !important; margin-top: 8px !important;">Haz clic en el destino donde quieres moverlo</div>
-                </div>
-                
-                <!-- Destinos -->
-                <div>
-                    <div style="font-size: 18px !important; font-weight: bold !important; color: #374151 !important; margin-bottom: 20px !important;">🎯 Selecciona el destino:</div>
+}
+
+// REEMPLAZAR renderQuestionsByTopic con sistema completo (VERSIÓN QUE FUNCIONABA)
+setTimeout(() => {
+    window.renderQuestionsByTopic = function() {
+        ensureTopicStructure();
+        
+        const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+        let html = '';
+        
+        // Obtener solo temas raíz (sin padre) y ordenarlos
+        const rootTopics = state.topics
+            .filter(topic => !topic.parentId)
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+        
+        // Función para renderizar tema con toda su jerarquía
+        function renderTopicWithHierarchy(topic, level = 0) {
+            const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+            const hasQuestions = topicQuestions.length > 0;
+            
+            // Obtener hijos ordenados
+            const children = state.topics
+                .filter(t => t.parentId && t.parentId.toString() === topic.id.toString())
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+            const hasChildren = children.length > 0;
+            
+            const topicId = topic.id.toString();
+            const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+            
+            // Colores e iconos por nivel
+            const headerColors = ['#4f46e5', '#7c3aed', '#059669', '#dc2626', '#ea580c'];
+            const levelIcons = ['📁', '📂', '📄', '📋', '📝'];
+            const headerColor = headerColors[Math.min(level, headerColors.length - 1)];
+            const icon = levelIcons[Math.min(level, levelIcons.length - 1)];
+            
+            // Indentación
+            const indentStyle = level > 0 ? `margin-left: ${level * 20}px; border-left: 3px solid #e5e7eb;` : '';
+            
+            return `
+                <div class="topic-container" 
+                     data-topic-id="${topic.id}" 
+                     data-level="${level}" 
+                     style="margin-bottom: 15px; ${indentStyle} position: relative;"
+                     draggable="true">
                     
-                    <!-- Opción raíz -->
-                    <div onclick="moverARaizBrutal('${temaId}')" style="width: 100% !important; margin-bottom: 15px !important; padding: 20px !important; border: 3px solid #10b981 !important; border-radius: 12px !important; background: linear-gradient(135deg, #ecfdf5, #d1fae5) !important; cursor: pointer !important; transition: all 0.3s !important;" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 8px 25px rgba(16,185,129,0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
-                        <div style="display: flex !important; align-items: center !important; gap: 15px !important;">
-                            <div style="font-size: 40px !important;">🏠</div>
-                            <div>
-                                <div style="font-size: 18px !important; font-weight: bold !important; color: #065f46 !important;">NIVEL RAÍZ</div>
-                                <div style="font-size: 14px !important; color: #047857 !important;">Convertir en tema principal independiente</div>
-                            </div>
+                    <!-- Header del tema -->
+                    <div class="topic-header" 
+                         style="background: ${headerColor}; color: white; padding: 12px 15px; border-radius: 8px 8px 0 0; margin: 0; 
+                                display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none;
+                                border: 2px solid transparent; transition: all 0.2s ease;">
+                        
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 16px;">${icon}</span>
+                            <span style="font-weight: 600;">${topic.name}</span>
+                            ${level > 0 ? `<span style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; font-size: 10px;">Nivel ${level}</span>` : ''}
+                        </div>
+                        
+                        <div class="botones-tema" style="display: flex; align-items: center; gap: 6px; z-index: 100; position: relative;">
+                            ${hasQuestions ? `<span style="font-size: 12px; opacity: 0.9; color: white;">${topicQuestions.length} preguntas</span>` : ''}
+                            ${hasChildren ? `<span style="font-size: 12px; opacity: 0.9; color: white;">${children.length} subtemas</span>` : ''}
+                            
+                            <button class="btn-mover" data-tema="${topic.id}" style="background: #10b981; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;" title="Mover dentro">📥</button>
+                            
+                            <button class="btn-subtema" data-tema="${topic.id}" style="background: #0ea5e9; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;" title="Crear subtema">📁+</button>
+                            
+                            ${level > 0 ? `<button class="btn-desvincular" data-tema="${topic.id}" style="background: #f97316; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;" title="Desvincular (hacer independiente)">🔗</button>` : ''}
+                            
+                            ${(hasQuestions || hasChildren) ? `<button class="btn-colapsar" data-tema="${topicId}" style="background: rgba(255,255,255,0.3); border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">${isCollapsed ? '▶' : '▼'}</button>` : ''}
+                            
+                            <button class="btn-editar" data-tema="${topic.id}" style="background: #f59e0b; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar">✏️</button>
+                            
+                            <button class="btn-eliminar" data-tema="${topic.id}" style="background: #dc2626; border: none; color: white; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar">🗑️</button>
                         </div>
                     </div>
                     
-                    ${destinos.map(destino => {
-                        const nivel = destino.level || 0;
-                        const colores = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'];
-                        const iconos = ['📁', '📂', '📄', '📋', '📝'];
-                        const color = colores[Math.min(nivel, 4)];
-                        const icono = iconos[Math.min(nivel, 4)];
+                    <!-- Contenido del tema -->
+                    <div class="topic-content" 
+                         style="border: 1px solid ${headerColor}; border-top: none; border-radius: 0 0 8px 8px; background: white; 
+                                display: ${isCollapsed ? 'none' : 'block'};">
                         
-                        return `
-                            <div onclick="moverATemaBrutal('${temaId}', '${destino.id}')" style="width: 100% !important; margin-bottom: 12px !important; padding: 18px !important; border: 2px solid ${color} !important; border-radius: 10px !important; background: white !important; cursor: pointer !important; transition: all 0.3s !important;" onmouseover="this.style.transform='translateX(10px)'; this.style.boxShadow='0 5px 15px rgba(0,0,0,0.2)'; this.style.backgroundColor='#f8fafc'" onmouseout="this.style.transform='translateX(0)'; this.style.boxShadow='none'; this.style.backgroundColor='white'">
-                                <div style="display: flex !important; align-items: center !important; gap: 12px !important;">
-                                    <div style="font-size: 30px !important;">${icono}</div>
-                                    <div style="flex: 1 !important;">
-                                        <div style="font-size: 16px !important; font-weight: bold !important; color: ${color} !important;">${'  '.repeat(nivel)}${destino.name}</div>
-                                        <div style="font-size: 12px !important; color: #6b7280 !important;">
-                                            ${nivel === 0 ? 'Tema principal' : `Subtema nivel ${nivel}`}
-                                            ${destino.childrenIds && destino.childrenIds.length > 0 ? ` • ${destino.childrenIds.length} subtemas` : ''}
-                                        </div>
-                                    </div>
-                                    ${nivel > 0 ? `<span style="background: ${color} !important; color: white !important; padding: 5px 10px !important; border-radius: 15px !important; font-size: 11px !important; font-weight: bold !important;">Nivel ${nivel}</span>` : ''}
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
-                    
-                    ${destinos.length === 0 ? `
-                        <div style="padding: 40px !important; text-align: center !important; color: #6b7280 !important; background: #f9fafb !important; border: 2px dashed #d1d5db !important; border-radius: 12px !important;">
-                            <div style="font-size: 60px !important; margin-bottom: 15px !important;">📂</div>
-                            <div style="font-size: 18px !important; font-weight: bold !important;">No hay destinos disponibles</div>
+                        <!-- Preguntas del tema -->
+                        ${hasQuestions ? topicQuestions.map(q => {
+                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                            return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : renderQuestionFallback(q, actualIndex));
+                        }).join('') : ''}
+                        
+                        <!-- Subtemas -->
+                        ${hasChildren ? children.map(child => renderTopicWithHierarchy(child, level + 1)).join('') : ''}
+                        
+                        ${!hasQuestions && !hasChildren ? `
+                        <div style="padding: 20px; text-align: center; color: #6b7280; font-style: italic;">
+                            📂 Tema vacío - Puedes añadir preguntas o crear subtemas
+                        </div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Renderizar todos los temas raíz
+        rootTopics.forEach(topic => {
+            html += renderTopicWithHierarchy(topic, 0);
+        });
+        
+        // Preguntas sin tema
+        if (questionsWithoutTopic.length > 0) {
+            const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics['sin-tema']) || false;
+            
+            html += `
+                <div style="margin-top: 30px;">
+                    <div style="background: #6b7280; color: white; padding: 12px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📂 Sin tema asignado</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 12px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                            <button onclick="toggleTopicVisibilityDefinitivo('sin-tema')" 
+                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                                ${isCollapsed ? '▶' : '▼'}
+                            </button>
                         </div>
-                    ` : ''}
+                    </div>
+                    <div id="topic-content-sin-tema" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                        ${questionsWithoutTopic.map(q => {
+                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                            return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : renderQuestionFallback(q, actualIndex));
+                        }).join('')}
+                    </div>
                 </div>
-                
-                <!-- Footer -->
-                <div style="margin-top: 30px !important; padding-top: 20px !important; border-top: 2px solid #e5e7eb !important; text-align: center !important;">
-                    <button onclick="cerrarModalBrutal()" style="background: #6b7280 !important; color: white !important; border: none !important; padding: 15px 30px !important; border-radius: 8px !important; font-size: 16px !important; font-weight: bold !important; cursor: pointer !important;">Cancelar</button>
-                </div>
-                
-            </div>
-        </div>
-    `;
+            `;
+        }
+        
+        if (html === '') {
+            return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay temas disponibles</div>';
+        }
+        
+        return html;
+    };
     
-    // Insertar BRUTALMENTE en el DOM
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    renderQuestionsByTopic = window.renderQuestionsByTopic;
     
-    console.log('✅ Modal visual FORZADO creado');
+}, 100);
+
+// CONFIGURAR EVENTOS DESPUÉS DEL RENDER
+function configurarEventosDefinitivos() {
+    setTimeout(() => {
+        console.log('🔥 Configurando eventos definitivos...');
+        
+        // DRAG & DROP
+        const temasDraggables = document.querySelectorAll('.topic-container');
+        temasDraggables.forEach(tema => {
+            tema.addEventListener('dragstart', function(e) {
+                window.temaDragData = {
+                    id: this.getAttribute('data-topic-id'),
+                    nivel: parseInt(this.getAttribute('data-level'))
+                };
+                this.style.opacity = '0.5';
+                console.log('🎯 Arrastrando:', window.temaDragData);
+            });
+            
+            tema.addEventListener('dragend', function(e) {
+                this.style.opacity = '1';
+                this.style.borderColor = 'transparent';
+                document.querySelectorAll('.topic-header').forEach(h => h.style.borderColor = 'transparent');
+                window.temaDragData = null;
+            });
+            
+            tema.addEventListener('dragover', function(e) {
+                e.preventDefault();
+            });
+            
+            tema.addEventListener('dragenter', function(e) {
+                e.preventDefault();
+                if (window.temaDragData && this.getAttribute('data-topic-id') !== window.temaDragData.id) {
+                    this.querySelector('.topic-header').style.borderColor = '#3b82f6';
+                    this.querySelector('.topic-header').style.borderStyle = 'dashed';
+                }
+            });
+            
+            tema.addEventListener('dragleave', function(e) {
+                if (!this.contains(e.relatedTarget)) {
+                    this.querySelector('.topic-header').style.borderColor = 'transparent';
+                }
+            });
+            
+            tema.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                this.querySelector('.topic-header').style.borderColor = 'transparent';
+                
+                if (window.temaDragData && this.getAttribute('data-topic-id') !== window.temaDragData.id) {
+                    reorderTopicsWithHierarchy(window.temaDragData.id, this.getAttribute('data-topic-id'));
+                }
+            });
+        });
+        
+        // BOTONES CON MODAL VISUAL
+        document.querySelectorAll('.btn-mover').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                mostrarModalVisual(temaId);
+            });
+        });
+        
+        document.querySelectorAll('.btn-subtema').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                crearSubtopicDefinitivo(temaId);
+            });
+        });
+        
+        document.querySelectorAll('.btn-colapsar').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                toggleTopicVisibilityDefinitivo(temaId);
+            });
+        });
+        
+        document.querySelectorAll('.btn-editar').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                editTopicNameDefinitivo(temaId);
+            });
+        });
+        
+        document.querySelectorAll('.btn-desvincular').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                desvincularTemaDefinitivo(temaId);
+            });
+        });
+        
+        document.querySelectorAll('.btn-eliminar').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const temaId = this.getAttribute('data-tema');
+                deleteTopicCompleteDefinitivo(temaId);
+            });
+        });
+        
+        console.log(`✅ Eventos configurados para ${temasDraggables.length} temas`);
+        
+    }, 200);
 }
 
-// FUNCIONES BRUTALES
-window.cerrarModalBrutal = function() {
-    const modal = document.getElementById('modalMoverTema');
-    if (modal) modal.remove();
-    console.log('🚫 Modal brutal cerrado');
-};
-
-window.moverARaizBrutal = function(temaId) {
-    cerrarModalBrutal();
-    ejecutarMovimientoBrutal(temaId, null);
-};
-
-window.moverATemaBrutal = function(temaId, destinoId) {
-    cerrarModalBrutal();
-    ejecutarMovimientoBrutal(temaId, destinoId);
-};
-
-function ejecutarMovimientoBrutal(temaId, nuevoParentId) {
-    console.log('💥 Ejecutando movimiento BRUTAL:', { temaId, nuevoParentId });
+// MODAL VISUAL (LA ÚNICA DIFERENCIA)
+function mostrarModalVisual(temaId) {
+    console.log('🎨 Abriendo modal VISUAL para tema:', temaId);
+    
+    // Cerrar cualquier modal existente
+    const modalExistente = document.getElementById('modalMoverTema');
+    if (modalExistente) {
+        modalExistente.remove();
+    }
     
     const tema = state.topics.find(t => t.id.toString() === temaId.toString());
     if (!tema) return;
     
-    const destinoNombre = nuevoParentId ? 
-        (state.topics.find(t => t.id.toString() === nuevoParentId.toString())?.name || 'Destino') : 
-        'nivel raíz';
-    
-    if (!confirm(`¿Confirmar mover "${tema.name}" a "${destinoNombre}"?`)) return;
-    
-    try {
-        // Remover del padre anterior
-        if (tema.parentId) {
-            const padreAnterior = state.topics.find(t => t.id.toString() === tema.parentId.toString());
-            if (padreAnterior && padreAnterior.childrenIds) {
-                padreAnterior.childrenIds = padreAnterior.childrenIds.filter(id => id.toString() !== temaId.toString());
-            }
-        }
-        
-        // Asignar nuevo padre
-        tema.parentId = nuevoParentId;
-        tema.level = nuevoParentId ? 
-            ((state.topics.find(t => t.id.toString() === nuevoParentId.toString())?.level || 0) + 1) : 
-            0;
-        
-        // Añadir al nuevo padre
-        if (nuevoParentId) {
-            const nuevoPadre = state.topics.find(t => t.id.toString() === nuevoParentId.toString());
-            if (nuevoPadre) {
-                if (!nuevoPadre.childrenIds) nuevoPadre.childrenIds = [];
-                if (!nuevoPadre.childrenIds.includes(temaId.toString())) {
-                    nuevoPadre.childrenIds.push(temaId.toString());
-                }
-            }
-        }
-        
-        // Actualizar niveles descendientes
-        function actualizarDescendientes(id) {
-            const temaBase = state.topics.find(t => t.id.toString() === id.toString());
-            if (!temaBase) return;
-            
-            state.topics.filter(t => t.parentId && t.parentId.toString() === id.toString()).forEach(hijo => {
-                hijo.level = temaBase.level + 1;
-                actualizarDescendientes(hijo.id);
-            });
-        }
-        actualizarDescendientes(temaId);
-        
-        // Guardar y re-renderizar
-        localStorage.setItem('topics', JSON.stringify(state.topics));
-        if (typeof saveData === 'function') saveData();
-        if (typeof render === 'function') render();
-        
-        if (typeof showMessage === 'function') {
-            showMessage(`✅ "${tema.name}" movido a "${destinoNombre}"`, 'success');
-        }
-        
-        console.log('✅ Movimiento BRUTAL completado');
-        
-    } catch (error) {
-        console.error('❌ Error en movimiento brutal:', error);
-        alert('❌ Error: ' + error.message);
+    // Obtener destinos válidos
+    const descendientes = [];
+    function obtenerDescendientes(id) {
+        const hijos = state.topics.filter(t => t.parentId && t.parentId.toString() === id.toString());
+        hijos.forEach(hijo => {
+            descendientes.push(hijo.id.toString());
+            obtenerDescendientes(hijo.id);
+        });
     }
+    obtenerDescendientes(temaId);
+    
+    const temasDisponibles = state.topics.filter(t => 
+        t.id.toString() !== temaId.toString() && 
+        !descendientes.includes(t.id.toString())
+    );
+    
+    // Crear modal HTML
+    const modal = document.createElement('div');
+    modal.id = 'modalMoverTema';
+    modal.style.cssText = `
+        position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+        background: rgba(0,0,0,0.8) !important; display: flex !important; align-items: center !important; justify-content: center !important;
+        z-index: 99999 !important; padding: 20px !important;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background: white !important; border-radius: 12px !important; padding: 25px !important; max-width: 600px !important; width: 90% !important; max-height: 80vh !important; overflow-y: auto !important;">
+            <div style="display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 20px !important;">
+                <h3 style="margin: 0 !important; color: #1f2937 !important;">📥 Mover Tema</h3>
+                <button onclick="cerrarModalVisual()" style="background: none !important; border: none !important; font-size: 20px !important; color: #6b7280 !important; cursor: pointer !important;">✕</button>
+            </div>
+            
+            <div style="margin-bottom: 20px !important; padding: 15px !important; background: #f3f4f6 !important; border-radius: 8px !important;">
+                <strong>Tema a mover:</strong> ${tema.name}
+                <div style="font-size: 12px !important; color: #6b7280 !important; margin-top: 5px !important;">
+                    Haz clic en el destino donde quieres moverlo
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 20px !important;">
+                <div style="margin-bottom: 15px !important; font-weight: 600 !important;">Destinos disponibles:</div>
+                
+                <!-- Opción raíz -->
+                <button onclick="ejecutarMoverVisual('${temaId}', null)" 
+                        style="width: 100% !important; margin-bottom: 10px !important; padding: 15px !important; border: 2px solid #10b981 !important; border-radius: 10px !important; background: white !important; cursor: pointer !important; text-align: left !important; font-size: 15px !important; transition: all 0.3s !important;"
+                        onmouseover="this.style.background='#f0fdf4'; this.style.transform='translateY(-2px)';"
+                        onmouseout="this.style.background='white'; this.style.transform='translateY(0)';">
+                    🏠 <strong>Nivel raíz (independiente)</strong>
+                </button>
+                
+                ${temasDisponibles.map(t => {
+                    const nivel = t.level || 0;
+                    const indentacion = '  '.repeat(nivel);
+                    const colores = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b'];
+                    const color = colores[Math.min(nivel, 3)];
+                    
+                    return `
+                        <button onclick="ejecutarMoverVisual('${temaId}', '${t.id}')" 
+                                style="width: 100% !important; margin-bottom: 8px !important; padding: 12px !important; border: 2px solid ${color} !important; border-radius: 8px !important; background: white !important; cursor: pointer !important; text-align: left !important; font-size: 14px !important; transition: all 0.3s !important;"
+                                onmouseover="this.style.background='#f8fafc'; this.style.transform='translateX(5px)';"
+                                onmouseout="this.style.background='white'; this.style.transform='translateX(0)';">
+                            ${indentacion}📁 <strong>${t.name}</strong> ${nivel > 0 ? `<span style="color: #6b7280; font-size: 12px;">(Nivel ${nivel})</span>` : ''}
+                        </button>
+                    `;
+                }).join('')}
+                
+                ${temasDisponibles.length === 0 ? `
+                    <div style="padding: 20px !important; text-align: center !important; color: #6b7280 !important; font-style: italic !important;">
+                        No hay otros temas disponibles
+                    </div>
+                ` : ''}
+            </div>
+            
+            <div style="text-align: right !important;">
+                <button onclick="cerrarModalVisual()" 
+                        style="background: #6b7280 !important; color: white !important; border: none !important; padding: 10px 20px !important; border-radius: 6px !important; cursor: pointer !important;">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            cerrarModalVisual();
+        }
+    });
 }
 
-// PASO 3: REEMPLAZAR RENDER PARA USAR MODAL BRUTAL
-setTimeout(() => {
-    console.log('🔥 REEMPLAZANDO render para usar modal BRUTAL...');
-    
-    // NO reemplazar renderQuestionsByTopic completamente, solo interceptar los botones
-    const renderOriginalBrutal = window.renderQuestionsByTopic || renderQuestionsByTopic;
-    
-    // Solo interceptar después del render para añadir eventos
-    function interceptarBotonesDespuesDeRender() {
-        setTimeout(() => {
-            // Buscar todos los botones de mover existentes y reemplazar su onclick
-            document.querySelectorAll('button[onclick*="showMoveModal"], button[onclick*="mostrarModalMover"], button[onclick*="openInsertTopicModal"]').forEach(btn => {
-                const onclickOriginal = btn.getAttribute('onclick');
-                if (onclickOriginal && onclickOriginal.includes("'") && onclickOriginal.includes(")")) {
-                    // Extraer el ID del tema del onclick original
-                    const matches = onclickOriginal.match(/'([^']+)'/);
-                    if (matches && matches[1]) {
-                        const temaId = matches[1];
-                        btn.setAttribute('onclick', `event.stopPropagation(); modalVisualForzado('${temaId}')`);
-                        btn.style.background = '#10b981';
-                        btn.title = 'Mover tema (Modal Visual)';
-                        console.log('🔄 Botón interceptado para tema:', temaId);
-                    }
-                }
-            });
-            
-            // Buscar botones que contengan el emoji 📥
-            document.querySelectorAll('button').forEach(btn => {
-                if (btn.textContent.includes('📥') && btn.getAttribute('onclick') && !btn.getAttribute('onclick').includes('modalVisualForzado')) {
-                    const onclickOriginal = btn.getAttribute('onclick');
-                    const matches = onclickOriginal.match(/'([^']+)'/);
-                    if (matches && matches[1]) {
-                        const temaId = matches[1];
-                        btn.setAttribute('onclick', `event.stopPropagation(); modalVisualForzado('${temaId}')`);
-                        console.log('🔄 Botón 📥 interceptado para tema:', temaId);
-                    }
-                }
-            });
-            
-        }, 100);
-    }
-    
-    // Interceptar el render original para añadir los eventos después
-    if (typeof window.render === 'function') {
-        const renderOriginalCompleto = window.render;
-        window.render = function() {
-            renderOriginalCompleto.call(this);
-            interceptarBotonesDespuesDeRender();
-        };
-    }
-    
-    console.log('✅ Interceptor de botones instalado (manteniendo render original)');
-    
-}, 200);
+// Funciones del modal visual
+window.cerrarModalVisual = function() {
+    const modal = document.getElementById('modalMoverTema');
+    if (modal) modal.remove();
+};
 
-// PASO 4: ARREGLAR FUNCIONES DE CREAR TEMA
-setTimeout(() => {
-    console.log('🔧 Arreglando funciones de crear tema...');
-    
-    // Asegurar que createTopic funcione
-    if (typeof window.createTopic !== 'function') {
-        window.createTopic = function() {
-            console.log('🆕 Ejecutando createTopic reparado...');
-            
-            const name = prompt('Nombre del nuevo tema:');
-            if (!name || name.trim().length === 0) return;
-            
-            // Verificar duplicados
-            if (state.topics.find(t => t.name.toLowerCase() === name.trim().toLowerCase())) {
-                alert('Ya existe un tema con ese nombre');
-                return;
-            }
-            
-            // Crear tema
-            const newTopic = {
-                id: Date.now() + Math.random(),
-                name: name.trim(),
-                parentId: null,
-                childrenIds: [],
-                level: 0,
-                createdAt: new Date().toISOString()
-            };
-            
-            if (!state.topics) state.topics = [];
-            state.topics.push(newTopic);
-            
-            // Seleccionar automáticamente
-            state.selectedTopicForNewQuestions = newTopic.id;
-            
-            // Guardar
-            localStorage.setItem('topics', JSON.stringify(state.topics));
-            if (typeof saveData === 'function') saveData();
-            
-            // Re-renderizar
-            if (typeof render === 'function') render();
-            
-            if (typeof showMessage === 'function') {
-                showMessage(`✅ Tema "${name.trim()}" creado exitosamente`, 'success');
-            }
-            
-            console.log('✅ Tema creado:', newTopic);
-        };
-    } else {
-        console.log('✅ createTopic ya existe, manteniéndola');
-    }
-    
-    // Asegurar que updateSelectedTopic funcione
-    if (typeof window.updateSelectedTopic !== 'function') {
-        window.updateSelectedTopic = function() {
-            console.log('🔄 Ejecutando updateSelectedTopic reparado...');
-            
-            const selector = document.getElementById('topic-selector');
-            if (selector && selector.value) {
-                const selectedValue = selector.value;
-                const selectedTopic = state.topics.find(t => t.id == selectedValue);
-                if (selectedTopic) {
-                    state.selectedTopicForNewQuestions = selectedTopic.id;
-                    if (typeof showMessage === 'function') {
-                        showMessage(`Tema "${selectedTopic.name}" seleccionado`, 'success');
-                    }
-                } else {
-                    state.selectedTopicForNewQuestions = selectedValue;
-                }
-            } else {
-                state.selectedTopicForNewQuestions = null;
-            }
-            
-            if (typeof render === 'function') render();
-        };
-    } else {
-        console.log('✅ updateSelectedTopic ya existe, manteniéndola');
-    }
-    
-    console.log('✅ Funciones de crear tema reparadas');
-    
-}, 300);
+window.ejecutarMoverVisual = function(temaId, nuevoParentId) {
+    cerrarModalVisual();
+    moverTemaAPadreDefinitivo(temaId, nuevoParentId);
+};
 
-// FUNCIONES AUXILIARES BRUTALES
-window.crearSubtemaBrutal = function(parentId) {
-    const nombre = prompt(`Crear subtema:\n\nNombre:`);
-    if (!nombre || !nombre.trim()) return;
+// TODAS LAS FUNCIONES QUE FUNCIONABAN
+function reorderTopicsWithHierarchy(draggedId, targetId) {
+    const draggedTopic = state.topics.find(t => t.id.toString() === draggedId);
+    const targetTopic = state.topics.find(t => t.id.toString() === targetId);
     
+    if (!draggedTopic || !targetTopic) return;
+    
+    if (draggedTopic.parentId === targetTopic.parentId) {
+        const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedId);
+        const targetIndex = state.topics.findIndex(t => t.id.toString() === targetId);
+        
+        if (draggedIndex !== -1 && targetIndex !== -1) {
+            const [movedTopic] = state.topics.splice(draggedIndex, 1);
+            const newIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+            state.topics.splice(newIndex, 0, movedTopic);
+        }
+    } else {
+        if (!confirm(`¿Mover "${draggedTopic.name}" como hermano de "${targetTopic.name}"?`)) return;
+        
+        if (draggedTopic.parentId) {
+            const oldParent = state.topics.find(t => t.id.toString() === draggedTopic.parentId.toString());
+            if (oldParent && oldParent.childrenIds) {
+                oldParent.childrenIds = oldParent.childrenIds.filter(id => id.toString() !== draggedId);
+            }
+        }
+        
+        const newParentId = targetTopic.parentId;
+        draggedTopic.parentId = newParentId;
+        draggedTopic.level = targetTopic.level;
+        
+        if (newParentId) {
+            const newParent = state.topics.find(t => t.id.toString() === newParentId.toString());
+            if (newParent) {
+                if (!newParent.childrenIds) newParent.childrenIds = [];
+                if (!newParent.childrenIds.includes(draggedId)) {
+                    newParent.childrenIds.push(draggedId);
+                }
+            }
+        }
+        
+        const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedId);
+        const targetIndex = state.topics.findIndex(t => t.id.toString() === targetId);
+        
+        if (draggedIndex !== -1 && targetIndex !== -1) {
+            const [movedTopic] = state.topics.splice(draggedIndex, 1);
+            const newIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+            state.topics.splice(newIndex, 0, movedTopic);
+        }
+    }
+    
+    function actualizarNivelesRecursivo(temaId) {
+        const tema = state.topics.find(t => t.id.toString() === temaId.toString());
+        if (!tema) return;
+        
+        const hijos = state.topics.filter(t => t.parentId && t.parentId.toString() === temaId.toString());
+        hijos.forEach(hijo => {
+            hijo.level = tema.level + 1;
+            actualizarNivelesRecursivo(hijo.id);
+        });
+    }
+    
+    actualizarNivelesRecursivo(draggedId);
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    if (typeof saveData === 'function') saveData();
+    if (typeof render === 'function') render();
+    if (typeof showMessage === 'function') showMessage(`✅ Tema "${draggedTopic.name}" reordenado`, 'success');
+}
+
+function moverTemaAPadreDefinitivo(temaId, nuevoParentId) {
+    const tema = state.topics.find(t => t.id.toString() === temaId.toString());
+    if (!tema) return;
+    
+    if (tema.parentId) {
+        const padreAnterior = state.topics.find(t => t.id.toString() === tema.parentId.toString());
+        if (padreAnterior && padreAnterior.childrenIds) {
+            padreAnterior.childrenIds = padreAnterior.childrenIds.filter(id => id.toString() !== temaId.toString());
+        }
+    }
+    
+    tema.parentId = nuevoParentId;
+    tema.level = nuevoParentId ? ((state.topics.find(t => t.id.toString() === nuevoParentId.toString())?.level || 0) + 1) : 0;
+    
+    if (nuevoParentId) {
+        const nuevoPadre = state.topics.find(t => t.id.toString() === nuevoParentId.toString());
+        if (nuevoPadre) {
+            if (!nuevoPadre.childrenIds) nuevoPadre.childrenIds = [];
+            if (!nuevoPadre.childrenIds.includes(temaId.toString())) {
+                nuevoPadre.childrenIds.push(temaId.toString());
+            }
+        }
+    }
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    if (typeof saveData === 'function') saveData();
+    if (typeof render === 'function') render();
+    
+    const destino = nuevoParentId ? (state.topics.find(t => t.id.toString() === nuevoParentId.toString())?.name || 'tema') : 'raíz';
+    if (typeof showMessage === 'function') showMessage(`✅ "${tema.name}" movido a "${destino}"`, 'success');
+}
+
+function crearSubtopicDefinitivo(parentId) {
     const padre = state.topics.find(t => t.id.toString() === parentId.toString());
     if (!padre) return;
+    
+    const nombre = prompt(`Crear subtema dentro de "${padre.name}":\n\nNombre:`);
+    if (!nombre || !nombre.trim()) return;
     
     const nuevoTema = {
         id: Date.now() + Math.random(),
@@ -20836,10 +20963,12 @@ window.crearSubtemaBrutal = function(parentId) {
         parentId: parentId.toString(),
         childrenIds: [],
         level: padre.level + 1,
+        order: 0,
         createdAt: new Date().toISOString()
     };
     
     state.topics.push(nuevoTema);
+    
     if (!padre.childrenIds) padre.childrenIds = [];
     padre.childrenIds.push(nuevoTema.id.toString());
     
@@ -20847,29 +20976,9 @@ window.crearSubtemaBrutal = function(parentId) {
     if (typeof saveData === 'function') saveData();
     if (typeof render === 'function') render();
     if (typeof showMessage === 'function') showMessage(`✅ Subtema "${nombre.trim()}" creado`, 'success');
-};
+}
 
-window.desvincularBrutal = function(temaId) {
-    const tema = state.topics.find(t => t.id.toString() === temaId.toString());
-    if (!tema || !tema.parentId) return;
-    
-    if (!confirm(`¿Desvincular "${tema.name}"?`)) return;
-    
-    const padre = state.topics.find(t => t.id.toString() === tema.parentId.toString());
-    if (padre && padre.childrenIds) {
-        padre.childrenIds = padre.childrenIds.filter(id => id.toString() !== temaId.toString());
-    }
-    
-    tema.parentId = null;
-    tema.level = 0;
-    
-    localStorage.setItem('topics', JSON.stringify(state.topics));
-    if (typeof saveData === 'function') saveData();
-    if (typeof render === 'function') render();
-    if (typeof showMessage === 'function') showMessage(`✅ "${tema.name}" desvinculado`, 'success');
-};
-
-window.toggleBrutal = function(topicId) {
+function toggleTopicVisibilityDefinitivo(topicId) {
     if (typeof window.collapsedTopics === 'undefined') {
         window.collapsedTopics = JSON.parse(localStorage.getItem('collapsedTopics') || '{}');
     }
@@ -20877,26 +20986,42 @@ window.toggleBrutal = function(topicId) {
     window.collapsedTopics[topicId] = !window.collapsedTopics[topicId];
     localStorage.setItem('collapsedTopics', JSON.stringify(window.collapsedTopics));
     
-    const elemento = topicId === 'sin-tema' ? 
-        document.getElementById('topic-content-sin-tema') :
-        document.querySelector(`[data-tema-id="${topicId}"] > div:last-child`);
+    const temaContainer = document.querySelector(`[data-topic-id="${topicId}"]`);
     
-    const boton = topicId === 'sin-tema' ?
-        document.querySelector(`button[onclick*="toggleBrutal('sin-tema')"]`) :
-        document.querySelector(`button[onclick*="toggleBrutal('${topicId}')"]`);
-    
-    if (elemento && boton) {
-        if (window.collapsedTopics[topicId]) {
-            elemento.style.display = 'none';
-            boton.textContent = '▶';
-        } else {
-            elemento.style.display = 'block';
-            boton.textContent = '▼';
+    if (temaContainer) {
+        const contenidoElement = temaContainer.querySelector('.topic-content');
+        const botonElement = temaContainer.querySelector(`[data-tema="${topicId}"].btn-colapsar`);
+        
+        if (contenidoElement && botonElement) {
+            const isCollapsed = window.collapsedTopics[topicId];
+            
+            if (isCollapsed) {
+                contenidoElement.style.display = 'none';
+                botonElement.textContent = '▶';
+            } else {
+                contenidoElement.style.display = 'block';
+                botonElement.textContent = '▼';
+            }
         }
+    } else if (topicId === 'sin-tema') {
+        const elemento = document.getElementById('topic-content-sin-tema');
+        const boton = document.querySelector(`button[onclick*="toggleTopicVisibilityDefinitivo('sin-tema')"]`);
+        
+        if (elemento && boton) {
+            if (window.collapsedTopics[topicId]) {
+                elemento.style.display = 'none';
+                boton.textContent = '▶';
+            } else {
+                elemento.style.display = 'block';
+                boton.textContent = '▼';
+            }
+        }
+    } else {
+        if (typeof render === 'function') render();
     }
-};
+}
 
-window.editarBrutal = function(temaId) {
+function editTopicNameDefinitivo(temaId) {
     const tema = state.topics.find(t => t.id.toString() === temaId.toString());
     if (!tema) return;
     
@@ -20908,24 +21033,66 @@ window.editarBrutal = function(temaId) {
     if (typeof saveData === 'function') saveData();
     if (typeof render === 'function') render();
     if (typeof showMessage === 'function') showMessage(`✅ Renombrado a "${nuevoNombre.trim()}"`, 'success');
-};
+}
 
-window.eliminarBrutal = function(temaId) {
+function desvincularTemaDefinitivo(temaId) {
+    const tema = state.topics.find(t => t.id.toString() === temaId.toString());
+    if (!tema || !tema.parentId) return;
+    
+    const padre = state.topics.find(t => t.id.toString() === tema.parentId.toString());
+    const nombrePadre = padre ? padre.name : 'tema padre';
+    
+    if (!confirm(`¿Desvincular "${tema.name}" de "${nombrePadre}"?\n\nSe convertirá en tema independiente.`)) return;
+    
+    if (padre && padre.childrenIds) {
+        padre.childrenIds = padre.childrenIds.filter(id => id.toString() !== temaId.toString());
+    }
+    
+    tema.parentId = null;
+    tema.level = 0;
+    
+    function actualizarNivelesDescendientes(temaIdBase) {
+        const temaBase = state.topics.find(t => t.id.toString() === temaIdBase.toString());
+        if (!temaBase) return;
+        
+        const hijos = state.topics.filter(t => t.parentId && t.parentId.toString() === temaIdBase.toString());
+        hijos.forEach(hijo => {
+            hijo.level = temaBase.level + 1;
+            actualizarNivelesDescendientes(hijo.id);
+        });
+    }
+    
+    actualizarNivelesDescendientes(temaId);
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    if (typeof saveData === 'function') saveData();
+    if (typeof render === 'function') render();
+    if (typeof showMessage === 'function') showMessage(`✅ "${tema.name}" desvinculado`, 'success');
+}
+
+function deleteTopicCompleteDefinitivo(temaId) {
     const tema = state.topics.find(t => t.id.toString() === temaId.toString());
     if (!tema) return;
     
-    if (!confirm(`¿Eliminar "${tema.name}"?\n\nEsta acción no se puede deshacer.`)) return;
-    
-    const descendants = [];
-    function getDesc(id) {
-        state.topics.filter(t => t.parentId && t.parentId.toString() === id.toString()).forEach(child => {
-            descendants.push(child.id.toString());
-            getDesc(child.id);
+    const descendientes = [];
+    function obtenerDescendientes(id) {
+        const hijos = state.topics.filter(t => t.parentId && t.parentId.toString() === id.toString());
+        hijos.forEach(hijo => {
+            descendientes.push(hijo.id.toString());
+            obtenerDescendientes(hijo.id);
         });
     }
-    getDesc(temaId);
+    obtenerDescendientes(temaId);
     
-    const allToDelete = [temaId, ...descendants];
+    const todosParaEliminar = [temaId, ...descendientes];
+    const preguntasAEliminar = state.questions.filter(q => q.topicId && todosParaEliminar.includes(q.topicId.toString()));
+    
+    let mensaje = `¿Eliminar "${tema.name}"?`;
+    if (descendientes.length > 0) mensaje += `\n\nEliminará ${descendientes.length} subtemas`;
+    if (preguntasAEliminar.length > 0) mensaje += ` y ${preguntasAEliminar.length} preguntas`;
+    mensaje += '\n\nNo se puede deshacer.';
+    
+    if (!confirm(mensaje)) return;
     
     if (tema.parentId) {
         const padre = state.topics.find(t => t.id.toString() === tema.parentId.toString());
@@ -20934,29 +21101,56 @@ window.eliminarBrutal = function(temaId) {
         }
     }
     
-    state.topics = state.topics.filter(t => !allToDelete.includes(t.id.toString()));
-    state.questions = state.questions.filter(q => !q.topicId || !allToDelete.includes(q.topicId.toString()));
+    state.topics = state.topics.filter(t => !todosParaEliminar.includes(t.id.toString()));
+    state.questions = state.questions.filter(q => !q.topicId || !todosParaEliminar.includes(q.topicId.toString()));
     
     localStorage.setItem('topics', JSON.stringify(state.topics));
     localStorage.setItem('questions', JSON.stringify(state.questions));
     if (typeof saveData === 'function') saveData();
     if (typeof render === 'function') render();
     if (typeof showMessage === 'function') showMessage(`✅ "${tema.name}" eliminado`, 'success');
-};
+}
 
-console.log('💥 SOLUCIÓN BRUTAL COMPLETADA');
-console.log('🎯 Funcionalidades garantizadas:');
-console.log('   - Modal visual con BOTONES CLICABLES (no números)');
-console.log('   - Destrucción de modales conflictivos');
-console.log('   - Interceptación de prompts problemáticos');
-console.log('   - Reemplazo total de funciones existentes');
-console.log('   - Botón desvincular para subtemas');
-console.log('   - Drag & drop funcional');
-console.log('   - Todas las funciones básicas (crear, editar, eliminar)');
-console.log('🚀 ¡Ahora el modal 📥 debería mostrar BOTONES en lugar de números!');
+function renderQuestionFallback(q, actualIndex) {
+    return `
+        <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
+            <div style="flex: 1;">
+                <div style="font-weight: 500; margin-bottom: 8px;">P${actualIndex + 1}: ${q.question}</div>
+                <ul style="list-style: none; margin: 0; padding: 0;">
+                    ${q.options.map((opt, optIndex) => `
+                        <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'};">
+                            ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✓' : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        </div>
+    `;
+}
+
+// INTERCEPTAR RENDER PARA CONFIGURAR EVENTOS
+const renderOriginalDefinitivo = window.render;
+if (typeof window.render === 'function') {
+    window.render = function() {
+        renderOriginalDefinitivo.call(this);
+        configurarEventosDefinitivos();
+    };
+}
+
+console.log('✅ Versión funcional restaurada + modal visual');
+console.log('🎯 Funcionalidades:');
+console.log('   - ✅ Todos los botones visibles (📥📁+🔗▶✏️🗑️)');
+console.log('   - ✅ Drag & drop funcional');
+console.log('   - ✅ Modal con BOTONES clicables (no números)');
+console.log('   - ✅ Jerarquías con colores por nivel');
+console.log('   - ✅ Colapsar/expandir funcionando');
+console.log('   - ✅ Crear, editar, eliminar, desvincular');
+console.log('   - ✅ Dropdown sincronizado');
+console.log('🚀 ¡Todo debería funcionar perfectamente ahora!');
 </script>
 </body>
 </html>
+
 
 
 
