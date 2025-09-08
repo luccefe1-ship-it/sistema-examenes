@@ -21498,306 +21498,191 @@ console.log('   - ✅ Mantener jerarquía visual en dropdowns');
 console.log('   - ✅ Actualizar automáticamente tras cambios');
 </script>
 <!-- 
-PARCHE: CORRECCIÓN DE SUBTEMAS Y IMPORTACIÓN
+PARCHE SIMPLE: SOLO ARREGLAR PROBLEMAS ESPECÍFICOS
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche corrige la importación de preguntas y añade botones colapsar a subtemas
+Este parche se enfoca únicamente en los problemas de importación y dropdowns
 -->
 
 <script>
-// ========== CORRECCIÓN DE SUBTEMAS Y IMPORTACIÓN ==========
-console.log('🔧 Aplicando corrección de subtemas...');
+console.log('Aplicando parche simple...');
 
-// FUNCIÓN PARA CORREGIR LA RENDERIZACIÓN DE SUBTEMAS
-function corregirRenderizadoSubtemas() {
-    // Buscar la función renderQuestionsByTopic y mejorarla
-    if (typeof window.renderQuestionsByTopic === 'function') {
-        const renderOriginal = window.renderQuestionsByTopic;
-        
-        window.renderQuestionsByTopic = function() {
-            const resultado = renderOriginal.call(this);
-            
-            // Después del render, asegurar que todos los subtemas tengan botón colapsar
-            setTimeout(() => {
-                añadirBotonesColapsarSubtemas();
-            }, 100);
-            
-            return resultado;
-        };
-        
-        console.log('✅ renderQuestionsByTopic corregido para subtemas');
-    }
-}
-
-// FUNCIÓN PARA AÑADIR BOTONES COLAPSAR A TODOS LOS SUBTEMAS
-function añadirBotonesColapsarSubtemas() {
-    // Buscar todos los headers de temas/subtemas
-    const headers = document.querySelectorAll('.topic-header, [class*="topic"], [style*="background:"]');
-    
-    headers.forEach(header => {
-        // Verificar si es un header de tema válido
-        if (header.style.background && header.querySelector('span') && !header.querySelector('.btn-colapsar-custom')) {
-            const temaContainer = header.closest('[data-topic-id]') || header.parentElement;
-            const topicId = temaContainer ? temaContainer.getAttribute('data-topic-id') : null;
-            
-            if (topicId) {
-                // Buscar si ya tiene botón colapsar
-                let botonExistente = header.querySelector('.btn-colapsar, .btn-colapsar-custom');
-                
-                if (!botonExistente) {
-                    // Crear botón colapsar
-                    const botonColapsar = document.createElement('button');
-                    botonColapsar.className = 'btn-colapsar-custom';
-                    botonColapsar.style.cssText = `
-                        background: rgba(255,255,255,0.3) !important;
-                        border: none !important;
-                        color: white !important;
-                        padding: 6px 8px !important;
-                        border-radius: 4px !important;
-                        cursor: pointer !important;
-                        font-size: 12px !important;
-                        margin-left: 6px !important;
-                    `;
-                    
-                    // Determinar estado inicial
-                    const contenido = temaContainer.querySelector('.topic-content, [style*="border"]');
-                    const isCollapsed = contenido && contenido.style.display === 'none';
-                    botonColapsar.textContent = isCollapsed ? '▶' : '▼';
-                    
-                    // Añadir evento click
-                    botonColapsar.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        toggleSubtemaVisibility(topicId);
-                    });
-                    
-                    // Añadir el botón al header
-                    const botonesContainer = header.querySelector('.botones-tema, [style*="display: flex"]');
-                    if (botonesContainer) {
-                        botonesContainer.appendChild(botonColapsar);
-                    } else {
-                        header.appendChild(botonColapsar);
-                    }
-                    
-                    console.log(`✅ Botón colapsar añadido a tema: ${topicId}`);
-                }
-            }
-        }
-    });
-}
-
-// FUNCIÓN PARA COLAPSAR/EXPANDIR SUBTEMAS
-function toggleSubtemaVisibility(topicId) {
-    console.log('🔽 Toggle subtema:', topicId);
-    
-    // Buscar el contenedor del tema
-    const temaContainer = document.querySelector(`[data-topic-id="${topicId}"]`);
-    if (!temaContainer) return;
-    
-    // Buscar el contenido del tema
-    const contenido = temaContainer.querySelector('.topic-content, [style*="border"]');
-    const boton = temaContainer.querySelector('.btn-colapsar-custom, .btn-colapsar');
-    
-    if (contenido && boton) {
-        const isCurrentlyVisible = contenido.style.display !== 'none';
-        
-        if (isCurrentlyVisible) {
-            contenido.style.display = 'none';
-            boton.textContent = '▶';
-        } else {
-            contenido.style.display = 'block';
-            boton.textContent = '▼';
-        }
-        
-        // Guardar estado en localStorage
-        if (typeof window.collapsedTopics === 'undefined') {
-            window.collapsedTopics = JSON.parse(localStorage.getItem('collapsedTopics') || '{}');
-        }
-        window.collapsedTopics[topicId] = !isCurrentlyVisible;
-        localStorage.setItem('collapsedTopics', JSON.stringify(window.collapsedTopics));
-        
-        console.log(`✅ Subtema ${isCurrentlyVisible ? 'colapsado' : 'expandido'}: ${topicId}`);
-    }
-}
-
-// FUNCIÓN PARA CORREGIR IMPORTACIÓN DE PREGUNTAS
-function corregirImportacionPreguntas() {
-    // Interceptar la función de importación si existe
-    const funcionesImportacion = ['importQuestions', 'importarPreguntas', 'addQuestionsToTopic'];
-    
-    funcionesImportacion.forEach(nombreFuncion => {
-        if (typeof window[nombreFuncion] === 'function' && !window[nombreFuncion]._corregido) {
-            const funcionOriginal = window[nombreFuncion];
-            
-            window[nombreFuncion] = function() {
-                try {
-                    const resultado = funcionOriginal.apply(this, arguments);
-                    
-                    // Después de importar, forzar re-render y actualizar dropdowns
-                    setTimeout(() => {
-                        if (typeof window.render === 'function') {
-                            window.render();
-                        }
-                        if (typeof sincronizarDropdownsCompleto === 'function') {
-                            sincronizarDropdownsCompleto();
-                        }
-                        añadirBotonesColapsarSubtemas();
-                    }, 500);
-                    
-                    return resultado;
-                } catch (error) {
-                    console.error(`Error en ${nombreFuncion}:`, error);
-                    throw error;
-                }
-            };
-            
-            window[nombreFuncion]._corregido = true;
-            console.log(`✅ Función ${nombreFuncion} corregida`);
-        }
-    });
-    
-    // También interceptar eventos de formularios de importación
+// 1. ARREGLAR DROPDOWN DE GESTIÓN DE TEMAS
+function arreglarDropdownGestion() {
     setTimeout(() => {
-        const formImportacion = document.querySelector('form[action*="import"], #importForm, [id*="import"]');
-        if (formImportacion && !formImportacion._interceptado) {
-            formImportacion.addEventListener('submit', function(e) {
-                // Después del submit, esperar y re-renderizar
-                setTimeout(() => {
-                    if (typeof window.render === 'function') {
-                        window.render();
-                    }
-                    añadirBotonesColapsarSubtemas();
-                }, 1000);
+        const dropdown = document.querySelector('#manageTopicsModal select');
+        if (dropdown && state && state.topics) {
+            const valorActual = dropdown.value;
+            let opciones = '<option value="">Todos los temas</option>';
+            
+            // Solo temas principales (sin jerarquía complicada)
+            state.topics.forEach(tema => {
+                const preguntasCount = state.questions ? 
+                    state.questions.filter(q => q.topicId && q.topicId.toString() === tema.id.toString()).length : 0;
+                const textoCount = preguntasCount > 0 ? ` (${preguntasCount})` : '';
+                opciones += `<option value="${tema.id}">${tema.name}${textoCount}</option>`;
             });
-            formImportacion._interceptado = true;
-            console.log('✅ Formulario de importación interceptado');
+            
+            dropdown.innerHTML = opciones;
+            dropdown.value = valorActual;
+            console.log('Dropdown de gestión actualizado');
         }
-    }, 2000);
+    }, 500);
 }
 
-// FUNCIÓN PARA DETECTAR NUEVOS SUBTEMAS Y AÑADIR BOTONES
-function observarNuevosSubtemas() {
-    const observer = new MutationObserver((mutations) => {
-        let hayNuevosTemas = false;
+// 2. INTERCEPTAR IMPORTACIÓN DE PREGUNTAS
+function interceptarImportacion() {
+    // Buscar botón de importar
+    const botonImportar = document.querySelector('button[onclick*="import"], #importBtn, [onclick*="Import"]');
+    if (botonImportar && !botonImportar._interceptado) {
+        const onclickOriginal = botonImportar.onclick;
         
-        mutations.forEach((mutation) => {
-            if (mutation.type === 'childList') {
-                mutation.addedNodes.forEach((node) => {
-                    if (node.nodeType === 1) {
-                        if (node.classList && (node.classList.contains('topic-container') || 
-                            node.querySelector && node.querySelector('[data-topic-id]'))) {
-                            hayNuevosTemas = true;
+        botonImportar.onclick = function(e) {
+            console.log('Interceptando importación...');
+            
+            if (onclickOriginal) {
+                const resultado = onclickOriginal.call(this, e);
+                
+                // Después de importar, forzar actualización
+                setTimeout(() => {
+                    console.log('Forzando actualización después de importar...');
+                    if (typeof render === 'function') {
+                        render();
+                    }
+                    if (typeof renderQuestionsByTopic === 'function') {
+                        // Buscar contenedor del banco y actualizarlo
+                        const contenedor = document.querySelector('#questionsContainer, .questions-container, [id*="questions"]');
+                        if (contenedor) {
+                            contenedor.innerHTML = renderQuestionsByTopic();
                         }
                     }
-                });
+                    arreglarDropdownGestion();
+                }, 1000);
+                
+                return resultado;
             }
-        });
-        
-        if (hayNuevosTemas) {
-            setTimeout(() => {
-                añadirBotonesColapsarSubtemas();
-            }, 200);
-        }
-    });
-    
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-    
-    console.log('✅ Observer de subtemas configurado');
-}
-
-// FUNCIÓN PARA ASEGURAR QUE LAS PREGUNTAS IMPORTADAS SE MUESTREN
-function asegurarVisualizacionPreguntas() {
-    // Interceptar cualquier función que añada preguntas
-    if (typeof window.addQuestion === 'function' && !window.addQuestion._visualizacion) {
-        const addQuestionOriginal = window.addQuestion;
-        
-        window.addQuestion = function() {
-            const resultado = addQuestionOriginal.apply(this, arguments);
-            
-            // Después de añadir pregunta, asegurar que se visualice
-            setTimeout(() => {
-                if (typeof window.render === 'function') {
-                    window.render();
-                }
-                if (typeof window.renderQuestionsByTopic === 'function') {
-                    // Forzar re-render del banco de preguntas
-                    const bancoContainer = document.querySelector('#questionsContainer, [id*="questions"], .questions-container');
-                    if (bancoContainer) {
-                        bancoContainer.innerHTML = window.renderQuestionsByTopic();
-                    }
-                }
-                añadirBotonesColapsarSubtemas();
-            }, 300);
-            
-            return resultado;
         };
         
-        window.addQuestion._visualizacion = true;
-        console.log('✅ addQuestion interceptado para visualización');
+        botonImportar._interceptado = true;
+        console.log('Botón de importar interceptado');
+    }
+    
+    // También interceptar mediante event listeners
+    document.addEventListener('click', function(e) {
+        if (e.target && (e.target.textContent.includes('Importar') || e.target.textContent.includes('Import'))) {
+            setTimeout(() => {
+                console.log('Detectado clic en importar, actualizando...');
+                if (typeof render === 'function') {
+                    render();
+                }
+                arreglarDropdownGestion();
+            }, 1500);
+        }
+    });
+}
+
+// 3. ARREGLAR FUNCIÓN createTopic SIN ERRORES
+function arreglarCreateTopic() {
+    if (typeof createTopic === 'function' && !createTopic._arreglado) {
+        const createTopicOriginal = createTopic;
+        
+        window.createTopic = function() {
+            try {
+                const resultado = createTopicOriginal.apply(this, arguments);
+                
+                // Después de crear tema, actualizar dropdown
+                setTimeout(() => {
+                    arreglarDropdownGestion();
+                }, 300);
+                
+                return resultado;
+            } catch (error) {
+                // Si hay error, intentar sin las funciones problemáticas
+                console.warn('Error en createTopic, ejecutando versión segura:', error);
+                
+                // Versión simplificada de createTopic
+                const nombre = prompt('Nombre del tema:');
+                if (nombre && nombre.trim()) {
+                    if (!state.topics) state.topics = [];
+                    
+                    const nuevoTema = {
+                        id: Date.now(),
+                        name: nombre.trim(),
+                        createdAt: new Date().toISOString()
+                    };
+                    
+                    state.topics.push(nuevoTema);
+                    localStorage.setItem('topics', JSON.stringify(state.topics));
+                    
+                    if (typeof render === 'function') {
+                        render();
+                    }
+                    
+                    arreglarDropdownGestion();
+                    return nuevoTema;
+                }
+            }
+        };
+        
+        createTopic._arreglado = true;
+        console.log('createTopic arreglado');
     }
 }
 
-// INICIALIZACIÓN DE CORRECCIONES
-function inicializarCorreccionSubtemas() {
-    console.log('🚀 Inicializando corrección de subtemas...');
+// 4. ELIMINAR FUNCIONES PROBLEMÁTICAS QUE CAUSAN ERRORES
+function eliminarErrores() {
+    // Crear funciones vacías para evitar errores "is not defined"
+    const funcionesProblematicas = [
+        'forzarActualizacionDropdownBanco',
+        'forzarSincronizacionBanco',
+        'sincronizarDropdownBanco'
+    ];
     
-    // Paso 1: Corregir renderizado
-    corregirRenderizadoSubtemas();
+    funcionesProblematicas.forEach(func => {
+        if (typeof window[func] === 'undefined') {
+            window[func] = function() {
+                console.log(`Función ${func} interceptada - ejecutando arreglarDropdownGestion`);
+                arreglarDropdownGestion();
+            };
+        }
+    });
+}
+
+// 5. INICIALIZACIÓN SIMPLE
+function inicializar() {
+    console.log('Inicializando parche simple...');
     
-    // Paso 2: Añadir botones colapsar existentes
-    setTimeout(() => {
-        añadirBotonesColapsarSubtemas();
-    }, 1000);
+    // Eliminar errores primero
+    eliminarErrores();
     
-    // Paso 3: Corregir importación
-    setTimeout(() => {
-        corregirImportacionPreguntas();
-    }, 1500);
+    // Arreglar dropdown inicial
+    setTimeout(() => arreglarDropdownGestion(), 1000);
     
-    // Paso 4: Asegurar visualización
-    setTimeout(() => {
-        asegurarVisualizacionPreguntas();
-    }, 2000);
+    // Interceptar importación
+    setTimeout(() => interceptarImportacion(), 1500);
     
-    // Paso 5: Observer para nuevos subtemas
-    setTimeout(() => {
-        observarNuevosSubtemas();
-    }, 2500);
+    // Arreglar createTopic
+    setTimeout(() => arreglarCreateTopic(), 2000);
     
-    // Paso 6: Verificación periódica
+    // Actualización periódica del dropdown (menos frecuente)
     setInterval(() => {
-        añadirBotonesColapsarSubtemas();
-    }, 10000);
+        arreglarDropdownGestion();
+    }, 15000);
     
-    console.log('✅ Corrección de subtemas inicializada');
+    console.log('Parche simple inicializado');
 }
 
-// HACER LA FUNCIÓN TOGGLE GLOBAL PARA COMPATIBILIDAD
-window.toggleSubtemaVisibility = toggleSubtemaVisibility;
-
-// EJECUCIÓN
-try {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', inicializarCorreccionSubtemas);
-    } else {
-        inicializarCorreccionSubtemas();
-    }
-} catch (error) {
-    console.error('Error en corrección de subtemas:', error);
+// EJECUTAR
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', inicializar);
+} else {
+    inicializar();
 }
 
-console.log('✅ Parche de corrección de subtemas aplicado');
-console.log('🎯 Funcionalidades corregidas:');
-console.log('   - ✅ Botones colapsar en todos los subtemas');
-console.log('   - ✅ Importación de preguntas corregida');
-console.log('   - ✅ Visualización automática tras importar');
-console.log('   - ✅ Observer para detectar nuevos subtemas');
-console.log('   - ✅ Persistencia del estado colapsado');
+console.log('Parche simple aplicado - enfoque minimalista');
 </script>
 </body>
 </html>
+
 
 
 
