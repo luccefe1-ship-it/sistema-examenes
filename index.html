@@ -21658,37 +21658,17 @@ setTimeout(() => {
 console.log('⏳ Parche final programado - esperando inicialización...');
 </script>
 <!-- 
-PARCHE COMPATIBLE: CÓDIGO FUNCIONAL SOLO PARA MULTIJUGADOR
-Añadir este código DESPUÉS del parche de subcarpetas, antes de </body>
-Usa el código que SÍ funciona pero solo en multijugador
+PARCHE SIMPLE: TU CÓDIGO QUE FUNCIONA + SOLO SCROLL
+Añadir este código AL FINAL, después del parche de subcarpetas
+Usa exactamente tu código + solo añade scroll forzado
 -->
 
 <script>
-// ========== PARCHE COMPATIBLE: MULTIJUGADOR SIN TOCAR SUBCARPETAS ==========
-console.log('🎮 Aplicando código funcional SOLO para multijugador...');
+// ========== TU CÓDIGO EXACTO QUE FUNCIONA + SCROLL ==========
+console.log('🔧 Restaurando temas en multijugador (versión simple y directa)...');
 
-// ==================== DETECCIÓN DE MODO MULTIJUGADOR ====================
-function isCurrentlyInMultiplayer() {
-    return (state && state.currentTab === 'multiplayer') || 
-           (typeof multiplayerState !== 'undefined' && 
-            multiplayerState && 
-            (multiplayerState.gameState === 'playing' || 
-             multiplayerState.gameState === 'waiting' || 
-             multiplayerState.gameState === 'ready'));
-}
-
-// ==================== GUARDAR FUNCIONES ORIGINALES ====================
-const originalOrganizeQuestions = window.organizeQuestionsForFirebase;
-const originalGetMyBank = window.getMyQuestionBank;
-const originalGetOpponentBank = window.getOpponentQuestionBank;
-const originalRenderMyTopics = window.renderMyTopicsForDisplay;
-const originalRenderOpponentTopics = window.renderOpponentTopicsForSelection;
-const originalToggleTopics = window.toggleTopicQuestions;
-
-// ==================== FUNCIONES ESPECÍFICAS DEL MULTIJUGADOR ====================
-
-// FUNCIÓN organizeQuestionsForFirebase ESPECÍFICA MULTIJUGADOR
-function organizeQuestionsForFirebaseMP(questions, topics) {
+// PASO 1: ASEGURAR QUE LA FUNCIÓN organizeQuestionsForFirebase FUNCIONA CORRECTAMENTE
+window.organizeQuestionsForFirebase = function(questions, topics) {
     const organized = {};
     
     topics.forEach(topic => {
@@ -21712,12 +21692,12 @@ function organizeQuestionsForFirebaseMP(questions, topics) {
     });
     
     return organized;
-}
+};
 
-// FUNCIÓN getMyQuestionBank ESPECÍFICA MULTIJUGADOR
-function getMyQuestionBankMP() {
+// PASO 2: SOBRESCRIBIR COMPLETAMENTE getMyQuestionBank
+window.getMyQuestionBank = function() {
     const verifiedQuestions = state.questions.filter(q => q.isVerified);
-    const myBank = organizeQuestionsForFirebaseMP(verifiedQuestions, state.topics);
+    const myBank = organizeQuestionsForFirebase(verifiedQuestions, state.topics);
     
     // Asignar al estado correcto
     if (multiplayerState.isHost) {
@@ -21726,17 +21706,17 @@ function getMyQuestionBankMP() {
         multiplayerState.guestQuestionBank = myBank;
     }
     
-    console.log('Mi banco regenerado (MP):', {
+    console.log('Mi banco regenerado:', {
         isHost: multiplayerState.isHost,
         topics: Object.keys(myBank).length,
         questions: Object.values(myBank).reduce((sum, topic) => sum + topic.questions.length, 0)
     });
     
     return myBank;
-}
+};
 
-// FUNCIÓN getOpponentQuestionBank ESPECÍFICA MULTIJUGADOR
-function getOpponentQuestionBankMP() {
+// PASO 3: SOBRESCRIBIR COMPLETAMENTE getOpponentQuestionBank
+window.getOpponentQuestionBank = function() {
     let opponentBank;
     
     if (multiplayerState.isHost) {
@@ -21748,16 +21728,17 @@ function getOpponentQuestionBankMP() {
     // Si el banco del oponente está vacío, usar mi banco como fallback
     if (Object.keys(opponentBank).length === 0) {
         console.log('Banco del oponente vacío, usando mi banco como fallback');
-        opponentBank = getMyQuestionBankMP();
+        opponentBank = getMyQuestionBank();
     }
     
     return opponentBank;
-}
+};
 
-// FUNCIÓN renderMyTopicsForDisplay ESPECÍFICA MULTIJUGADOR
-function renderMyTopicsForDisplayMP(questionBank) {
+// PASO 4: SOBRESCRIBIR LA FUNCIÓN renderMyTopicsForDisplay 
+window.renderMyTopicsForDisplay = function(questionBank) {
     if (!questionBank || Object.keys(questionBank).length === 0) {
-        questionBank = getMyQuestionBankMP();
+        // Si no hay banco, intentar generarlo
+        questionBank = getMyQuestionBank();
     }
     
     if (Object.keys(questionBank).length === 0) {
@@ -21791,12 +21772,13 @@ function renderMyTopicsForDisplayMP(questionBank) {
             <p style="margin: 0; font-size: 14px;">Sin preguntas en tus temas</p>
         </div>
     `;
-}
+};
 
-// FUNCIÓN renderOpponentTopicsForSelection ESPECÍFICA MULTIJUGADOR
-function renderOpponentTopicsForSelectionMP(questionBank, canSelect) {
+// PASO 5: SOBRESCRIBIR renderOpponentTopicsForSelection
+window.renderOpponentTopicsForSelection = function(questionBank, canSelect) {
     if (!questionBank || Object.keys(questionBank).length === 0) {
-        questionBank = getMyQuestionBankMP();
+        // Si no hay banco del oponente, usar el mío
+        questionBank = getMyQuestionBank();
     }
     
     if (Object.keys(questionBank).length === 0) {
@@ -21856,10 +21838,29 @@ function renderOpponentTopicsForSelectionMP(questionBank, canSelect) {
     });
 
     return html;
+};
+
+// PASO 6: FORZAR REGENERACIÓN AL CREAR/UNIRSE A SALAS
+const originalCreateRoom = window.createMultiplayerRoom;
+if (originalCreateRoom) {
+    window.createMultiplayerRoom = function() {
+        // Regenerar banco antes de crear
+        getMyQuestionBank();
+        return originalCreateRoom.call(this);
+    };
 }
 
-// FUNCIÓN toggleTopicQuestions ESPECÍFICA MULTIJUGADOR
-function toggleTopicQuestionsMP(fullTopicKey) {
+const originalJoinRoom = window.joinMultiplayerRoom;
+if (originalJoinRoom) {
+    window.joinMultiplayerRoom = function() {
+        // Regenerar banco antes de unirse
+        getMyQuestionBank();
+        return originalJoinRoom.call(this);
+    };
+}
+
+// PASO 7: ASEGURAR toggleTopicQuestions FUNCIONA
+window.toggleTopicQuestions = function(fullTopicKey) {
     let questionsId;
     
     if (fullTopicKey.startsWith('my-')) {
@@ -21876,194 +21877,15 @@ function toggleTopicQuestionsMP(fullTopicKey) {
     if (questionsDiv) {
         questionsDiv.style.display = questionsDiv.style.display === 'none' ? 'block' : 'none';
     }
-}
-
-// FUNCIÓN selectQuestionFromOpponent ESPECÍFICA MULTIJUGADOR
-function selectQuestionFromOpponentMP(topicKey, questionFirebaseKey) {
-    console.log('🎯 Seleccionando pregunta (MP):', { topicKey, questionFirebaseKey });
-    
-    if (!multiplayerState || !multiplayerState.myTurn) {
-        if (typeof showMessage === 'function') {
-            showMessage('No es tu turno para seleccionar preguntas', 'warning');
-        }
-        return;
-    }
-
-    const opponentBank = getOpponentQuestionBankMP();
-    
-    if (!opponentBank[topicKey] || !opponentBank[topicKey].questions) {
-        console.error('❌ Tema no encontrado:', topicKey);
-        if (typeof showMessage === 'function') {
-            showMessage('Error: Tema no encontrado', 'error');
-        }
-        return;
-    }
-
-    const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionFirebaseKey);
-    if (!question) {
-        console.error('❌ Pregunta no encontrada:', questionFirebaseKey);
-        if (typeof showMessage === 'function') {
-            showMessage('Error: Pregunta no encontrada', 'error');
-        }
-        return;
-    }
-
-    console.log('✅ Enviando pregunta al centro...', question.question.substring(0, 50));
-
-    if (typeof database !== 'undefined' && database && multiplayerState.currentRoom) {
-        database.ref('rooms/' + multiplayerState.currentRoom).update({
-            'gameData/currentQuestionData': question,
-            'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
-            'gameData/waitingForAnswer': true,
-            lastActivity: firebase.database.ServerValue.TIMESTAMP
-        }).then(() => {
-            console.log('✅ Pregunta enviada correctamente');
-            if (typeof showMessage === 'function') {
-                showMessage(`✅ Pregunta enviada: ${question.question.substring(0, 40)}...`, 'success');
-            }
-        }).catch(error => {
-            console.error('❌ Error enviando pregunta:', error);
-            if (typeof showMessage === 'function') {
-                showMessage('Error al enviar la pregunta', 'error');
-            }
-        });
-    }
-}
-
-// ==================== INTERCEPTAR FUNCIONES SEGÚN CONTEXTO ====================
-
-// Interceptar organizeQuestionsForFirebase
-window.organizeQuestionsForFirebase = function(questions, topics) {
-    if (isCurrentlyInMultiplayer()) {
-        return organizeQuestionsForFirebaseMP(questions, topics);
-    } else if (originalOrganizeQuestions) {
-        return originalOrganizeQuestions(questions, topics);
-    } else {
-        return organizeQuestionsForFirebaseMP(questions, topics);
-    }
 };
 
-// Interceptar getMyQuestionBank
-window.getMyQuestionBank = function() {
-    if (isCurrentlyInMultiplayer()) {
-        return getMyQuestionBankMP();
-    } else if (originalGetMyBank) {
-        return originalGetMyBank();
-    } else {
-        return getMyQuestionBankMP();
-    }
-};
-
-// Interceptar getOpponentQuestionBank
-window.getOpponentQuestionBank = function() {
-    if (isCurrentlyInMultiplayer()) {
-        return getOpponentQuestionBankMP();
-    } else if (originalGetOpponentBank) {
-        return originalGetOpponentBank();
-    } else {
-        return getOpponentQuestionBankMP();
-    }
-};
-
-// Interceptar renderMyTopicsForDisplay
-window.renderMyTopicsForDisplay = function(questionBank) {
-    if (isCurrentlyInMultiplayer()) {
-        return renderMyTopicsForDisplayMP(questionBank);
-    } else if (originalRenderMyTopics) {
-        return originalRenderMyTopics(questionBank);
-    } else {
-        return renderMyTopicsForDisplayMP(questionBank);
-    }
-};
-
-// Interceptar renderOpponentTopicsForSelection
-window.renderOpponentTopicsForSelection = function(questionBank, canSelect) {
-    if (isCurrentlyInMultiplayer()) {
-        return renderOpponentTopicsForSelectionMP(questionBank, canSelect);
-    } else if (originalRenderOpponentTopics) {
-        return originalRenderOpponentTopics(questionBank, canSelect);
-    } else {
-        return renderOpponentTopicsForSelectionMP(questionBank, canSelect);
-    }
-};
-
-// Interceptar toggleTopicQuestions
-window.toggleTopicQuestions = function(fullTopicKey) {
-    if (isCurrentlyInMultiplayer()) {
-        return toggleTopicQuestionsMP(fullTopicKey);
-    } else if (originalToggleTopics) {
-        return originalToggleTopics(fullTopicKey);
-    } else {
-        return toggleTopicQuestionsMP(fullTopicKey);
-    }
-};
-
-// Interceptar selectQuestionFromOpponent
-window.selectQuestionFromOpponent = function(topicKey, questionFirebaseKey) {
-    if (isCurrentlyInMultiplayer()) {
-        return selectQuestionFromOpponentMP(topicKey, questionFirebaseKey);
-    }
-    // En modo normal, no hacer nada (no existe esta función)
-};
-
-// ==================== FORZAR SCROLL EN MULTIJUGADOR ====================
-
-function forceScrollInMultiplayerMode() {
-    if (isCurrentlyInMultiplayer()) {
-        // Habilitar scroll en body
-        document.body.style.overflow = 'auto';
-        document.body.style.height = 'auto';
-        document.documentElement.style.overflow = 'auto';
-        document.documentElement.style.height = 'auto';
-        
-        // Habilitar scroll en app
-        const app = document.getElementById('app');
-        if (app) {
-            app.style.overflow = 'auto';
-            app.style.height = 'auto';
-        }
-        
-        // Forzar scroll en divs de preguntas
-        document.querySelectorAll('div[id*="opponent-questions-"]').forEach(div => {
-            div.style.overflowY = 'auto';
-            div.style.webkitOverflowScrolling = 'touch';
-        });
-    }
-}
-
-// ==================== INTERCEPTAR SALAS MULTIJUGADOR ====================
-
-// Regeneración al crear sala
-const originalCreateRoomMP = window.createMultiplayerRoom;
-if (originalCreateRoomMP) {
-    window.createMultiplayerRoom = function() {
-        getMyQuestionBankMP();
-        return originalCreateRoomMP.call(this);
-    };
-}
-
-// Regeneración al unirse a sala
-const originalJoinRoomMP = window.joinMultiplayerRoom;
-if (originalJoinRoomMP) {
-    window.joinMultiplayerRoom = function() {
-        getMyQuestionBankMP();
-        return originalJoinRoomMP.call(this);
-    };
-}
-
-// ==================== AUTO-APLICACIÓN ====================
-
-// Aplicar configuración cada segundo en multijugador
-setInterval(() => {
-    forceScrollInMultiplayerMode();
-}, 1000);
-
-// Auto-regeneración cuando esté activo
+// PASO 8: AUTO-REGENERACIÓN CADA VEZ QUE SE RENDERIZA
 setTimeout(() => {
     if (multiplayerState && multiplayerState.gameState === 'playing') {
         console.log('Auto-regenerando bancos para multijugador activo...');
-        getMyQuestionBankMP();
+        getMyQuestionBank();
         
+        // Forzar re-render después de 1 segundo
         setTimeout(() => {
             if (typeof render === 'function') {
                 render();
@@ -22072,45 +21894,63 @@ setTimeout(() => {
     }
 }, 500);
 
-// Aplicar inmediatamente si ya estamos en multijugador
-setTimeout(() => {
-    if (isCurrentlyInMultiplayer()) {
-        forceScrollInMultiplayerMode();
-        console.log('🎮 Configuración inmediata aplicada');
+// ==================== SOLO AÑADIDO: FORZAR SCROLL ====================
+
+// Función para forzar scroll en multijugador
+function forceScrollForMultiplayer() {
+    // Solo aplicar si hay elementos de multijugador
+    if (document.querySelector('[id*="opponent-questions-"]') || document.querySelector('.nav-tab')) {
+        
+        // Habilitar scroll global
+        document.body.style.overflow = 'auto';
+        document.body.style.height = 'auto';
+        document.documentElement.style.overflow = 'auto';
+        document.documentElement.style.height = 'auto';
+        
+        // App container
+        const app = document.getElementById('app');
+        if (app) {
+            app.style.overflow = 'auto';
+            app.style.height = 'auto';
+        }
+        
+        // Forzar scroll en contenedores de preguntas
+        document.querySelectorAll('[id*="opponent-questions-"]').forEach(container => {
+            container.style.overflowY = 'auto';
+            container.style.webkitOverflowScrolling = 'touch';
+        });
+        
+        // Forzar scroll en sidebars de multijugador  
+        document.querySelectorAll('div[style*="grid-template-columns"]').forEach(grid => {
+            const columns = grid.children;
+            for (let column of columns) {
+                if (column.style.background && (
+                    column.style.background.includes('gradient') || 
+                    column.style.background.includes('#')
+                )) {
+                    column.style.overflow = 'auto';
+                    column.style.maxHeight = '80vh';
+                }
+            }
+        });
     }
-}, 100);
+}
 
-// ==================== DEBUGGING ====================
+// Aplicar scroll cada 500ms
+setInterval(forceScrollForMultiplayer, 500);
 
-window.debugCompatiblePatch = function() {
-    console.log('🎮 DIAGNÓSTICO PARCHE COMPATIBLE:');
-    console.log('En multijugador:', isCurrentlyInMultiplayer());
-    console.log('Tab actual:', state?.currentTab);
-    console.log('Estado MP:', multiplayerState?.gameState);
-    console.log('Funciones originales preservadas:', {
-        organizeQuestions: !!originalOrganizeQuestions,
-        getMyBank: !!originalGetMyBank,
-        getOpponentBank: !!originalGetOpponentBank,
-        renderMyTopics: !!originalRenderMyTopics,
-        renderOpponentTopics: !!originalRenderOpponentTopics,
-        toggleTopics: !!originalToggleTopics
-    });
-    
-    if (isCurrentlyInMultiplayer()) {
-        console.log('Mi banco (MP):', Object.keys(getMyQuestionBankMP()).length, 'temas');
-        console.log('Banco oponente (MP):', Object.keys(getOpponentQuestionBankMP()).length, 'temas');
-    }
-};
+// Aplicar scroll inmediatamente
+setTimeout(forceScrollForMultiplayer, 100);
 
-console.log('✅ PARCHE COMPATIBLE APLICADO');
-console.log('🎮 Multijugador: Usa código funcional');
-console.log('📁 Subcarpetas: Preservadas intactas');
-console.log('🔄 Detección automática de contexto');
-console.log('💡 Debug: debugCompatiblePatch() en consola');
-
+console.log('✅ Parche simple aplicado - Temas restaurados');
+console.log('📊 Estado:', {
+    preguntas: state.questions ? state.questions.filter(q => q.isVerified).length : 0,
+    temas: state.topics ? state.topics.length : 0
+});
 </script>
 </body>
 </html>
+
 
 
 
