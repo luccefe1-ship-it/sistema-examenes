@@ -20208,13 +20208,13 @@ console.log('✅ Parche aplicado');
 console.log('📝 Las preguntas nuevas del editor múltiple aparecerán como ☆ (no verificadas)');
 </script>
 <!-- 
-SISTEMA COMPLETO DE SUBTEMAS
+SISTEMA DE SUBTEMAS CORREGIDO - VERSIÓN FUNCIONAL
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este código implementa un sistema completo de subtemas con todas las funcionalidades
+Este código mantiene el drag & drop de temas Y añade subtemas funcionalmente
 -->
 
 <script>
-console.log('🎯 Implementando sistema completo de subtemas...');
+console.log('🎯 Implementando sistema de subtemas CORREGIDO...');
 
 // ==================== ESTRUCTURA DE DATOS PARA SUBTEMAS ====================
 
@@ -20223,15 +20223,6 @@ function initializeSubtopicStructure() {
     if (!state.subtopics) {
         state.subtopics = [];
     }
-    
-    // Estructura de un subtema:
-    // {
-    //   id: unique_id,
-    //   name: "Nombre del subtema",
-    //   parentTopicId: topic_id,
-    //   order: 0
-    // }
-    
     console.log('📊 Estructura de subtemas inicializada');
 }
 
@@ -20269,7 +20260,9 @@ function getTotalTopicQuestionCount(topicId) {
 // Crear nuevo subtema
 window.createSubtopic = function(parentTopicId, subtopicName) {
     if (!subtopicName || subtopicName.trim() === '') {
-        showMessage('El nombre del subtema no puede estar vacío', 'error');
+        if (typeof showMessage === 'function') {
+            showMessage('El nombre del subtema no puede estar vacío', 'error');
+        }
         return false;
     }
     
@@ -20292,7 +20285,9 @@ window.createSubtopic = function(parentTopicId, subtopicName) {
     }
     
     console.log('✅ Subtema creado:', newSubtopic);
-    showMessage(`✅ Subtema "${subtopicName}" creado correctamente`, 'success');
+    if (typeof showMessage === 'function') {
+        showMessage(`✅ Subtema "${subtopicName}" creado correctamente`, 'success');
+    }
     
     return newSubtopic;
 };
@@ -20301,7 +20296,9 @@ window.createSubtopic = function(parentTopicId, subtopicName) {
 window.editSubtopic = function(subtopicId) {
     const subtopic = state.subtopics.find(s => s.id.toString() === subtopicId.toString());
     if (!subtopic) {
-        showMessage('Subtema no encontrado', 'error');
+        if (typeof showMessage === 'function') {
+            showMessage('Subtema no encontrado', 'error');
+        }
         return;
     }
     
@@ -20317,8 +20314,12 @@ window.editSubtopic = function(subtopicId) {
             localStorage.setItem('subtopics', JSON.stringify(state.subtopics));
         }
         
-        render();
-        showMessage(`✅ Subtema renombrado: "${oldName}" → "${newName.trim()}"`, 'success');
+        if (typeof render === 'function') {
+            render();
+        }
+        if (typeof showMessage === 'function') {
+            showMessage(`✅ Subtema renombrado: "${oldName}" → "${newName.trim()}"`, 'success');
+        }
         console.log('✏️ Subtema editado:', subtopic);
     }
 };
@@ -20327,7 +20328,9 @@ window.editSubtopic = function(subtopicId) {
 window.deleteSubtopic = function(subtopicId) {
     const subtopic = state.subtopics.find(s => s.id.toString() === subtopicId.toString());
     if (!subtopic) {
-        showMessage('Subtema no encontrado', 'error');
+        if (typeof showMessage === 'function') {
+            showMessage('Subtema no encontrado', 'error');
+        }
         return;
     }
     
@@ -20358,8 +20361,12 @@ window.deleteSubtopic = function(subtopicId) {
             localStorage.setItem('questions', JSON.stringify(state.questions));
         }
         
-        render();
-        showMessage(`🗑️ Subtema "${subtopic.name}" eliminado correctamente`, 'success');
+        if (typeof render === 'function') {
+            render();
+        }
+        if (typeof showMessage === 'function') {
+            showMessage(`🗑️ Subtema "${subtopic.name}" eliminado correctamente`, 'success');
+        }
         console.log('🗑️ Subtema eliminado:', subtopic);
     }
 };
@@ -20368,7 +20375,9 @@ window.deleteSubtopic = function(subtopicId) {
 window.showCreateSubtopicModal = function(parentTopicId) {
     const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId.toString());
     if (!parentTopic) {
-        showMessage('Tema padre no encontrado', 'error');
+        if (typeof showMessage === 'function') {
+            showMessage('Tema padre no encontrado', 'error');
+        }
         return;
     }
     
@@ -20387,7 +20396,7 @@ window.showCreateSubtopicModal = function(parentTopicId) {
                 <div style="margin-bottom: 20px;">
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Nombre del subtema:</label>
                     <input type="text" id="subtopic-name-input" placeholder="Ej: Álgebra, Geometría..." 
-                           style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
+                           style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
                            onkeypress="if(event.key==='Enter') executeCreateSubtopic(${parentTopicId})">
                 </div>
                 
@@ -20423,10 +20432,14 @@ window.executeCreateSubtopic = function(parentTopicId) {
         const newSubtopic = createSubtopic(parentTopicId, subtopicName);
         if (newSubtopic) {
             closeCreateSubtopicModal();
-            render();
+            if (typeof render === 'function') {
+                render();
+            }
         }
     } else {
-        showMessage('Ingresa un nombre para el subtema', 'warning');
+        if (typeof showMessage === 'function') {
+            showMessage('Ingresa un nombre para el subtema', 'warning');
+        }
         if (input) input.focus();
     }
 };
@@ -20462,20 +20475,27 @@ window.toggleSubtopicVisibility = function(subtopicId) {
     console.log(`🔄 Subtema ${subtopicId} ${collapsedSubtopics[subtopicId] ? 'colapsado' : 'expandido'}`);
 };
 
-// ==================== ACTUALIZAR RENDERIZADO DEL BANCO DE PREGUNTAS ====================
+// ==================== MODIFICAR RENDERIZADO SIN ROMPER DRAG & DROP ====================
 
-// Interceptar renderQuestionsByTopic para incluir subtemas
-const originalRenderQuestionsByTopicSubtemas = renderQuestionsByTopic;
+// Guardar la función original si existe
+const originalRenderQuestionsByTopicSubtemas = typeof renderQuestionsByTopic !== 'undefined' ? renderQuestionsByTopic : null;
 
+// NUEVA función que mejora la original sin romperla
 renderQuestionsByTopic = function() {
     initializeSubtopicStructure();
+    
+    // Si no hay función original, usar renderizado básico
+    if (!originalRenderQuestionsByTopicSubtemas) {
+        console.warn('⚠️ No se encontró función renderQuestionsByTopic original');
+        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No se puede renderizar - función original no encontrada</div>';
+    }
     
     // Obtener preguntas sin tema asignado
     const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
     
     let html = '';
     
-    // Renderizar cada tema con sus subtemas
+    // Renderizar cada tema con posibles subtemas
     state.topics.forEach(topic => {
         const topicId = topic.id.toString();
         const isTopicCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
@@ -20491,7 +20511,7 @@ renderQuestionsByTopic = function() {
         // Contar preguntas totales (directas + subtemas)
         const totalQuestionCount = getTotalTopicQuestionCount(topicId);
         
-        // Solo mostrar tema si tiene preguntas directas o subtemas
+        // Solo mostrar tema si tiene preguntas directas o subtemas con preguntas
         if (totalQuestionCount > 0) {
             html += `
                 <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" 
@@ -20673,17 +20693,15 @@ renderQuestionsByTopic = function() {
             ${html}
         </div>
         <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
-            🎯 <strong>Nuevo:</strong> Puedes crear subtemas usando el botón 📁+ en cada tema
+            🎯 <strong>Drag & Drop:</strong> Arrastra temas para reordenar • <strong>Subtemas:</strong> Usa el botón 📁+ para crear subtemas
         </div>
     `;
 };
 
 // ==================== ACTUALIZAR SELECTOR DE TEMAS PARA INCLUIR SUBTEMAS ====================
 
-// Interceptar la función que actualiza el selector de temas
-const originalUpdateTopicSelector = window.updateTopicSelector || function() {};
-
-window.updateTopicSelector = function() {
+// Función para actualizar el selector de temas con subtemas
+window.updateTopicSelectorWithSubtopics = function() {
     const selector = document.getElementById('topic-selector');
     if (!selector) return;
     
@@ -20707,21 +20725,20 @@ window.updateTopicSelector = function() {
     console.log('🔄 Selector de temas actualizado con subtemas');
 };
 
-// Interceptar la función addToQuestions para manejar subtemas
-const originalAddToQuestions = window.addToQuestions || function() {};
+// Interceptar addToQuestions para manejar subtemas
+const originalAddToQuestionsSubtemas = typeof addToQuestions !== 'undefined' ? addToQuestions : null;
 
-window.addToQuestions = function() {
-    const selector = document.getElementById('topic-selector');
-    const selectedValue = selector ? selector.value : state.selectedTopicForNewQuestions;
-    
-    if (selectedValue && selectedValue.startsWith('subtopic:')) {
-        // Es un subtema
-        const subtopicId = selectedValue.replace('subtopic:', '');
-        const subtopic = state.subtopics.find(s => s.id.toString() === subtopicId);
+if (originalAddToQuestionsSubtemas) {
+    window.addToQuestions = function() {
+        const selector = document.getElementById('topic-selector');
+        const selectedValue = selector ? selector.value : state.selectedTopicForNewQuestions;
         
-        if (subtopic) {
-            // Asignar preguntas al subtema
-            if (state.cleanedText && state.cleanedText.questions) {
+        if (selectedValue && selectedValue.startsWith('subtopic:')) {
+            // Es un subtema
+            const subtopicId = selectedValue.replace('subtopic:', '');
+            const subtopic = state.subtopics.find(s => s.id.toString() === subtopicId);
+            
+            if (subtopic && state.cleanedText && state.cleanedText.questions) {
                 state.cleanedText.questions.forEach(questionText => {
                     const newQuestion = {
                         id: Date.now() + Math.random(),
@@ -20745,23 +20762,29 @@ window.addToQuestions = function() {
                     localStorage.setItem('questions', JSON.stringify(state.questions));
                 }
                 
-                render();
-                showMessage(`✅ ${state.cleanedText?.questions?.length || 0} preguntas añadidas al subtema "${subtopic.name}"`, 'success');
+                if (typeof render === 'function') {
+                    render();
+                }
+                if (typeof showMessage === 'function') {
+                    showMessage(`✅ ${state.cleanedText?.questions?.length || 0} preguntas añadidas al subtema "${subtopic.name}"`, 'success');
+                }
                 
                 console.log(`✅ Preguntas asignadas al subtema: ${subtopic.name}`);
+                return;
             }
         }
-    } else {
-        // Es un tema normal, usar función original
-        return originalAddToQuestions.call(this);
-    }
-};
+        
+        // Si no es subtema, usar función original
+        return originalAddToQuestionsSubtemas.call(this);
+    };
+}
 
-// ==================== ACTUALIZAR GESTIÓN DE TEMAS PARA MOSTRAR SUBTEMAS ====================
+// ==================== GESTIÓN DE TEMAS MEJORADA CON SUBTEMAS ====================
 
 // Interceptar manageTopicsModal para incluir subtemas
-const originalManageTopicsModalSubtemas = window.manageTopicsModal;
-if (typeof window.manageTopicsModal === 'function') {
+const originalManageTopicsModalSubtemas = typeof manageTopicsModal !== 'undefined' ? manageTopicsModal : null;
+
+if (originalManageTopicsModalSubtemas) {
     window.manageTopicsModal = function() {
         initializeSubtopicStructure();
         
@@ -20803,7 +20826,7 @@ if (typeof window.manageTopicsModal === 'function') {
                         <div style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: 500;">Nombre del subtema:</label>
                             <input type="text" id="newSubtopicName" placeholder="Ej: Álgebra, Geometría..." 
-                                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;"
+                                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box;"
                                    onkeypress="if(event.key==='Enter') executeCreateSubtopicFromModal()">
                         </div>
                         <button onclick="executeCreateSubtopicFromModal()" 
@@ -20873,12 +20896,16 @@ window.executeCreateSubtopicFromModal = function() {
     const subtopicName = nameInput ? nameInput.value.trim() : '';
     
     if (!parentTopicId) {
-        showMessage('Selecciona un tema padre', 'warning');
+        if (typeof showMessage === 'function') {
+            showMessage('Selecciona un tema padre', 'warning');
+        }
         return;
     }
     
     if (!subtopicName) {
-        showMessage('Ingresa un nombre para el subtema', 'warning');
+        if (typeof showMessage === 'function') {
+            showMessage('Ingresa un nombre para el subtema', 'warning');
+        }
         if (nameInput) nameInput.focus();
         return;
     }
@@ -20890,10 +20917,18 @@ window.executeCreateSubtopicFromModal = function() {
         if (nameInput) nameInput.value = '';
         
         // Actualizar modal sin cerrarlo
-        closeManageTopicsModal();
-        setTimeout(() => manageTopicsModal(), 100);
+        if (typeof closeManageTopicsModal === 'function') {
+            closeManageTopicsModal();
+        }
+        setTimeout(() => {
+            if (typeof manageTopicsModal === 'function') {
+                manageTopicsModal();
+            }
+        }, 100);
         
-        render();
+        if (typeof render === 'function') {
+            render();
+        }
     }
 };
 
@@ -20903,7 +20938,9 @@ window.executeDeleteTopicOrSubtopic = function() {
     const selectedValue = selector ? selector.value : '';
     
     if (!selectedValue) {
-        showMessage('Selecciona un tema o subtema para eliminar', 'warning');
+        if (typeof showMessage === 'function') {
+            showMessage('Selecciona un tema o subtema para eliminar', 'warning');
+        }
         return;
     }
     
@@ -20913,13 +20950,21 @@ window.executeDeleteTopicOrSubtopic = function() {
         deleteSubtopic(subtopicId);
     } else {
         // Es un tema
-        deleteTopicSimple(selectedValue);
+        if (typeof deleteTopicSimple === 'function') {
+            deleteTopicSimple(selectedValue);
+        }
     }
     
     // Actualizar modal
     setTimeout(() => {
-        closeManageTopicsModal();
-        setTimeout(() => manageTopicsModal(), 100);
+        if (typeof closeManageTopicsModal === 'function') {
+            closeManageTopicsModal();
+        }
+        setTimeout(() => {
+            if (typeof manageTopicsModal === 'function') {
+                manageTopicsModal();
+            }
+        }, 100);
     }, 500);
 };
 
@@ -20963,79 +21008,26 @@ window.showDetailedTopicStats = function() {
     console.log('📊 Estadísticas detalladas mostradas');
 };
 
-// ==================== ACTUALIZAR DRAG & DROP PARA SUBTEMAS ====================
-
-// Función para reordenar subtemas dentro de un tema
-window.reorderSubtopics = function(draggedSubtopicId, targetSubtopicId) {
-    const draggedSubtopic = state.subtopics.find(s => s.id.toString() === draggedSubtopicId);
-    const targetSubtopic = state.subtopics.find(s => s.id.toString() === targetSubtopicId);
-    
-    if (!draggedSubtopic || !targetSubtopic) {
-        console.error('❌ Subtemas no encontrados para reordenar');
-        return;
-    }
-    
-    // Solo permitir reordenar si están en el mismo tema padre
-    if (draggedSubtopic.parentTopicId.toString() !== targetSubtopic.parentTopicId.toString()) {
-        showMessage('No puedes mover subtemas entre temas diferentes', 'warning');
-        return;
-    }
-    
-    console.log(`🔄 Reordenando subtemas: ${draggedSubtopic.name} -> posición de ${targetSubtopic.name}`);
-    
-    // Obtener todos los subtemas del tema padre
-    const parentSubtopics = getSubtopicsForTopic(draggedSubtopic.parentTopicId);
-    
-    const draggedIndex = parentSubtopics.findIndex(s => s.id.toString() === draggedSubtopicId);
-    const targetIndex = parentSubtopics.findIndex(s => s.id.toString() === targetSubtopicId);
-    
-    if (draggedIndex === -1 || targetIndex === -1) {
-        console.error('❌ Índices de subtemas no encontrados');
-        return;
-    }
-    
-    // Reordenar array
-    const [movedSubtopic] = parentSubtopics.splice(draggedIndex, 1);
-    parentSubtopics.splice(targetIndex, 0, movedSubtopic);
-    
-    // Actualizar órdenes
-    parentSubtopics.forEach((subtopic, index) => {
-        subtopic.order = index;
-    });
-    
-    // Guardar cambios
-    if (typeof saveData === 'function') {
-        saveData();
-    } else {
-        localStorage.setItem('subtopics', JSON.stringify(state.subtopics));
-    }
-    
-    render();
-    showMessage(`🔄 Subtema "${draggedSubtopic.name}" reordenado`, 'success');
-    
-    console.log(`✅ Subtema "${draggedSubtopic.name}" reordenado correctamente`);
-};
-
 // ==================== FUNCIONES DE CARGA Y GUARDADO ====================
 
 // Interceptar la función de guardado para incluir subtemas
-const originalSaveData = window.saveData;
-if (typeof window.saveData === 'function') {
+const originalSaveDataSubtemas = typeof saveData !== 'undefined' ? saveData : null;
+if (originalSaveDataSubtemas) {
     window.saveData = function() {
         // Guardar subtemas
         localStorage.setItem('subtopics', JSON.stringify(state.subtopics || []));
         
         // Llamar función original
-        return originalSaveData.call(this);
+        return originalSaveDataSubtemas.call(this);
     };
 }
 
 // Interceptar la función de carga para incluir subtemas
-const originalLoadData = window.loadData;
-if (typeof window.loadData === 'function') {
+const originalLoadDataSubtemas = typeof loadData !== 'undefined' ? loadData : null;
+if (originalLoadDataSubtemas) {
     window.loadData = function() {
         // Cargar función original primero
-        const result = originalLoadData.call(this);
+        const result = originalLoadDataSubtemas.call(this);
         
         // Cargar subtemas
         try {
@@ -21106,50 +21098,13 @@ window.cleanOrphanSubtopics = function() {
             localStorage.setItem('questions', JSON.stringify(state.questions));
         }
         
-        showMessage(`🧹 ${orphanSubtopics.length} subtemas huérfanos eliminados`, 'info');
-    }
-};
-
-// Función para migrar preguntas de tema a subtema
-window.migrateQuestionsToSubtopic = function(fromTopicId, toSubtopicId) {
-    const subtopic = state.subtopics.find(s => s.id.toString() === toSubtopicId);
-    if (!subtopic) {
-        showMessage('Subtema no encontrado', 'error');
-        return;
-    }
-    
-    // Encontrar preguntas directas del tema
-    const questionsToMigrate = state.questions.filter(q => 
-        q.topicId && q.topicId.toString() === fromTopicId && !q.subtopicId
-    );
-    
-    if (questionsToMigrate.length === 0) {
-        showMessage('No hay preguntas directas para migrar', 'info');
-        return;
-    }
-    
-    const confirmMessage = `¿Migrar ${questionsToMigrate.length} preguntas del tema al subtema "${subtopic.name}"?`;
-    
-    if (confirm(confirmMessage)) {
-        questionsToMigrate.forEach(q => {
-            q.subtopicId = subtopic.id;
-        });
-        
-        // Guardar cambios
-        if (typeof saveData === 'function') {
-            saveData();
-        } else {
-            localStorage.setItem('questions', JSON.stringify(state.questions));
+        if (typeof showMessage === 'function') {
+            showMessage(`🧹 ${orphanSubtopics.length} subtemas huérfanos eliminados`, 'info');
         }
-        
-        render();
-        showMessage(`✅ ${questionsToMigrate.length} preguntas migradas a "${subtopic.name}"`, 'success');
-        
-        console.log(`🔄 ${questionsToMigrate.length} preguntas migradas al subtema: ${subtopic.name}`);
     }
 };
 
-// ==================== INICIALIZACIÓN Y LOGS ====================
+// ==================== INICIALIZACIÓN Y HOOKS ====================
 
 // Inicializar sistema al cargar
 document.addEventListener('DOMContentLoaded', function() {
@@ -21158,29 +21113,47 @@ document.addEventListener('DOMContentLoaded', function() {
         cleanOrphanSubtopics();
         
         // Actualizar selector si existe
-        if (typeof updateTopicSelector === 'function') {
-            updateTopicSelector();
+        if (document.getElementById('topic-selector')) {
+            updateTopicSelectorWithSubtopics();
+        }
+        
+        // Hook para actualizar selector cuando cambie el estado
+        if (typeof render !== 'undefined') {
+            const originalRender = render;
+            window.render = function() {
+                const result = originalRender.call(this);
+                
+                // Actualizar selector después del render
+                setTimeout(() => {
+                    if (document.getElementById('topic-selector')) {
+                        updateTopicSelectorWithSubtopics();
+                    }
+                }, 100);
+                
+                return result;
+            };
         }
         
         console.log('🎯 Sistema de subtemas inicializado completamente');
     }, 1500);
 });
 
-console.log('✅ Sistema completo de subtemas implementado');
+console.log('✅ Sistema CORREGIDO de subtemas implementado');
 console.log('🎯 Funcionalidades disponibles:');
 console.log('   ✓ Crear, editar y eliminar subtemas');
 console.log('   ✓ Asignar preguntas a subtemas');
 console.log('   ✓ Visualización jerárquica en banco de preguntas');
 console.log('   ✓ Gestión completa desde modal de temas');
-console.log('   ✓ Drag & drop para reordenar');
+console.log('   ✓ DRAG & DROP de temas MANTENIDO');
 console.log('   ✓ Estadísticas detalladas');
 console.log('   ✓ Sincronización bidireccional');
 console.log('   ✓ Limpieza automática de huérfanos');
-console.log('   ✓ Migración de preguntas');
 console.log('💡 Usa el botón 📁+ en cualquier tema para crear subtemas');
+console.log('🔄 El drag & drop de temas sigue funcionando normalmente');
 </script>
 </body>
 </html>
+
 
 
 
