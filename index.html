@@ -20458,35 +20458,31 @@ console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 <!-- 
-PARCHE: SISTEMA DE SUBCARPETAS CON DRAG & DROP COMPLETO
+PARCHE: SISTEMA DE SUBCARPETAS CORREGIDO - VERSIÓN FUNCIONAL
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este parche permite arrastrar TANTO temas principales COMO subtemas
+Este parche restaura el sistema de subcarpetas funcionando + drag & drop
 -->
 
 <script>
-// ========== SISTEMA DE SUBCARPETAS CON DRAG & DROP COMPLETO ==========
-console.log('📁 Aplicando sistema de subcarpetas CON drag & drop COMPLETO...');
+// ========== SISTEMA DE SUBCARPETAS CORREGIDO ==========
+console.log('📁 Aplicando sistema de subcarpetas CORREGIDO...');
 
 // ==================== ESTRUCTURA DE DATOS ====================
-// Estructura global para manejar las integraciones
 let topicIntegrations = JSON.parse(localStorage.getItem('topicIntegrations') || '{}');
-// Formato: { "parentTopicId": ["childTopicId1", "childTopicId2"] }
 
 // Variables para el drag & drop
 let draggedTopicId = null;
 let draggedTopicType = null; // 'main' o 'sub'
-let draggedFromParent = null; // Para subtemas, el ID del padre
+let draggedFromParent = null;
 
 // ==================== FUNCIONES AUXILIARES ====================
 
-// Función para verificar si un tema es hijo de otro
 function isChildTopic(topicId) {
     return Object.values(topicIntegrations).some(children => 
         children.includes(topicId.toString())
     );
 }
 
-// Función para obtener el ID del tema padre
 function getParentTopicId(childTopicId) {
     const parentEntry = Object.entries(topicIntegrations).find(([parent, children]) => 
         children.includes(childTopicId.toString())
@@ -20494,29 +20490,25 @@ function getParentTopicId(childTopicId) {
     return parentEntry ? parentEntry[0] : null;
 }
 
-// Función para obtener temas hijos de un padre
 function getChildTopics(parentTopicId) {
     return topicIntegrations[parentTopicId.toString()] || [];
 }
 
-// Función para contar preguntas de un tema
 function getTopicQuestionCountSubfolders(topicId) {
     return state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
 }
 
-// ==================== FUNCIÓN PRINCIPAL DE INTEGRACIÓN ====================
+// ==================== FUNCIONES DE INTEGRACIÓN ====================
 
-// Función para abrir el modal de integración
 function openIntegrationModal(parentTopicId) {
     const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId.toString());
     if (!parentTopic) return;
 
-    // Obtener temas disponibles para integrar (que no sean padres ni ya estén integrados)
     const availableTopics = state.topics.filter(topic => {
         const topicId = topic.id.toString();
         return topicId !== parentTopicId.toString() && 
                !isChildTopic(topicId) && 
-               !topicIntegrations[topicId]; // No es padre de otros
+               !topicIntegrations[topicId];
     });
 
     if (availableTopics.length === 0) {
@@ -20524,7 +20516,6 @@ function openIntegrationModal(parentTopicId) {
         return;
     }
 
-    // Crear modal HTML
     const modalHTML = `
         <div id="integrationModal" style="
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -20587,24 +20578,18 @@ function openIntegrationModal(parentTopicId) {
         </div>
     `;
 
-    // Añadir modal al DOM
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     
-    // Seleccionar todos por defecto si son pocos
     if (availableTopics.length <= 3) {
         document.querySelectorAll('#topicCheckboxes input[type="checkbox"]').forEach(cb => cb.checked = true);
     }
 }
 
-// Función para cerrar el modal
 function closeIntegrationModal() {
     const modal = document.getElementById('integrationModal');
     if (modal) modal.remove();
 }
 
-// ==================== PROCESAMIENTO DE LA INTEGRACIÓN ====================
-
-// Función para procesar la integración
 function processIntegration(parentTopicId) {
     const checkboxes = document.querySelectorAll('#topicCheckboxes input[type="checkbox"]:checked');
     const selectedTopicIds = Array.from(checkboxes).map(cb => cb.value);
@@ -20614,37 +20599,26 @@ function processIntegration(parentTopicId) {
         return;
     }
 
-    // Aplicar la integración
     if (!topicIntegrations[parentTopicId]) {
         topicIntegrations[parentTopicId] = [];
     }
     
-    // Añadir los nuevos temas hijo
     selectedTopicIds.forEach(childId => {
         if (!topicIntegrations[parentTopicId].includes(childId)) {
             topicIntegrations[parentTopicId].push(childId);
         }
     });
 
-    // Guardar en localStorage
     localStorage.setItem('topicIntegrations', JSON.stringify(topicIntegrations));
-    
-    // Cerrar modal
     closeIntegrationModal();
-    
-    // Re-renderizar
     render();
     
-    // Mensaje de éxito
     const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId);
     if (typeof showMessage === 'function') {
         showMessage(`📁 ${selectedTopicIds.length} tema${selectedTopicIds.length === 1 ? '' : 's'} integrado${selectedTopicIds.length === 1 ? '' : 's'} en "${parentTopic.name}"`, 'success');
     }
 }
 
-// ==================== FUNCIÓN DE DESINTEGRACIÓN ====================
-
-// Función para desintegrar un tema hijo
 function disintegrateTopic(childTopicId) {
     const parentTopicId = getParentTopicId(childTopicId);
     if (!parentTopicId) return;
@@ -20653,68 +20627,54 @@ function disintegrateTopic(childTopicId) {
     const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId);
     
     if (confirm(`🔗 ¿Desintegrar "${childTopic.name}" de "${parentTopic.name}"?\n\nEl tema volverá a ser independiente.`)) {
-        // Remover de la lista de hijos
         topicIntegrations[parentTopicId] = topicIntegrations[parentTopicId].filter(id => id !== childTopicId);
         
-        // Si no quedan hijos, eliminar la entrada del padre
         if (topicIntegrations[parentTopicId].length === 0) {
             delete topicIntegrations[parentTopicId];
         }
         
-        // Guardar cambios
         localStorage.setItem('topicIntegrations', JSON.stringify(topicIntegrations));
-        
-        // Re-renderizar
         render();
         
-        // Mensaje de éxito
         if (typeof showMessage === 'function') {
             showMessage(`🔗 "${childTopic.name}" desintegrado correctamente`, 'success');
         }
     }
 }
 
-// ==================== FUNCIONES DE DRAG & DROP MEJORADAS ====================
+// ==================== FUNCIONES DE DRAG & DROP ====================
 
-// Función para manejar inicio de arrastre (TEMAS PRINCIPALES)
 window.handleDragStart = function(e) {
     draggedTopicId = e.currentTarget.dataset.topicId;
     draggedTopicType = 'main';
     draggedFromParent = null;
     e.currentTarget.style.opacity = '0.5';
     e.dataTransfer.effectAllowed = 'move';
-    console.log('🔄 Iniciando arrastre del tema principal:', draggedTopicId);
 };
 
-// Función para manejar inicio de arrastre (SUBTEMAS)
 window.handleSubtopicDragStart = function(e) {
     draggedTopicId = e.currentTarget.dataset.subtopicId;
     draggedTopicType = 'sub';
     draggedFromParent = e.currentTarget.dataset.parentId;
     e.currentTarget.style.opacity = '0.5';
     e.dataTransfer.effectAllowed = 'move';
-    console.log('🔄 Iniciando arrastre del subtema:', draggedTopicId, 'desde padre:', draggedFromParent);
 };
 
-// Función para manejar fin de arrastre
 window.handleDragEnd = function(e) {
     e.currentTarget.style.opacity = '';
     draggedTopicId = null;
     draggedTopicType = null;
     draggedFromParent = null;
-    // Limpiar todos los indicadores visuales
     document.querySelectorAll('.draggable-topic, .draggable-subtopic').forEach(topic => {
         topic.style.borderColor = 'transparent';
     });
 };
 
-// Función para manejar arrastre sobre elemento
 window.handleDragOver = function(e) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 };
 
-// Función para manejar entrada de arrastre
 window.handleDragEnter = function(e) {
     e.preventDefault();
     const currentId = e.currentTarget.dataset.topicId || e.currentTarget.dataset.subtopicId;
@@ -20723,14 +20683,12 @@ window.handleDragEnter = function(e) {
     }
 };
 
-// Función para manejar salida de arrastre
 window.handleDragLeave = function(e) {
     if (!e.currentTarget.contains(e.relatedTarget)) {
         e.currentTarget.style.borderColor = 'transparent';
     }
 };
 
-// Función para manejar soltar elemento
 window.handleDrop = function(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -20739,74 +20697,46 @@ window.handleDrop = function(e) {
     const targetSubtopicId = e.currentTarget.dataset.subtopicId;
     const targetParentId = e.currentTarget.dataset.parentId;
     
-    console.log('🎯 Soltando:', { draggedTopicId, draggedTopicType, draggedFromParent, targetTopicId, targetSubtopicId, targetParentId });
-    
     if (draggedTopicId) {
         if (draggedTopicType === 'main' && targetTopicId && draggedTopicId !== targetTopicId) {
-            // Reordenar temas principales
             reorderTopics(draggedTopicId, targetTopicId);
         } else if (draggedTopicType === 'sub' && targetSubtopicId && draggedTopicId !== targetSubtopicId) {
-            // Reordenar subtemas
             reorderSubtopics(draggedTopicId, draggedFromParent, targetSubtopicId, targetParentId);
         } else if (draggedTopicType === 'sub' && targetTopicId) {
-            // Mover subtema a otro tema principal
             moveSubtopicToParent(draggedTopicId, draggedFromParent, targetTopicId);
         }
     }
     
-    // Limpiar estilos
     e.currentTarget.style.borderColor = 'transparent';
 };
 
-// ==================== FUNCIONES DE REORDENAMIENTO ====================
-
-// Función para reordenar temas principales (MANTENIDA)
 window.reorderTopics = function(draggedTopicId, targetTopicId) {
-    console.log(`🔄 Reordenando tema principal: ${draggedTopicId} -> posición de ${targetTopicId}`);
-    
     const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedTopicId);
     const targetIndex = state.topics.findIndex(t => t.id.toString() === targetTopicId);
     
-    if (draggedIndex === -1 || targetIndex === -1) {
-        console.error('❌ No se encontraron los temas para reordenar');
-        return;
-    }
+    if (draggedIndex === -1 || targetIndex === -1) return;
     
-    // Remover el tema arrastrado de su posición actual
     const [draggedTopic] = state.topics.splice(draggedIndex, 1);
-    
-    // Insertar en la nueva posición
     state.topics.splice(targetIndex, 0, draggedTopic);
     
-    // Guardar cambios
     if (typeof saveData === 'function') {
         saveData();
     } else {
         localStorage.setItem('topics', JSON.stringify(state.topics));
     }
     
-    // Re-renderizar
     render();
     
-    const draggedName = draggedTopic.name;
-    
     if (typeof showMessage === 'function') {
-        showMessage(`🔄 Tema "${draggedName}" reordenado`, 'success');
+        showMessage(`🔄 Tema "${draggedTopic.name}" movido`, 'success');
     }
-    
-    console.log(`✅ Tema principal "${draggedName}" reordenado correctamente`);
 };
 
-// Función para reordenar subtemas dentro del mismo padre
 window.reorderSubtopics = function(draggedSubtopicId, fromParentId, targetSubtopicId, targetParentId) {
-    // Solo reordenar si están en el mismo padre
     if (fromParentId !== targetParentId) {
-        console.log('🔄 Moviendo subtema entre padres diferentes');
         moveSubtopicToParent(draggedSubtopicId, fromParentId, targetParentId);
         return;
     }
-    
-    console.log(`🔄 Reordenando subtema: ${draggedSubtopicId} -> posición de ${targetSubtopicId} en padre ${fromParentId}`);
     
     const parentChildren = topicIntegrations[fromParentId];
     if (!parentChildren) return;
@@ -20814,56 +20744,35 @@ window.reorderSubtopics = function(draggedSubtopicId, fromParentId, targetSubtop
     const draggedIndex = parentChildren.indexOf(draggedSubtopicId);
     const targetIndex = parentChildren.indexOf(targetSubtopicId);
     
-    if (draggedIndex === -1 || targetIndex === -1) {
-        console.error('❌ No se encontraron los subtemas para reordenar');
-        return;
-    }
+    if (draggedIndex === -1 || targetIndex === -1) return;
     
-    // Remover el subtema arrastrado de su posición actual
     const [draggedSubtopic] = parentChildren.splice(draggedIndex, 1);
-    
-    // Insertar en la nueva posición
     parentChildren.splice(targetIndex, 0, draggedSubtopic);
     
-    // Guardar cambios
     localStorage.setItem('topicIntegrations', JSON.stringify(topicIntegrations));
-    
-    // Re-renderizar
     render();
     
     const draggedTopic = state.topics.find(t => t.id.toString() === draggedSubtopicId);
-    
     if (typeof showMessage === 'function') {
         showMessage(`🔄 Subtema "${draggedTopic.name}" reordenado`, 'success');
     }
-    
-    console.log(`✅ Subtema "${draggedTopic.name}" reordenado correctamente`);
 };
 
-// Función para mover subtema a otro padre
 window.moveSubtopicToParent = function(subtopicId, fromParentId, toParentId) {
-    console.log(`🔄 Moviendo subtema ${subtopicId} de ${fromParentId} a ${toParentId}`);
-    
-    // Remover del padre actual
     if (topicIntegrations[fromParentId]) {
         topicIntegrations[fromParentId] = topicIntegrations[fromParentId].filter(id => id !== subtopicId);
         
-        // Si no quedan hijos, eliminar la entrada del padre
         if (topicIntegrations[fromParentId].length === 0) {
             delete topicIntegrations[fromParentId];
         }
     }
     
-    // Añadir al nuevo padre
     if (!topicIntegrations[toParentId]) {
         topicIntegrations[toParentId] = [];
     }
     topicIntegrations[toParentId].push(subtopicId);
     
-    // Guardar cambios
     localStorage.setItem('topicIntegrations', JSON.stringify(topicIntegrations));
-    
-    // Re-renderizar
     render();
     
     const subtopic = state.topics.find(t => t.id.toString() === subtopicId);
@@ -20872,24 +20781,22 @@ window.moveSubtopicToParent = function(subtopicId, fromParentId, toParentId) {
     if (typeof showMessage === 'function') {
         showMessage(`🔄 "${subtopic.name}" movido a "${newParent.name}"`, 'success');
     }
-    
-    console.log(`✅ Subtema "${subtopic.name}" movido correctamente`);
 };
 
-// ==================== MODIFICACIÓN DEL RENDERIZADO CON DRAG & DROP COMPLETO ====================
+// ==================== RENDERIZADO PRINCIPAL ====================
 
-// Guardar la función original de renderizado
+// Guardar función original
 const originalRenderQuestionsByTopicSubfolders = renderQuestionsByTopic;
 
-// Nueva función de renderizado con soporte para subcarpetas Y drag & drop completo
+// Nueva función de renderizado
 renderQuestionsByTopic = function() {
     const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
     let html = '';
 
-    // Obtener solo temas padre (que no son hijos de otros) y temas sin integrar
+    // Obtener solo temas padre (que no son hijos de otros)
     const parentAndStandaloneTopics = state.topics.filter(topic => !isChildTopic(topic.id));
 
-    // Renderizar cada tema padre o independiente CON DRAG & DROP
+    // Renderizar cada tema
     parentAndStandaloneTopics.forEach(topic => {
         const topicId = topic.id.toString();
         const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId);
@@ -20900,11 +20807,9 @@ renderQuestionsByTopic = function() {
         // Solo mostrar si tiene preguntas propias O tiene hijos
         if (topicQuestions.length > 0 || hasChildren) {
             
-            // TODOS los headers principales son azul claro
             const headerColor = '#4f46e5'; // Azul claro para TODOS
             const headerIcon = hasChildren ? '📁' : '🔷';
             
-            // Calcular el texto del contador
             let counterText = '';
             if (hasChildren) {
                 if (topicQuestions.length > 0) {
@@ -20927,7 +20832,6 @@ renderQuestionsByTopic = function() {
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 14px; opacity: 0.9;">${counterText}</span>
                             
-                            <!-- BOTÓN 📁 SIEMPRE DISPONIBLE -->
                             <button onclick="event.stopPropagation(); openIntegrationModal('${topicId}')" style="
                                 background: rgba(255,255,255,0.2); border: none; color: white; 
                                 padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
@@ -21056,31 +20960,20 @@ renderQuestionsByTopic = function() {
         `;
     }
 
-    // Si no hay contenido, mostrar mensaje
     if (html === '') {
         return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
     }
 
-    // Añadir el consejo sobre drag & drop
-    html += `
-        <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
-            🔄 <strong>Consejos:</strong> Arrastra temas principales para reordenar • Arrastra subtemas para reordenar o mover entre padres
-        </div>
-    `;
-
     return html;
 };
 
-// ==================== FUNCIONES AUXILIARES ADICIONALES ====================
+// ==================== FUNCIONES AUXILIARES ====================
 
-// Función para extender toggleTopicVisibility para soportar temas hijo
 if (typeof toggleTopicVisibility === 'function') {
     const originalToggleTopicVisibility = toggleTopicVisibility;
     
     toggleTopicVisibility = function(topicId) {
-        // Si es un tema hijo (comienza con 'child-'), manejar diferente
         if (topicId.startsWith('child-')) {
-            const actualTopicId = topicId.replace('child-', '');
             const element = document.getElementById(`topic-content-${topicId}`);
             const button = document.querySelector(`[onclick*="toggleTopicVisibility('${topicId}')"]`);
             
@@ -21090,27 +20983,23 @@ if (typeof toggleTopicVisibility === 'function') {
                 button.textContent = isHidden ? '▼' : '▶';
                 button.title = isHidden ? 'Ocultar preguntas' : 'Mostrar preguntas';
                 
-                // Guardar estado en collapsedTopics si existe
                 if (typeof collapsedTopics !== 'undefined') {
                     collapsedTopics[topicId] = !isHidden;
                     localStorage.setItem('collapsedTopics', JSON.stringify(collapsedTopics));
                 }
             }
         } else {
-            // Usar la función original para temas normales
             originalToggleTopicVisibility(topicId);
         }
     };
 }
 
-// ==================== FUNCIONES DE UTILIDAD ====================
+// ==================== UTILIDADES ====================
 
-// Función para limpiar integraciones huérfanas (temas que ya no existen)
 function cleanOrphanedIntegrations() {
     const existingTopicIds = state.topics.map(t => t.id.toString());
     let cleaned = false;
     
-    // Limpiar padres que ya no existen
     Object.keys(topicIntegrations).forEach(parentId => {
         if (!existingTopicIds.includes(parentId)) {
             delete topicIntegrations[parentId];
@@ -21118,7 +21007,6 @@ function cleanOrphanedIntegrations() {
         }
     });
     
-    // Limpiar hijos que ya no existen
     Object.keys(topicIntegrations).forEach(parentId => {
         const originalChildren = topicIntegrations[parentId];
         topicIntegrations[parentId] = originalChildren.filter(childId => 
@@ -21129,7 +21017,6 @@ function cleanOrphanedIntegrations() {
             cleaned = true;
         }
         
-        // Si no quedan hijos, eliminar la entrada
         if (topicIntegrations[parentId].length === 0) {
             delete topicIntegrations[parentId];
         }
@@ -21140,23 +21027,13 @@ function cleanOrphanedIntegrations() {
     }
 }
 
-// Función para obtener estadísticas de integración
-function getIntegrationStats() {
-    const parentCount = Object.keys(topicIntegrations).length;
-    const childCount = Object.values(topicIntegrations).reduce((sum, children) => sum + children.length, 0);
-    return { parentCount, childCount };
-}
-
 // ==================== INICIALIZACIÓN ====================
 
-// Limpiar integraciones huérfanas al cargar
 cleanOrphanedIntegrations();
 
-// Función de diagnóstico (opcional)
 window.diagnosticSubfolders = function() {
     console.log('📁 DIAGNÓSTICO DEL SISTEMA DE SUBCARPETAS:');
     console.log('Integraciones actuales:', topicIntegrations);
-    console.log('Estadísticas:', getIntegrationStats());
     
     Object.entries(topicIntegrations).forEach(([parentId, children]) => {
         const parentTopic = state.topics.find(t => t.id.toString() === parentId);
@@ -21168,23 +21045,17 @@ window.diagnosticSubfolders = function() {
     });
 };
 
-console.log('✅ Sistema de subcarpetas CON DRAG & DROP COMPLETO implementado');
-console.log('📁 Funcionalidades COMPLETAS:');
-console.log('   - ✅ Drag & Drop de TEMAS PRINCIPALES (reordenamiento)');
-console.log('   - ✅ Drag & Drop de SUBTEMAS (reordenamiento + mover entre padres)');
-console.log('   - ✅ Botón 📁 disponible en TODOS los temas');
-console.log('   - ✅ Headers principales: AZUL CLARO (#4f46e5)');
-console.log('   - ✅ Subtemas: GRIS CLARO (#9ca3af)');
-console.log('   - ✅ Persistencia completa en localStorage');
-console.log('   - ✅ Funcionalidad de expandir/colapsar');
-console.log('🔄 NUEVAS funcionalidades:');
-console.log('   - 🆕 Arrastra subtemas para reordenar dentro del mismo padre');
-console.log('   - 🆕 Arrastra subtemas a otros temas principales para cambiar de padre');
-console.log('   - 🆕 Indicadores visuales mejorados');
-console.log('💡 Usa diagnosticSubfolders() en la consola para debugging');
+console.log('✅ Sistema de subcarpetas FUNCIONAL implementado');
+console.log('📁 Funcionalidades:');
+console.log('   - ✅ Botón 📁 para integrar temas');
+console.log('   - ✅ Subtemas en gris claro con botón 🔗');
+console.log('   - ✅ Drag & drop completo (temas y subtemas)');
+console.log('   - ✅ Persistencia en localStorage');
+console.log('💡 Usa diagnosticSubfolders() para debugging');
 </script>
 </body>
 </html>
+
 
 
 
