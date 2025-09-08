@@ -20458,160 +20458,165 @@ console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 <!-- 
-SISTEMA DE SUBCARPETAS Y ORGANIZACIÓN DE TEMAS
+SISTEMA COMPLETO: JERARQUÍAS + DRAG & DROP FUNCIONAL
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este sistema permite mover temas completos dentro de otros y crear jerarquías
+Este sistema implementa jerarquías de temas con drag & drop que realmente funciona
 -->
 
 <script>
-// ========== SISTEMA DE SUBCARPETAS Y ORGANIZACIÓN ==========
-console.log('📁 Implementando sistema de subcarpetas y organización...');
+// ========== SISTEMA COMPLETO DE JERARQUÍAS Y DRAG & DROP ==========
+console.log('🔧 Implementando sistema completo de jerarquías y drag & drop...');
 
-// Modificar estructura de temas para soportar jerarquía
+// Variables globales para drag & drop
+window.draggedTopicData = null;
+
+// Función para asegurar estructura de temas
 function ensureTopicStructure() {
     if (!state.topics) state.topics = [];
     
-    // Asegurar que todos los temas tengan la estructura correcta
     state.topics.forEach(topic => {
         if (!topic.parentId) topic.parentId = null;
         if (!topic.childrenIds) topic.childrenIds = [];
         if (!topic.level) topic.level = 0;
+        if (!topic.order) topic.order = 0;
     });
 }
 
-// GUARDAR LA FUNCIÓN ORIGINAL
-const originalRenderQuestionsByTopicOrg = renderQuestionsByTopic;
+// GUARDAR FUNCIÓN ORIGINAL
+const originalRenderQuestionsByTopicDrag = renderQuestionsByTopic;
 
-// REEMPLAZAR renderQuestionsByTopic para mostrar jerarquía completa
+// REEMPLAZAR renderQuestionsByTopic con sistema completo
 renderQuestionsByTopic = function() {
     ensureTopicStructure();
     
     const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
     let html = '';
     
-    // Obtener temas raíz (sin padre)
-    const rootTopics = state.topics.filter(topic => !topic.parentId);
+    // Obtener solo temas raíz (sin padre) y ordenarlos
+    const rootTopics = state.topics
+        .filter(topic => !topic.parentId)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
     
-    // Función recursiva para renderizar temas y subtemas
-    function renderTopicHierarchy(topic, level = 0) {
+    // Función para renderizar tema con toda su jerarquía
+    function renderTopicWithHierarchy(topic, level = 0) {
         const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
         const hasQuestions = topicQuestions.length > 0;
-        const children = state.topics.filter(t => t.parentId && t.parentId.toString() === topic.id.toString());
+        
+        // Obtener hijos ordenados
+        const children = state.topics
+            .filter(t => t.parentId && t.parentId.toString() === topic.id.toString())
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
         const hasChildren = children.length > 0;
         
         const topicId = topic.id.toString();
         const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
         
-        // Calcular indentación basada en nivel
-        const indentStyle = level > 0 ? `margin-left: ${level * 20}px; border-left: 3px solid #e5e7eb;` : '';
-        
-        // Color del header basado en nivel
-        const headerColors = [
-            '#4f46e5', // Nivel 0 - Azul principal
-            '#7c3aed', // Nivel 1 - Violeta
-            '#059669', // Nivel 2 - Verde
-            '#dc2626', // Nivel 3 - Rojo
-            '#ea580c'  // Nivel 4+ - Naranja
-        ];
-        const headerColor = headerColors[Math.min(level, headerColors.length - 1)];
-        
-        // Iconos por nivel
+        // Colores e iconos por nivel
+        const headerColors = ['#4f46e5', '#7c3aed', '#059669', '#dc2626', '#ea580c'];
         const levelIcons = ['📁', '📂', '📄', '📋', '📝'];
+        const headerColor = headerColors[Math.min(level, headerColors.length - 1)];
         const icon = levelIcons[Math.min(level, levelIcons.length - 1)];
         
-        let topicHtml = `
-            <div style="margin-bottom: 15px; ${indentStyle}" data-topic-level="${level}">
-                <h3 style="background: ${headerColor}; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="display: flex; align-items: center; gap: 8px;">
-                        ${icon} ${topic.name}
-                        ${level > 0 ? `<span style="background: rgba(255,255,255,0.2); padding: 1px 6px; border-radius: 4px; font-size: 10px;">Nivel ${level}</span>` : ''}
-                    </span>
-                    <div style="display: flex; align-items: center; gap: 8px;">
+        // Indentación
+        const indentStyle = level > 0 ? `margin-left: ${level * 20}px; border-left: 3px solid #e5e7eb;` : '';
+        
+        return `
+            <div class="topic-container" 
+                 data-topic-id="${topic.id}" 
+                 data-level="${level}" 
+                 style="margin-bottom: 15px; ${indentStyle} position: relative;"
+                 draggable="true">
+                
+                <!-- Header del tema -->
+                <div class="topic-header" 
+                     style="background: ${headerColor}; color: white; padding: 12px 15px; border-radius: 8px 8px 0 0; margin: 0; 
+                            display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none;
+                            border: 2px solid transparent; transition: all 0.2s ease;">
+                    
+                    <div style="display: flex; align-items: center; gap: 8px; pointer-events: none;">
+                        <span style="font-size: 16px;">${icon}</span>
+                        <span style="font-weight: 600;">${topic.name}</span>
+                        ${level > 0 ? `<span style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; font-size: 10px;">Nivel ${level}</span>` : ''}
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 8px; pointer-events: auto;">
                         ${hasQuestions ? `<span style="font-size: 12px; opacity: 0.9;">${topicQuestions.length} preguntas</span>` : ''}
                         ${hasChildren ? `<span style="font-size: 12px; opacity: 0.9;">${children.length} subtemas</span>` : ''}
                         
-                        <!-- BOTÓN MOVER TEMA DENTRO -->
-                        <button onclick="showMoveTopicModal('${topic.id}')" class="btn btn-success" style="padding: 3px 6px; font-size: 11px; background: #10b981; border: none; border-radius: 3px; color: white; cursor: pointer;" title="Mover tema dentro de otro">
-                            📥
-                        </button>
+                        <!-- Botón mover dentro -->
+                        <button onclick="event.stopPropagation(); showMoveModal('${topic.id}')" 
+                                style="background: #10b981; border: none; color: white; padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;" 
+                                title="Mover dentro de otro tema">📥</button>
                         
-                        <!-- BOTÓN CREAR SUBTEMA -->
-                        <button onclick="createSubtopic('${topic.id}')" class="btn btn-info" style="padding: 3px 6px; font-size: 11px; background: #0ea5e9; border: none; border-radius: 3px; color: white; cursor: pointer;" title="Crear subtema">
-                            📁+
-                        </button>
+                        <!-- Botón crear subtema -->
+                        <button onclick="event.stopPropagation(); createSubtopic('${topic.id}')" 
+                                style="background: #0ea5e9; border: none; color: white; padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;" 
+                                title="Crear subtema">📁+</button>
                         
                         ${(hasQuestions || hasChildren) ? `
-                        <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
-                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 3px 6px; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;"
-                                title="${isCollapsed ? 'Mostrar contenido' : 'Ocultar contenido'}">
+                        <button onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
+                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;">
                             ${isCollapsed ? '▶' : '▼'}
-                        </button>
-                        ` : ''}
+                        </button>` : ''}
                         
-                        ${typeof editTopicSimple === 'function' ? `
-                        <button onclick="editTopicSimple('${topic.id}')" class="btn btn-warning" style="padding: 3px 6px; font-size: 11px; background: #f59e0b; border: none; border-radius: 3px; color: white; cursor: pointer;" title="Editar tema">
-                            ✏️
-                        </button>
-                        ` : ''}
+                        <button onclick="event.stopPropagation(); editTopicName('${topic.id}')" 
+                                style="background: #f59e0b; border: none; color: white; padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;" 
+                                title="Editar">✏️</button>
                         
-                        <button onclick="deleteTopicHierarchy('${topic.id}')" class="btn btn-danger" style="padding: 3px 6px; font-size: 11px; background: #dc2626; border: none; border-radius: 3px; color: white; cursor: pointer;" title="Eliminar tema">
-                            🗑️
-                        </button>
+                        <button onclick="event.stopPropagation(); deleteTopicComplete('${topic.id}')" 
+                                style="background: #dc2626; border: none; color: white; padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;" 
+                                title="Eliminar">🗑️</button>
                     </div>
-                </h3>
+                </div>
                 
-                <div id="topic-content-${topicId}" style="border: 1px solid ${headerColor}; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                <!-- Contenido del tema -->
+                <div class="topic-content" 
+                     style="border: 1px solid ${headerColor}; border-top: none; border-radius: 0 0 8px 8px; background: white; 
+                            display: ${isCollapsed ? 'none' : 'block'};">
                     
-                    <!-- PREGUNTAS DEL TEMA -->
+                    <!-- Preguntas del tema -->
                     ${hasQuestions ? topicQuestions.map(q => {
                         const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                        return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : renderSingleQuestionFallback(q, actualIndex));
+                        return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : renderQuestionFallback(q, actualIndex));
                     }).join('') : ''}
                     
-                    <!-- SUBTEMAS -->
-                    ${hasChildren ? children.map(child => renderTopicHierarchy(child, level + 1)).join('') : ''}
+                    <!-- Subtemas -->
+                    ${hasChildren ? children.map(child => renderTopicWithHierarchy(child, level + 1)).join('') : ''}
                     
                     ${!hasQuestions && !hasChildren ? `
                     <div style="padding: 20px; text-align: center; color: #6b7280; font-style: italic;">
                         📂 Tema vacío - Puedes añadir preguntas o crear subtemas
-                    </div>
-                    ` : ''}
+                    </div>` : ''}
                 </div>
             </div>
         `;
-        
-        return topicHtml;
     }
     
-    // Renderizar todos los temas raíz y sus jerarquías
+    // Renderizar todos los temas raíz
     rootTopics.forEach(topic => {
-        html += renderTopicHierarchy(topic, 0);
+        html += renderTopicWithHierarchy(topic, 0);
     });
     
     // Preguntas sin tema
     if (questionsWithoutTopic.length > 0) {
-        const topicId = 'sin-tema';
-        const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+        const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics['sin-tema']) || false;
         
         html += `
-            <div style="margin-top: 30px; margin-bottom: 30px;">
-                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+            <div style="margin-top: 30px;">
+                <div style="background: #6b7280; color: white; padding: 12px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
                     <span>📂 Sin tema asignado</span>
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
-                        ${typeof toggleTopicVisibility === 'function' ? `
-                        <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
-                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
-                                title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                        <span style="font-size: 12px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                        <button onclick="toggleTopicVisibility('sin-tema')" 
+                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 10px;">
                             ${isCollapsed ? '▶' : '▼'}
                         </button>
-                        ` : ''}
                     </div>
-                </h3>
-                <div id="topic-content-${topicId}" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                </div>
+                <div id="topic-content-sin-tema" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
                     ${questionsWithoutTopic.map(q => {
                         const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                        return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : renderSingleQuestionFallback(q, actualIndex));
+                        return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : renderQuestionFallback(q, actualIndex));
                     }).join('')}
                 </div>
             </div>
@@ -20619,343 +20624,385 @@ renderQuestionsByTopic = function() {
     }
     
     if (html === '') {
-        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay temas ni preguntas disponibles</div>';
+        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay temas disponibles</div>';
     }
     
     return html;
 };
 
-// FUNCIÓN para mostrar modal de mover tema
-window.showMoveTopicModal = function(topicId) {
-    const topic = state.topics.find(t => t.id.toString() === topicId.toString());
-    if (!topic) {
-        if (typeof showMessage === 'function') {
-            showMessage('❌ Tema no encontrado', 'error');
-        }
-        return;
-    }
+// IMPLEMENTAR DRAG & DROP DESPUÉS DEL RENDER
+function setupDragAndDrop() {
+    // Esperar a que el DOM se actualice
+    setTimeout(() => {
+        const topicContainers = document.querySelectorAll('.topic-container');
+        
+        topicContainers.forEach(container => {
+            // Eventos de drag & drop
+            container.addEventListener('dragstart', handleDragStart);
+            container.addEventListener('dragend', handleDragEnd);
+            container.addEventListener('dragover', handleDragOver);
+            container.addEventListener('dragenter', handleDragEnter);
+            container.addEventListener('dragleave', handleDragLeave);
+            container.addEventListener('drop', handleDrop);
+        });
+        
+        console.log(`🎯 Drag & Drop configurado para ${topicContainers.length} temas`);
+    }, 100);
+}
+
+// EVENTOS DE DRAG & DROP
+function handleDragStart(e) {
+    const topicId = e.currentTarget.getAttribute('data-topic-id');
+    const level = parseInt(e.currentTarget.getAttribute('data-level'));
     
-    // Obtener posibles destinos (excluyendo el tema actual y sus descendientes)
-    const descendants = getDescendantTopics(topicId);
-    const availableTopics = state.topics.filter(t => 
-        t.id.toString() !== topicId.toString() && 
-        !descendants.includes(t.id.toString())
-    );
+    window.draggedTopicData = { topicId, level };
     
-    const modal = document.createElement('div');
-    modal.id = 'moveTopicModal';
-    modal.style.cssText = `
-        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center;
-        z-index: 10000; padding: 20px;
-    `;
+    e.currentTarget.style.opacity = '0.5';
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', topicId);
     
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 12px; padding: 20px; max-width: 500px; width: 100%; max-height: 80vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 style="margin: 0; color: #1f2937;">📥 Mover Tema</h3>
-                <button onclick="closeMoveTopicModal()" style="background: none; border: none; font-size: 20px; color: #6b7280; cursor: pointer;">✕</button>
-            </div>
-            
-            <div style="margin-bottom: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
-                <strong>Tema a mover:</strong> ${getTopicHierarchyPath(topic)}
-                <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">
-                    Este tema se moverá COMPLETO (con todas sus preguntas y subtemas)
-                </div>
-            </div>
-            
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 500;">Destino:</label>
-                <select id="destinationTopicSelect" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
-                    <option value="">📁 Raíz (nivel principal)</option>
-                    ${availableTopics.map(t => {
-                        const path = getTopicHierarchyPath(t);
-                        const level = getTopicLevel(t.id);
-                        return `<option value="${t.id}">${'  '.repeat(level)}📁 ${path}</option>`;
-                    }).join('')}
-                </select>
-            </div>
-            
-            <div style="margin-bottom: 20px; padding: 10px; background: #fef3c7; border-radius: 6px; font-size: 12px;">
-                <strong>⚠️ Importante:</strong>
-                <ul style="margin: 5px 0 0 20px; padding: 0;">
-                    <li>Se moverá el tema completo con preguntas y subtemas</li>
-                    <li>Se reorganizará automáticamente la jerarquía</li>
-                    <li>Se actualizará en gestión de temas</li>
-                    <li>Esta acción se puede deshacer moviendo de nuevo</li>
-                </ul>
-            </div>
-            
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button onclick="closeMoveTopicModal()" class="btn btn-secondary" style="padding: 8px 16px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                    Cancelar
-                </button>
-                <button onclick="executeMoveTop('${topicId}')" class="btn btn-primary" style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                    📥 Mover Tema
-                </button>
-            </div>
-        </div>
-    `;
+    console.log('🎯 Iniciando arrastre:', { topicId, level });
+}
+
+function handleDragEnd(e) {
+    e.currentTarget.style.opacity = '1';
+    e.currentTarget.style.borderColor = 'transparent';
     
-    document.body.appendChild(modal);
-    
-    modal.addEventListener('click', function(e) {
-        if (e.target === modal) closeMoveTopicModal();
+    // Limpiar todos los indicadores
+    document.querySelectorAll('.topic-container .topic-header').forEach(header => {
+        header.style.borderColor = 'transparent';
+        header.style.borderStyle = 'solid';
     });
-};
+    
+    window.draggedTopicData = null;
+    console.log('🏁 Arrastre terminado');
+}
 
-// FUNCIÓN para cerrar modal
-window.closeMoveTopicModal = function() {
-    const modal = document.getElementById('moveTopicModal');
-    if (modal) modal.remove();
-};
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+}
 
-// FUNCIÓN para ejecutar movimiento
-window.executeMoveTop = function(topicId) {
-    const destinationSelect = document.getElementById('destinationTopicSelect');
-    const destinationId = destinationSelect ? destinationSelect.value || null : null;
+function handleDragEnter(e) {
+    e.preventDefault();
     
-    const topic = state.topics.find(t => t.id.toString() === topicId.toString());
-    const destination = destinationId ? state.topics.find(t => t.id.toString() === destinationId.toString()) : null;
+    if (!window.draggedTopicData) return;
     
-    if (!topic) {
-        if (typeof showMessage === 'function') {
-            showMessage('❌ Tema no encontrado', 'error');
-        }
-        return;
-    }
+    const targetTopicId = e.currentTarget.getAttribute('data-topic-id');
+    const draggedTopicId = window.draggedTopicData.topicId;
     
-    // Verificar que no se mueva a sí mismo o a un descendiente
-    if (destinationId === topicId || getDescendantTopics(topicId).includes(destinationId)) {
-        if (typeof showMessage === 'function') {
-            showMessage('❌ No se puede mover a sí mismo o a un subtema', 'error');
-        }
-        return;
-    }
-    
-    const confirmMsg = destinationId ? 
-        `¿Mover "${topic.name}" dentro de "${destination.name}"?` :
-        `¿Mover "${topic.name}" al nivel raíz?`;
-    
-    if (!confirm(confirmMsg + '\n\nSe moverá el tema completo con todas sus preguntas y subtemas.')) {
-        return;
-    }
-    
-    try {
-        // Remover de padre anterior
-        if (topic.parentId) {
-            const oldParent = state.topics.find(t => t.id.toString() === topic.parentId.toString());
-            if (oldParent && oldParent.childrenIds) {
-                oldParent.childrenIds = oldParent.childrenIds.filter(id => id.toString() !== topicId.toString());
+    if (targetTopicId !== draggedTopicId) {
+        const header = e.currentTarget.querySelector('.topic-header');
+        if (header) {
+            // Verificar si es válido el movimiento
+            if (isValidDrop(draggedTopicId, targetTopicId)) {
+                header.style.borderColor = '#3b82f6';
+                header.style.borderStyle = 'dashed';
+            } else {
+                header.style.borderColor = '#ef4444';
+                header.style.borderStyle = 'dashed';
             }
         }
-        
-        // Asignar nuevo padre
-        topic.parentId = destinationId;
-        topic.level = destinationId ? (getTopicLevel(destinationId) + 1) : 0;
-        
-        // Añadir a nuevo padre
-        if (destinationId) {
-            if (!destination.childrenIds) destination.childrenIds = [];
-            if (!destination.childrenIds.includes(topicId.toString())) {
-                destination.childrenIds.push(topicId.toString());
-            }
-        }
-        
-        // Actualizar niveles de descendientes
-        updateDescendantLevels(topicId);
-        
-        // Guardar cambios
-        localStorage.setItem('topics', JSON.stringify(state.topics));
-        if (typeof saveData === 'function') saveData();
-        
-        closeMoveTopicModal();
-        if (typeof render === 'function') render();
-        
-        if (typeof showMessage === 'function') {
-            const destName = destinationId ? destination.name : 'nivel raíz';
-            showMessage(`✅ Tema "${topic.name}" movido a "${destName}"`, 'success');
-        }
-        
-    } catch (error) {
-        console.error('❌ Error moviendo tema:', error);
-        if (typeof showMessage === 'function') {
-            showMessage('❌ Error al mover tema: ' + error.message, 'error');
-        }
     }
-};
+}
 
-// FUNCIÓN para crear subtema
-window.createSubtopic = function(parentId) {
-    const parent = state.topics.find(t => t.id.toString() === parentId.toString());
-    if (!parent) {
-        if (typeof showMessage === 'function') {
-            showMessage('❌ Tema padre no encontrado', 'error');
-        }
-        return;
-    }
-    
-    const name = prompt(`Crear subtema dentro de "${parent.name}":\n\nNombre del nuevo subtema:`);
-    
-    if (!name || name.trim().length === 0) return;
-    
-    // Verificar nombre único
-    const existingTopic = state.topics.find(t => t.name.toLowerCase() === name.trim().toLowerCase());
-    if (existingTopic) {
-        if (typeof showMessage === 'function') {
-            showMessage('❌ Ya existe un tema con ese nombre', 'error');
-        }
-        return;
-    }
-    
-    try {
-        const newTopic = {
-            id: Date.now() + Math.random(),
-            name: name.trim(),
-            parentId: parentId.toString(),
-            childrenIds: [],
-            level: parent.level + 1,
-            createdAt: new Date().toISOString()
-        };
-        
-        state.topics.push(newTopic);
-        
-        // Añadir a children del padre
-        if (!parent.childrenIds) parent.childrenIds = [];
-        parent.childrenIds.push(newTopic.id.toString());
-        
-        // Guardar
-        localStorage.setItem('topics', JSON.stringify(state.topics));
-        if (typeof saveData === 'function') saveData();
-        
-        if (typeof render === 'function') render();
-        
-        if (typeof showMessage === 'function') {
-            showMessage(`✅ Subtema "${name.trim()}" creado dentro de "${parent.name}"`, 'success');
-        }
-        
-    } catch (error) {
-        console.error('❌ Error creando subtema:', error);
-        if (typeof showMessage === 'function') {
-            showMessage('❌ Error al crear subtema: ' + error.message, 'error');
+function handleDragLeave(e) {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+        const header = e.currentTarget.querySelector('.topic-header');
+        if (header) {
+            header.style.borderColor = 'transparent';
+            header.style.borderStyle = 'solid';
         }
     }
-};
+}
 
-// FUNCIÓN para eliminar con jerarquía
-window.deleteTopicHierarchy = function(topicId) {
-    const topic = state.topics.find(t => t.id.toString() === topicId.toString());
-    if (!topic) return;
+function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
     
-    const descendants = getDescendantTopics(topicId);
-    const allTopicsToDelete = [topicId, ...descendants];
+    if (!window.draggedTopicData) return;
     
-    const questionsToDelete = state.questions.filter(q => 
-        q.topicId && allTopicsToDelete.includes(q.topicId.toString())
-    );
+    const targetTopicId = e.currentTarget.getAttribute('data-topic-id');
+    const targetLevel = parseInt(e.currentTarget.getAttribute('data-level'));
+    const draggedTopicId = window.draggedTopicData.topicId;
     
-    let confirmMsg = `¿Eliminar "${topic.name}"?`;
-    if (descendants.length > 0) {
-        confirmMsg += `\n\nEsto eliminará también ${descendants.length} subtemas`;
+    // Limpiar indicadores visuales
+    const header = e.currentTarget.querySelector('.topic-header');
+    if (header) {
+        header.style.borderColor = 'transparent';
+        header.style.borderStyle = 'solid';
     }
-    if (questionsToDelete.length > 0) {
-        confirmMsg += `\ny ${questionsToDelete.length} preguntas`;
-    }
-    confirmMsg += '\n\nEsta acción no se puede deshacer.';
     
-    if (!confirm(confirmMsg)) return;
-    
-    try {
-        // Remover de padre
-        if (topic.parentId) {
-            const parent = state.topics.find(t => t.id.toString() === topic.parentId.toString());
-            if (parent && parent.childrenIds) {
-                parent.childrenIds = parent.childrenIds.filter(id => id.toString() !== topicId.toString());
-            }
-        }
-        
-        // Eliminar temas
-        state.topics = state.topics.filter(t => !allTopicsToDelete.includes(t.id.toString()));
-        
-        // Eliminar preguntas
-        state.questions = state.questions.filter(q => 
-            !q.topicId || !allTopicsToDelete.includes(q.topicId.toString())
-        );
-        
-        // Guardar
-        localStorage.setItem('topics', JSON.stringify(state.topics));
-        localStorage.setItem('questions', JSON.stringify(state.questions));
-        if (typeof saveData === 'function') saveData();
-        
-        if (typeof render === 'function') render();
-        
-        if (typeof showMessage === 'function') {
-            showMessage(`✅ Eliminado "${topic.name}" y ${allTopicsToDelete.length - 1} subtemas con ${questionsToDelete.length} preguntas`, 'success');
-        }
-        
-    } catch (error) {
-        console.error('❌ Error eliminando:', error);
-        if (typeof showMessage === 'function') {
-            showMessage('❌ Error al eliminar: ' + error.message, 'error');
-        }
+    if (targetTopicId !== draggedTopicId && isValidDrop(draggedTopicId, targetTopicId)) {
+        reorderTopics(draggedTopicId, targetTopicId, targetLevel);
     }
-};
+}
 
 // FUNCIONES AUXILIARES
-function getDescendantTopics(topicId) {
+function isValidDrop(draggedId, targetId) {
+    // No puede moverse a sí mismo
+    if (draggedId === targetId) return false;
+    
+    // No puede moverse a un descendiente
+    const descendants = getDescendants(draggedId);
+    return !descendants.includes(targetId);
+}
+
+function getDescendants(topicId) {
     const descendants = [];
     const children = state.topics.filter(t => t.parentId && t.parentId.toString() === topicId.toString());
     
     children.forEach(child => {
         descendants.push(child.id.toString());
-        descendants.push(...getDescendantTopics(child.id));
+        descendants.push(...getDescendants(child.id));
     });
     
     return descendants;
 }
 
-function getTopicLevel(topicId) {
-    const topic = state.topics.find(t => t.id.toString() === topicId.toString());
-    return topic ? (topic.level || 0) : 0;
+function reorderTopics(draggedId, targetId, targetLevel) {
+    console.log(`🔄 Reordenando: ${draggedId} cerca de ${targetId} (nivel ${targetLevel})`);
+    
+    const draggedTopic = state.topics.find(t => t.id.toString() === draggedId);
+    const targetTopic = state.topics.find(t => t.id.toString() === targetId);
+    
+    if (!draggedTopic || !targetTopic) {
+        console.error('❌ Temas no encontrados');
+        return;
+    }
+    
+    try {
+        // Los temas se reordenan como hermanos (mismo nivel que el target)
+        const newParentId = targetTopic.parentId;
+        
+        // Remover del padre anterior
+        if (draggedTopic.parentId) {
+            const oldParent = state.topics.find(t => t.id.toString() === draggedTopic.parentId.toString());
+            if (oldParent && oldParent.childrenIds) {
+                oldParent.childrenIds = oldParent.childrenIds.filter(id => id.toString() !== draggedId);
+            }
+        }
+        
+        // Actualizar el tema arrastrado
+        draggedTopic.parentId = newParentId;
+        draggedTopic.level = targetLevel;
+        
+        // Añadir al nuevo padre
+        if (newParentId) {
+            const newParent = state.topics.find(t => t.id.toString() === newParentId.toString());
+            if (newParent) {
+                if (!newParent.childrenIds) newParent.childrenIds = [];
+                if (!newParent.childrenIds.includes(draggedId)) {
+                    newParent.childrenIds.push(draggedId);
+                }
+            }
+        }
+        
+        // Reordenar en el array principal
+        const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedId);
+        const targetIndex = state.topics.findIndex(t => t.id.toString() === targetId);
+        
+        if (draggedIndex !== -1 && targetIndex !== -1) {
+            const [movedTopic] = state.topics.splice(draggedIndex, 1);
+            const newIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+            state.topics.splice(newIndex, 0, movedTopic);
+        }
+        
+        // Actualizar niveles de descendientes
+        updateChildrenLevels(draggedId);
+        
+        // Guardar y re-renderizar
+        localStorage.setItem('topics', JSON.stringify(state.topics));
+        if (typeof saveData === 'function') saveData();
+        
+        if (typeof render === 'function') {
+            render();
+        }
+        
+        if (typeof showMessage === 'function') {
+            showMessage(`✅ Tema "${draggedTopic.name}" reordenado`, 'success');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error reordenando:', error);
+        if (typeof showMessage === 'function') {
+            showMessage('❌ Error al reordenar tema', 'error');
+        }
+    }
 }
 
-function getTopicHierarchyPath(topic) {
-    if (!topic.parentId) return topic.name;
-    
-    const parent = state.topics.find(t => t.id.toString() === topic.parentId.toString());
-    if (!parent) return topic.name;
-    
-    return getTopicHierarchyPath(parent) + ' → ' + topic.name;
-}
-
-function updateDescendantLevels(topicId) {
+function updateChildrenLevels(topicId) {
     const topic = state.topics.find(t => t.id.toString() === topicId.toString());
     if (!topic) return;
     
     const children = state.topics.filter(t => t.parentId && t.parentId.toString() === topicId.toString());
-    
     children.forEach(child => {
         child.level = topic.level + 1;
-        updateDescendantLevels(child.id);
+        updateChildrenLevels(child.id);
     });
 }
 
-// Hacer funciones disponibles globalmente también
-window.getTopicLevel = getTopicLevel;
-window.getTopicHierarchyPath = getTopicHierarchyPath; 
-window.updateDescendantLevels = updateDescendantLevels;
-
-// Función fallback para renderizar pregunta individual
-function renderSingleQuestionFallback(q, actualIndex) {
-    const topicName = q.topicId ? (state.topics.find(t => t.id == q.topicId)?.name || 'Sin tema') : null;
+// OTRAS FUNCIONES
+window.showMoveModal = function(topicId) {
+    const topic = state.topics.find(t => t.id.toString() === topicId.toString());
+    if (!topic) return;
     
+    const possibleParents = state.topics.filter(t => {
+        const descendants = getDescendants(topicId);
+        return t.id.toString() !== topicId.toString() && !descendants.includes(t.id.toString());
+    });
+    
+    const name = prompt(`Mover "${topic.name}" dentro de otro tema.\n\nTemas disponibles:\n${possibleParents.map((p, i) => `${i + 1}. ${p.name}`).join('\n')}\n\nIngresa el número (o 0 para raíz):`);
+    
+    if (name === null) return;
+    
+    const index = parseInt(name);
+    let newParentId = null;
+    
+    if (index > 0 && index <= possibleParents.length) {
+        newParentId = possibleParents[index - 1].id;
+    } else if (index !== 0) {
+        alert('Número inválido');
+        return;
+    }
+    
+    moveTopicToParent(topicId, newParentId);
+};
+
+function moveTopicToParent(topicId, newParentId) {
+    const topic = state.topics.find(t => t.id.toString() === topicId.toString());
+    if (!topic) return;
+    
+    // Remover del padre anterior
+    if (topic.parentId) {
+        const oldParent = state.topics.find(t => t.id.toString() === topic.parentId.toString());
+        if (oldParent && oldParent.childrenIds) {
+            oldParent.childrenIds = oldParent.childrenIds.filter(id => id.toString() !== topicId.toString());
+        }
+    }
+    
+    // Asignar nuevo padre
+    topic.parentId = newParentId;
+    topic.level = newParentId ? (state.topics.find(t => t.id.toString() === newParentId.toString()).level + 1) : 0;
+    
+    // Añadir al nuevo padre
+    if (newParentId) {
+        const newParent = state.topics.find(t => t.id.toString() === newParentId.toString());
+        if (newParent) {
+            if (!newParent.childrenIds) newParent.childrenIds = [];
+            if (!newParent.childrenIds.includes(topicId.toString())) {
+                newParent.childrenIds.push(topicId.toString());
+            }
+        }
+    }
+    
+    updateChildrenLevels(topicId);
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    if (typeof saveData === 'function') saveData();
+    
+    if (typeof render === 'function') render();
+    
+    const destName = newParentId ? state.topics.find(t => t.id.toString() === newParentId.toString()).name : 'raíz';
+    if (typeof showMessage === 'function') {
+        showMessage(`✅ "${topic.name}" movido a "${destName}"`, 'success');
+    }
+}
+
+window.createSubtopic = function(parentId) {
+    const parent = state.topics.find(t => t.id.toString() === parentId.toString());
+    if (!parent) return;
+    
+    const name = prompt(`Crear subtema dentro de "${parent.name}":\n\nNombre del subtema:`);
+    if (!name || !name.trim()) return;
+    
+    const newTopic = {
+        id: Date.now() + Math.random(),
+        name: name.trim(),
+        parentId: parentId.toString(),
+        childrenIds: [],
+        level: parent.level + 1,
+        order: 0,
+        createdAt: new Date().toISOString()
+    };
+    
+    state.topics.push(newTopic);
+    
+    if (!parent.childrenIds) parent.childrenIds = [];
+    parent.childrenIds.push(newTopic.id.toString());
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    if (typeof saveData === 'function') saveData();
+    
+    if (typeof render === 'function') render();
+    
+    if (typeof showMessage === 'function') {
+        showMessage(`✅ Subtema "${name.trim()}" creado`, 'success');
+    }
+};
+
+window.editTopicName = function(topicId) {
+    const topic = state.topics.find(t => t.id.toString() === topicId.toString());
+    if (!topic) return;
+    
+    const newName = prompt(`Editar nombre:\n\nNombre actual: "${topic.name}"\n\nNuevo nombre:`, topic.name);
+    if (!newName || !newName.trim() || newName.trim() === topic.name) return;
+    
+    topic.name = newName.trim();
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    if (typeof saveData === 'function') saveData();
+    
+    if (typeof render === 'function') render();
+    
+    if (typeof showMessage === 'function') {
+        showMessage(`✅ Tema renombrado a "${newName.trim()}"`, 'success');
+    }
+};
+
+window.deleteTopicComplete = function(topicId) {
+    const topic = state.topics.find(t => t.id.toString() === topicId.toString());
+    if (!topic) return;
+    
+    const descendants = getDescendants(topicId);
+    const allToDelete = [topicId, ...descendants];
+    const questionsToDelete = state.questions.filter(q => q.topicId && allToDelete.includes(q.topicId.toString()));
+    
+    let msg = `¿Eliminar "${topic.name}"?`;
+    if (descendants.length > 0) msg += `\n\nEliminará ${descendants.length} subtemas`;
+    if (questionsToDelete.length > 0) msg += ` y ${questionsToDelete.length} preguntas`;
+    msg += '\n\nEsta acción no se puede deshacer.';
+    
+    if (!confirm(msg)) return;
+    
+    // Remover del padre
+    if (topic.parentId) {
+        const parent = state.topics.find(t => t.id.toString() === topic.parentId.toString());
+        if (parent && parent.childrenIds) {
+            parent.childrenIds = parent.childrenIds.filter(id => id.toString() !== topicId.toString());
+        }
+    }
+    
+    // Eliminar temas y preguntas
+    state.topics = state.topics.filter(t => !allToDelete.includes(t.id.toString()));
+    state.questions = state.questions.filter(q => !q.topicId || !allToDelete.includes(q.topicId.toString()));
+    
+    localStorage.setItem('topics', JSON.stringify(state.topics));
+    localStorage.setItem('questions', JSON.stringify(state.questions));
+    if (typeof saveData === 'function') saveData();
+    
+    if (typeof render === 'function') render();
+    
+    if (typeof showMessage === 'function') {
+        showMessage(`✅ "${topic.name}" eliminado con ${allToDelete.length - 1} subtemas y ${questionsToDelete.length} preguntas`, 'success');
+    }
+};
+
+function renderQuestionFallback(q, actualIndex) {
     return `
         <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
             <div style="flex: 1;">
-                <div style="font-weight: 500; margin-bottom: 8px;">
-                    P${actualIndex + 1}: ${q.question}
-                    ${topicName ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px; margin-left: 8px;">${topicName}</span>` : ''}
-                </div>
+                <div style="font-weight: 500; margin-bottom: 8px;">P${actualIndex + 1}: ${q.question}</div>
                 <ul style="list-style: none; margin: 0; padding: 0;">
                     ${q.options.map((opt, optIndex) => `
                         <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'};">
@@ -20964,30 +21011,33 @@ function renderSingleQuestionFallback(q, actualIndex) {
                     `).join('')}
                 </ul>
             </div>
-            <div style="display: flex; gap: 5px; flex-shrink: 0; margin-left: 15px;">
-                ${typeof editQuestion === 'function' ? `<button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>` : ''}
-                ${typeof deleteQuestion === 'function' ? `<button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>` : ''}
-            </div>
         </div>
     `;
 }
 
-console.log('✅ Sistema de subcarpetas implementado correctamente');
-console.log('📁 Funcionalidades añadidas:');
-console.log('   - Jerarquía completa de temas con niveles visuales');
-console.log('   - Botón 📥 para mover temas completos dentro de otros');
+// INTERCEPTAR RENDER PARA CONFIGURAR DRAG & DROP
+const originalRender = window.render;
+if (typeof window.render === 'function') {
+    window.render = function() {
+        originalRender.call(this);
+        setupDragAndDrop();
+    };
+}
+
+console.log('✅ Sistema completo implementado');
+console.log('🎯 Funcionalidades:');
+console.log('   - Jerarquías visuales con colores por nivel');
+console.log('   - Drag & Drop REAL Y FUNCIONAL para reordenar');
+console.log('   - Botón 📥 para mover dentro de otros temas');
 console.log('   - Botón 📁+ para crear subtemas');
-console.log('   - Diferentes colores por nivel jerárquico');
-console.log('   - Temas vacíos pueden tener subcarpetas');
-console.log('   - ✅ DRAG & DROP completo para reordenar temas y subtemas');
-console.log('   - Validación de jerarquías (no mover a descendientes)');
-console.log('   - Indicadores visuales al arrastrar (azul=válido, rojo=inválido)');
-console.log('   - Eliminación en cascada (tema + subtemas + preguntas)');
-console.log('   - Sincronizado con localStorage y estado global');
-console.log('🎯 Arrastra cualquier tema por su header para reordenar');
+console.log('   - Edición y eliminación completa');
+console.log('   - Validaciones para evitar bucles');
+console.log('   - Sincronización con localStorage');
+console.log('🚀 ¡Arrastra cualquier header de tema para reordenar!');
 </script>
 </body>
 </html>
+
 
 
 
