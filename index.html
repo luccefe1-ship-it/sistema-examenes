@@ -20851,71 +20851,81 @@ window.ejecutarMoverVisual = function(temaId, nuevoParentId) {
 
 // TODAS LAS FUNCIONES QUE FUNCIONABAN
 function reorderTopicsWithHierarchy(draggedId, targetId) {
+    console.log(`🔄 Intercambiando posiciones: ${draggedId} ↔ ${targetId}`);
+    
     const draggedTopic = state.topics.find(t => t.id.toString() === draggedId);
     const targetTopic = state.topics.find(t => t.id.toString() === targetId);
     
-    if (!draggedTopic || !targetTopic) return;
+    if (!draggedTopic || !targetTopic) {
+        console.error('❌ Temas no encontrados para reordenar');
+        return;
+    }
     
-    if (draggedTopic.parentId === targetTopic.parentId) {
-        const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedId);
-        const targetIndex = state.topics.findIndex(t => t.id.toString() === targetId);
+    console.log(`📋 Intercambiando "${draggedTopic.name}" con "${targetTopic.name}"`);
+    
+    // INTERCAMBIO SIMPLE DE POSICIONES (sin cambiar jerarquía)
+    const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedId);
+    const targetIndex = state.topics.findIndex(t => t.id.toString() === targetId);
+    
+    if (draggedIndex !== -1 && targetIndex !== -1) {
+        // Quitar el tema arrastrado de su posición
+        const [movedTopic] = state.topics.splice(draggedIndex, 1);
         
-        if (draggedIndex !== -1 && targetIndex !== -1) {
-            const [movedTopic] = state.topics.splice(draggedIndex, 1);
-            const newIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
-            state.topics.splice(newIndex, 0, movedTopic);
-        }
+        // Calcular nueva posición (antes o después del target dependiendo de la dirección)
+        const newIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+        
+        // Insertar en la nueva posición
+        state.topics.splice(newIndex, 0, movedTopic);
+        
+        console.log(`✅ "${draggedTopic.name}" movido de posición ${draggedIndex} a ${newIndex}`);
     } else {
-        if (!confirm(`¿Mover "${draggedTopic.name}" como hermano de "${targetTopic.name}"?`)) return;
-        
-        if (draggedTopic.parentId) {
-            const oldParent = state.topics.find(t => t.id.toString() === draggedTopic.parentId.toString());
-            if (oldParent && oldParent.childrenIds) {
-                oldParent.childrenIds = oldParent.childrenIds.filter(id => id.toString() !== draggedId);
-            }
-        }
-        
-        const newParentId = targetTopic.parentId;
-        draggedTopic.parentId = newParentId;
-        draggedTopic.level = targetTopic.level;
-        
-        if (newParentId) {
-            const newParent = state.topics.find(t => t.id.toString() === newParentId.toString());
-            if (newParent) {
-                if (!newParent.childrenIds) newParent.childrenIds = [];
-                if (!newParent.childrenIds.includes(draggedId)) {
-                    newParent.childrenIds.push(draggedId);
-                }
-            }
-        }
-        
-        const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedId);
-        const targetIndex = state.topics.findIndex(t => t.id.toString() === targetId);
-        
-        if (draggedIndex !== -1 && targetIndex !== -1) {
-            const [movedTopic] = state.topics.splice(draggedIndex, 1);
-            const newIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
-            state.topics.splice(newIndex, 0, movedTopic);
-        }
+        console.error('❌ Error: Índices no encontrados');
+        return;
     }
     
-    function actualizarNivelesRecursivo(temaId) {
-        const tema = state.topics.find(t => t.id.toString() === temaId.toString());
-        if (!tema) return;
-        
-        const hijos = state.topics.filter(t => t.parentId && t.parentId.toString() === temaId.toString());
-        hijos.forEach(hijo => {
-            hijo.level = tema.level + 1;
-            actualizarNivelesRecursivo(hijo.id);
-        });
+    // VERIFICACIÓN DE INTEGRIDAD (por si acaso)
+    console.log('🔍 Verificando integridad...');
+    let temasRecuperados = 0;
+    
+    state.topics.forEach(tema => {
+        if (tema.parentId) {
+            const padre = state.topics.find(t => t.id.toString() === tema.parentId.toString());
+            if (!padre) {
+                console.warn(`⚠️ Padre perdido para "${tema.name}", moviendo a raíz`);
+                tema.parentId = null;
+                tema.level = 0;
+                temasRecuperados++;
+            }
+        }
+    });
+    
+    if (temasRecuperados > 0) {
+        console.log(`🔧 Recuperados ${temasRecuperados} temas huérfanos`);
     }
     
-    actualizarNivelesRecursivo(draggedId);
+    // Verificar que el tema arrastrado sigue existiendo
+    const temaVerificacion = state.topics.find(t => t.id.toString() === draggedId);
+    if (!temaVerificacion) {
+        console.error(`❌ CRÍTICO: Tema "${draggedTopic.name}" perdido durante movimiento`);
+        if (typeof showMessage === 'function') {
+            showMessage(`❌ Error: Tema perdido durante movimiento. Recargando...`, 'error');
+        }
+        return;
+    }
     
+    // Guardar y re-renderizar
     localStorage.setItem('topics', JSON.stringify(state.topics));
     if (typeof saveData === 'function') saveData();
-    if (typeof render === 'function') render();
-    if (typeof showMessage === 'function') showMessage(`✅ Tema "${draggedTopic.name}" reordenado`, 'success');
+    
+    if (typeof render === 'function') {
+        render();
+    }
+    
+    if (typeof showMessage === 'function') {
+        showMessage(`✅ "${draggedTopic.name}" reordenado`, 'success');
+    }
+    
+    console.log(`✅ Intercambio completado: "${draggedTopic.name}" ahora en nueva posición`);
 }
 
 function moverTemaAPadreDefinitivo(temaId, nuevoParentId) {
@@ -21150,6 +21160,7 @@ console.log('🚀 ¡Todo debería funcionar perfectamente ahora!');
 </script>
 </body>
 </html>
+
 
 
 
