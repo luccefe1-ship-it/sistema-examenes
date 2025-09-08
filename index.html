@@ -20933,7 +20933,16 @@ function eliminarTemaDefinitivo(temaId) {
     
     if (!confirm(mensaje)) return;
     
-    // Eliminar
+    // IMPORTANTE: Remover del padre ANTES de eliminar
+    if (tema.parentId) {
+        const padre = state.topics.find(t => t.id.toString() === tema.parentId.toString());
+        if (padre && padre.childrenIds) {
+            padre.childrenIds = padre.childrenIds.filter(id => id.toString() !== temaId.toString());
+            console.log(`📤 Removido "${tema.name}" del padre "${padre.name}"`);
+        }
+    }
+    
+    // Eliminar temas y preguntas
     state.topics = state.topics.filter(t => !todosParaEliminar.includes(t.id.toString()));
     state.questions = state.questions.filter(q => !q.topicId || !todosParaEliminar.includes(q.topicId.toString()));
     
@@ -20943,9 +20952,71 @@ function eliminarTemaDefinitivo(temaId) {
     if (typeof render === 'function') render();
     
     if (typeof showMessage === 'function') {
-        showMessage(`✅ "${tema.name}" eliminado`, 'success');
+        showMessage(`✅ "${tema.name}" eliminado con ${descendientes.length} subtemas y ${preguntasAEliminar.length} preguntas`, 'success');
     }
 }
+
+// FUNCIÓN PARA COLAPSAR/EXPANDIR (DEFINITIVA Y CORREGIDA)
+function toggleTopicVisibilityDefinitivo(topicId) {
+    console.log('🔽 Toggle visibility para:', topicId);
+    
+    // Inicializar collapsedTopics si no existe
+    if (typeof window.collapsedTopics === 'undefined') {
+        window.collapsedTopics = JSON.parse(localStorage.getItem('collapsedTopics') || '{}');
+    }
+    
+    // Alternar estado
+    window.collapsedTopics[topicId] = !window.collapsedTopics[topicId];
+    
+    // Guardar en localStorage
+    localStorage.setItem('collapsedTopics', JSON.stringify(window.collapsedTopics));
+    
+    // Buscar elementos específicos
+    const temaContainer = document.querySelector(`[data-tema-id="${topicId}"]`);
+    
+    if (temaContainer) {
+        const contenidoElement = temaContainer.querySelector('.tema-contenido');
+        const botonElement = temaContainer.querySelector(`[data-tema="${topicId}"].btn-colapsar`);
+        
+        if (contenidoElement && botonElement) {
+            const isCollapsed = window.collapsedTopics[topicId];
+            
+            // Aplicar cambios inmediatamente
+            if (isCollapsed) {
+                contenidoElement.style.display = 'none';
+                botonElement.textContent = '▶';
+                botonElement.title = 'Mostrar contenido';
+            } else {
+                contenidoElement.style.display = 'block';
+                botonElement.textContent = '▼';
+                botonElement.title = 'Ocultar contenido';
+            }
+            
+            console.log(`✅ Tema ${topicId} ${isCollapsed ? 'colapsado' : 'expandido'} correctamente`);
+            
+            // Opcional: Mostrar mensaje
+            if (typeof showMessage === 'function') {
+                const tema = state.topics.find(t => t.id.toString() === topicId.toString());
+                const temaName = tema ? tema.name : topicId;
+                showMessage(`${isCollapsed ? '📁' : '📂'} ${temaName} ${isCollapsed ? 'colapsado' : 'expandido'}`, 'info');
+            }
+            
+        } else {
+            console.warn('⚠️ No se encontraron elementos de contenido o botón para:', topicId);
+        }
+    } else {
+        console.warn('⚠️ No se encontró contenedor de tema para:', topicId);
+        
+        // Fallback: re-renderizar completo si no encuentra elementos
+        console.log('🔄 Ejecutando re-render como fallback...');
+        if (typeof render === 'function') {
+            render();
+        }
+    }
+}
+
+// Hacer la función también disponible globalmente con nombre alternativo
+window.toggleTopicVisibility = toggleTopicVisibilityDefinitivo;
 
 // PASO 4: INTERCEPTAR RENDER PARA CONFIGURAR EVENTOS
 const renderOriginalDefinitivo = window.render;
@@ -20966,6 +21037,7 @@ console.log('   - Reemplazo agresivo de todas las funciones');
 </script>
 </body>
 </html>
+
 
 
 
