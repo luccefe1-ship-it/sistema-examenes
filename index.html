@@ -21070,8 +21070,413 @@ console.log('   - ✅ Funcionalidad de expandir/colapsar');
 console.log('🔄 Arrastra cualquier header para reordenar');
 console.log('💡 Usa diagnosticSubfolders() en la consola para debugging');
 </script>
+<!-- 
+PARCHE: DRAG & DROP PARA SUBTEMAS - VERSIÓN COMPLETA
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche permite reordenar subtemas dentro de sus carpetas padre
+-->
+
+<script>
+// ========== PARCHE: DRAG & DROP PARA SUBTEMAS ==========
+console.log('🔄 Aplicando sistema de drag & drop para subtemas...');
+
+// ==================== MODIFICACIÓN DE ESTRUCTURA DE DATOS ====================
+
+// Función para obtener subtemas ordenados
+function getOrderedChildTopics(parentTopicId) {
+    const childTopics = topicIntegrations[parentTopicId.toString()] || [];
+    const orderedChildren = JSON.parse(localStorage.getItem(`subtopicOrder_${parentTopicId}`) || 'null');
+    
+    if (orderedChildren && Array.isArray(orderedChildren)) {
+        // Filtrar elementos que ya no existen y añadir nuevos
+        const filteredOrder = orderedChildren.filter(id => childTopics.includes(id));
+        const newTopics = childTopics.filter(id => !filteredOrder.includes(id));
+        return [...filteredOrder, ...newTopics];
+    }
+    
+    return childTopics;
+}
+
+// Función para guardar orden de subtemas
+function saveSubtopicOrder(parentTopicId, orderedChildIds) {
+    localStorage.setItem(`subtopicOrder_${parentTopicId}`, JSON.stringify(orderedChildIds));
+}
+
+// ==================== VARIABLES GLOBALES PARA DRAG & DROP DE SUBTEMAS ====================
+
+let draggedSubtopicId = null;
+let draggedSubtopicParent = null;
+
+// ==================== FUNCIONES DE DRAG & DROP PARA SUBTEMAS ====================
+
+// Iniciar arrastre de subtema
+window.handleSubtopicDragStart = function(e) {
+    draggedSubtopicId = e.currentTarget.dataset.subtopicId;
+    draggedSubtopicParent = e.currentTarget.dataset.parentId;
+    e.currentTarget.style.opacity = '0.5';
+    e.dataTransfer.effectAllowed = 'move';
+    console.log('🔄 Iniciando arrastre del subtema:', draggedSubtopicId, 'del padre:', draggedSubtopicParent);
+};
+
+// Finalizar arrastre de subtema
+window.handleSubtopicDragEnd = function(e) {
+    e.currentTarget.style.opacity = '';
+    draggedSubtopicId = null;
+    draggedSubtopicParent = null;
+    // Limpiar indicadores visuales de subtemas
+    document.querySelectorAll('.draggable-subtopic').forEach(subtopic => {
+        subtopic.style.borderColor = '#9ca3af';
+    });
+};
+
+// Permitir drop en subtema
+window.handleSubtopicDragOver = function(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+};
+
+// Indicador visual al entrar en subtema
+window.handleSubtopicDragEnter = function(e) {
+    e.preventDefault();
+    const targetParentId = e.currentTarget.dataset.parentId;
+    const targetSubtopicId = e.currentTarget.dataset.subtopicId;
+    
+    // Solo permitir reordenar dentro del mismo padre
+    if (draggedSubtopicId && 
+        draggedSubtopicParent === targetParentId && 
+        draggedSubtopicId !== targetSubtopicId) {
+        e.currentTarget.style.borderColor = '#3b82f6';
+        e.currentTarget.style.borderWidth = '2px';
+    }
+};
+
+// Quitar indicador visual al salir del subtema
+window.handleSubtopicDragLeave = function(e) {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+        e.currentTarget.style.borderColor = '#9ca3af';
+        e.currentTarget.style.borderWidth = '2px';
+    }
+};
+
+// Manejar drop en subtema
+window.handleSubtopicDrop = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const targetSubtopicId = e.currentTarget.dataset.subtopicId;
+    const targetParentId = e.currentTarget.dataset.parentId;
+    
+    console.log('🎯 Soltando subtema:', draggedSubtopicId, 'en:', targetSubtopicId, 'del padre:', targetParentId);
+    
+    // Solo reordenar si están en el mismo padre
+    if (draggedSubtopicId && 
+        draggedSubtopicParent === targetParentId && 
+        draggedSubtopicId !== targetSubtopicId) {
+        reorderSubtopics(draggedSubtopicParent, draggedSubtopicId, targetSubtopicId);
+    }
+    
+    // Limpiar estilos
+    e.currentTarget.style.borderColor = '#9ca3af';
+    e.currentTarget.style.borderWidth = '2px';
+};
+
+// ==================== FUNCIÓN DE REORDENAMIENTO DE SUBTEMAS ====================
+
+function reorderSubtopics(parentTopicId, draggedSubtopicId, targetSubtopicId) {
+    console.log(`🔄 Reordenando subtemas en padre ${parentTopicId}: ${draggedSubtopicId} -> posición de ${targetSubtopicId}`);
+    
+    const orderedChildren = getOrderedChildTopics(parentTopicId);
+    const draggedIndex = orderedChildren.findIndex(id => id === draggedSubtopicId);
+    const targetIndex = orderedChildren.findIndex(id => id === targetSubtopicId);
+    
+    if (draggedIndex === -1 || targetIndex === -1) {
+        console.error('❌ No se encontraron los subtemas para reordenar');
+        return;
+    }
+    
+    // Remover el subtema arrastrado de su posición actual
+    const [draggedSubtopic] = orderedChildren.splice(draggedIndex, 1);
+    
+    // Insertar en la nueva posición
+    orderedChildren.splice(targetIndex, 0, draggedSubtopic);
+    
+    // Guardar el nuevo orden
+    saveSubtopicOrder(parentTopicId, orderedChildren);
+    
+    // Re-renderizar
+    render();
+    
+    // Mostrar mensaje de éxito
+    const draggedTopic = state.topics.find(t => t.id.toString() === draggedSubtopicId);
+    const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId);
+    
+    if (typeof showMessage === 'function') {
+        showMessage(`🔄 Subtema "${draggedTopic.name}" reordenado en "${parentTopic.name}"`, 'success');
+    }
+    
+    console.log(`✅ Subtema "${draggedTopic.name}" reordenado correctamente`);
+}
+
+// ==================== MODIFICACIÓN DEL RENDERIZADO PARA SUBTEMAS DRAGGABLES ====================
+
+// Guardar la función original de renderizado de subcarpetas
+const originalRenderQuestionsByTopicSubtopics = renderQuestionsByTopic;
+
+// Nueva función de renderizado con drag & drop para subtemas
+renderQuestionsByTopic = function() {
+    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+    let html = '';
+
+    // Obtener solo temas padre (que no son hijos de otros) y temas sin integrar
+    const parentAndStandaloneTopics = state.topics.filter(topic => !isChildTopic(topic.id));
+
+    // Renderizar cada tema padre o independiente
+    parentAndStandaloneTopics.forEach(topic => {
+        const topicId = topic.id.toString();
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId);
+        const childTopicIds = getOrderedChildTopics(topicId); // USAR ORDEN GUARDADO
+        const hasChildren = childTopicIds.length > 0;
+        const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+
+        // Solo mostrar si tiene preguntas propias O tiene hijos
+        if (topicQuestions.length > 0 || hasChildren) {
+            
+            const headerColor = '#4f46e5';
+            const headerIcon = hasChildren ? '📁' : '🔷';
+            
+            // Calcular el texto del contador
+            let counterText = '';
+            if (hasChildren) {
+                if (topicQuestions.length > 0) {
+                    counterText = `${topicQuestions.length} preguntas + ${childTopicIds.length} subcarpeta${childTopicIds.length === 1 ? '' : 's'}`;
+                } else {
+                    counterText = `${childTopicIds.length} subcarpeta${childTopicIds.length === 1 ? '' : 's'}`;
+                }
+            } else {
+                counterText = `${topicQuestions.length} preguntas`;
+            }
+
+            html += `
+                <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" style="margin-bottom: 30px; border: 2px solid transparent; border-radius: 8px;"
+                     ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
+                     ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
+                     ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                    
+                    <h3 style="background: ${headerColor}; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
+                        <span>${headerIcon} ${topic.name}</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 14px; opacity: 0.9;">${counterText}</span>
+                            
+                            <button onclick="event.stopPropagation(); openIntegrationModal('${topicId}')" style="
+                                background: rgba(255,255,255,0.2); border: none; color: white; 
+                                padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
+                                title="Integrar otros temas como subcarpetas">
+                                📁
+                            </button>
+                            
+                            ${typeof toggleTopicVisibility === 'function' ? `
+                                <button id="toggle-btn-${topicId}" onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
+                                        style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
+                                        title="${isCollapsed ? 'Mostrar contenido' : 'Ocultar contenido'}">
+                                    ${isCollapsed ? '▶' : '▼'}
+                                </button>
+                            ` : ''}
+                            
+                            ${typeof editTopicSimple === 'function' ? `
+                                <button onclick="event.stopPropagation(); editTopicSimple('${topicId}')" style="
+                                    background: #f59e0b; border: none; color: white; 
+                                    padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
+                                    title="Editar tema">
+                                    ✏️
+                                </button>
+                            ` : ''}
+                            
+                            ${typeof deleteTopicSimple === 'function' && !hasChildren ? `
+                                <button onclick="event.stopPropagation(); deleteTopicSimple('${topicId}')" style="
+                                    background: #dc2626; border: none; color: white; 
+                                    padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
+                                    title="Eliminar tema">
+                                    🗑️
+                                </button>
+                            ` : ''}
+                        </div>
+                    </h3>
+                    
+                    <div id="topic-content-${topicId}" style="border: 1px solid ${headerColor}; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                        
+                        ${topicQuestions.length > 0 ? `
+                            ${topicQuestions.map(q => {
+                                const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                                return typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '';
+                            }).join('')}
+                        ` : ''}
+                        
+                        ${hasChildren ? childTopicIds.map(childTopicId => {
+                            const childTopic = state.topics.find(t => t.id.toString() === childTopicId);
+                            if (!childTopic) return '';
+                            
+                            const childQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === childTopicId);
+                            const childIsCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[`child-${childTopicId}`]) || false;
+                            
+                            return `
+                                <!-- SUBTEMA CON DRAG & DROP -->
+                                <div class="draggable-subtopic" draggable="true" 
+                                     data-subtopic-id="${childTopicId}" 
+                                     data-parent-id="${topicId}"
+                                     ondragstart="handleSubtopicDragStart(event)" 
+                                     ondragend="handleSubtopicDragEnd(event)"
+                                     ondragover="handleSubtopicDragOver(event)" 
+                                     ondrop="handleSubtopicDrop(event)"
+                                     ondragenter="handleSubtopicDragEnter(event)" 
+                                     ondragleave="handleSubtopicDragLeave(event)"
+                                     style="margin: 15px; border: 2px solid #9ca3af; border-radius: 8px; overflow: hidden; cursor: move;">
+                                    
+                                    <h4 style="background: #9ca3af; color: white; padding: 8px 12px; margin: 0; display: flex; justify-content: space-between; align-items: center; font-size: 14px;">
+                                        <span>📂 ${childTopic.name}</span>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <span style="font-size: 12px; opacity: 0.9;">${childQuestions.length} pregunta${childQuestions.length === 1 ? '' : 's'}</span>
+                                            
+                                            ${typeof toggleTopicVisibility === 'function' ? `
+                                                <button onclick="event.stopPropagation(); toggleTopicVisibility('child-${childTopicId}')" 
+                                                        style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;"
+                                                        title="${childIsCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                                                    ${childIsCollapsed ? '▶' : '▼'}
+                                                </button>
+                                            ` : ''}
+                                            
+                                            <button onclick="event.stopPropagation(); disintegrateTopic('${childTopicId}')" style="
+                                                background: rgba(255,255,255,0.2); border: none; color: white; 
+                                                padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;" 
+                                                title="Desintegrar tema">
+                                                🔗
+                                            </button>
+                                        </div>
+                                    </h4>
+                                    
+                                    <div id="topic-content-child-${childTopicId}" style="background: white; display: ${childIsCollapsed ? 'none' : 'block'};">
+                                        ${childQuestions.map(q => {
+                                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                                            return typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '';
+                                        }).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('') : ''}
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    // Mostrar preguntas sin tema asignado (si existen)
+    if (questionsWithoutTopic.length > 0) {
+        const topicId = 'sin-tema';
+        const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+        
+        html += `
+            <div style="margin-bottom: 30px;">
+                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📂 Sin tema asignado</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                        ${typeof toggleTopicVisibility === 'function' ? `
+                            <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
+                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
+                                    title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                                ${isCollapsed ? '▶' : '▼'}
+                            </button>
+                        ` : ''}
+                    </div>
+                </h3>
+                <div id="topic-content-${topicId}" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                    ${questionsWithoutTopic.map(q => {
+                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                        return typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '';
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // Si no hay contenido, mostrar mensaje
+    if (html === '') {
+        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
+    }
+
+    // Añadir consejos sobre drag & drop
+    html += `
+        <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
+            🔄 <strong>Consejos:</strong><br>
+            • Arrastra temas principales (azules) para cambiar su orden general<br>
+            • Arrastra subtemas (grises) para reordenar dentro de su carpeta padre
+        </div>
+    `;
+
+    return html;
+};
+
+// ==================== FUNCIONES DE LIMPIEZA ====================
+
+// Función para limpiar órdenes de subtemas huérfanos
+function cleanOrphanedSubtopicOrders() {
+    const existingParentIds = Object.keys(topicIntegrations);
+    
+    // Buscar claves de orden de subtemas en localStorage
+    Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('subtopicOrder_')) {
+            const parentId = key.replace('subtopicOrder_', '');
+            if (!existingParentIds.includes(parentId)) {
+                localStorage.removeItem(key);
+                console.log(`🧹 Limpiado orden huérfano para padre ${parentId}`);
+            }
+        }
+    });
+}
+
+// ==================== FUNCIONES DE UTILIDAD ====================
+
+// Función de diagnóstico extendida
+window.diagnosticSubtopics = function() {
+    console.log('🔄 DIAGNÓSTICO DEL SISTEMA DE DRAG & DROP DE SUBTEMAS:');
+    console.log('Integraciones actuales:', topicIntegrations);
+    
+    Object.entries(topicIntegrations).forEach(([parentId, children]) => {
+        const parentTopic = state.topics.find(t => t.id.toString() === parentId);
+        const orderedChildren = getOrderedChildTopics(parentId);
+        
+        console.log(`Padre: ${parentTopic ? parentTopic.name : 'NO ENCONTRADO'} (ID: ${parentId})`);
+        console.log(`  - Hijos originales: [${children.join(', ')}]`);
+        console.log(`  - Hijos ordenados: [${orderedChildren.join(', ')}]`);
+        
+        orderedChildren.forEach(childId => {
+            const childTopic = state.topics.find(t => t.id.toString() === childId);
+            console.log(`    • ${childTopic ? childTopic.name : 'NO ENCONTRADO'} (ID: ${childId})`);
+        });
+    });
+};
+
+// ==================== INICIALIZACIÓN ====================
+
+// Limpiar órdenes huérfanos al cargar
+setTimeout(() => {
+    cleanOrphanedSubtopicOrders();
+}, 1000);
+
+console.log('✅ Sistema de drag & drop para subtemas implementado');
+console.log('🔄 Funcionalidades añadidas:');
+console.log('   - ✅ Drag & drop de subtemas dentro de su carpeta padre');
+console.log('   - ✅ Orden persistente de subtemas en localStorage');
+console.log('   - ✅ Indicadores visuales azules al arrastrar subtemas');
+console.log('   - ✅ Limpieza automática de órdenes huérfanos');
+console.log('   - ✅ Función diagnosticSubtopics() para debugging');
+console.log('🎯 Restricciones:');
+console.log('   - Los subtemas solo se pueden reordenar dentro de su carpeta padre');
+console.log('   - No se pueden mover subtemas entre diferentes carpetas padre');
+console.log('💡 Uso: Arrastra cualquier subtema gris para reordenarlo dentro de su carpeta');
+</script>
 </body>
 </html>
+
 
 
 
