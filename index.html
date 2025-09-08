@@ -20208,416 +20208,79 @@ console.log('✅ Parche aplicado');
 console.log('📝 Las preguntas nuevas del editor múltiple aparecerán como ☆ (no verificadas)');
 </script>
 <!-- 
-SISTEMA DE SUBTEMAS CORREGIDO - VERSIÓN FUNCIONAL
+PARCHE: ARRASTRAR Y SOLTAR TEMAS - VERSIÓN CORREGIDA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
-Este código mantiene el drag & drop de temas Y añade subtemas funcionalmente
+Este parche permite reordenar temas arrastrando y soltando (CORREGIDO)
 -->
 
 <script>
-console.log('🎯 Implementando sistema de subtemas CORREGIDO...');
+console.log('🔄 Aplicando parche CORREGIDO: Arrastrar y soltar temas...');
 
-// ==================== ESTRUCTURA DE DATOS PARA SUBTEMAS ====================
+// Variable global para el tema que se está arrastrando
+let draggedTopicId = null;
 
-// Función para inicializar la estructura de subtemas si no existe
-function initializeSubtopicStructure() {
-    if (!state.subtopics) {
-        state.subtopics = [];
-    }
-    console.log('📊 Estructura de subtemas inicializada');
-}
+// INTERCEPTAR renderQuestionsByTopic PARA AÑADIR FUNCIONALIDAD DE DRAG & DROP
+const originalRenderQuestionsByTopicDrag = renderQuestionsByTopic;
 
-// Función para obtener subtemas de un tema específico
-function getSubtopicsForTopic(topicId) {
-    if (!state.subtopics) return [];
-    return state.subtopics
-        .filter(subtopic => subtopic.parentTopicId.toString() === topicId.toString())
-        .sort((a, b) => (a.order || 0) - (b.order || 0));
-}
-
-// Función para contar preguntas de un subtema
-function getSubtopicQuestionCount(subtopicId) {
-    return state.questions.filter(q => q.subtopicId && q.subtopicId.toString() === subtopicId.toString()).length;
-}
-
-// Función para contar preguntas totales de un tema (incluyendo subtemas)
-function getTotalTopicQuestionCount(topicId) {
-    // Preguntas directas del tema
-    const directQuestions = state.questions.filter(q => 
-        q.topicId && q.topicId.toString() === topicId.toString() && !q.subtopicId
-    ).length;
-    
-    // Preguntas de todos los subtemas
-    const subtopics = getSubtopicsForTopic(topicId);
-    const subtopicQuestions = subtopics.reduce((total, subtopic) => {
-        return total + getSubtopicQuestionCount(subtopic.id);
-    }, 0);
-    
-    return directQuestions + subtopicQuestions;
-}
-
-// ==================== FUNCIONES DE GESTIÓN DE SUBTEMAS ====================
-
-// Crear nuevo subtema
-window.createSubtopic = function(parentTopicId, subtopicName) {
-    if (!subtopicName || subtopicName.trim() === '') {
-        if (typeof showMessage === 'function') {
-            showMessage('El nombre del subtema no puede estar vacío', 'error');
-        }
-        return false;
-    }
-    
-    initializeSubtopicStructure();
-    
-    const newSubtopic = {
-        id: Date.now() + Math.random(),
-        name: subtopicName.trim(),
-        parentTopicId: parentTopicId,
-        order: getSubtopicsForTopic(parentTopicId).length
-    };
-    
-    state.subtopics.push(newSubtopic);
-    
-    // Guardar datos
-    if (typeof saveData === 'function') {
-        saveData();
-    } else {
-        localStorage.setItem('subtopics', JSON.stringify(state.subtopics));
-    }
-    
-    console.log('✅ Subtema creado:', newSubtopic);
-    if (typeof showMessage === 'function') {
-        showMessage(`✅ Subtema "${subtopicName}" creado correctamente`, 'success');
-    }
-    
-    return newSubtopic;
-};
-
-// Editar subtema
-window.editSubtopic = function(subtopicId) {
-    const subtopic = state.subtopics.find(s => s.id.toString() === subtopicId.toString());
-    if (!subtopic) {
-        if (typeof showMessage === 'function') {
-            showMessage('Subtema no encontrado', 'error');
-        }
-        return;
-    }
-    
-    const newName = prompt(`Editar nombre del subtema:`, subtopic.name);
-    if (newName && newName.trim() !== '' && newName.trim() !== subtopic.name) {
-        const oldName = subtopic.name;
-        subtopic.name = newName.trim();
-        
-        // Guardar datos
-        if (typeof saveData === 'function') {
-            saveData();
-        } else {
-            localStorage.setItem('subtopics', JSON.stringify(state.subtopics));
-        }
-        
-        if (typeof render === 'function') {
-            render();
-        }
-        if (typeof showMessage === 'function') {
-            showMessage(`✅ Subtema renombrado: "${oldName}" → "${newName.trim()}"`, 'success');
-        }
-        console.log('✏️ Subtema editado:', subtopic);
-    }
-};
-
-// Eliminar subtema
-window.deleteSubtopic = function(subtopicId) {
-    const subtopic = state.subtopics.find(s => s.id.toString() === subtopicId.toString());
-    if (!subtopic) {
-        if (typeof showMessage === 'function') {
-            showMessage('Subtema no encontrado', 'error');
-        }
-        return;
-    }
-    
-    const questionCount = getSubtopicQuestionCount(subtopicId);
-    
-    let confirmMessage = `¿Eliminar el subtema "${subtopic.name}"?`;
-    if (questionCount > 0) {
-        confirmMessage += `\n\nEsto también eliminará ${questionCount} pregunta${questionCount === 1 ? '' : 's'}.`;
-    }
-    confirmMessage += '\n\nEsta acción no se puede deshacer.';
-    
-    if (confirm(confirmMessage)) {
-        // Eliminar preguntas del subtema
-        if (questionCount > 0) {
-            state.questions = state.questions.filter(q => 
-                !(q.subtopicId && q.subtopicId.toString() === subtopicId.toString())
-            );
-        }
-        
-        // Eliminar subtema
-        state.subtopics = state.subtopics.filter(s => s.id.toString() !== subtopicId.toString());
-        
-        // Guardar datos
-        if (typeof saveData === 'function') {
-            saveData();
-        } else {
-            localStorage.setItem('subtopics', JSON.stringify(state.subtopics));
-            localStorage.setItem('questions', JSON.stringify(state.questions));
-        }
-        
-        if (typeof render === 'function') {
-            render();
-        }
-        if (typeof showMessage === 'function') {
-            showMessage(`🗑️ Subtema "${subtopic.name}" eliminado correctamente`, 'success');
-        }
-        console.log('🗑️ Subtema eliminado:', subtopic);
-    }
-};
-
-// Modal para crear subtema
-window.showCreateSubtopicModal = function(parentTopicId) {
-    const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId.toString());
-    if (!parentTopic) {
-        if (typeof showMessage === 'function') {
-            showMessage('Tema padre no encontrado', 'error');
-        }
-        return;
-    }
-    
-    const modalHtml = `
-        <div id="create-subtopic-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
-            <div style="background: white; border-radius: 16px; padding: 30px; max-width: 400px; width: 90%;">
-                <h3 style="margin-bottom: 20px; color: #1f2937;">📁 Crear Subtema</h3>
-                
-                <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Tema padre:</label>
-                    <div style="padding: 10px; background: #f3f4f6; border-radius: 6px; color: #6b7280;">
-                        🔷 ${parentTopic.name}
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Nombre del subtema:</label>
-                    <input type="text" id="subtopic-name-input" placeholder="Ej: Álgebra, Geometría..." 
-                           style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
-                           onkeypress="if(event.key==='Enter') executeCreateSubtopic(${parentTopicId})">
-                </div>
-                
-                <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button onclick="closeCreateSubtopicModal()" 
-                            style="background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer;">
-                        Cancelar
-                    </button>
-                    <button onclick="executeCreateSubtopic(${parentTopicId})" 
-                            style="background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500;">
-                        ✅ Crear Subtema
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    // Focus en el input
-    setTimeout(() => {
-        const input = document.getElementById('subtopic-name-input');
-        if (input) input.focus();
-    }, 100);
-};
-
-// Ejecutar creación de subtema
-window.executeCreateSubtopic = function(parentTopicId) {
-    const input = document.getElementById('subtopic-name-input');
-    const subtopicName = input ? input.value.trim() : '';
-    
-    if (subtopicName) {
-        const newSubtopic = createSubtopic(parentTopicId, subtopicName);
-        if (newSubtopic) {
-            closeCreateSubtopicModal();
-            if (typeof render === 'function') {
-                render();
-            }
-        }
-    } else {
-        if (typeof showMessage === 'function') {
-            showMessage('Ingresa un nombre para el subtema', 'warning');
-        }
-        if (input) input.focus();
-    }
-};
-
-// Cerrar modal de crear subtema
-window.closeCreateSubtopicModal = function() {
-    const modal = document.getElementById('create-subtopic-modal');
-    if (modal) {
-        modal.remove();
-    }
-};
-
-// ==================== VARIABLE GLOBAL PARA COLAPSO DE SUBTEMAS ====================
-
-if (typeof collapsedSubtopics === 'undefined') {
-    window.collapsedSubtopics = {};
-}
-
-// Función para alternar visibilidad de subtemas
-window.toggleSubtopicVisibility = function(subtopicId) {
-    collapsedSubtopics[subtopicId] = !collapsedSubtopics[subtopicId];
-    
-    const contentDiv = document.getElementById(`subtopic-content-${subtopicId}`);
-    const toggleBtn = document.getElementById(`subtopic-toggle-btn-${subtopicId}`);
-    
-    if (contentDiv && toggleBtn) {
-        const isCollapsed = collapsedSubtopics[subtopicId];
-        contentDiv.style.display = isCollapsed ? 'none' : 'block';
-        toggleBtn.textContent = isCollapsed ? '▶' : '▼';
-        toggleBtn.title = isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas';
-    }
-    
-    console.log(`🔄 Subtema ${subtopicId} ${collapsedSubtopics[subtopicId] ? 'colapsado' : 'expandido'}`);
-};
-
-// ==================== MODIFICAR RENDERIZADO SIN ROMPER DRAG & DROP ====================
-
-// Guardar la función original si existe
-const originalRenderQuestionsByTopicSubtemas = typeof renderQuestionsByTopic !== 'undefined' ? renderQuestionsByTopic : null;
-
-// NUEVA función que mejora la original sin romperla
 renderQuestionsByTopic = function() {
-    initializeSubtopicStructure();
+    // Obtener HTML original
+    let originalHTML = originalRenderQuestionsByTopicDrag.call(this);
     
-    // Si no hay función original, usar renderizado básico
-    if (!originalRenderQuestionsByTopicSubtemas) {
-        console.warn('⚠️ No se encontró función renderQuestionsByTopic original');
-        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No se puede renderizar - función original no encontrada</div>';
-    }
+    // Crear array completo de temas (con y sin preguntas) en el orden actual
+    const allTopicsInOrder = state.topics.map(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        return {
+            topic: topic,
+            hasQuestions: topicQuestions.length > 0,
+            questions: topicQuestions
+        };
+    });
     
-    // Obtener preguntas sin tema asignado
-    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
-    
-    let html = '';
-    
-    // Renderizar cada tema con posibles subtemas
-    state.topics.forEach(topic => {
-        const topicId = topic.id.toString();
-        const isTopicCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+    // Generar HTML completo con drag & drop
+    const topicsHTML = allTopicsInOrder.map((topicData, index) => {
+        const topic = topicData.topic;
+        const hasQuestions = topicData.hasQuestions;
+        const questions = topicData.questions;
         
-        // Obtener subtemas del tema
-        const subtopics = getSubtopicsForTopic(topicId);
-        
-        // Preguntas directas del tema (sin subtema asignado)
-        const directTopicQuestions = state.questions.filter(q => 
-            q.topicId && q.topicId.toString() === topicId && !q.subtopicId
-        );
-        
-        // Contar preguntas totales (directas + subtemas)
-        const totalQuestionCount = getTotalTopicQuestionCount(topicId);
-        
-        // Solo mostrar tema si tiene preguntas directas o subtemas con preguntas
-        if (totalQuestionCount > 0) {
-            html += `
-                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" 
-                     style="margin-bottom: 30px; border: 2px solid transparent; border-radius: 8px;" 
+        if (hasQuestions) {
+            // Tema con preguntas
+            const topicId = topic.id.toString();
+            const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+            
+            return `
+                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" style="margin-bottom: 30px; border: 2px solid transparent; border-radius: 8px;" 
                      ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
                      ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
                      ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                    
                     <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
                         <span>🔷 ${topic.name}</span>
                         <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 14px; opacity: 0.9;">${totalQuestionCount} preguntas</span>
-                            ${subtopics.length > 0 ? `<span style="font-size: 12px; opacity: 0.8;">(${subtopics.length} subtemas)</span>` : ''}
+                            <span style="font-size: 14px; opacity: 0.9;">${questions.length} preguntas</span>
                             <button id="toggle-btn-${topicId}" onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
                                     style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
-                                    title="${isTopicCollapsed ? 'Mostrar contenido' : 'Ocultar contenido'}">
-                                ${isTopicCollapsed ? '▶' : '▼'}
+                                    title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                                ${isCollapsed ? '▶' : '▼'}
                             </button>
-                            <button onclick="event.stopPropagation(); showCreateSubtopicModal('${topic.id}')" 
-                                    style="background: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="Crear subtema">
-                                📁+
-                            </button>
-                            <button onclick="event.stopPropagation(); editTopicSimple('${topic.id}')" 
-                                    style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="Editar tema">
+                            <button onclick="event.stopPropagation(); editTopicSimple('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema">
                                 ✏️
                             </button>
-                            <button onclick="event.stopPropagation(); deleteTopicSimple('${topic.id}')" 
-                                    style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="Eliminar tema">
+                            <button onclick="event.stopPropagation(); deleteTopicSimple('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema">
                                 🗑️
                             </button>
                         </div>
                     </h3>
-                    
-                    <div id="topic-content-${topicId}" style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isTopicCollapsed ? 'none' : 'block'};">
-            `;
-            
-            // Mostrar preguntas directas del tema si las hay
-            if (directTopicQuestions.length > 0) {
-                html += `
-                    <div style="padding: 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                        <h4 style="margin: 0 0 10px 0; color: #475569; font-size: 14px; font-weight: 600;">
-                            📝 Preguntas directas del tema (${directTopicQuestions.length})
-                        </h4>
-                        ${directTopicQuestions.map((q, qIndex) => {
+                    <div id="topic-content-${topicId}" style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                        ${questions.map((q, qIndex) => {
                             const actualIndex = state.questions.findIndex(question => question.id === q.id);
                             return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
                         }).join('')}
                     </div>
-                `;
-            }
-            
-            // Mostrar subtemas
-            subtopics.forEach(subtopic => {
-                const subtopicQuestions = state.questions.filter(q => 
-                    q.subtopicId && q.subtopicId.toString() === subtopic.id.toString()
-                );
-                const isSubtopicCollapsed = collapsedSubtopics[subtopic.id] || false;
-                
-                html += `
-                    <div style="margin: 15px; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden;">
-                        <h4 style="background: #f1f5f9; color: #334155; padding: 8px 12px; margin: 0; display: flex; justify-content: space-between; align-items: center; font-size: 14px;">
-                            <span style="margin-left: 20px;">📂 ${subtopic.name}</span>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="font-size: 12px; opacity: 0.8;">${subtopicQuestions.length} preguntas</span>
-                                <button id="subtopic-toggle-btn-${subtopic.id}" onclick="event.stopPropagation(); toggleSubtopicVisibility('${subtopic.id}')" 
-                                        style="background: rgba(51,65,85,0.1); border: none; color: #334155; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 11px; font-weight: bold;"
-                                        title="${isSubtopicCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
-                                    ${isSubtopicCollapsed ? '▶' : '▼'}
-                                </button>
-                                <button onclick="event.stopPropagation(); editSubtopic('${subtopic.id}')" 
-                                        style="background: #f59e0b; border: none; color: white; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 11px;" 
-                                        title="Editar subtema">
-                                    ✏️
-                                </button>
-                                <button onclick="event.stopPropagation(); deleteSubtopic('${subtopic.id}')" 
-                                        style="background: #dc2626; border: none; color: white; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 11px;" 
-                                        title="Eliminar subtema">
-                                    🗑️
-                                </button>
-                            </div>
-                        </h4>
-                        <div id="subtopic-content-${subtopic.id}" style="background: white; display: ${isSubtopicCollapsed ? 'none' : 'block'};">
-                            ${subtopicQuestions.length > 0 ? 
-                                subtopicQuestions.map((q, qIndex) => {
-                                    const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                                    return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
-                                }).join('') :
-                                '<div style="padding: 20px; text-align: center; color: #9ca3af; font-style: italic;">No hay preguntas en este subtema</div>'
-                            }
-                        </div>
-                    </div>
-                `;
-            });
-            
-            html += `
-                    </div>
                 </div>
             `;
         } else {
-            // Tema vacío (sin preguntas ni subtemas)
-            html += `
-                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" 
-                     style="margin-bottom: 30px; opacity: 0.7; border: 2px solid transparent; border-radius: 8px;"
+            // Tema vacío
+            return `
+                <div class="draggable-topic" draggable="true" data-topic-id="${topic.id}" style="margin-bottom: 30px; opacity: 0.7; border: 2px solid transparent; border-radius: 8px;"
                      ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
                      ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
                      ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
@@ -20625,257 +20288,155 @@ renderQuestionsByTopic = function() {
                         <span>🔶 ${topic.name}</span>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 14px; opacity: 0.9;">0 preguntas</span>
-                            <button onclick="event.stopPropagation(); showCreateSubtopicModal('${topic.id}')" 
-                                    style="background: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="Crear subtema">
-                                📁+
-                            </button>
-                            <button onclick="event.stopPropagation(); editTopicEmpty('${topic.id}')" 
-                                    style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="Editar tema vacío">
+                            <button onclick="event.stopPropagation(); editTopicEmpty('${topic.id}')" style="background: #f59e0b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Editar tema vacío">
                                 ✏️
                             </button>
-                            <button onclick="event.stopPropagation(); deleteTopicEmpty('${topic.id}')" 
-                                    style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
-                                    title="Eliminar tema vacío">
+                            <button onclick="event.stopPropagation(); deleteTopicEmpty('${topic.id}')" style="background: #dc2626; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Eliminar tema vacío">
                                 🗑️
                             </button>
                         </div>
                     </h3>
                     <div style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: #f9fafb; padding: 20px; text-align: center;">
                         <div style="color: #6b7280; font-style: italic;">
-                            📝 Este tema no tiene preguntas ni subtemas
+                            📝 Este tema no tiene preguntas asignadas
                         </div>
                         <div style="margin-top: 10px; font-size: 14px; color: #9ca3af;">
-                            Puedes crear subtemas o asignar preguntas directamente
+                            Puedes editarlo para cambiar su nombre o eliminarlo si ya no lo necesitas
                         </div>
                     </div>
                 </div>
             `;
         }
-    });
-    
-    // Mostrar preguntas sin tema asignado SI existen
-    if (questionsWithoutTopic.length > 0) {
-        const topicId = 'sin-tema';
-        const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
-        
-        html += `
-            <div style="margin-bottom: 30px;">
-                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
-                    <span>📂 Sin tema asignado</span>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
-                        <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
-                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
-                                title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
-                            ${isCollapsed ? '▶' : '▼'}
-                        </button>
-                    </div>
-                </h3>
-                <div id="topic-content-${topicId}" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
-                    ${questionsWithoutTopic.map(q => {
-                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                        return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '');
-                    }).join('')}
-                </div>
-            </div>
-        `;
-    }
-    
-    // Si no hay preguntas en absoluto
-    if (html === '') {
-        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
-    }
+    }).join('');
     
     return `
         <div id="sortable-topics-container">
-            ${html}
+            ${topicsHTML}
         </div>
         <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
-            🎯 <strong>Drag & Drop:</strong> Arrastra temas para reordenar • <strong>Subtemas:</strong> Usa el botón 📁+ para crear subtemas
+            🔄 <strong>Consejo:</strong> Puedes arrastrar y soltar los temas para cambiar su orden
         </div>
     `;
 };
 
-// ==================== ACTUALIZAR SELECTOR DE TEMAS PARA INCLUIR SUBTEMAS ====================
-
-// Función para actualizar el selector de temas con subtemas
-window.updateTopicSelectorWithSubtopics = function() {
-    const selector = document.getElementById('topic-selector');
-    if (!selector) return;
-    
-    initializeSubtopicStructure();
-    
-    let options = '<option value="">-- Selecciona tema o subtema --</option>';
-    
-    // Añadir temas y subtemas
-    state.topics.forEach(topic => {
-        options += `<option value="${topic.id}">🔷 ${topic.name}</option>`;
-        
-        // Añadir subtemas del tema
-        const subtopics = getSubtopicsForTopic(topic.id);
-        subtopics.forEach(subtopic => {
-            options += `<option value="subtopic:${subtopic.id}">    📂 ${subtopic.name}</option>`;
-        });
-    });
-    
-    selector.innerHTML = options;
-    
-    console.log('🔄 Selector de temas actualizado con subtemas');
+// FUNCIONES PARA MANEJAR DRAG & DROP
+window.handleDragStart = function(e) {
+    draggedTopicId = e.currentTarget.dataset.topicId;
+    e.currentTarget.style.opacity = '0.5';
+    e.dataTransfer.effectAllowed = 'move';
+    console.log('🔄 Iniciando arrastre del tema:', draggedTopicId);
 };
 
-// Interceptar addToQuestions para manejar subtemas
-const originalAddToQuestionsSubtemas = typeof addToQuestions !== 'undefined' ? addToQuestions : null;
+window.handleDragEnd = function(e) {
+    e.currentTarget.style.opacity = '';
+    draggedTopicId = null;
+    // Limpiar todos los indicadores visuales
+    document.querySelectorAll('.draggable-topic').forEach(topic => {
+        topic.style.borderColor = 'transparent';
+    });
+};
 
-if (originalAddToQuestionsSubtemas) {
-    window.addToQuestions = function() {
-        const selector = document.getElementById('topic-selector');
-        const selectedValue = selector ? selector.value : state.selectedTopicForNewQuestions;
-        
-        if (selectedValue && selectedValue.startsWith('subtopic:')) {
-            // Es un subtema
-            const subtopicId = selectedValue.replace('subtopic:', '');
-            const subtopic = state.subtopics.find(s => s.id.toString() === subtopicId);
-            
-            if (subtopic && state.cleanedText && state.cleanedText.questions) {
-                state.cleanedText.questions.forEach(questionText => {
-                    const newQuestion = {
-                        id: Date.now() + Math.random(),
-                        question: questionText,
-                        topicId: subtopic.parentTopicId,
-                        subtopicId: subtopic.id,
-                        isVerified: true,
-                        addedAt: new Date().toISOString()
-                    };
-                    state.questions.push(newQuestion);
-                });
-                
-                // Limpiar texto procesado
-                state.cleanedText = null;
-                state.transcribedText = null;
-                
-                // Guardar y re-renderizar
-                if (typeof saveData === 'function') {
-                    saveData();
-                } else {
-                    localStorage.setItem('questions', JSON.stringify(state.questions));
-                }
-                
-                if (typeof render === 'function') {
-                    render();
-                }
-                if (typeof showMessage === 'function') {
-                    showMessage(`✅ ${state.cleanedText?.questions?.length || 0} preguntas añadidas al subtema "${subtopic.name}"`, 'success');
-                }
-                
-                console.log(`✅ Preguntas asignadas al subtema: ${subtopic.name}`);
-                return;
-            }
-        }
-        
-        // Si no es subtema, usar función original
-        return originalAddToQuestionsSubtemas.call(this);
-    };
+window.handleDragOver = function(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+};
+
+window.handleDragEnter = function(e) {
+    e.preventDefault();
+    if (draggedTopicId && e.currentTarget.dataset.topicId !== draggedTopicId) {
+        e.currentTarget.style.borderColor = '#3b82f6';
+    }
+};
+
+window.handleDragLeave = function(e) {
+    // Solo remover el borde si realmente salimos del elemento
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+        e.currentTarget.style.borderColor = 'transparent';
+    }
+};
+
+window.handleDrop = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const targetTopicId = e.currentTarget.dataset.topicId;
+    
+    console.log('🎯 Soltando tema:', draggedTopicId, 'en:', targetTopicId);
+    
+    if (draggedTopicId && targetTopicId && draggedTopicId !== targetTopicId) {
+        reorderTopics(draggedTopicId, targetTopicId);
+    }
+    
+    // Limpiar estilos
+    e.currentTarget.style.borderColor = 'transparent';
+};
+
+// FUNCIÓN PARA REORDENAR TEMAS
+function reorderTopics(draggedTopicId, targetTopicId) {
+    console.log(`🔄 Reordenando: ${draggedTopicId} -> posición de ${targetTopicId}`);
+    
+    const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedTopicId);
+    const targetIndex = state.topics.findIndex(t => t.id.toString() === targetTopicId);
+    
+    if (draggedIndex === -1 || targetIndex === -1) {
+        console.error('❌ No se encontraron los temas para reordenar');
+        return;
+    }
+    
+    // Remover el tema arrastrado de su posición actual
+    const [draggedTopic] = state.topics.splice(draggedIndex, 1);
+    
+    // Insertar en la nueva posición
+    state.topics.splice(targetIndex, 0, draggedTopic);
+    
+    // Guardar cambios
+    if (typeof saveData === 'function') {
+        saveData();
+    } else {
+        localStorage.setItem('topics', JSON.stringify(state.topics));
+    }
+    
+    // Re-renderizar
+    render();
+    
+    const draggedName = draggedTopic.name;
+    
+    if (typeof showMessage === 'function') {
+        showMessage(`🔄 Tema "${draggedName}" movido`, 'success');
+    }
+    
+    console.log(`✅ Tema "${draggedName}" reordenado correctamente`);
 }
 
-// ==================== GESTIÓN DE TEMAS MEJORADA CON SUBTEMAS ====================
-
-// Interceptar manageTopicsModal para incluir subtemas
-const originalManageTopicsModalSubtemas = typeof manageTopicsModal !== 'undefined' ? manageTopicsModal : null;
-
-if (originalManageTopicsModalSubtemas) {
+// INTERCEPTAR LA VENTANA DE GESTIÓN DE TEMAS PARA QUE RESPETE EL NUEVO ORDEN
+const originalManageTopicsModalDrag = window.manageTopicsModal;
+if (typeof window.manageTopicsModal === 'function') {
     window.manageTopicsModal = function() {
-        initializeSubtopicStructure();
-        
-        // Generar HTML para temas y subtemas
-        let topicsHtml = '';
-        state.topics.forEach(topic => {
-            const directQuestions = state.questions.filter(q => 
-                q.topicId && q.topicId.toString() === topic.id.toString() && !q.subtopicId
-            ).length;
-            const subtopics = getSubtopicsForTopic(topic.id);
-            const totalQuestions = getTotalTopicQuestionCount(topic.id);
-            
-            topicsHtml += `<option value="${topic.id}">🔷 ${topic.name} (${totalQuestions} preguntas totales)</option>`;
-            
-            // Añadir subtemas
-            subtopics.forEach(subtopic => {
-                const subtopicQuestions = getSubtopicQuestionCount(subtopic.id);
-                topicsHtml += `<option value="subtopic:${subtopic.id}">    📂 ${subtopic.name} (${subtopicQuestions} preguntas)</option>`;
-            });
-        });
+        // Generar el modal con el orden actualizado
+        const existingTopicsHtml = state.topics.map(topic => {
+            const questionCount = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length;
+            return `<option value="${topic.id}">${topic.name} (${questionCount} preguntas)</option>`;
+        }).join('');
 
         const modalHtml = `
             <div id="manage-topics-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
-                <div style="background: white; border-radius: 16px; padding: 30px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
-                    <h3 style="margin-bottom: 20px; color: #1f2937;">📁 Gestión Completa de Temas y Subtemas</h3>
+                <div style="background: white; border-radius: 16px; padding: 30px; max-width: 500px; width: 90%;">
+                    <h3 style="margin-bottom: 20px; color: #1f2937;">📁 Gestión de Temas</h3>
                     
-                    <!-- Crear nuevo subtema -->
-                    <div style="margin-bottom: 25px; padding: 20px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
-                        <h4 style="margin: 0 0 15px 0; color: #166534;">📂 Crear Nuevo Subtema</h4>
-                        <div style="margin-bottom: 10px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Tema padre:</label>
-                            <select id="parentTopicSelect" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
-                                <option value="">-- Selecciona un tema padre --</option>
-                                ${state.topics.map(topic => `
-                                    <option value="${topic.id}">🔷 ${topic.name}</option>
-                                `).join('')}
-                            </select>
-                        </div>
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Nombre del subtema:</label>
-                            <input type="text" id="newSubtopicName" placeholder="Ej: Álgebra, Geometría..." 
-                                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box;"
-                                   onkeypress="if(event.key==='Enter') executeCreateSubtopicFromModal()">
-                        </div>
-                        <button onclick="executeCreateSubtopicFromModal()" 
-                                style="background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-weight: 500;">
-                            ✅ Crear Subtema
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Eliminar tema existente:</label>
+                        <select id="deleteTopicSelect" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
+                            <option value="">-- Selecciona un tema para eliminar --</option>
+                            ${existingTopicsHtml}
+                        </select>
+                        <button onclick="executeDeleteTopic()" style="background: #ef4444; color: white; border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer; margin-top: 10px; width: 100%;">
+                            🗑️ Eliminar Tema Seleccionado
                         </button>
                     </div>
                     
-                    <!-- Eliminar tema o subtema -->
-                    <div style="margin-bottom: 25px; padding: 20px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;">
-                        <h4 style="margin: 0 0 15px 0; color: #dc2626;">🗑️ Eliminar Tema o Subtema</h4>
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Seleccionar para eliminar:</label>
-                            <select id="deleteTopicSubtopicSelect" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
-                                <option value="">-- Selecciona tema o subtema para eliminar --</option>
-                                ${topicsHtml}
-                            </select>
-                        </div>
-                        <button onclick="executeDeleteTopicOrSubtopic()" 
-                                style="background: #ef4444; color: white; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-weight: 500;">
-                            🗑️ Eliminar Seleccionado
-                        </button>
-                    </div>
-                    
-                    <!-- Estadísticas -->
-                    <div style="margin-bottom: 20px; padding: 15px; background: #f8fafc; border-radius: 8px;">
-                        <h4 style="margin: 0 0 10px 0; color: #374151;">📊 Estadísticas Generales</h4>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 14px;">
-                            <div>
-                                <strong>Temas:</strong> ${state.topics.length}<br>
-                                <strong>Subtemas:</strong> ${state.subtopics ? state.subtopics.length : 0}
-                            </div>
-                            <div>
-                                <strong>Preguntas totales:</strong> ${state.questions.length}<br>
-                                <strong>Sin tema:</strong> ${state.questions.filter(q => !q.topicId).length}
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Botones de acción -->
-                    <div style="text-align: center;">
-                        <button onclick="showDetailedTopicStats()" 
-                                style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-right: 10px;">
-                            📈 Ver Estadísticas Detalladas
-                        </button>
-                        <button onclick="closeManageTopicsModal()" 
-                                style="background: #6b7280; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">
-                            Cerrar
-                        </button>
+                    <div style="margin-top: 20px; text-align: center;">
+                        <button onclick="showTopicStats()" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-right: 10px;">📊 Ver Estadísticas</button>
+                        <button onclick="closeManageTopicsModal()" style="background: #6b7280; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Cerrar</button>
                     </div>
                 </div>
             </div>
@@ -20883,278 +20444,21 @@ if (originalManageTopicsModalSubtemas) {
         
         document.body.insertAdjacentHTML('beforeend', modalHtml);
         
-        console.log('📁 Modal de gestión actualizado con sistema de subtemas');
+        console.log('📁 Modal de gestión de temas actualizado con nuevo orden');
     };
 }
 
-// Función para crear subtema desde modal
-window.executeCreateSubtopicFromModal = function() {
-    const parentSelect = document.getElementById('parentTopicSelect');
-    const nameInput = document.getElementById('newSubtopicName');
-    
-    const parentTopicId = parentSelect ? parentSelect.value : '';
-    const subtopicName = nameInput ? nameInput.value.trim() : '';
-    
-    if (!parentTopicId) {
-        if (typeof showMessage === 'function') {
-            showMessage('Selecciona un tema padre', 'warning');
-        }
-        return;
-    }
-    
-    if (!subtopicName) {
-        if (typeof showMessage === 'function') {
-            showMessage('Ingresa un nombre para el subtema', 'warning');
-        }
-        if (nameInput) nameInput.focus();
-        return;
-    }
-    
-    const newSubtopic = createSubtopic(parentTopicId, subtopicName);
-    if (newSubtopic) {
-        // Limpiar campos
-        if (parentSelect) parentSelect.value = '';
-        if (nameInput) nameInput.value = '';
-        
-        // Actualizar modal sin cerrarlo
-        if (typeof closeManageTopicsModal === 'function') {
-            closeManageTopicsModal();
-        }
-        setTimeout(() => {
-            if (typeof manageTopicsModal === 'function') {
-                manageTopicsModal();
-            }
-        }, 100);
-        
-        if (typeof render === 'function') {
-            render();
-        }
-    }
-};
-
-// Función para eliminar tema o subtema desde modal
-window.executeDeleteTopicOrSubtopic = function() {
-    const selector = document.getElementById('deleteTopicSubtopicSelect');
-    const selectedValue = selector ? selector.value : '';
-    
-    if (!selectedValue) {
-        if (typeof showMessage === 'function') {
-            showMessage('Selecciona un tema o subtema para eliminar', 'warning');
-        }
-        return;
-    }
-    
-    if (selectedValue.startsWith('subtopic:')) {
-        // Es un subtema
-        const subtopicId = selectedValue.replace('subtopic:', '');
-        deleteSubtopic(subtopicId);
-    } else {
-        // Es un tema
-        if (typeof deleteTopicSimple === 'function') {
-            deleteTopicSimple(selectedValue);
-        }
-    }
-    
-    // Actualizar modal
-    setTimeout(() => {
-        if (typeof closeManageTopicsModal === 'function') {
-            closeManageTopicsModal();
-        }
-        setTimeout(() => {
-            if (typeof manageTopicsModal === 'function') {
-                manageTopicsModal();
-            }
-        }, 100);
-    }, 500);
-};
-
-// Función para mostrar estadísticas detalladas
-window.showDetailedTopicStats = function() {
-    initializeSubtopicStructure();
-    
-    let statsText = '📊 ESTADÍSTICAS DETALLADAS\n\n';
-    
-    // Estadísticas generales
-    statsText += `📋 RESUMEN GENERAL:\n`;
-    statsText += `• Total de temas: ${state.topics.length}\n`;
-    statsText += `• Total de subtemas: ${state.subtopics.length}\n`;
-    statsText += `• Total de preguntas: ${state.questions.length}\n`;
-    statsText += `• Preguntas sin tema: ${state.questions.filter(q => !q.topicId).length}\n\n`;
-    
-    // Estadísticas por tema
-    statsText += `📁 DESGLOSE POR TEMA:\n`;
-    state.topics.forEach(topic => {
-        const directQuestions = state.questions.filter(q => 
-            q.topicId && q.topicId.toString() === topic.id.toString() && !q.subtopicId
-        ).length;
-        const subtopics = getSubtopicsForTopic(topic.id);
-        const totalQuestions = getTotalTopicQuestionCount(topic.id);
-        
-        statsText += `\n🔷 ${topic.name}:\n`;
-        statsText += `  • Preguntas directas: ${directQuestions}\n`;
-        statsText += `  • Subtemas: ${subtopics.length}\n`;
-        statsText += `  • Total preguntas: ${totalQuestions}\n`;
-        
-        if (subtopics.length > 0) {
-            subtopics.forEach(subtopic => {
-                const subtopicQuestions = getSubtopicQuestionCount(subtopic.id);
-                statsText += `    📂 ${subtopic.name}: ${subtopicQuestions} preguntas\n`;
-            });
-        }
-    });
-    
-    alert(statsText);
-    
-    console.log('📊 Estadísticas detalladas mostradas');
-};
-
-// ==================== FUNCIONES DE CARGA Y GUARDADO ====================
-
-// Interceptar la función de guardado para incluir subtemas
-const originalSaveDataSubtemas = typeof saveData !== 'undefined' ? saveData : null;
-if (originalSaveDataSubtemas) {
-    window.saveData = function() {
-        // Guardar subtemas
-        localStorage.setItem('subtopics', JSON.stringify(state.subtopics || []));
-        
-        // Llamar función original
-        return originalSaveDataSubtemas.call(this);
-    };
-}
-
-// Interceptar la función de carga para incluir subtemas
-const originalLoadDataSubtemas = typeof loadData !== 'undefined' ? loadData : null;
-if (originalLoadDataSubtemas) {
-    window.loadData = function() {
-        // Cargar función original primero
-        const result = originalLoadDataSubtemas.call(this);
-        
-        // Cargar subtemas
-        try {
-            const savedSubtopics = localStorage.getItem('subtopics');
-            if (savedSubtopics) {
-                state.subtopics = JSON.parse(savedSubtopics);
-                console.log('✅ Subtemas cargados:', state.subtopics.length);
-            } else {
-                state.subtopics = [];
-            }
-        } catch (error) {
-            console.warn('⚠️ Error cargando subtemas:', error);
-            state.subtopics = [];
-        }
-        
-        return result;
-    };
-} else {
-    // Si no hay función loadData, crear una básica para subtemas
-    document.addEventListener('DOMContentLoaded', function() {
-        setTimeout(() => {
-            try {
-                const savedSubtopics = localStorage.getItem('subtopics');
-                if (savedSubtopics) {
-                    state.subtopics = JSON.parse(savedSubtopics);
-                    console.log('✅ Subtemas cargados al iniciar:', state.subtopics.length);
-                } else {
-                    state.subtopics = [];
-                }
-            } catch (error) {
-                console.warn('⚠️ Error cargando subtemas al iniciar:', error);
-                state.subtopics = [];
-            }
-        }, 1000);
-    });
-}
-
-// ==================== FUNCIONES DE LIMPIEZA Y UTILIDADES ====================
-
-// Función para limpiar subtemas huérfanos (sin tema padre)
-window.cleanOrphanSubtopics = function() {
-    if (!state.subtopics) return;
-    
-    const validTopicIds = state.topics.map(t => t.id.toString());
-    const orphanSubtopics = state.subtopics.filter(s => 
-        !validTopicIds.includes(s.parentTopicId.toString())
-    );
-    
-    if (orphanSubtopics.length > 0) {
-        console.warn(`🧹 Eliminando ${orphanSubtopics.length} subtemas huérfanos`);
-        
-        // Eliminar preguntas de subtemas huérfanos
-        const orphanSubtopicIds = orphanSubtopics.map(s => s.id.toString());
-        state.questions = state.questions.filter(q => 
-            !q.subtopicId || !orphanSubtopicIds.includes(q.subtopicId.toString())
-        );
-        
-        // Eliminar subtemas huérfanos
-        state.subtopics = state.subtopics.filter(s => 
-            validTopicIds.includes(s.parentTopicId.toString())
-        );
-        
-        // Guardar cambios
-        if (typeof saveData === 'function') {
-            saveData();
-        } else {
-            localStorage.setItem('subtopics', JSON.stringify(state.subtopics));
-            localStorage.setItem('questions', JSON.stringify(state.questions));
-        }
-        
-        if (typeof showMessage === 'function') {
-            showMessage(`🧹 ${orphanSubtopics.length} subtemas huérfanos eliminados`, 'info');
-        }
-    }
-};
-
-// ==================== INICIALIZACIÓN Y HOOKS ====================
-
-// Inicializar sistema al cargar
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        initializeSubtopicStructure();
-        cleanOrphanSubtopics();
-        
-        // Actualizar selector si existe
-        if (document.getElementById('topic-selector')) {
-            updateTopicSelectorWithSubtopics();
-        }
-        
-        // Hook para actualizar selector cuando cambie el estado
-        if (typeof render !== 'undefined') {
-            const originalRender = render;
-            window.render = function() {
-                const result = originalRender.call(this);
-                
-                // Actualizar selector después del render
-                setTimeout(() => {
-                    if (document.getElementById('topic-selector')) {
-                        updateTopicSelectorWithSubtopics();
-                    }
-                }, 100);
-                
-                return result;
-            };
-        }
-        
-        console.log('🎯 Sistema de subtemas inicializado completamente');
-    }, 1500);
-});
-
-console.log('✅ Sistema CORREGIDO de subtemas implementado');
-console.log('🎯 Funcionalidades disponibles:');
-console.log('   ✓ Crear, editar y eliminar subtemas');
-console.log('   ✓ Asignar preguntas a subtemas');
-console.log('   ✓ Visualización jerárquica en banco de preguntas');
-console.log('   ✓ Gestión completa desde modal de temas');
-console.log('   ✓ DRAG & DROP de temas MANTENIDO');
-console.log('   ✓ Estadísticas detalladas');
-console.log('   ✓ Sincronización bidireccional');
-console.log('   ✓ Limpieza automática de huérfanos');
-console.log('💡 Usa el botón 📁+ en cualquier tema para crear subtemas');
-console.log('🔄 El drag & drop de temas sigue funcionando normalmente');
+console.log('✅ Parche de drag & drop CORREGIDO aplicado');
+console.log('🔄 Funcionalidades:');
+console.log('   - Arrastrar y soltar temas para reordenar');
+console.log('   - Indicadores visuales (borde azul) al arrastrar');
+console.log('   - Funciona con temas con preguntas y vacíos');
+console.log('   - El orden se sincroniza con gestión de temas');
+console.log('   - Botones no interfieren con el arrastre');
+console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 </body>
 </html>
-
-
 
 
 
