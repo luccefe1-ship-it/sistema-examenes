@@ -20458,23 +20458,23 @@ console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 <!-- 
-PARCHE: SUBCARPETAS INDENTADAS Y FUNCIONALES - VERSIÓN CORREGIDA
+PARCHE: SOLO BOTÓN DE INTEGRACIÓN - SIN ROMPER NADA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 -->
 
 <script>
-console.log('📁 Aplicando parche: subcarpetas indentadas funcionales - CORREGIDO...');
+console.log('📁 Aplicando parche SEGURO: solo botón de integración...');
 
 let topicIntegrations = JSON.parse(localStorage.getItem('topicIntegrations') || '{}');
 
-// INTERCEPTAR renderQuestionsByTopic
-const originalRenderIndented = renderQuestionsByTopic;
+// INTERCEPTAR renderQuestionsByTopic - VERSIÓN SEGURA
+const originalRenderSafe = renderQuestionsByTopic;
 renderQuestionsByTopic = function() {
-    let html = originalRenderIndented.call(this);
+    let html = originalRenderSafe.call(this);
     
-    console.log('🔧 HTML original obtenido, añadiendo botones...');
+    console.log('🔧 Añadiendo botones de integración...');
     
-    // PASO 1: Añadir botón 📁 SIEMPRE, sin condiciones
+    // SOLO añadir botón 📁, nada más
     html = html.replace(
         /(<button onclick="event\.stopPropagation\(\); editTopicSimple\('([^']+)'\)"[^>]*>[\s\S]*?<\/button>)/g,
         '<button onclick="event.stopPropagation(); showIntegrateModal(\'$2\')" style="background: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Integrar tema">📁</button> $1'
@@ -20485,125 +20485,10 @@ renderQuestionsByTopic = function() {
         '<button onclick="event.stopPropagation(); showIntegrateModal(\'$2\')" style="background: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Integrar tema">📁</button> $1'
     );
     
-    console.log('✅ Botones 📁 añadidos');
-    
-    // PASO 2: Aplicar jerarquía SOLO si hay integraciones
-    if (Object.keys(topicIntegrations).length > 0) {
-        console.log('🔄 Aplicando jerarquía de integraciones...');
-        html = applyIndentedHierarchy(html);
-    }
+    console.log('✅ Botones añadidos correctamente');
     
     return html;
 };
-
-function applyIndentedHierarchy(html) {
-    // Obtener temas integrados
-    const integratedIds = Object.values(topicIntegrations).flat();
-    
-    // Crear nuevo HTML reorganizado
-    let newHTML = '';
-    const processedIds = new Set();
-    
-    // Buscar todos los temas en el HTML
-    const topicMatches = html.match(/<div class="draggable-topic"[^>]*data-topic-id="[^"]*"[^>]*>[\s\S]*?(?=<div class="draggable-topic"|<div style="margin-top|$)/g);
-    if (!topicMatches) return html;
-    
-    topicMatches.forEach(topicHTML => {
-        const topicIdMatch = topicHTML.match(/data-topic-id="([^"]+)"/);
-        if (!topicIdMatch) return;
-        
-        const topicId = topicIdMatch[1];
-        
-        // Si ya lo procesamos o está integrado en otro, saltar
-        if (processedIds.has(topicId) || integratedIds.includes(topicId)) return;
-        
-        processedIds.add(topicId);
-        
-        // Añadir tema principal (modificado si tiene subcarpetas)
-        let modifiedTopic = topicHTML;
-        
-        if (topicIntegrations[topicId]) {
-            const children = topicIntegrations[topicId];
-            
-            // Modificar contador y apariencia del tema padre
-            if (modifiedTopic.includes('0 preguntas')) {
-                modifiedTopic = modifiedTopic.replace('0 preguntas', `${children.length} subcarpeta${children.length === 1 ? '' : 's'}`);
-                modifiedTopic = modifiedTopic.replace(/background: #6b7280;/, 'background: #059669;');
-                modifiedTopic = modifiedTopic.replace(/🔶/, '📁');
-            } else {
-                modifiedTopic = modifiedTopic.replace(/(\d+) preguntas/, `$1 preguntas + ${children.length} subcarpeta${children.length === 1 ? '' : 's'}`);
-                modifiedTopic = modifiedTopic.replace(/🔷/, '📁');
-            }
-        }
-        
-        newHTML += modifiedTopic;
-        
-        // Añadir subcarpetas indentadas inmediatamente después
-        if (topicIntegrations[topicId]) {
-            topicIntegrations[topicId].forEach(childId => {
-                processedIds.add(childId);
-                
-                // Buscar el HTML del tema hijo
-                const childMatch = topicMatches.find(t => t.includes(`data-topic-id="${childId}"`));
-                if (childMatch) {
-                    let childHTML = childMatch;
-                    
-                    // INDENTACIÓN: añadir margen izquierdo
-                    childHTML = childHTML.replace(
-                        /style="margin-bottom: 30px;([^"]*)/,
-                        'style="margin-bottom: 30px; margin-left: 40px;$1'
-                    );
-                    
-                    // Cambiar apariencia para subcarpeta - COLORES SÓLIDOS
-                    childHTML = childHTML.replace(/background: #4f46e5;/, 'background: #8b5cf6;');
-                    childHTML = childHTML.replace(/background: #6b7280;/, 'background: #94a3b8;');
-                    childHTML = childHTML.replace(/🔷/g, '📂');
-                    childHTML = childHTML.replace(/🔶/g, '📁');
-                    
-                    // QUITAR CUALQUIER OPACIDAD O TRANSPARENCIA
-                    childHTML = childHTML.replace(/opacity: [^;]+;/g, '');
-                    childHTML = childHTML.replace(/style="([^"]*?)opacity: [^;]+;?([^"]*)"/g, 'style="$1$2"');
-                    
-                    // Asegurar que no hay transparencia en el contenedor
-                    childHTML = childHTML.replace(/rgba\([^)]+\)/g, (match) => {
-                        if (match.includes('8b5cf6')) return '#8b5cf6';
-                        if (match.includes('94a3b8')) return '#94a3b8';
-                        return match;
-                    });
-                    
-                    // Cambiar botones: eliminar por desintegrar
-                    childHTML = childHTML.replace(
-                        new RegExp(`deleteTopicSimple\\('${childId}'\\)`, 'g'),
-                        `removeIntegration('${topicId}', '${childId}')`
-                    );
-                    childHTML = childHTML.replace(
-                        new RegExp(`deleteTopicEmpty\\('${childId}'\\)`, 'g'),
-                        `removeIntegration('${topicId}', '${childId}')`
-                    );
-                    childHTML = childHTML.replace(/🗑️/g, '🔗');
-                    childHTML = childHTML.replace(/title="Eliminar tema[^"]*"/g, 'title="Desintegrar"');
-                    
-                    // MANTENER BOTÓN DE INTEGRACIÓN EN TEMAS PADRE
-                    if (!topicIntegrations[childId] || topicIntegrations[childId].length === 0) {
-                        // Solo quitar botón de integración si NO es tema padre
-                        childHTML = childHTML.replace(
-                            /<button[^>]*title="Integrar tema"[^>]*>📁<\/button>\s*/g,
-                            ''
-                        );
-                    }
-                    
-                    newHTML += childHTML;
-                }
-            });
-        }
-    });
-    
-    // Reconstruir HTML completo
-    const beforeTopics = html.substring(0, html.indexOf('<div class="draggable-topic"'));
-    const afterTopics = html.substring(html.lastIndexOf('</div>') + 6);
-    
-    return beforeTopics + newHTML + afterTopics;
-}
 
 // Modal de integración
 window.showIntegrateModal = function(parentId) {
@@ -20665,10 +20550,10 @@ window.doIntegration = function(parentId, childId) {
         localStorage.setItem('topicIntegrations', JSON.stringify(topicIntegrations));
         
         closeModal();
-        render();
+        alert('Tema integrado. Recarga la página para ver los cambios.');
         
         if (typeof showMessage === 'function') {
-            showMessage('Tema integrado como subcarpeta', 'success');
+            showMessage('Tema integrado. Recarga para ver cambios.', 'success');
         }
     }
 };
@@ -20679,19 +20564,21 @@ window.removeIntegration = function(parentId, childId) {
         if (topicIntegrations[parentId].length === 0) delete topicIntegrations[parentId];
         localStorage.setItem('topicIntegrations', JSON.stringify(topicIntegrations));
         
-        render();
+        alert('Tema desintegrado. Recarga la página para ver los cambios.');
         
         if (typeof showMessage === 'function') {
-            showMessage('Tema desintegrado', 'success');
+            showMessage('Tema desintegrado. Recarga para ver cambios.', 'success');
         }
     }
 };
 
-console.log('✅ Parche aplicado - Subcarpetas indentadas y funcionales - CORREGIDO');
-console.log('🔍 Abre la consola para ver si aparecen los logs de "Botones 📁 añadidos"');
+console.log('✅ Parche SEGURO aplicado - Solo botón 📁');
+console.log('🔧 Los temas deberían aparecer normalmente');
+console.log('📁 Busca el botón violeta 📁 al lado de editar');
 </script>
 </body>
 </html>
+
 
 
 
