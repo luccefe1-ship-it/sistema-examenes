@@ -20458,12 +20458,12 @@ console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
 <!-- 
-PARCHE: SUBCARPETAS INDENTADAS Y FUNCIONALES
+PARCHE: SUBCARPETAS INDENTADAS Y FUNCIONALES - VERSIÓN CORREGIDA
 Añadir este código AL FINAL del archivo index.html, justo antes de </body>
 -->
 
 <script>
-console.log('📁 Aplicando parche: subcarpetas indentadas funcionales...');
+console.log('📁 Aplicando parche: subcarpetas indentadas funcionales - CORREGIDO...');
 
 let topicIntegrations = JSON.parse(localStorage.getItem('topicIntegrations') || '{}');
 
@@ -20472,7 +20472,9 @@ const originalRenderIndented = renderQuestionsByTopic;
 renderQuestionsByTopic = function() {
     let html = originalRenderIndented.call(this);
     
-    // Añadir botón 📁
+    console.log('🔧 HTML original obtenido, añadiendo botones...');
+    
+    // PASO 1: Añadir botón 📁 SIEMPRE, sin condiciones
     html = html.replace(
         /(<button onclick="event\.stopPropagation\(\); editTopicSimple\('([^']+)'\)"[^>]*>[\s\S]*?<\/button>)/g,
         '<button onclick="event.stopPropagation(); showIntegrateModal(\'$2\')" style="background: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Integrar tema">📁</button> $1'
@@ -20483,12 +20485,18 @@ renderQuestionsByTopic = function() {
         '<button onclick="event.stopPropagation(); showIntegrateModal(\'$2\')" style="background: #8b5cf6; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Integrar tema">📁</button> $1'
     );
     
-    return applyIndentedHierarchy(html);
+    console.log('✅ Botones 📁 añadidos');
+    
+    // PASO 2: Aplicar jerarquía SOLO si hay integraciones
+    if (Object.keys(topicIntegrations).length > 0) {
+        console.log('🔄 Aplicando jerarquía de integraciones...');
+        html = applyIndentedHierarchy(html);
+    }
+    
+    return html;
 };
 
 function applyIndentedHierarchy(html) {
-    if (Object.keys(topicIntegrations).length === 0) return html;
-    
     // Obtener temas integrados
     const integratedIds = Object.values(topicIntegrations).flat();
     
@@ -20599,6 +20607,8 @@ function applyIndentedHierarchy(html) {
 
 // Modal de integración
 window.showIntegrateModal = function(parentId) {
+    console.log('📁 Abriendo modal para:', parentId);
+    
     const parent = state.topics.find(t => t.id.toString() === parentId);
     if (!parent) return;
     
@@ -20677,102 +20687,12 @@ window.removeIntegration = function(parentId, childId) {
     }
 };
 
-console.log('✅ Parche aplicado - Subcarpetas indentadas y funcionales');
-
-// INTERCEPTAR GESTIÓN DE TEMAS PARA SINCRONIZAR
-const originalManageTopicsModal = window.manageTopicsModal;
-if (typeof originalManageTopicsModal === 'function') {
-    window.manageTopicsModal = function() {
-        // Obtener temas que NO están integrados como subcarpetas
-        const integratedAsChildren = Object.values(topicIntegrations).flat();
-        const availableTopics = state.topics.filter(topic => 
-            !integratedAsChildren.includes(topic.id.toString())
-        );
-        
-        const existingTopicsHtml = availableTopics.map(topic => {
-            const questionCount = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length;
-            const subcarpetasCount = topicIntegrations[topic.id] ? topicIntegrations[topic.id].length : 0;
-            
-            let displayName = topic.name;
-            if (subcarpetasCount > 0) {
-                displayName += ` (${questionCount} preguntas + ${subcarpetasCount} subcarpetas)`;
-            } else {
-                displayName += ` (${questionCount} preguntas)`;
-            }
-            
-            return `<option value="${topic.id}">${displayName}</option>`;
-        }).join('');
-
-        const modalHtml = `
-            <div id="manage-topics-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
-                <div style="background: white; border-radius: 16px; padding: 30px; max-width: 500px; width: 90%;">
-                    <h3 style="margin-bottom: 20px; color: #1f2937;">📁 Gestión de Temas</h3>
-                    
-                    <div style="margin-bottom: 20px;">
-                        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Eliminar tema existente:</label>
-                        <select id="deleteTopicSelect" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
-                            <option value="">-- Selecciona un tema para eliminar --</option>
-                            ${existingTopicsHtml}
-                        </select>
-                        <button onclick="executeDeleteTopic()" style="background: #ef4444; color: white; border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer; margin-top: 10px; width: 100%;">
-                            🗑️ Eliminar Tema Seleccionado
-                        </button>
-                    </div>
-                    
-                    <div style="margin-top: 20px; text-align: center;">
-                        <button onclick="showTopicStats()" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-right: 10px;">📊 Ver Estadísticas</button>
-                        <button onclick="closeManageTopicsModal()" style="background: #6b7280; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Cerrar</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        console.log('📁 Modal de gestión actualizado con integraciones');
-    };
-}
-
-// INTERCEPTAR ELIMINACIÓN DE TEMAS PARA LIMPIAR INTEGRACIONES
-const originalExecuteDeleteTopic = window.executeDeleteTopic;
-if (typeof originalExecuteDeleteTopic === 'function') {
-    window.executeDeleteTopic = function() {
-        const selector = document.getElementById('deleteTopicSelect');
-        if (selector && selector.value) {
-            const topicId = selector.value;
-            
-            // Limpiar integraciones antes de eliminar
-            cleanupTopicIntegrations(topicId);
-        }
-        
-        // Ejecutar eliminación original
-        originalExecuteDeleteTopic.call(this);
-    };
-}
-
-function cleanupTopicIntegrations(topicIdToDelete) {
-    const topicIdStr = topicIdToDelete.toString();
-    
-    // Remover como tema padre
-    if (topicIntegrations[topicIdStr]) {
-        delete topicIntegrations[topicIdStr];
-    }
-    
-    // Remover como tema hijo de otros
-    Object.keys(topicIntegrations).forEach(parentId => {
-        topicIntegrations[parentId] = topicIntegrations[parentId].filter(childId => childId !== topicIdStr);
-        
-        // Si no quedan hijos, eliminar entrada
-        if (topicIntegrations[parentId].length === 0) {
-            delete topicIntegrations[parentId];
-        }
-    });
-    
-    // Guardar cambios
-    localStorage.setItem('topicIntegrations', JSON.stringify(topicIntegrations));
-}
+console.log('✅ Parche aplicado - Subcarpetas indentadas y funcionales - CORREGIDO');
+console.log('🔍 Abre la consola para ver si aparecen los logs de "Botones 📁 añadidos"');
 </script>
 </body>
 </html>
+
 
 
 
