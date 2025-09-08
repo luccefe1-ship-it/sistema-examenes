@@ -20578,13 +20578,33 @@ function applyIntegrationVisually(parentId, childId) {
             parentHeader.style.background = '#059669';
             parentHeader.innerHTML = parentHeader.innerHTML.replace('🔶', '📁');
             parentHeader.innerHTML = parentHeader.innerHTML.replace('0 preguntas', `${currentIntegrations.length} subcarpeta${currentIntegrations.length === 1 ? '' : 's'}`);
+            
+            // Crear o encontrar área de subcarpetas
+            let subfolderArea = parentElement.querySelector('.subfolder-area');
+            if (!subfolderArea) {
+                const contentArea = parentElement.querySelector('div[style*="Este tema no tiene preguntas"]');
+                if (contentArea && contentArea.parentElement) {
+                    contentArea.parentElement.innerHTML = '<div class="subfolder-area" style="padding: 15px; background: rgba(5, 150, 105, 0.1);"></div>';
+                    subfolderArea = parentElement.querySelector('.subfolder-area');
+                }
+            }
         } else {
             parentHeader.innerHTML = parentHeader.innerHTML.replace(/(\d+) preguntas/, `$1 preguntas + ${currentIntegrations.length} subcarpeta${currentIntegrations.length === 1 ? '' : 's'}`);
             parentHeader.innerHTML = parentHeader.innerHTML.replace('🔷', '📁');
+            
+            // Crear área de subcarpetas después del contenido existente
+            let subfolderArea = parentElement.querySelector('.subfolder-area');
+            if (!subfolderArea) {
+                const contentDiv = parentElement.querySelector('[id^="topic-content-"]');
+                if (contentDiv) {
+                    contentDiv.insertAdjacentHTML('afterend', '<div class="subfolder-area" style="padding: 15px; background: rgba(5, 150, 105, 0.1); border: 1px solid #059669; border-top: none;"></div>');
+                    subfolderArea = parentElement.querySelector('.subfolder-area');
+                }
+            }
         }
     }
     
-    // Modificar tema hijo
+    // Modificar y mover tema hijo DENTRO del contenedor padre
     const childHeader = childElement.querySelector('h3');
     if (childHeader) {
         childHeader.style.background = '#8b5cf6';
@@ -20604,9 +20624,13 @@ function applyIntegrationVisually(parentId, childId) {
         if (integrateBtn) integrateBtn.remove();
     }
     
-    // Mover visualmente el tema hijo debajo del padre con indentación
-    childElement.style.marginLeft = '40px';
-    parentElement.insertAdjacentElement('afterend', childElement);
+    // Mover el tema hijo DENTRO del área de subcarpetas
+    const subfolderArea = parentElement.querySelector('.subfolder-area');
+    if (subfolderArea) {
+        childElement.style.marginLeft = '0px';
+        childElement.style.marginBottom = '10px';
+        subfolderArea.appendChild(childElement);
+    }
 }
 
 window.removeIntegration = function(parentId, childId) {
@@ -20629,6 +20653,7 @@ console.log('📁 Busca el botón violeta 📁 al lado de editar');
 </script>
 </body>
 </html>
+
 
 
 
