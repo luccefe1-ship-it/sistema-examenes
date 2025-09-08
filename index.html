@@ -20551,13 +20551,63 @@ window.doIntegration = function(parentId, childId) {
         localStorage.setItem('topicIntegrations', JSON.stringify(topicIntegrations));
         
         closeModal();
-        alert('Tema integrado. Recarga la página para ver los cambios.');
+        
+        // Aplicar cambios inmediatamente SIN recargar
+        applyIntegrationVisually(parentId, childId);
         
         if (typeof showMessage === 'function') {
-            showMessage('Tema integrado. Recarga para ver cambios.', 'success');
+            showMessage('Tema integrado como subcarpeta', 'success');
         }
     }
 };
+
+// Función para aplicar cambios visuales inmediatamente
+function applyIntegrationVisually(parentId, childId) {
+    // Buscar elementos en el DOM
+    const parentElement = document.querySelector(`[data-topic-id="${parentId}"]`);
+    const childElement = document.querySelector(`[data-topic-id="${childId}"]`);
+    
+    if (!parentElement || !childElement) return;
+    
+    // Modificar tema padre
+    const parentHeader = parentElement.querySelector('h3');
+    if (parentHeader) {
+        const currentIntegrations = topicIntegrations[parentId] || [];
+        
+        if (parentHeader.textContent.includes('0 preguntas')) {
+            parentHeader.style.background = '#059669';
+            parentHeader.innerHTML = parentHeader.innerHTML.replace('🔶', '📁');
+            parentHeader.innerHTML = parentHeader.innerHTML.replace('0 preguntas', `${currentIntegrations.length} subcarpeta${currentIntegrations.length === 1 ? '' : 's'}`);
+        } else {
+            parentHeader.innerHTML = parentHeader.innerHTML.replace(/(\d+) preguntas/, `$1 preguntas + ${currentIntegrations.length} subcarpeta${currentIntegrations.length === 1 ? '' : 's'}`);
+            parentHeader.innerHTML = parentHeader.innerHTML.replace('🔷', '📁');
+        }
+    }
+    
+    // Modificar tema hijo
+    const childHeader = childElement.querySelector('h3');
+    if (childHeader) {
+        childHeader.style.background = '#8b5cf6';
+        childHeader.innerHTML = childHeader.innerHTML.replace('🔷', '📂');
+        childHeader.innerHTML = childHeader.innerHTML.replace('🔶', '📁');
+        
+        // Cambiar botón eliminar por desintegrar
+        const deleteBtn = childHeader.querySelector('button[onclick*="delete"]');
+        if (deleteBtn) {
+            deleteBtn.innerHTML = '🔗';
+            deleteBtn.setAttribute('onclick', `removeIntegration('${parentId}', '${childId}')`);
+            deleteBtn.title = 'Desintegrar';
+        }
+        
+        // Quitar botón de integración del hijo
+        const integrateBtn = childHeader.querySelector('button[title="Integrar tema"]');
+        if (integrateBtn) integrateBtn.remove();
+    }
+    
+    // Mover visualmente el tema hijo debajo del padre con indentación
+    childElement.style.marginLeft = '40px';
+    parentElement.insertAdjacentElement('afterend', childElement);
+}
 
 window.removeIntegration = function(parentId, childId) {
     if (topicIntegrations[parentId]) {
@@ -20579,6 +20629,7 @@ console.log('📁 Busca el botón violeta 📁 al lado de editar');
 </script>
 </body>
 </html>
+
 
 
 
