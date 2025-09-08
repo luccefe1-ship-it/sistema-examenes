@@ -20457,8 +20457,331 @@ console.log('   - El orden se sincroniza con gestión de temas');
 console.log('   - Botones no interfieren con el arrastre');
 console.log('💡 Arrastra el encabezado de cualquier tema');
 </script>
+<!-- 
+PARCHE: INSERTAR HEADER DE TEMA EN OTRO TEMA
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche permite meter el header de un tema dentro del recuadro de otro tema
+-->
+
+<script>
+// ========== PARCHE: INSERTAR HEADER DE TEMA ==========
+console.log('📥 Aplicando parche: Insertar header de tema en otro tema...');
+
+// GUARDAR LA FUNCIÓN ORIGINAL
+const originalRenderQuestionsByTopicInsert = renderQuestionsByTopic;
+
+// REEMPLAZAR renderQuestionsByTopic para añadir botón de insertar
+renderQuestionsByTopic = function() {
+    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+    
+    let html = '';
+    
+    // Mostrar preguntas por cada tema que TENGA preguntas
+    state.topics.forEach(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        if (topicQuestions.length > 0) {
+            const topicId = topic.id.toString();
+            const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+            
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📁 ${topic.name}</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
+                            
+                            <!-- BOTÓN INSERTAR TEMA -->
+                            <button onclick="openInsertTopicModal('${topic.id}')" class="btn btn-success" style="padding: 4px 8px; font-size: 12px; background: #10b981; border: none; border-radius: 4px; color: white; cursor: pointer;" title="Insertar otro tema aquí">
+                                📥 Insertar
+                            </button>
+                            
+                            ${typeof toggleTopicVisibility === 'function' ? `
+                            <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
+                                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
+                                    title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                                ${isCollapsed ? '▶' : '▼'}
+                            </button>
+                            ` : ''}
+                            
+                            ${typeof editTopicSimple === 'function' ? `
+                            <button onclick="editTopicSimple('${topic.id}')" class="btn btn-warning" style="padding: 4px 8px; font-size: 12px; background: #f59e0b; border: none; border-radius: 4px; color: white; cursor: pointer;" title="Editar tema">
+                                ✏️
+                            </button>
+                            ` : ''}
+                            
+                            ${typeof deleteTopicSimple === 'function' ? `
+                            <button onclick="deleteTopicSimple('${topic.id}')" class="btn btn-danger" style="padding: 4px 8px; font-size: 12px; background: #dc2626; border: none; border-radius: 4px; color: white; cursor: pointer;" title="Eliminar tema">
+                                🗑️
+                            </button>
+                            ` : ''}
+                        </div>
+                    </h3>
+                    <div id="topic-content-${topicId}" style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                        ${topicQuestions.map(q => {
+                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                            return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : renderSingleQuestionFallback(q, actualIndex));
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    // Mostrar preguntas sin tema asignado SI existen
+    if (questionsWithoutTopic.length > 0) {
+        const topicId = 'sin-tema';
+        const isCollapsed = (typeof collapsedTopics !== 'undefined' && collapsedTopics[topicId]) || false;
+        
+        html += `
+            <div style="margin-bottom: 30px;">
+                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📂 Sin tema asignado</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                        
+                        ${typeof toggleTopicVisibility === 'function' ? `
+                        <button id="toggle-btn-${topicId}" onclick="toggleTopicVisibility('${topicId}')" 
+                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
+                                title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                            ${isCollapsed ? '▶' : '▼'}
+                        </button>
+                        ` : ''}
+                    </div>
+                </h3>
+                <div id="topic-content-${topicId}" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                    ${questionsWithoutTopic.map(q => {
+                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                        return (typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : renderSingleQuestionFallback(q, actualIndex));
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Si no hay preguntas en absoluto
+    if (html === '') {
+        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
+    }
+    
+    return html;
+};
+
+// FUNCIÓN para abrir modal de insertar tema
+window.openInsertTopicModal = function(targetTopicId) {
+    console.log('📥 Abriendo modal para insertar tema en:', targetTopicId);
+    
+    const targetTopic = state.topics.find(t => t.id.toString() === targetTopicId.toString());
+    if (!targetTopic) {
+        showMessage('❌ Error: Tema destino no encontrado', 'error');
+        return;
+    }
+    
+    // Obtener temas disponibles para insertar (excluyendo el tema destino)
+    const availableTopics = state.topics.filter(topic => {
+        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
+        return topic.id.toString() !== targetTopicId.toString() && topicQuestions.length > 0;
+    });
+    
+    if (availableTopics.length === 0) {
+        showMessage('⚠️ No hay otros temas con preguntas para insertar', 'warning');
+        return;
+    }
+    
+    // Crear modal
+    const modal = document.createElement('div');
+    modal.id = 'insertTopicModal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        padding: 20px;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 12px; padding: 20px; max-width: 500px; width: 100%; max-height: 80vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: #1f2937;">📥 Insertar Tema</h3>
+                <button onclick="closeInsertTopicModal()" style="background: none; border: none; font-size: 20px; color: #6b7280; cursor: pointer;">✕</button>
+            </div>
+            
+            <div style="margin-bottom: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
+                <strong>Tema destino:</strong> 📁 ${targetTopic.name}
+                <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">
+                    Las preguntas del tema seleccionado se insertarán dentro de este tema
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 500;">Selecciona el tema a insertar:</label>
+                <select id="sourceTopicSelect" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                    <option value="">-- Selecciona un tema --</option>
+                    ${availableTopics.map(topic => {
+                        const questionCount = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length;
+                        return `<option value="${topic.id}">📁 ${topic.name} (${questionCount} preguntas)</option>`;
+                    }).join('')}
+                </select>
+            </div>
+            
+            <div style="margin-bottom: 20px; padding: 10px; background: #fef3c7; border-radius: 6px; font-size: 12px;">
+                <strong>⚠️ Importante:</strong>
+                <ul style="margin: 5px 0 0 20px; padding: 0;">
+                    <li>Las preguntas se moverán del tema origen al tema destino</li>
+                    <li>El tema origen quedará vacío y podrá ser eliminado</li>
+                    <li>Esta acción no se puede deshacer</li>
+                </ul>
+            </div>
+            
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="closeInsertTopicModal()" class="btn btn-secondary" style="padding: 8px 16px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    Cancelar
+                </button>
+                <button onclick="executeInsertTopic('${targetTopicId}')" class="btn btn-primary" style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    📥 Insertar Tema
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Cerrar modal al hacer clic fuera
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeInsertTopicModal();
+        }
+    });
+};
+
+// FUNCIÓN para cerrar modal de insertar tema
+window.closeInsertTopicModal = function() {
+    const modal = document.getElementById('insertTopicModal');
+    if (modal) {
+        modal.remove();
+    }
+};
+
+// FUNCIÓN para ejecutar la inserción de tema
+window.executeInsertTopic = function(targetTopicId) {
+    const sourceTopicSelect = document.getElementById('sourceTopicSelect');
+    const sourceTopicId = sourceTopicSelect ? sourceTopicSelect.value : null;
+    
+    if (!sourceTopicId) {
+        showMessage('⚠️ Selecciona un tema para insertar', 'warning');
+        return;
+    }
+    
+    if (sourceTopicId === targetTopicId) {
+        showMessage('❌ No puedes insertar un tema en sí mismo', 'error');
+        return;
+    }
+    
+    const sourceTopic = state.topics.find(t => t.id.toString() === sourceTopicId.toString());
+    const targetTopic = state.topics.find(t => t.id.toString() === targetTopicId.toString());
+    
+    if (!sourceTopic || !targetTopic) {
+        showMessage('❌ Error: Temas no encontrados', 'error');
+        return;
+    }
+    
+    // Obtener preguntas del tema origen
+    const sourceQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === sourceTopicId.toString());
+    
+    if (sourceQuestions.length === 0) {
+        showMessage('⚠️ El tema seleccionado no tiene preguntas', 'warning');
+        return;
+    }
+    
+    // Confirmar acción
+    const confirmMessage = `¿Insertar "${sourceTopic.name}" dentro de "${targetTopic.name}"?
+
+📊 Se moverán ${sourceQuestions.length} pregunta${sourceQuestions.length === 1 ? '' : 's'}
+📂 El tema "${sourceTopic.name}" quedará vacío
+⚠️ Esta acción no se puede deshacer`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    try {
+        // Mover todas las preguntas del tema origen al tema destino
+        state.questions.forEach(question => {
+            if (question.topicId && question.topicId.toString() === sourceTopicId.toString()) {
+                question.topicId = targetTopicId;
+            }
+        });
+        
+        // Guardar cambios
+        if (typeof saveData === 'function') {
+            saveData();
+        } else {
+            localStorage.setItem('questions', JSON.stringify(state.questions));
+        }
+        
+        // Cerrar modal
+        closeInsertTopicModal();
+        
+        // Re-renderizar
+        render();
+        
+        // Mostrar mensaje de éxito
+        if (typeof showMessage === 'function') {
+            showMessage(`✅ Tema "${sourceTopic.name}" insertado en "${targetTopic.name}" (${sourceQuestions.length} preguntas movidas)`, 'success');
+        }
+        
+        console.log(`📥 Inserción completada: ${sourceQuestions.length} preguntas movidas de "${sourceTopic.name}" a "${targetTopic.name}"`);
+        
+    } catch (error) {
+        console.error('❌ Error insertando tema:', error);
+        showMessage('❌ Error al insertar tema: ' + error.message, 'error');
+    }
+};
+
+// FUNCIÓN fallback para renderizar pregunta individual
+function renderSingleQuestionFallback(q, actualIndex) {
+    const topicName = q.topicId ? (state.topics.find(t => t.id == q.topicId)?.name || 'Sin tema') : null;
+    
+    return `
+        <div style="padding: 15px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between;">
+            <div style="flex: 1;">
+                <div style="font-weight: 500; margin-bottom: 8px;">
+                    P${actualIndex + 1}: ${q.question}
+                    ${topicName ? `<span style="background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 8px; font-size: 11px; margin-left: 8px;">${topicName}</span>` : ''}
+                </div>
+                <ul style="list-style: none; margin: 0; padding: 0;">
+                    ${q.options.map((opt, optIndex) => `
+                        <li style="padding: 2px 0; color: ${q.correctAnswer === optIndex ? '#10b981' : '#6b7280'};">
+                            ${String.fromCharCode(97 + optIndex)}) ${opt} ${q.correctAnswer === optIndex ? '✓' : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+            <div style="display: flex; gap: 5px; flex-shrink: 0; margin-left: 15px;">
+                ${typeof editQuestion === 'function' ? `<button onclick="editQuestion(${actualIndex})" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Editar</button>` : ''}
+                ${typeof deleteQuestion === 'function' ? `<button onclick="deleteQuestion(${actualIndex})" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Eliminar</button>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+console.log('✅ Parche aplicado correctamente');
+console.log('📥 Funcionalidad añadida:');
+console.log('   - Botón "📥 Insertar" en header de cada tema');
+console.log('   - Modal para seleccionar tema origen');
+console.log('   - Mueve preguntas del tema origen al destino');
+console.log('   - El tema origen queda vacío para eliminación');
+console.log('   - Confirmación antes de insertar');
+console.log('   - Compatible con código existente');
+</script>
 </body>
 </html>
+
 
 
 
