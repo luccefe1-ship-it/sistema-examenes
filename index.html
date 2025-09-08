@@ -21255,8 +21255,282 @@ console.log('   - ✅ Dropdowns COMPLETAMENTE sincronizados');
 console.log('   - ✅ Temas vacíos visibles en banco de preguntas');
 console.log('🚀 ¡Todo funciona perfectamente y está sincronizado!');
 </script>
+    <!-- 
+PARCHE: SINCRONIZACIÓN DE DROPDOWNS Y TEMAS VISIBLES
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche específico solo se encarga de sincronizar dropdowns y mostrar todos los temas
+-->
+
+<script>
+// ========== PARCHE ESPECÍFICO: SINCRONIZACIÓN DROPDOWNS ==========
+console.log('🔄 Aplicando parche de sincronización de dropdowns...');
+
+// FUNCIÓN PARA SINCRONIZAR TODOS LOS DROPDOWNS
+function sincronizarDropdowns() {
+    console.log('🔄 Sincronizando dropdowns...');
+    
+    // Función para crear opciones jerárquicas
+    function crearOpcionesJerarquicas() {
+        let opciones = '<option value="">Todos los temas</option>';
+        
+        function agregarTemasRecursivo(parentId = null, nivel = 0) {
+            const temas = state.topics
+                .filter(t => t.parentId === parentId)
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+            
+            temas.forEach(tema => {
+                const indentacion = '│  '.repeat(nivel);
+                const prefijo = nivel > 0 ? indentacion + '└─ ' : '';
+                const preguntasCount = state.questions.filter(q => q.topicId && q.topicId.toString() === tema.id.toString()).length;
+                const textoCount = preguntasCount > 0 ? ` (${preguntasCount})` : '';
+                
+                opciones += `<option value="${tema.id}">${prefijo}${tema.name}${textoCount}</option>`;
+                
+                // Agregar subtemas recursivamente
+                agregarTemasRecursivo(tema.id.toString(), nivel + 1);
+            });
+        }
+        
+        agregarTemasRecursivo();
+        return opciones;
+    }
+    
+    // Lista de todos los posibles selectores de dropdowns
+    const selectores = [
+        '#topicFilter',
+        'select[name="topicFilter"]',
+        'select.topic-filter',
+        '#filterByTopic',
+        'select[onchange*="topic"]',
+        '#manageTopicsModal select',
+        '[id*="topic"] select',
+        'select[name*="topic"]',
+        '.form-control[multiple="false"]',
+        'select:not([multiple])'
+    ];
+    
+    let dropdownsActualizados = 0;
+    
+    selectores.forEach(selector => {
+        try {
+            const elementos = document.querySelectorAll(selector);
+            elementos.forEach(dropdown => {
+                if (dropdown && dropdown.tagName === 'SELECT' && !dropdown.hasAttribute('data-sincronizado')) {
+                    const valorActual = dropdown.value;
+                    dropdown.innerHTML = crearOpcionesJerarquicas();
+                    dropdown.value = valorActual;
+                    dropdown.setAttribute('data-sincronizado', 'true');
+                    dropdownsActualizados++;
+                    console.log(`✅ Dropdown actualizado: ${selector}`);
+                }
+            });
+        } catch (e) {
+            // Ignorar errores de selectores inválidos
+        }
+    });
+    
+    console.log(`✅ ${dropdownsActualizados} dropdowns sincronizados`);
+}
+
+// FUNCIÓN PARA ASEGURAR QUE TODOS LOS TEMAS SEAN VISIBLES EN EL BANCO
+function asegurarTemasVisibles() {
+    console.log('🔍 Asegurando que todos los temas sean visibles...');
+    
+    // Interceptar la función renderQuestionsByTopic si existe
+    if (typeof window.renderQuestionsByTopic === 'function') {
+        const renderOriginal = window.renderQuestionsByTopic;
+        
+        window.renderQuestionsByTopic = function() {
+            // Ejecutar la función original
+            const resultado = renderOriginal.call(this);
+            
+            // Después del render, sincronizar dropdowns
+            setTimeout(() => {
+                sincronizarDropdowns();
+            }, 100);
+            
+            return resultado;
+        };
+        
+        console.log('✅ Función renderQuestionsByTopic interceptada');
+    }
+    
+    // También interceptar render general si existe
+    if (typeof window.render === 'function' && !window.render._patcheado) {
+        const renderOriginalGeneral = window.render;
+        
+        window.render = function() {
+            const resultado = renderOriginalGeneral.call(this);
+            
+            // Sincronizar después del render
+            setTimeout(() => {
+                sincronizarDropdowns();
+            }, 150);
+            
+            return resultado;
+        };
+        
+        window.render._patcheado = true;
+        console.log('✅ Función render general interceptada');
+    }
+}
+
+// FUNCIÓN PARA FORZAR SINCRONIZACIÓN DEL DROPDOWN DEL BANCO
+function forzarSincronizacionBanco() {
+    setTimeout(() => {
+        // Buscar específicamente el dropdown del banco
+        const posiblesDropdowns = [
+            document.getElementById('topicFilter'),
+            document.querySelector('select[name="topicFilter"]'),
+            document.querySelector('.form-control'),
+            document.querySelector('select:not([multiple])'),
+            document.querySelector('select')
+        ];
+        
+        for (const dropdown of posiblesDropdowns) {
+            if (dropdown && dropdown.tagName === 'SELECT') {
+                console.log('🎯 Dropdown del banco encontrado, sincronizando...');
+                
+                const valorActual = dropdown.value;
+                let opciones = '<option value="">Todos los temas</option>';
+                
+                function agregarTemasRecursivo(parentId = null, nivel = 0) {
+                    const temas = state.topics
+                        .filter(t => t.parentId === parentId)
+                        .sort((a, b) => (a.order || 0) - (b.order || 0));
+                    
+                    temas.forEach(tema => {
+                        const indentacion = '│  '.repeat(nivel);
+                        const prefijo = nivel > 0 ? indentacion + '└─ ' : '';
+                        const preguntasCount = state.questions.filter(q => q.topicId && q.topicId.toString() === tema.id.toString()).length;
+                        const textoCount = preguntasCount > 0 ? ` (${preguntasCount})` : '';
+                        
+                        opciones += `<option value="${tema.id}">${prefijo}${tema.name}${textoCount}</option>`;
+                        
+                        agregarTemasRecursivo(tema.id.toString(), nivel + 1);
+                    });
+                }
+                
+                agregarTemasRecursivo();
+                dropdown.innerHTML = opciones;
+                dropdown.value = valorActual;
+                
+                console.log('✅ Dropdown del banco sincronizado exitosamente');
+                break;
+            }
+        }
+    }, 200);
+}
+
+// INTERCEPTAR EVENTOS DE CAMBIO EN TEMAS
+function interceptarCambiosTemas() {
+    // Lista de funciones que pueden modificar temas
+    const funcionesACuidar = [
+        'createTopic',
+        'deleteTopic',
+        'updateTopic',
+        'moveTopic',
+        'saveData'
+    ];
+    
+    funcionesACuidar.forEach(nombreFuncion => {
+        if (typeof window[nombreFuncion] === 'function' && !window[nombreFuncion]._patcheadoSync) {
+            const funcionOriginal = window[nombreFuncion];
+            
+            window[nombreFuncion] = function() {
+                const resultado = funcionOriginal.apply(this, arguments);
+                
+                // Sincronizar después de cualquier cambio
+                setTimeout(() => {
+                    sincronizarDropdowns();
+                    forzarSincronizacionBanco();
+                }, 100);
+                
+                return resultado;
+            };
+            
+            window[nombreFuncion]._patcheadoSync = true;
+            console.log(`✅ Función ${nombreFuncion} interceptada para sincronización`);
+        }
+    });
+}
+
+// OBSERVER PARA DETECTAR CAMBIOS EN EL DOM
+function configurarObserverDOM() {
+    const observer = new MutationObserver((mutations) => {
+        let hayNuevosSelects = false;
+        
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === 1) { // Element node
+                        if (node.tagName === 'SELECT' || node.querySelector('select')) {
+                            hayNuevosSelects = true;
+                        }
+                    }
+                });
+            }
+        });
+        
+        if (hayNuevosSelects) {
+            setTimeout(() => {
+                sincronizarDropdowns();
+            }, 100);
+        }
+    });
+    
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+    
+    console.log('✅ Observer DOM configurado');
+}
+
+// INICIALIZACIÓN DEL PARCHE
+function inicializarParche() {
+    console.log('🚀 Inicializando parche de sincronización...');
+    
+    // Sincronización inicial
+    setTimeout(() => {
+        sincronizarDropdowns();
+        forzarSincronizacionBanco();
+    }, 500);
+    
+    // Configurar interceptores
+    asegurarTemasVisibles();
+    interceptarCambiosTemas();
+    configurarObserverDOM();
+    
+    // Sincronización periódica para asegurar consistencia
+    setInterval(() => {
+        sincronizarDropdowns();
+        forzarSincronizacionBanco();
+    }, 3000);
+    
+    console.log('✅ Parche de sincronización inicializado correctamente');
+}
+
+// EJECUTAR EL PARCHE
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', inicializarParche);
+} else {
+    inicializarParche();
+}
+
+console.log('✅ Parche de sincronización de dropdowns aplicado');
+console.log('🎯 Funcionalidades:');
+console.log('   - ✅ Sincronización automática de todos los dropdowns');
+console.log('   - ✅ Jerarquía visual con indentación (│ └─)');
+console.log('   - ✅ Contador de preguntas por tema');
+console.log('   - ✅ Interceptación de cambios en temas');
+console.log('   - ✅ Observer DOM para nuevos selects');
+console.log('   - ✅ Sincronización periódica cada 3 segundos');
+console.log('🚀 ¡Dropdowns completamente sincronizados!');
+</script>
 </body>
 </html>
+
 
 
 
