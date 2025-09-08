@@ -21071,89 +21071,527 @@ console.log('🔄 Arrastra cualquier header para reordenar');
 console.log('💡 Usa diagnosticSubfolders() en la consola para debugging');
 </script>
 <!-- 
-PARCHE DEFINITIVO: RESTAURAR MULTIJUGADOR SIN PERDER SUBCARPETAS
-Añadir este código JUSTO ANTES de </body> - DEBE SER EL ÚLTIMO SCRIPT
-Este parche restaura la funcionalidad del multijugador completamente
+PARCHE FINAL: SISTEMA COMPLETO DE SUBCARPETAS CON DRAG & DROP
+Añadir este código AL FINAL del archivo index.html, justo antes de </body>
+Este parche reemplaza completamente la función de renderizado
 -->
 
 <script>
-// ========== PARCHE DEFINITIVO: RESTAURAR MULTIJUGADOR ==========
-console.log('🚨 APLICANDO PARCHE DEFINITIVO para restaurar multijugador...');
+// ========== PARCHE FINAL: SISTEMA COMPLETO DE SUBCARPETAS ==========
+console.log('🔄 Aplicando PARCHE FINAL: Sistema completo de subcarpetas con drag & drop...');
 
-// ==================== DETECTAR CONTEXTO ====================
-function isInMultiplayerContext() {
-    return (state && state.currentTab === 'multiplayer') || 
-           (typeof multiplayerState !== 'undefined' && 
-            multiplayerState && 
-            (multiplayerState.gameState === 'playing' || 
-             multiplayerState.gameState === 'waiting' || 
-             multiplayerState.gameState === 'ready'));
-}
-
-// ==================== VARIABLES GLOBALES PARA SUBCARPETAS ====================
-window.topicIntegrationsBackup = JSON.parse(localStorage.getItem('topicIntegrations') || '{}');
-window.collapsedTopicsBackup = JSON.parse(localStorage.getItem('collapsedTopics') || '{}');
-
-// ==================== FUNCIONES DE SUBCARPETAS (SOLO MODO NORMAL) ====================
-function isChildTopic(topicId) {
-    return Object.values(window.topicIntegrationsBackup).some(children => 
-        children.includes(topicId.toString())
-    );
-}
-
-function getOrderedChildTopics(parentTopicId) {
-    const childTopics = window.topicIntegrationsBackup[parentTopicId.toString()] || [];
-    const orderedChildren = JSON.parse(localStorage.getItem(`subtopicOrder_${parentTopicId}`) || 'null');
+// ==================== ESPERAR A QUE TODO ESTÉ CARGADO ====================
+setTimeout(() => {
+    console.log('⏳ Inicializando sistema de subcarpetas...');
     
-    if (orderedChildren && Array.isArray(orderedChildren)) {
-        const filteredOrder = orderedChildren.filter(id => childTopics.includes(id));
-        const newTopics = childTopics.filter(id => !filteredOrder.includes(id));
-        return [...filteredOrder, ...newTopics];
+    // ==================== ESTRUCTURA DE DATOS ====================
+    // Estructura global para manejar las integraciones
+    window.topicIntegrations = JSON.parse(localStorage.getItem('topicIntegrations') || '{}');
+    // Formato: { "parentTopicId": ["childTopicId1", "childTopicId2"] }
+
+    // Estado de carpetas colapsadas
+    window.collapsedTopics = JSON.parse(localStorage.getItem('collapsedTopics') || '{}');
+
+    // Variables para drag & drop
+    window.draggedTopicId = null;
+    window.draggedSubtopicId = null;
+    window.draggedSubtopicParent = null;
+
+    // ==================== FUNCIONES AUXILIARES ====================
+
+    // Función para verificar si un tema es hijo de otro
+    function isChildTopic(topicId) {
+        return Object.values(window.topicIntegrations).some(children => 
+            children.includes(topicId.toString())
+        );
     }
-    
-    return childTopics;
-}
 
-// ==================== RENDERIZADO INTELIGENTE ====================
-function renderQuestionsIntelligent() {
-    // SI ESTAMOS EN MULTIJUGADOR, usar renderizado básico sin subcarpetas
-    if (isInMultiplayerContext()) {
-        console.log('🎮 Modo multijugador detectado - usando renderizado básico');
-        return renderBasicQuestionsByTopic();
+    // Función para obtener el ID del tema padre
+    function getParentTopicId(childTopicId) {
+        const parentEntry = Object.entries(window.topicIntegrations).find(([parent, children]) => 
+            children.includes(childTopicId.toString())
+        );
+        return parentEntry ? parentEntry[0] : null;
     }
-    
-    // MODO NORMAL: usar subcarpetas
-    console.log('📁 Modo normal detectado - usando subcarpetas');
-    return renderSubfoldersQuestionsByTopic();
-}
 
-// Renderizado básico para multijugador
-function renderBasicQuestionsByTopic() {
-    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
-    let html = '';
+    // Función para obtener temas hijos de un padre (ordenados)
+    function getOrderedChildTopics(parentTopicId) {
+        const childTopics = window.topicIntegrations[parentTopicId.toString()] || [];
+        const orderedChildren = JSON.parse(localStorage.getItem(`subtopicOrder_${parentTopicId}`) || 'null');
+        
+        if (orderedChildren && Array.isArray(orderedChildren)) {
+            const filteredOrder = orderedChildren.filter(id => childTopics.includes(id));
+            const newTopics = childTopics.filter(id => !filteredOrder.includes(id));
+            return [...filteredOrder, ...newTopics];
+        }
+        
+        return childTopics;
+    }
 
-    // Mostrar preguntas por cada tema que TENGA preguntas
-    state.topics.forEach(topic => {
-        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
-        if (topicQuestions.length > 0) {
+    // Función para guardar orden de subtemas
+    function saveSubtopicOrder(parentTopicId, orderedChildIds) {
+        localStorage.setItem(`subtopicOrder_${parentTopicId}`, JSON.stringify(orderedChildIds));
+    }
+
+    // Función para contar preguntas de un tema
+    function getTopicQuestionCountSubfolders(topicId) {
+        return state.questions.filter(q => q.topicId && q.topicId.toString() === topicId.toString()).length;
+    }
+
+    // ==================== FUNCIONES DE INTEGRACIÓN ====================
+
+    // Función para abrir el modal de integración
+    window.openIntegrationModal = function(parentTopicId) {
+        const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId.toString());
+        if (!parentTopic) return;
+
+        const availableTopics = state.topics.filter(topic => {
             const topicId = topic.id.toString();
-            const isCollapsed = window.collapsedTopicsBackup[topicId] || false;
+            return topicId !== parentTopicId.toString() && 
+                   !isChildTopic(topicId) && 
+                   !window.topicIntegrations[topicId];
+        });
+
+        if (availableTopics.length === 0) {
+            alert('No hay temas disponibles para integrar.');
+            return;
+        }
+
+        const modalHTML = `
+            <div id="integrationModal" style="
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                background: rgba(0,0,0,0.7); z-index: 1000; display: flex; 
+                justify-content: center; align-items: center;">
+                
+                <div style="
+                    background: white; border-radius: 12px; padding: 25px; 
+                    max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                    
+                    <h3 style="margin: 0 0 20px 0; color: #1f2937;">
+                        📁 Integrar temas en "${parentTopic.name}"
+                    </h3>
+                    
+                    <div id="topicCheckboxes" style="max-height: 300px; overflow-y: auto;">
+                        ${availableTopics.map(topic => {
+                            const questionCount = getTopicQuestionCountSubfolders(topic.id);
+                            return `
+                                <label style="display: flex; align-items: center; padding: 10px; margin-bottom: 8px; cursor: pointer; border: 1px solid #e5e7eb; border-radius: 6px;">
+                                    <input type="checkbox" value="${topic.id}" style="margin-right: 12px;">
+                                    <div>
+                                        <div style="font-weight: 500;">🔷 ${topic.name}</div>
+                                        <div style="font-size: 12px; color: #6b7280;">${questionCount} pregunta${questionCount === 1 ? '' : 's'}</div>
+                                    </div>
+                                </label>
+                            `;
+                        }).join('')}
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
+                        <button onclick="closeIntegrationModal()" style="padding: 10px 20px; border: 1px solid #d1d5db; background: white; border-radius: 6px;">
+                            Cancelar
+                        </button>
+                        <button onclick="processIntegration('${parentTopicId}')" style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 6px;">
+                            📁 Integrar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+    };
+
+    // Función para cerrar el modal
+    window.closeIntegrationModal = function() {
+        const modal = document.getElementById('integrationModal');
+        if (modal) modal.remove();
+    };
+
+    // Función para procesar la integración
+    window.processIntegration = function(parentTopicId) {
+        const checkboxes = document.querySelectorAll('#topicCheckboxes input[type="checkbox"]:checked');
+        const selectedTopicIds = Array.from(checkboxes).map(cb => cb.value);
+        
+        if (selectedTopicIds.length === 0) {
+            alert('Selecciona al menos un tema para integrar.');
+            return;
+        }
+
+        if (!window.topicIntegrations[parentTopicId]) {
+            window.topicIntegrations[parentTopicId] = [];
+        }
+        
+        selectedTopicIds.forEach(childId => {
+            if (!window.topicIntegrations[parentTopicId].includes(childId)) {
+                window.topicIntegrations[parentTopicId].push(childId);
+            }
+        });
+
+        localStorage.setItem('topicIntegrations', JSON.stringify(window.topicIntegrations));
+        closeIntegrationModal();
+        render();
+        
+        if (typeof showMessage === 'function') {
+            showMessage(`📁 ${selectedTopicIds.length} tema(s) integrado(s)`, 'success');
+        }
+    };
+
+    // Función para desintegrar un tema hijo
+    window.disintegrateTopic = function(childTopicId) {
+        const parentTopicId = getParentTopicId(childTopicId);
+        if (!parentTopicId) return;
+
+        const childTopic = state.topics.find(t => t.id.toString() === childTopicId);
+        
+        if (confirm(`¿Desintegrar "${childTopic.name}"?`)) {
+            window.topicIntegrations[parentTopicId] = window.topicIntegrations[parentTopicId].filter(id => id !== childTopicId);
+            
+            if (window.topicIntegrations[parentTopicId].length === 0) {
+                delete window.topicIntegrations[parentTopicId];
+            }
+            
+            localStorage.setItem('topicIntegrations', JSON.stringify(window.topicIntegrations));
+            render();
+            
+            if (typeof showMessage === 'function') {
+                showMessage(`🔗 "${childTopic.name}" desintegrado`, 'success');
+            }
+        }
+    };
+
+    // ==================== FUNCIONES DE TOGGLE ====================
+
+    window.toggleTopicVisibility = function(topicId) {
+        console.log('🔄 Toggle para:', topicId);
+        
+        const element = document.getElementById(`topic-content-${topicId}`);
+        const button = document.querySelector(`[onclick*="toggleTopicVisibility('${topicId}')"]`);
+        
+        if (element && button) {
+            const isHidden = element.style.display === 'none';
+            element.style.display = isHidden ? 'block' : 'none';
+            button.textContent = isHidden ? '▼' : '▶';
+            button.title = isHidden ? 'Ocultar contenido' : 'Mostrar contenido';
+            
+            window.collapsedTopics[topicId] = !isHidden;
+            localStorage.setItem('collapsedTopics', JSON.stringify(window.collapsedTopics));
+            
+            console.log('✅ Toggle ejecutado:', topicId, isHidden ? 'mostrado' : 'ocultado');
+        } else {
+            console.error('❌ No se encontró elemento para:', topicId);
+        }
+    };
+
+    // ==================== FUNCIONES DE DRAG & DROP TEMAS PRINCIPALES ====================
+
+    window.handleDragStart = function(e) {
+        window.draggedTopicId = e.currentTarget.dataset.topicId;
+        e.currentTarget.style.opacity = '0.5';
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    window.handleDragEnd = function(e) {
+        e.currentTarget.style.opacity = '';
+        window.draggedTopicId = null;
+        document.querySelectorAll('.draggable-topic').forEach(topic => {
+            topic.style.borderColor = 'transparent';
+        });
+    };
+
+    window.handleDragOver = function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    window.handleDragEnter = function(e) {
+        e.preventDefault();
+        if (window.draggedTopicId && e.currentTarget.dataset.topicId !== window.draggedTopicId) {
+            e.currentTarget.style.borderColor = '#3b82f6';
+        }
+    };
+
+    window.handleDragLeave = function(e) {
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            e.currentTarget.style.borderColor = 'transparent';
+        }
+    };
+
+    window.handleDrop = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const targetTopicId = e.currentTarget.dataset.topicId;
+        
+        if (window.draggedTopicId && targetTopicId && window.draggedTopicId !== targetTopicId) {
+            reorderTopics(window.draggedTopicId, targetTopicId);
+        }
+        
+        e.currentTarget.style.borderColor = 'transparent';
+    };
+
+    function reorderTopics(draggedTopicId, targetTopicId) {
+        const draggedIndex = state.topics.findIndex(t => t.id.toString() === draggedTopicId);
+        const targetIndex = state.topics.findIndex(t => t.id.toString() === targetTopicId);
+        
+        if (draggedIndex === -1 || targetIndex === -1) return;
+        
+        const [draggedTopic] = state.topics.splice(draggedIndex, 1);
+        state.topics.splice(targetIndex, 0, draggedTopic);
+        
+        if (typeof saveData === 'function') {
+            saveData();
+        } else {
+            localStorage.setItem('topics', JSON.stringify(state.topics));
+        }
+        
+        render();
+        
+        if (typeof showMessage === 'function') {
+            showMessage(`🔄 Tema "${draggedTopic.name}" movido`, 'success');
+        }
+    }
+
+    // ==================== FUNCIONES DE DRAG & DROP SUBTEMAS ====================
+
+    window.handleSubtopicDragStart = function(e) {
+        window.draggedSubtopicId = e.currentTarget.dataset.subtopicId;
+        window.draggedSubtopicParent = e.currentTarget.dataset.parentId;
+        e.currentTarget.style.opacity = '0.5';
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    window.handleSubtopicDragEnd = function(e) {
+        e.currentTarget.style.opacity = '';
+        window.draggedSubtopicId = null;
+        window.draggedSubtopicParent = null;
+        document.querySelectorAll('.draggable-subtopic').forEach(subtopic => {
+            subtopic.style.borderColor = '#5ba8db';
+        });
+    };
+
+    window.handleSubtopicDragOver = function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    window.handleSubtopicDragEnter = function(e) {
+        e.preventDefault();
+        const targetParentId = e.currentTarget.dataset.parentId;
+        const targetSubtopicId = e.currentTarget.dataset.subtopicId;
+        
+        if (window.draggedSubtopicId && 
+            window.draggedSubtopicParent === targetParentId && 
+            window.draggedSubtopicId !== targetSubtopicId) {
+            e.currentTarget.style.borderColor = '#3b82f6';
+            e.currentTarget.style.borderWidth = '2px';
+        }
+    };
+
+    window.handleSubtopicDragLeave = function(e) {
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            e.currentTarget.style.borderColor = '#5ba8db';
+            e.currentTarget.style.borderWidth = '2px';
+        }
+    };
+
+    window.handleSubtopicDrop = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const targetSubtopicId = e.currentTarget.dataset.subtopicId;
+        const targetParentId = e.currentTarget.dataset.parentId;
+        
+        if (window.draggedSubtopicId && 
+            window.draggedSubtopicParent === targetParentId && 
+            window.draggedSubtopicId !== targetSubtopicId) {
+            reorderSubtopics(window.draggedSubtopicParent, window.draggedSubtopicId, targetSubtopicId);
+        }
+        
+        e.currentTarget.style.borderColor = '#5ba8db';
+        e.currentTarget.style.borderWidth = '2px';
+    };
+
+    function reorderSubtopics(parentTopicId, draggedSubtopicId, targetSubtopicId) {
+        const orderedChildren = getOrderedChildTopics(parentTopicId);
+        const draggedIndex = orderedChildren.findIndex(id => id === draggedSubtopicId);
+        const targetIndex = orderedChildren.findIndex(id => id === targetSubtopicId);
+        
+        if (draggedIndex === -1 || targetIndex === -1) return;
+        
+        const [draggedSubtopic] = orderedChildren.splice(draggedIndex, 1);
+        orderedChildren.splice(targetIndex, 0, draggedSubtopic);
+        
+        saveSubtopicOrder(parentTopicId, orderedChildren);
+        render();
+        
+        const draggedTopic = state.topics.find(t => t.id.toString() === draggedSubtopicId);
+        if (typeof showMessage === 'function') {
+            showMessage(`🔄 Subtema "${draggedTopic.name}" reordenado`, 'success');
+        }
+    }
+
+    // ==================== FUNCIÓN DE RENDERIZADO COMPLETA ====================
+
+    // REEMPLAZAR COMPLETAMENTE renderQuestionsByTopic
+    window.renderQuestionsByTopic = function() {
+        const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
+        let html = '';
+
+        // Obtener solo temas padre (que no son hijos de otros) y temas sin integrar
+        const parentAndStandaloneTopics = state.topics.filter(topic => !isChildTopic(topic.id));
+
+        // Renderizar cada tema padre o independiente
+        parentAndStandaloneTopics.forEach(topic => {
+            const topicId = topic.id.toString();
+            const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId);
+            const childTopicIds = getOrderedChildTopics(topicId);
+            const hasChildren = childTopicIds.length > 0;
+            const isCollapsed = window.collapsedTopics[topicId] || false;
+
+            // Solo mostrar si tiene preguntas propias O tiene hijos
+            if (topicQuestions.length > 0 || hasChildren) {
+                
+                const headerColor = '#4f46e5';
+                const headerIcon = hasChildren ? '📁' : '🔷';
+                
+                let counterText = '';
+                if (hasChildren) {
+                    if (topicQuestions.length > 0) {
+                        counterText = `${topicQuestions.length} preguntas + ${childTopicIds.length} subcarpeta${childTopicIds.length === 1 ? '' : 's'}`;
+                    } else {
+                        counterText = `${childTopicIds.length} subcarpeta${childTopicIds.length === 1 ? '' : 's'}`;
+                    }
+                } else {
+                    counterText = `${topicQuestions.length} preguntas`;
+                }
+
+                html += `
+                    <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" style="margin-bottom: 30px; border: 2px solid transparent; border-radius: 8px;"
+                         ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" 
+                         ondragover="handleDragOver(event)" ondrop="handleDrop(event)"
+                         ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                        
+                        <h3 style="background: ${headerColor}; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
+                            <span>${headerIcon} ${topic.name}</span>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 14px; opacity: 0.9;">${counterText}</span>
+                                
+                                <button onclick="event.stopPropagation(); openIntegrationModal('${topicId}')" style="
+                                    background: rgba(255,255,255,0.2); border: none; color: white; 
+                                    padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
+                                    title="Integrar otros temas">
+                                    📁
+                                </button>
+                                
+                                <button onclick="event.stopPropagation(); toggleTopicVisibility('${topicId}')" 
+                                        style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
+                                        title="${isCollapsed ? 'Mostrar contenido' : 'Ocultar contenido'}">
+                                    ${isCollapsed ? '▶' : '▼'}
+                                </button>
+                                
+                                ${typeof editTopicSimple === 'function' ? `
+                                    <button onclick="event.stopPropagation(); editTopicSimple('${topicId}')" style="
+                                        background: #f59e0b; border: none; color: white; 
+                                        padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
+                                        title="Editar tema">
+                                        ✏️
+                                    </button>
+                                ` : ''}
+                                
+                                ${typeof deleteTopicSimple === 'function' && !hasChildren ? `
+                                    <button onclick="event.stopPropagation(); deleteTopicSimple('${topicId}')" style="
+                                        background: #dc2626; border: none; color: white; 
+                                        padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" 
+                                        title="Eliminar tema">
+                                        🗑️
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </h3>
+                        
+                        <div id="topic-content-${topicId}" style="border: 1px solid ${headerColor}; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                            
+                            ${topicQuestions.length > 0 ? `
+                                ${topicQuestions.map(q => {
+                                    const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                                    return typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '';
+                                }).join('')}
+                            ` : ''}
+                            
+                            ${hasChildren ? childTopicIds.map(childTopicId => {
+                                const childTopic = state.topics.find(t => t.id.toString() === childTopicId);
+                                if (!childTopic) return '';
+                                
+                                const childQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === childTopicId);
+                                const childIsCollapsed = window.collapsedTopics[`child-${childTopicId}`] || false;
+                                
+                                return `
+                                    <div class="draggable-subtopic" draggable="true" 
+                                         data-subtopic-id="${childTopicId}" 
+                                         data-parent-id="${topicId}"
+                                         ondragstart="handleSubtopicDragStart(event)" 
+                                         ondragend="handleSubtopicDragEnd(event)"
+                                         ondragover="handleSubtopicDragOver(event)" 
+                                         ondrop="handleSubtopicDrop(event)"
+                                         ondragenter="handleSubtopicDragEnter(event)" 
+                                         ondragleave="handleSubtopicDragLeave(event)"
+                                         style="margin: 15px; border: 2px solid #5ba8db; border-radius: 8px; overflow: hidden; cursor: move;">
+                                        
+                                        <h4 style="background: #5ba8db; color: white; padding: 8px 12px; margin: 0; display: flex; justify-content: space-between; align-items: center; font-size: 14px;">
+                                            <span>📂 ${childTopic.name}</span>
+                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                <span style="font-size: 12px; opacity: 0.9;">${childQuestions.length} pregunta${childQuestions.length === 1 ? '' : 's'}</span>
+                                                
+                                                <button onclick="event.stopPropagation(); toggleTopicVisibility('child-${childTopicId}')" 
+                                                        style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;"
+                                                        title="${childIsCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
+                                                    ${childIsCollapsed ? '▶' : '▼'}
+                                                </button>
+                                                
+                                                <button onclick="event.stopPropagation(); disintegrateTopic('${childTopicId}')" style="
+                                                    background: rgba(255,255,255,0.2); border: none; color: white; 
+                                                    padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;" 
+                                                    title="Desintegrar tema">
+                                                    🔗
+                                                </button>
+                                            </div>
+                                        </h4>
+                                        
+                                        <div id="topic-content-child-${childTopicId}" style="background: white; display: ${childIsCollapsed ? 'none' : 'block'};">
+                                            ${childQuestions.map(q => {
+                                                const actualIndex = state.questions.findIndex(question => question.id === q.id);
+                                                return typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '';
+                                            }).join('')}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('') : ''}
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        // Mostrar preguntas sin tema asignado (si existen)
+        if (questionsWithoutTopic.length > 0) {
+            const topicId = 'sin-tema';
+            const isCollapsed = window.collapsedTopics[topicId] || false;
             
             html += `
                 <div style="margin-bottom: 30px;">
-                    <h3 style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
-                        <span>🔷 ${topic.name}</span>
+                    <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📂 Sin tema asignado</span>
                         <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 14px; opacity: 0.9;">${topicQuestions.length} preguntas</span>
-                            <button onclick="toggleBasicVisibility('${topicId}')" 
+                            <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
+                            <button onclick="toggleTopicVisibility('${topicId}')" 
                                     style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
                                     title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
                                 ${isCollapsed ? '▶' : '▼'}
                             </button>
                         </div>
                     </h3>
-                    <div id="topic-content-${topicId}" style="border: 1px solid #4f46e5; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
-                        ${topicQuestions.map(q => {
+                    <div id="topic-content-${topicId}" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
+                        ${questionsWithoutTopic.map(q => {
                             const actualIndex = state.questions.findIndex(question => question.id === q.id);
                             return typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '';
                         }).join('')}
@@ -21161,433 +21599,67 @@ function renderBasicQuestionsByTopic() {
                 </div>
             `;
         }
-    });
-    
-    // Preguntas sin tema
-    if (questionsWithoutTopic.length > 0) {
-        const topicId = 'sin-tema';
-        const isCollapsed = window.collapsedTopicsBackup[topicId] || false;
-        
+
+        // Si no hay contenido, mostrar mensaje
+        if (html === '') {
+            return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
+        }
+
+        // Añadir consejos
         html += `
-            <div style="margin-bottom: 30px;">
-                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
-                    <span>📂 Sin tema asignado</span>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
-                        <button onclick="toggleBasicVisibility('${topicId}')" 
-                                style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;"
-                                title="${isCollapsed ? 'Mostrar preguntas' : 'Ocultar preguntas'}">
-                            ${isCollapsed ? '▶' : '▼'}
-                        </button>
-                    </div>
-                </h3>
-                <div id="topic-content-${topicId}" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
-                    ${questionsWithoutTopic.map(q => {
-                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                        return typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '';
-                    }).join('')}
-                </div>
+            <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
+                🔄 <strong>Consejos:</strong><br>
+                • Arrastra temas principales (azules) para cambiar su orden general<br>
+                • Arrastra subtemas (celestes) para reordenar dentro de su carpeta padre
             </div>
         `;
-    }
 
-    if (html === '') {
-        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
-    }
+        return html;
+    };
 
-    return html;
-}
+    // ==================== FUNCIONES DE DIAGNÓSTICO ====================
 
-// Renderizado con subcarpetas para modo normal
-function renderSubfoldersQuestionsByTopic() {
-    const questionsWithoutTopic = state.questions.filter(q => !q.topicId);
-    let html = '';
-
-    const parentAndStandaloneTopics = state.topics.filter(topic => !isChildTopic(topic.id));
-
-    parentAndStandaloneTopics.forEach(topic => {
-        const topicId = topic.id.toString();
-        const topicQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === topicId);
-        const childTopicIds = getOrderedChildTopics(topicId);
-        const hasChildren = childTopicIds.length > 0;
-        const isCollapsed = window.collapsedTopicsBackup[topicId] || false;
-
-        if (topicQuestions.length > 0 || hasChildren) {
-            const headerColor = '#4f46e5';
-            const headerIcon = hasChildren ? '📁' : '🔷';
+    window.diagnosticSubfolders = function() {
+        console.log('📁 DIAGNÓSTICO DEL SISTEMA DE SUBCARPETAS:');
+        console.log('Integraciones actuales:', window.topicIntegrations);
+        console.log('Estados colapsados:', window.collapsedTopics);
+        
+        Object.entries(window.topicIntegrations).forEach(([parentId, children]) => {
+            const parentTopic = state.topics.find(t => t.id.toString() === parentId);
+            const orderedChildren = getOrderedChildTopics(parentId);
             
-            let counterText = '';
-            if (hasChildren) {
-                if (topicQuestions.length > 0) {
-                    counterText = `${topicQuestions.length} preguntas + ${childTopicIds.length} subcarpeta${childTopicIds.length === 1 ? '' : 's'}`;
-                } else {
-                    counterText = `${childTopicIds.length} subcarpeta${childTopicIds.length === 1 ? '' : 's'}`;
-                }
-            } else {
-                counterText = `${topicQuestions.length} preguntas`;
-            }
+            console.log(`Padre: ${parentTopic ? parentTopic.name : 'NO ENCONTRADO'} (ID: ${parentId})`);
+            console.log(`  - Hijos originales: [${children.join(', ')}]`);
+            console.log(`  - Hijos ordenados: [${orderedChildren.join(', ')}]`);
+        });
+    };
 
-            html += `
-                <div class="draggable-topic" draggable="true" data-topic-id="${topicId}" style="margin-bottom: 30px; border: 2px solid transparent; border-radius: 8px;">
-                    <h3 style="background: ${headerColor}; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                        <span>${headerIcon} ${topic.name}</span>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 14px; opacity: 0.9;">${counterText}</span>
-                            <button onclick="event.stopPropagation(); openIntegrationModal('${topicId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">📁</button>
-                            <button onclick="event.stopPropagation(); toggleSubfolderVisibility('${topicId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">${isCollapsed ? '▶' : '▼'}</button>
-                        </div>
-                    </h3>
-                    
-                    <div id="topic-content-${topicId}" style="border: 1px solid ${headerColor}; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
-                        ${topicQuestions.length > 0 ? topicQuestions.map(q => {
-                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                            return typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '';
-                        }).join('') : ''}
-                        
-                        ${hasChildren ? childTopicIds.map(childTopicId => {
-                            const childTopic = state.topics.find(t => t.id.toString() === childTopicId);
-                            if (!childTopic) return '';
-                            
-                            const childQuestions = state.questions.filter(q => q.topicId && q.topicId.toString() === childTopicId);
-                            const childIsCollapsed = window.collapsedTopicsBackup[`child-${childTopicId}`] || false;
-                            
-                            return `
-                                <div style="margin: 15px; border: 2px solid #5ba8db; border-radius: 8px; overflow: hidden;">
-                                    <h4 style="background: #5ba8db; color: white; padding: 8px 12px; margin: 0; display: flex; justify-content: space-between; align-items: center; font-size: 14px;">
-                                        <span>📂 ${childTopic.name}</span>
-                                        <div style="display: flex; align-items: center; gap: 8px;">
-                                            <span style="font-size: 12px; opacity: 0.9;">${childQuestions.length} pregunta${childQuestions.length === 1 ? '' : 's'}</span>
-                                            <button onclick="event.stopPropagation(); toggleSubfolderVisibility('child-${childTopicId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;">${childIsCollapsed ? '▶' : '▼'}</button>
-                                            <button onclick="event.stopPropagation(); disintegrateTopic('${childTopicId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;">🔗</button>
-                                        </div>
-                                    </h4>
-                                    <div id="topic-content-child-${childTopicId}" style="background: white; display: ${childIsCollapsed ? 'none' : 'block'};">
-                                        ${childQuestions.map(q => {
-                                            const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                                            return typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '';
-                                        }).join('')}
-                                    </div>
-                                </div>
-                            `;
-                        }).join('') : ''}
-                    </div>
-                </div>
-            `;
-        }
-    });
+    // ==================== INICIALIZACIÓN ====================
 
-    // Preguntas sin tema
-    if (questionsWithoutTopic.length > 0) {
-        const topicId = 'sin-tema';
-        const isCollapsed = window.collapsedTopicsBackup[topicId] || false;
-        
-        html += `
-            <div style="margin-bottom: 30px;">
-                <h3 style="background: #6b7280; color: white; padding: 10px 15px; border-radius: 8px 8px 0 0; margin: 0; display: flex; justify-content: space-between; align-items: center;">
-                    <span>📂 Sin tema asignado</span>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 14px; opacity: 0.9;">${questionsWithoutTopic.length} preguntas</span>
-                        <button onclick="toggleSubfolderVisibility('${topicId}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">${isCollapsed ? '▶' : '▼'}</button>
-                    </div>
-                </h3>
-                <div id="topic-content-${topicId}" style="border: 1px solid #6b7280; border-top: none; border-radius: 0 0 8px 8px; background: white; display: ${isCollapsed ? 'none' : 'block'};">
-                    ${questionsWithoutTopic.map(q => {
-                        const actualIndex = state.questions.findIndex(question => question.id === q.id);
-                        return typeof renderSingleQuestion === 'function' ? renderSingleQuestion(q, actualIndex) : '';
-                    }).join('')}
-                </div>
-            </div>
-        `;
-    }
-
-    if (html === '') {
-        return '<div style="padding: 40px; text-align: center; color: #9ca3af;">No hay preguntas disponibles en el banco</div>';
-    }
-
-    html += `
-        <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center; color: #1e40af; font-size: 14px;">
-            🔄 <strong>Consejos:</strong><br>
-            • Arrastra temas principales (azules) para cambiar su orden general<br>
-            • Arrastra subtemas (celestes) para reordenar dentro de su carpeta padre
-        </div>
-    `;
-
-    return html;
-}
-
-// ==================== FUNCIONES TOGGLE ====================
-window.toggleBasicVisibility = function(topicId) {
-    const element = document.getElementById(`topic-content-${topicId}`);
-    const button = document.querySelector(`[onclick="toggleBasicVisibility('${topicId}')"]`);
-    
-    if (element && button) {
-        const isHidden = element.style.display === 'none';
-        element.style.display = isHidden ? 'block' : 'none';
-        button.textContent = isHidden ? '▼' : '▶';
-        
-        window.collapsedTopicsBackup[topicId] = !isHidden;
-        localStorage.setItem('collapsedTopics', JSON.stringify(window.collapsedTopicsBackup));
-    }
-};
-
-window.toggleSubfolderVisibility = function(topicId) {
-    const element = document.getElementById(`topic-content-${topicId}`);
-    const button = document.querySelector(`[onclick*="toggleSubfolderVisibility('${topicId}')"]`);
-    
-    if (element && button) {
-        const isHidden = element.style.display === 'none';
-        element.style.display = isHidden ? 'block' : 'none';
-        button.textContent = isHidden ? '▼' : '▶';
-        
-        window.collapsedTopicsBackup[topicId] = !isHidden;
-        localStorage.setItem('collapsedTopics', JSON.stringify(window.collapsedTopicsBackup));
-    }
-};
-
-// ==================== FUNCIONES DE MULTIJUGADOR RESTAURADAS ====================
-
-// Función organizeQuestionsForFirebase restaurada
-window.organizeQuestionsForFirebase = function(questions, topics) {
-    const organized = {};
-    
-    topics.forEach(topic => {
-        const topicQuestions = questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString());
-        
-        if (topicQuestions.length > 0) {
-            const processedQuestions = topicQuestions.map((q, index) => ({
-                firebaseKey: `q${index + 1}`,
-                question: q.question,
-                options: q.options,
-                correctAnswer: q.correctAnswer,
-                explanation: q.explanation || '',
-                isVerified: q.isVerified || false
-            }));
-            
-            const cleanKey = topic.name.replace(/[.#$[\]]/g, '_').substring(0, 50);
-            
-            organized[cleanKey] = {
-                name: topic.name,
-                id: topic.id,
-                questions: processedQuestions
-            };
-        }
-    });
-    
-    return organized;
-};
-
-// Funciones básicas de multijugador restauradas
-window.toggleTopicQuestions = function(fullTopicKey) {
-    let questionsId;
-    
-    if (fullTopicKey.startsWith('my-')) {
-        const topicKey = fullTopicKey.replace('my-', '');
-        questionsId = `my-questions-${topicKey}`;
-    } else if (fullTopicKey.startsWith('opponent-')) {
-        const topicKey = fullTopicKey.replace('opponent-', '');
-        questionsId = `opponent-questions-${topicKey}`;
-    } else {
-        questionsId = `questions-${fullTopicKey}`;
-    }
-    
-    const questionsDiv = document.getElementById(questionsId);
-    if (questionsDiv) {
-        questionsDiv.style.display = questionsDiv.style.display === 'none' ? 'block' : 'none';
-    }
-};
-
-window.selectQuestionForDuel = function(topicKey, questionFirebaseKey) {
-    console.log('🎯 selectQuestionForDuel llamada:', { topicKey, questionFirebaseKey });
-    
-    if (!multiplayerState || !multiplayerState.myTurn) {
-        showMessage('No es tu turno para seleccionar preguntas', 'warning');
-        return;
-    }
-
-    // Obtener banco del oponente
-    const opponentBank = multiplayerState.isHost ? 
-        (multiplayerState.guestQuestionBank || {}) : 
-        (multiplayerState.hostQuestionBank || {});
-    
-    if (!opponentBank[topicKey] || !opponentBank[topicKey].questions) {
-        console.error('❌ Tema no encontrado:', topicKey);
-        showMessage('Error: Tema no encontrado', 'error');
-        return;
-    }
-
-    const question = opponentBank[topicKey].questions.find(q => q.firebaseKey === questionFirebaseKey);
-    if (!question) {
-        console.error('❌ Pregunta no encontrada:', questionFirebaseKey);
-        showMessage('Error: Pregunta no encontrada', 'error');
-        return;
-    }
-
-    console.log('✅ Enviando pregunta al oponente:', question.question.substring(0, 50) + '...');
-
-    // Actualizar Firebase con la pregunta seleccionada
-    database.ref('rooms/' + multiplayerState.currentRoom).update({
-        'gameData/currentQuestionData': question,
-        'gameData/currentTurn': multiplayerState.isHost ? 'guest' : 'host',
-        'gameData/waitingForAnswer': true,
-        lastActivity: firebase.database.ServerValue.TIMESTAMP
-    }).then(() => {
-        showMessage(`✅ Pregunta enviada: ${question.question.substring(0, 40)}...`, 'success');
-    }).catch(error => {
-        console.error('❌ Error enviando pregunta:', error);
-        showMessage('Error al enviar la pregunta', 'error');
-    });
-};
-
-// ==================== FUNCIONES DE SUBCARPETAS ====================
-window.openIntegrationModal = function(parentTopicId) {
-    // Solo funciona en modo normal
-    if (isInMultiplayerContext()) return;
-    
-    const parentTopic = state.topics.find(t => t.id.toString() === parentTopicId.toString());
-    if (!parentTopic) return;
-
-    const availableTopics = state.topics.filter(topic => {
-        const topicId = topic.id.toString();
-        return topicId !== parentTopicId.toString() && 
-               !isChildTopic(topicId) && 
-               !window.topicIntegrationsBackup[topicId];
-    });
-
-    if (availableTopics.length === 0) {
-        alert('No hay temas disponibles para integrar.');
-        return;
-    }
-
-    const modalHTML = `
-        <div id="integrationModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; display: flex; justify-content: center; align-items: center;">
-            <div style="background: white; border-radius: 12px; padding: 25px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
-                <h3 style="margin: 0 0 20px 0; color: #1f2937;">📁 Integrar temas en "${parentTopic.name}"</h3>
-                <div id="topicCheckboxes" style="max-height: 300px; overflow-y: auto;">
-                    ${availableTopics.map(topic => `
-                        <label style="display: flex; align-items: center; padding: 10px; margin-bottom: 8px; cursor: pointer; border: 1px solid #e5e7eb; border-radius: 6px;">
-                            <input type="checkbox" value="${topic.id}" style="margin-right: 12px;">
-                            <div>
-                                <div style="font-weight: 500;">🔷 ${topic.name}</div>
-                                <div style="font-size: 12px; color: #6b7280;">${state.questions.filter(q => q.topicId && q.topicId.toString() === topic.id.toString()).length} preguntas</div>
-                            </div>
-                        </label>
-                    `).join('')}
-                </div>
-                <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
-                    <button onclick="closeIntegrationModal()" style="padding: 10px 20px; border: 1px solid #d1d5db; background: white; border-radius: 6px;">Cancelar</button>
-                    <button onclick="processIntegration('${parentTopicId}')" style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 6px;">📁 Integrar</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-};
-
-window.closeIntegrationModal = function() {
-    const modal = document.getElementById('integrationModal');
-    if (modal) modal.remove();
-};
-
-window.processIntegration = function(parentTopicId) {
-    if (isInMultiplayerContext()) return;
-    
-    const checkboxes = document.querySelectorAll('#topicCheckboxes input[type="checkbox"]:checked');
-    const selectedTopicIds = Array.from(checkboxes).map(cb => cb.value);
-    
-    if (selectedTopicIds.length === 0) {
-        alert('Selecciona al menos un tema para integrar.');
-        return;
-    }
-
-    if (!window.topicIntegrationsBackup[parentTopicId]) {
-        window.topicIntegrationsBackup[parentTopicId] = [];
-    }
-    
-    selectedTopicIds.forEach(childId => {
-        if (!window.topicIntegrationsBackup[parentTopicId].includes(childId)) {
-            window.topicIntegrationsBackup[parentTopicId].push(childId);
-        }
-    });
-
-    localStorage.setItem('topicIntegrations', JSON.stringify(window.topicIntegrationsBackup));
-    closeIntegrationModal();
-    render();
-    
-    if (typeof showMessage === 'function') {
-        showMessage(`📁 ${selectedTopicIds.length} tema(s) integrado(s)`, 'success');
-    }
-};
-
-window.disintegrateTopic = function(childTopicId) {
-    if (isInMultiplayerContext()) return;
-    
-    const parentTopicId = Object.entries(window.topicIntegrationsBackup).find(([parent, children]) => 
-        children.includes(childTopicId.toString())
-    )?.[0];
-    
-    if (!parentTopicId) return;
-
-    const childTopic = state.topics.find(t => t.id.toString() === childTopicId);
-    
-    if (confirm(`¿Desintegrar "${childTopic.name}"?`)) {
-        window.topicIntegrationsBackup[parentTopicId] = window.topicIntegrationsBackup[parentTopicId].filter(id => id !== childTopicId);
-        
-        if (window.topicIntegrationsBackup[parentTopicId].length === 0) {
-            delete window.topicIntegrationsBackup[parentTopicId];
-        }
-        
-        localStorage.setItem('topicIntegrations', JSON.stringify(window.topicIntegrationsBackup));
+    // Forzar re-renderizado
+    if (typeof render === 'function') {
         render();
-        
-        if (typeof showMessage === 'function') {
-            showMessage(`🔗 "${childTopic.name}" desintegrado`, 'success');
-        }
     }
-};
 
-// ==================== REEMPLAZAR FUNCIÓN PRINCIPAL ====================
-window.renderQuestionsByTopic = renderQuestionsIntelligent;
+    console.log('✅ SISTEMA COMPLETO DE SUBCARPETAS IMPLEMENTADO');
+    console.log('🔄 Funcionalidades:');
+    console.log('   - ✅ Drag & drop de temas principales');
+    console.log('   - ✅ Drag & drop de subtemas (color celeste)');
+    console.log('   - ✅ Toggle funcional para expandir/colapsar');
+    console.log('   - ✅ Sistema de integración de temas');
+    console.log('   - ✅ Persistencia completa en localStorage');
+    console.log('💡 Uso:');
+    console.log('   - Arrastra temas azules para reordenar generalmente');
+    console.log('   - Arrastra subtemas celestes para reordenar dentro de su carpeta');
+    console.log('   - Usa diagnosticSubfolders() para debugging');
 
-// ==================== RESTAURAR SCROLL EN BODY ====================
-setTimeout(() => {
-    if (isInMultiplayerContext()) {
-        document.body.style.overflow = 'auto';
-        document.documentElement.style.overflow = 'auto';
-        document.body.style.height = 'auto';
-        document.documentElement.style.height = 'auto';
-        
-        const app = document.getElementById('app');
-        if (app) {
-            app.style.overflow = 'auto';
-            app.style.height = 'auto';
-        }
-        
-        console.log('✅ Scroll restaurado para multijugador');
-    }
-}, 100);
+}, 2000); // Esperamos 2 segundos para asegurar que todo esté cargado
 
-// ==================== LOG FINAL ====================
-console.log('✅ PARCHE DEFINITIVO APLICADO');
-console.log('🎮 Multijugador: Scroll habilitado, funciones restauradas');
-console.log('📁 Subcarpetas: Disponibles en modo normal');
-console.log('🔍 Detección automática de contexto');
-console.log('💡 Funciones disponibles:');
-console.log('   - selectQuestionForDuel(): Seleccionar preguntas en duelo');
-console.log('   - toggleTopicQuestions(): Expandir/contraer en duelo');
-console.log('   - toggleBasicVisibility(): Toggle básico para multijugador');
-console.log('   - toggleSubfolderVisibility(): Toggle para subcarpetas');
-
-// ==================== AUTO-APLICAR EN MULTIJUGADOR ====================
-if (isInMultiplayerContext()) {
-    console.log('🎮 Aplicando configuración de multijugador inmediatamente...');
-    document.body.style.overflow = 'auto';
-    document.documentElement.style.overflow = 'auto';
-}
-
+console.log('⏳ Parche final programado - esperando inicialización...');
 </script>
 </body>
 </html>
+
 
 
 
