@@ -1,0 +1,3219 @@
+import { auth, db } from './firebase-config.js';
+import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { 
+    doc, 
+    getDoc, 
+    setDoc,
+    collection, 
+    addDoc, 
+    getDocs, 
+    query, 
+    where,
+    updateDoc,
+    arrayUnion,
+    deleteDoc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// Variables globales
+let currentUser = null;
+let temaSeleccionado = null;
+let preguntasProcesadas = [];
+let temasAbiertos = new Set(); // Para recordar qué temas están expandidos
+let preguntasImportadas = [];
+
+// Elementos del DOM
+const userNameSpan = document.getElementById('userName');
+const logoutBtn = document.getElementById('logoutBtn');
+const backBtn = document.getElementById('backBtn');
+const subNavBtns = document.querySelectorAll('.sub-nav-btn');
+const contentSections = document.querySelectorAll('.content-section');
+
+// Elementos de subir preguntas
+const crearTemaBtn = document.getElementById('crearTemaBtn');
+const seleccionarTemaBtn = document.getElementById('seleccionarTemaBtn');
+const temaSeleccionadoSpan = document.getElementById('temaSeleccionado');
+const textoPreguntas = document.getElementById('textoPreguntas');
+const procesarTextoBtn = document.getElementById('procesarTextoBtn');
+const preguntasProcesadasDiv = document.getElementById('preguntasProcesadas');
+const listaPreguntasPreview = document.getElementById('listaPreguntasPreview');
+const asignarPreguntasBtn = document.getElementById('asignarPreguntasBtn');
+
+// Elementos de modales
+const modalCrearTema = document.getElementById('modalCrearTema');
+const modalSeleccionarTema = document.getElementById('modalSeleccionarTema');
+const nombreTema = document.getElementById('nombreTema');
+const descripcionTema = document.getElementById('descripcionTema');
+const confirmarCrearTema = document.getElementById('confirmarCrearTema');
+const cancelarCrearTema = document.getElementById('cancelarCrearTema');
+const listaTemaSelect = document.getElementById('listaTemaSelect');
+const confirmarSeleccionarTema = document.getElementById('confirmarSeleccionarTema');
+const cancelarSeleccionarTema = document.getElementById('cancelarSeleccionarTema');
+
+// Elementos del banco de preguntas
+const listaTemas = document.getElementById('listaTemas');
+
+// Inicialización
+document.addEventListener('DOMContentLoaded', () => {
+    // Verificar autenticación
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            currentUser = user;
+            await cargarDatosUsuario();
+            await cargarTemas();
+            
+            // Inicializar test aleatorio si la sección está activa
+            const seccionAleatorio = document.getElementById('aleatorio-section');
+            if (seccionAleatorio && seccionAleatorio.classList.contains('active')) {
+                setTimeout(() => {
+                    inicializarTestAleatorio();
+                }, 200);
+            }
+            
+        } else {
+            window.location.href = 'index.html';
+        }
+    });
+
+    // Event listeners
+    setupEventListeners();
+});
+
+// Configurar event listeners
+function setupEventListeners() {
+    // Navegación
+    backBtn.addEventListener('click', () => {
+        window.location.href = 'homepage.html';
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+        try {
+            await signOut(auth);
+            window.location.href = 'index.html';
+        } catch (error) {
+            console.error('Error al cerrar sesión:', error);
+        }
+    });
+
+    // Sub-navegación
+    subNavBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const section = btn.dataset.section;
+            cambiarSeccion(section);
+        });
+    });
+
+    // Gestión de temas
+    crearTemaBtn.addEventListener('click', () => {
+        modalCrearTema.style.display = 'block';
+    });
+
+    seleccionarTemaBtn.addEventListener('click', async () => {
+        await cargarTemasEnSelect();
+        modalSeleccionarTema.style.display = 'block';
+    });
+
+    // Modales
+    confirmarCrearTema.addEventListener('click', async () => {
+        await crearTema();
+    });
+
+    cancelarCrearTema.addEventListener('click', () => {
+        cerrarModal(modalCrearTema);
+    });
+
+    confirmarSeleccionarTema.addEventListener('click', () => {
+        seleccionarTema();
+    });
+
+    cancelarSeleccionarTema.addEventListener('click', () => {
+        cerrarModal(modalSeleccionarTema);
+    });
+
+    // Cerrar modales al hacer click fuera
+    window.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            e.target.style.display = 'none';
+        }
+    });
+
+    // Procesamiento de texto
+    procesarTextoBtn.addEventListener('click', () => {
+        procesarTextoPreguntas();
+    });
+
+    // Asignar preguntas
+asignarPreguntasBtn.addEventListener('click', async () => {
+    await asignarPreguntasATema();
+});
+
+// Importar archivo
+const importarArchivoBtn = document.getElementById('importarArchivoBtn');
+const fileInput = document.getElementById('fileInput');
+
+if (importarArchivoBtn) {
+    importarArchivoBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+}
+
+if (fileInput) {
+    fileInput.addEventListener('change', manejarArchivoSeleccionado);
+}
+}
+
+// Cargar datos del usuario
+async function cargarDatosUsuario() {
+    try {
+        const userDoc = await getDoc(doc(db, "usuarios", currentUser.uid));
+        if (userDoc.exists()) {
+            const userData = userDoc.data();
+            userNameSpan.textContent = userData.nombre;
+        } else {
+            userNameSpan.textContent = currentUser.email;
+        }
+    } catch (error) {
+        console.error('Error cargando datos:', error);
+        userNameSpan.textContent = currentUser.email;
+    }
+}
+
+// Cambiar sección activa
+function cambiarSeccion(seccionId) {
+    // Actualizar botones
+    subNavBtns.forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.section === seccionId) {
+            btn.classList.add('active');
+        }
+    });
+
+    // Actualizar contenido
+    contentSections.forEach(section => {
+        section.classList.remove('active');
+    });
+
+    const seccionActiva = document.getElementById(`${seccionId}-section`);
+    if (seccionActiva) {
+        seccionActiva.classList.add('active');
+    }
+
+    // Cargar datos específicos de la sección
+    if (seccionId === 'banco') {
+        cargarBancoPreguntas();
+    }
+    else if (seccionId === 'aleatorio') {
+        // Inicializar test aleatorio con un pequeño delay para asegurar que el DOM esté listo
+        setTimeout(() => {
+            inicializarTestAleatorio();
+        }, 100);
+    }
+    else if (seccionId === 'resultados') {
+        cargarResultados();
+    }
+}
+
+// Crear nuevo tema
+async function crearTema() {
+    const nombre = nombreTema.value.trim();
+    const descripcion = descripcionTema.value.trim();
+
+    if (!nombre) {
+        alert('El nombre del tema es obligatorio');
+        return;
+    }
+
+    try {
+        const esSubtema = document.getElementById('esSubtema').checked;
+        const temaPadreId = document.getElementById('temaPadreSelect').value;
+
+        const temaData = {
+            nombre: nombre,
+            descripcion: descripcion,
+            fechaCreacion: new Date(),
+            usuarioId: currentUser.uid,
+            preguntas: [],
+            esSubtema: esSubtema,
+            temaPadreId: esSubtema ? temaPadreId : null
+        };
+
+        const docRef = await addDoc(collection(db, "temas"), temaData);
+        
+        // Seleccionar automáticamente el tema creado
+        temaSeleccionado = {
+            id: docRef.id,
+            ...temaData
+        };
+
+        actualizarTemaSeleccionado();
+        cerrarModal(modalCrearTema);
+        
+        // Limpiar campos
+        nombreTema.value = '';
+        descripcionTema.value = '';
+        document.getElementById('esSubtema').checked = false;
+        document.getElementById('temaPadreSelect').style.display = 'none';
+        window.crearSubtemaFlag = null;
+
+        alert('Tema creado exitosamente');
+
+        // Recargar banco de preguntas si está activo
+        if (document.getElementById('banco-section').classList.contains('active')) {
+            cargarBancoPreguntas();
+        }
+        
+    } catch (error) {
+        console.error('Error creando tema:', error);
+        alert('Error al crear el tema');
+    }
+}
+
+// Cargar temas en el select
+async function cargarTemasEnSelect() {
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        listaTemaSelect.innerHTML = '<option value="">Selecciona un tema...</option>';
+        
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            const option = document.createElement('option');
+            option.value = doc.id;
+            option.textContent = tema.nombre;
+            listaTemaSelect.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('Error cargando temas:', error);
+    }
+}
+
+// Seleccionar tema existente
+function seleccionarTema() {
+    const temaId = listaTemaSelect.value;
+    const temaTexto = listaTemaSelect.options[listaTemaSelect.selectedIndex].text;
+
+    if (!temaId) {
+        alert('Selecciona un tema');
+        return;
+    }
+
+    temaSeleccionado = {
+        id: temaId,
+        nombre: temaTexto
+    };
+
+    actualizarTemaSeleccionado();
+    cerrarModal(modalSeleccionarTema);
+}
+
+// Actualizar indicador de tema seleccionado
+function actualizarTemaSeleccionado() {
+    if (temaSeleccionado) {
+        temaSeleccionadoSpan.textContent = `Tema: ${temaSeleccionado.nombre}`;
+        asignarPreguntasBtn.disabled = preguntasProcesadas.length === 0;
+    } else {
+        temaSeleccionadoSpan.textContent = 'Tema: Ninguno seleccionado';
+        asignarPreguntasBtn.disabled = true;
+    }
+}
+
+// Procesar texto de preguntas
+function procesarTextoPreguntas() {
+    const texto = textoPreguntas.value.trim();
+    
+    if (!texto) {
+        alert('Pega el texto de las preguntas primero');
+        return;
+    }
+
+    try {
+        preguntasProcesadas = parsearPreguntas(texto);
+        
+        if (preguntasProcesadas.length === 0) {
+            alert('No se encontraron preguntas válidas en el texto');
+            return;
+        }
+
+        mostrarVistaPreviaPreguntas();
+        
+    } catch (error) {
+        console.error('Error procesando preguntas:', error);
+        alert('Error al procesar las preguntas. Verifica el formato.');
+    }
+}
+
+// Parsear preguntas del texto
+function parsearPreguntas(texto) {
+    const preguntas = [];
+    const lineas = texto.split('\n');
+    let preguntaActual = null;
+
+    for (let i = 0; i < lineas.length; i++) {
+        const linea = lineas[i].trim();
+        
+        // Detectar nueva pregunta (formato: "01 . Texto pregunta:")
+        const matchPregunta = linea.match(/^(\d+)\s*\.\s*(.+)[:?]?\s*$/);
+        
+        if (matchPregunta) {
+            // Guardar pregunta anterior si existe
+            if (preguntaActual) {
+                preguntas.push(preguntaActual);
+            }
+            
+            preguntaActual = {
+                numero: parseInt(matchPregunta[1]),
+                texto: matchPregunta[2],
+                opciones: [],
+                respuestaCorrecta: null,
+                fechaCreacion: new Date() // Agregar fecha actual a preguntas nuevas
+            };
+        }
+        // Detectar opciones (formato: "A) texto" o "A)**texto")
+        else if (preguntaActual && linea.match(/^[A-D]\)/)) {
+            const esCorrecta = linea.includes(')**');
+            const textoOpcion = linea.replace(/^[A-D]\)\*?\*?/, '').trim();
+            const letra = linea.charAt(0);
+            
+            preguntaActual.opciones.push({
+                letra: letra,
+                texto: textoOpcion,
+                esCorrecta: esCorrecta
+            });
+            
+            if (esCorrecta) {
+                preguntaActual.respuestaCorrecta = letra;
+            }
+        }
+    }
+    
+    // Agregar última pregunta
+    if (preguntaActual) {
+        preguntas.push(preguntaActual);
+    }
+    
+    // Validar preguntas
+    return preguntas.filter(p => 
+        p.opciones.length === 4 && 
+        p.respuestaCorrecta && 
+        p.texto.length > 0
+    );
+}
+
+// Mostrar vista previa de preguntas
+function mostrarVistaPreviaPreguntas() {
+    listaPreguntasPreview.innerHTML = '';
+    
+    preguntasProcesadas.forEach(pregunta => {
+        const preguntaDiv = document.createElement('div');
+        preguntaDiv.className = 'pregunta-item';
+        
+        preguntaDiv.innerHTML = `
+            <div class="pregunta-numero">${pregunta.numero}.</div>
+            <div class="pregunta-texto">${pregunta.texto}</div>
+            <ul class="opciones-list">
+                ${pregunta.opciones.map(opcion => `
+                    <li class="opcion-item">
+                        ${opcion.letra}) ${opcion.esCorrecta ? `<span class="opcion-correcta">${opcion.texto}</span>` : opcion.texto}
+                    </li>
+                `).join('')}
+            </ul>
+        `;
+        
+        listaPreguntasPreview.appendChild(preguntaDiv);
+    });
+    
+    preguntasProcesadasDiv.style.display = 'block';
+    actualizarTemaSeleccionado();
+}
+
+// Asignar preguntas al tema
+async function asignarPreguntasATema() {
+    if (!temaSeleccionado || preguntasProcesadas.length === 0) {
+        alert('Selecciona un tema y procesa las preguntas primero');
+        return;
+    }
+
+    try {
+        const temaRef = doc(db, "temas", temaSeleccionado.id);
+        
+        // Obtener el tema actual para mantener las preguntas existentes
+        const temaDoc = await getDoc(temaRef);
+        const temaData = temaDoc.data();
+        const preguntasExistentes = temaData.preguntas || [];
+        
+        // Agregar nuevas preguntas
+        const todasLasPreguntas = [...preguntasExistentes, ...preguntasProcesadas];
+        
+        await updateDoc(temaRef, {
+            preguntas: todasLasPreguntas,
+            ultimaActualizacion: new Date()
+        });
+
+        alert(`${preguntasProcesadas.length} preguntas asignadas al tema "${temaSeleccionado.nombre}"`);
+        
+        // Limpiar formulario
+        textoPreguntas.value = '';
+        preguntasProcesadas = [];
+        preguntasProcesadasDiv.style.display = 'none';
+        actualizarTemaSeleccionado();
+        
+        // Recargar banco de preguntas si está activo
+        if (document.getElementById('banco-section').classList.contains('active')) {
+            cargarBancoPreguntas();
+        }
+        
+    } catch (error) {
+        console.error('Error asignando preguntas:', error);
+        alert('Error al asignar preguntas al tema');
+    }
+}
+
+// Cargar temas existentes
+async function cargarTemas() {
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        // Actualizar select de test aleatorio
+        const selectTemaTest = document.getElementById('seleccionarTemaTest');
+        if (selectTemaTest) {
+            selectTemaTest.innerHTML = '<option value="">Selecciona un tema...</option>';
+            
+            querySnapshot.forEach((doc) => {
+                const tema = doc.data();
+                const option = document.createElement('option');
+                option.value = doc.id;
+                option.textContent = `${tema.nombre} (${tema.preguntas?.length || 0} preguntas)`;
+                selectTemaTest.appendChild(option);
+            });
+        }
+        
+    } catch (error) {
+        console.error('Error cargando temas:', error);
+    }
+}
+
+// Cargar banco de preguntas
+async function cargarBancoPreguntas() {
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        listaTemas.innerHTML = '';
+        
+        if (querySnapshot.empty) {
+            listaTemas.innerHTML = '<p>No hay temas creados aún. Ve a "Subir Preguntas" para crear tu primer tema.</p>';
+            return;
+        }
+
+        // Controles generales
+        const controlesDiv = document.createElement('div');
+        controlesDiv.className = 'controles-generales';
+        controlesDiv.innerHTML = `
+            <input type="text" id="buscadorPreguntas" placeholder="Buscar preguntas..." />
+            <button id="detectarDuplicadasBtn" class="btn-warning">🔍 Detectar Duplicadas</button>
+            <button class="btn-danger" onclick="eliminarTodosTemas()">🗑️ Eliminar Todos los Temas</button>
+        `;
+        listaTemas.appendChild(controlesDiv);
+
+        // Configurar eventos del buscador
+        setTimeout(() => {
+            document.getElementById('buscadorPreguntas').addEventListener('input', filtrarPreguntas);
+            document.getElementById('detectarDuplicadasBtn').addEventListener('click', detectarPreguntasDuplicadas);
+        }, 100);
+        
+        // Separar temas principales y subtemas
+        const temasPrincipales = [];
+        const subtemasPorPadre = {};
+
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            if (tema.temaPadreId) {
+                // Es un subtema
+                if (!subtemasPorPadre[tema.temaPadreId]) {
+                    subtemasPorPadre[tema.temaPadreId] = [];
+                }
+                subtemasPorPadre[tema.temaPadreId].push({ id: doc.id, data: tema });
+            } else {
+                // Es un tema principal
+                temasPrincipales.push({ 
+                    id: doc.id, 
+                    data: tema,
+                    orden: tema.orden || 0  // AGREGAR CAMPO ORDEN
+                });
+            }
+        });
+
+        // ORDENAR TEMAS PRINCIPALES POR EL CAMPO ORDEN
+        temasPrincipales.sort((a, b) => a.orden - b.orden);
+
+        // Renderizar temas principales con sus subtemas
+        temasPrincipales.forEach(({ id, data: tema }) => {
+            const temaDiv = document.createElement('div');
+            temaDiv.className = 'tema-card';
+            temaDiv.draggable = true;
+            temaDiv.dataset.temaId = id;
+            
+            const numPreguntas = tema.preguntas?.length || 0;
+            const fechaCreacion = tema.fechaCreacion?.toDate?.()?.toLocaleDateString() || 'Fecha desconocida';
+            const estaAbierto = temasAbiertos.has(id);
+            
+            // Generar HTML de subtemas
+            const subtemasHTML = subtemasPorPadre[id] ? 
+                subtemasPorPadre[id].map(subtema => crearSubtemaHTML(subtema.id, subtema.data)).join('') : '';
+            
+            temaDiv.innerHTML = `
+                <div class="tema-header">
+                    <div class="tema-info">
+                        <div class="tema-nombre">📚 ${tema.nombre}</div>
+                        <div class="tema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
+                    </div>
+                    <div class="tema-acciones">
+                        <button class="btn-secondary" onclick="crearSubtema('${id}')">📂 Crear Subtema</button>
+                        <button class="btn-exportar" onclick="exportarTema('${id}')">📤 Exportar</button>
+                        <button class="btn-secondary" onclick="editarTema('${id}')">✏️ Editar</button>
+                        <button class="btn-danger" onclick="eliminarTema('${id}')">🗑️ Eliminar</button>
+                    </div>
+                </div>
+                ${tema.descripcion ? `<div class="tema-descripcion">${tema.descripcion}</div>` : ''}
+                ${subtemasHTML}
+                ${numPreguntas > 0 ? `
+                    <div class="preguntas-tema">
+                        <details ${estaAbierto ? 'open' : ''} ontoggle="manejarToggleTema(event, '${id}')">
+                            <summary>Ver y editar preguntas (${numPreguntas})</summary>
+                            <div class="lista-preguntas" id="preguntas-${id}">
+                                ${tema.preguntas.map((pregunta, index) => crearPreguntaEditable(pregunta, index, id)).join('')}
+                            </div>
+                        </details>
+                    </div>
+                ` : ''}
+            `;
+            
+            listaTemas.appendChild(temaDiv);
+        });
+
+        // Configurar drag and drop
+        configurarDragAndDrop();
+        
+    } catch (error) {
+        console.error('Error cargando banco de preguntas:', error);
+        listaTemas.innerHTML = '<p>Error al cargar los temas.</p>';
+    }
+}
+
+// Manejar toggle de tema (abrir/cerrar)
+window.manejarToggleTema = function(event, temaId) {
+    if (event.target.open) {
+        temasAbiertos.add(temaId);
+    } else {
+        temasAbiertos.delete(temaId);
+    }
+};
+
+// Crear HTML para pregunta editable
+function crearPreguntaEditable(pregunta, index, temaId) {
+    const verificada = pregunta.verificada || false;
+    return `
+        <div class="pregunta-item pregunta-editable ${verificada ? 'pregunta-verificada' : ''}" data-pregunta-index="${index}">
+            <div class="pregunta-controls">
+                <button class="btn-icon btn-verify ${verificada ? 'verified' : ''}" 
+                        onclick="toggleVerificacion('${temaId}', ${index})" 
+                        title="${verificada ? 'Pregunta verificada' : 'Marcar como verificada'}">
+                    ${verificada ? '⭐' : '☆'}
+                </button>
+                <button class="btn-icon btn-edit" onclick="editarPregunta('${temaId}', ${index})" title="Editar pregunta">✏️</button>
+                <button class="btn-icon btn-delete" onclick="eliminarPregunta('${temaId}', ${index})" title="Eliminar pregunta">🗑️</button>
+            </div>
+            <div class="pregunta-texto" id="texto-${temaId}-${index}">${pregunta.texto}</div>
+            <div class="opciones-container" id="opciones-${temaId}-${index}">
+                ${pregunta.opciones.map((opcion, opcionIndex) => `
+                    <div class="opcion-item">
+                        <input type="radio" name="correcta-${temaId}-${index}" value="${opcion.letra}" 
+                               ${opcion.esCorrecta ? 'checked' : ''} 
+                               onchange="cambiarRespuestaCorrecta('${temaId}', ${index}, '${opcion.letra}')">
+                        <span>${opcion.letra}) </span>
+                        <span class="opcion-texto" id="opcion-${temaId}-${index}-${opcionIndex}">${opcion.texto}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+// Crear HTML para subtema
+function crearSubtemaHTML(subtemaId, subtema) {
+    const numPreguntas = subtema.preguntas?.length || 0;
+    const fechaCreacion = subtema.fechaCreacion?.toDate?.()?.toLocaleDateString() || 'Fecha desconocida';
+    const estaAbierto = temasAbiertos.has(subtemaId);
+    
+    return `
+        <div class="subtema-container" draggable="true" data-subtema-id="${subtemaId}">
+            <div class="subtema-header">
+                <div class="subtema-info">
+                    <div class="subtema-nombre">📁 ${subtema.nombre}</div>
+                    <div class="subtema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
+                </div>
+                <div class="subtema-acciones">
+                    <button class="btn-secondary btn-sm" onclick="editarTema('${subtemaId}')">✏️</button>
+                    <button class="btn-danger btn-sm" onclick="eliminarTema('${subtemaId}')">🗑️</button>
+                </div>
+            </div>
+            ${subtema.descripcion ? `<div class="subtema-descripcion">${subtema.descripcion}</div>` : ''}
+            ${numPreguntas > 0 ? `
+                <div class="preguntas-tema">
+                    <details ${estaAbierto ? 'open' : ''} ontoggle="manejarToggleTema(event, '${subtemaId}')">
+                        <summary>Ver y editar preguntas (${numPreguntas})</summary>
+                        <div class="lista-preguntas" id="preguntas-${subtemaId}">
+                            ${subtema.preguntas.map((pregunta, index) => crearPreguntaEditable(pregunta, index, subtemaId)).join('')}
+                        </div>
+                    </details>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Configurar drag and drop para reordenar temas y subtemas
+function configurarDragAndDrop() {
+    const temaCards = document.querySelectorAll('.tema-card');
+    const subtemaContainers = document.querySelectorAll('.subtema-container');
+    
+    // Función para guardar orden (definida dentro del scope)
+    async function guardarOrdenTemas() {
+        try {
+            const temasOrdenados = [];
+            document.querySelectorAll('.tema-card').forEach((card, index) => {
+                temasOrdenados.push({
+                    id: card.dataset.temaId,
+                    orden: index
+                });
+            });
+            
+            // Guardar orden en Firebase
+            for (const tema of temasOrdenados) {
+                await updateDoc(doc(db, "temas", tema.id), {
+                    orden: tema.orden
+                });
+            }
+            
+            console.log('Orden guardado:', temasOrdenados);
+        } catch (error) {
+            console.error('Error guardando orden:', error);
+        }
+    }
+    
+    // Configurar drag and drop para temas principales
+    temaCards.forEach(card => {
+        card.addEventListener('dragstart', (e) => {
+            card.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+                type: 'tema',
+                id: card.dataset.temaId
+            }));
+        });
+
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging');
+        });
+
+        card.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        card.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            const dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
+            
+            if (dragData.type === 'tema') {
+                const draggedElement = document.querySelector(`[data-tema-id="${dragData.id}"]`);
+                const dropTarget = e.currentTarget;
+
+                if (draggedElement !== dropTarget) {
+                    const container = listaTemas;
+                    const draggedRect = draggedElement.getBoundingClientRect();
+                    const dropRect = dropTarget.getBoundingClientRect();
+
+                    if (draggedRect.top < dropRect.top) {
+                        container.insertBefore(draggedElement, dropTarget.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, dropTarget);
+                    }
+                    
+                    // Guardar el nuevo orden en Firebase
+                    await guardarOrdenTemas();
+                }
+            }
+        });
+    });
+
+    // Configurar drag and drop para subtemas
+    subtemaContainers.forEach(subtema => {
+        subtema.draggable = true;
+        subtema.dataset.subtemaId = subtema.querySelector('.lista-preguntas')?.id.replace('preguntas-', '') || '';
+        
+        subtema.addEventListener('dragstart', (e) => {
+            subtema.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+                type: 'subtema',
+                id: subtema.dataset.subtemaId
+            }));
+            e.stopPropagation(); // Evitar que se active el drag del tema padre
+        });
+
+        subtema.addEventListener('dragend', () => {
+            subtema.classList.remove('dragging');
+        });
+
+        subtema.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        subtema.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
+            
+            if (dragData.type === 'subtema') {
+                const draggedElement = document.querySelector(`[data-subtema-id="${dragData.id}"]`);
+                const dropTarget = e.currentTarget;
+
+                if (draggedElement !== dropTarget) {
+                    const draggedRect = draggedElement.getBoundingClientRect();
+                    const dropRect = dropTarget.getBoundingClientRect();
+
+                    if (draggedRect.top < dropRect.top) {
+                        dropTarget.parentNode.insertBefore(draggedElement, dropTarget.nextSibling);
+                    } else {
+                        dropTarget.parentNode.insertBefore(draggedElement, dropTarget);
+                    }
+                }
+            }
+        });
+    });
+}
+
+// Toggle verificación de pregunta
+window.toggleVerificacion = async function(temaId, preguntaIndex) {
+    try {
+        const temaRef = doc(db, "temas", temaId);
+        const temaDoc = await getDoc(temaRef);
+        const temaData = temaDoc.data();
+        const preguntas = [...temaData.preguntas];
+        
+        preguntas[preguntaIndex].verificada = !preguntas[preguntaIndex].verificada;
+        
+        await updateDoc(temaRef, { preguntas });
+        
+        // Actualizar solo el contenido de las preguntas sin recargar todo
+        await actualizarContenidoPreguntas(temaId);
+        
+    } catch (error) {
+        console.error('Error al cambiar verificación:', error);
+        alert('Error al actualizar la pregunta');
+    }
+};
+
+// Función para actualizar solo el contenido de preguntas de un tema específico
+async function actualizarContenidoPreguntas(temaId) {
+    try {
+        const temaRef = doc(db, "temas", temaId);
+        const temaDoc = await getDoc(temaRef);
+        const temaData = temaDoc.data();
+        
+        const preguntasContainer = document.getElementById(`preguntas-${temaId}`);
+        if (preguntasContainer && temaData.preguntas) {
+            preguntasContainer.innerHTML = temaData.preguntas.map((pregunta, index) => 
+                crearPreguntaEditable(pregunta, index, temaId)
+            ).join('');
+        }
+    } catch (error) {
+        console.error('Error actualizando contenido de preguntas:', error);
+    }
+}
+
+// Editar pregunta
+window.editarPregunta = function(temaId, preguntaIndex) {
+    const textoElement = document.getElementById(`texto-${temaId}-${preguntaIndex}`);
+    const opcionesContainer = document.getElementById(`opciones-${temaId}-${preguntaIndex}`);
+    
+    // Obtener datos actuales
+    const textoActual = textoElement.textContent;
+    
+    // Crear input para el texto de la pregunta
+    textoElement.innerHTML = `
+        <input type="text" class="pregunta-texto-editable" value="${textoActual}" 
+               id="input-texto-${temaId}-${preguntaIndex}">
+    `;
+    
+    // Crear inputs para las opciones
+    const opciones = Array.from(opcionesContainer.querySelectorAll('.opcion-item'));
+    opciones.forEach((opcionDiv, opcionIndex) => {
+        const textoOpcion = opcionDiv.querySelector('.opcion-texto').textContent;
+        const radio = opcionDiv.querySelector('input[type="radio"]');
+        const letra = radio.value;
+        
+        opcionDiv.innerHTML = `
+            <div class="opcion-editable">
+                <input type="radio" name="correcta-${temaId}-${preguntaIndex}" value="${letra}" 
+                       ${radio.checked ? 'checked' : ''} class="opcion-radio">
+                <span>${letra}) </span>
+                <input type="text" class="opcion-texto-editable" value="${textoOpcion}" 
+                       id="input-opcion-${temaId}-${preguntaIndex}-${opcionIndex}">
+            </div>
+        `;
+    });
+    
+    // Agregar botones de guardar/cancelar
+    const botonesDiv = document.createElement('div');
+    botonesDiv.innerHTML = `
+        <div style="margin-top: 15px; text-align: center;">
+            <button class="btn-success" onclick="guardarEdicionPregunta('${temaId}', ${preguntaIndex})">💾 Guardar</button>
+            <button class="btn-secondary" onclick="cancelarEdicionPregunta('${temaId}')">❌ Cancelar</button>
+        </div>
+    `;
+    
+    const preguntaDiv = textoElement.closest('.pregunta-editable');
+    preguntaDiv.appendChild(botonesDiv);
+};
+
+// Guardar edición de pregunta
+window.guardarEdicionPregunta = async function(temaId, preguntaIndex) {
+    try {
+        const temaRef = doc(db, "temas", temaId);
+        const temaDoc = await getDoc(temaRef);
+        const temaData = temaDoc.data();
+        const preguntas = [...temaData.preguntas];
+        
+        // Obtener nuevo texto de la pregunta
+        const nuevoTexto = document.getElementById(`input-texto-${temaId}-${preguntaIndex}`).value;
+        
+        // Obtener nuevas opciones
+        const nuevasOpciones = [];
+        let nuevaRespuestaCorrecta = null;
+        
+        for (let i = 0; i < 4; i++) {
+            const inputTexto = document.getElementById(`input-opcion-${temaId}-${preguntaIndex}-${i}`);
+            const radio = document.querySelector(`input[name="correcta-${temaId}-${preguntaIndex}"]:checked`);
+            const letra = ['A', 'B', 'C', 'D'][i];
+            const esCorrecta = radio && radio.value === letra;
+            
+            if (esCorrecta) nuevaRespuestaCorrecta = letra;
+            
+            nuevasOpciones.push({
+                letra: letra,
+                texto: inputTexto.value,
+                esCorrecta: esCorrecta
+            });
+        }
+        
+        // Actualizar pregunta
+        preguntas[preguntaIndex] = {
+            ...preguntas[preguntaIndex],
+            texto: nuevoTexto,
+            opciones: nuevasOpciones,
+            respuestaCorrecta: nuevaRespuestaCorrecta
+        };
+        
+        await updateDoc(temaRef, { preguntas });
+        
+        // Actualizar solo el contenido de las preguntas sin recargar todo
+        await actualizarContenidoPreguntas(temaId);
+        
+    } catch (error) {
+        console.error('Error guardando pregunta:', error);
+        alert('Error al guardar la pregunta');
+    }
+};
+
+// Cancelar edición
+window.cancelarEdicionPregunta = async function(temaId) {
+    // Actualizar solo el contenido de las preguntas sin recargar todo
+    await actualizarContenidoPreguntas(temaId);
+};
+
+// Cambiar respuesta correcta
+window.cambiarRespuestaCorrecta = async function(temaId, preguntaIndex, nuevaLetra) {
+    try {
+        const temaRef = doc(db, "temas", temaId);
+        const temaDoc = await getDoc(temaRef);
+        const temaData = temaDoc.data();
+        const preguntas = [...temaData.preguntas];
+        
+        // Actualizar opciones
+        preguntas[preguntaIndex].opciones = preguntas[preguntaIndex].opciones.map(opcion => ({
+            ...opcion,
+            esCorrecta: opcion.letra === nuevaLetra
+        }));
+        
+        preguntas[preguntaIndex].respuestaCorrecta = nuevaLetra;
+        
+        await updateDoc(temaRef, { preguntas });
+        
+        // Actualizar solo el contenido de las preguntas sin recargar todo
+        await actualizarContenidoPreguntas(temaId);
+        
+    } catch (error) {
+        console.error('Error cambiando respuesta correcta:', error);
+        alert('Error al actualizar la respuesta');
+    }
+};
+
+// Eliminar pregunta específica
+window.eliminarPregunta = async function(temaId, preguntaIndex) {
+    if (confirm('¿Estás seguro de que quieres eliminar esta pregunta?')) {
+        try {
+            const temaRef = doc(db, "temas", temaId);
+            const temaDoc = await getDoc(temaRef);
+            const temaData = temaDoc.data();
+            const preguntas = [...temaData.preguntas];
+            
+            preguntas.splice(preguntaIndex, 1);
+            
+            await updateDoc(temaRef, { preguntas });
+            
+            // Actualizar solo el contenido de las preguntas sin recargar todo
+            await actualizarContenidoPreguntas(temaId);
+            
+            // Si no quedan preguntas, recargar para actualizar el contador
+            if (preguntas.length === 0) {
+                cargarBancoPreguntas();
+            }
+            
+        } catch (error) {
+            console.error('Error eliminando pregunta:', error);
+            alert('Error al eliminar la pregunta');
+        }
+    }
+};
+
+// Eliminar todos los temas
+window.eliminarTodosTemas = async function() {
+    const confirmacion = prompt('Esta acción eliminará TODOS tus temas y preguntas permanentemente.\nEscribe "ELIMINAR TODO" para confirmar:');
+    
+    if (confirmacion === 'ELIMINAR TODO') {
+        try {
+            const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+            const querySnapshot = await getDocs(q);
+            
+            const promises = [];
+            querySnapshot.forEach((doc) => {
+                promises.push(deleteDoc(doc.ref));
+            });
+            
+            await Promise.all(promises);
+            
+            alert('Todos los temas han sido eliminados');
+            cargarBancoPreguntas();
+            cargarTemas();
+            
+        } catch (error) {
+            console.error('Error eliminando todos los temas:', error);
+            alert('Error al eliminar los temas');
+        }
+    } else if (confirmacion !== null) {
+        alert('Confirmación incorrecta. No se eliminó nada.');
+    }
+};
+
+// Funciones globales para los botones
+window.editarTema = function(temaId) {
+    // Por implementar
+    alert('Función de editar tema en desarrollo');
+};
+
+window.eliminarTema = async function(temaId) {
+    if (confirm('¿Estás seguro de que quieres eliminar este tema? Esta acción no se puede deshacer.')) {
+        try {
+            await deleteDoc(doc(db, "temas", temaId));
+            alert('Tema eliminado exitosamente');
+            cargarBancoPreguntas();
+            cargarTemas(); // Actualizar selects
+        } catch (error) {
+            console.error('Error eliminando tema:', error);
+            alert('Error al eliminar el tema');
+        }
+    }
+};
+
+// Función auxiliar para cerrar modales
+function cerrarModal(modal) {
+    modal.style.display = 'none';
+    // Limpiar campos
+    if (modal === modalCrearTema) {
+        nombreTema.value = '';
+        descripcionTema.value = '';
+    }
+}
+
+// Filtrar preguntas en tiempo real
+function filtrarPreguntas() {
+    const textoBusqueda = document.getElementById('buscadorPreguntas').value.toLowerCase();
+    const todasLasPreguntas = document.querySelectorAll('.pregunta-editable');
+    
+    todasLasPreguntas.forEach(pregunta => {
+        const textoPregunta = pregunta.querySelector('.pregunta-texto').textContent.toLowerCase();
+        const textoOpciones = Array.from(pregunta.querySelectorAll('.opcion-texto')).map(op => op.textContent.toLowerCase()).join(' ');
+        
+        if (textoPregunta.includes(textoBusqueda) || textoOpciones.includes(textoBusqueda)) {
+            pregunta.style.display = 'block';
+        } else {
+            pregunta.style.display = 'none';
+        }
+    });
+}
+
+// Limpiar buscador
+function limpiarBuscador() {
+    document.getElementById('buscadorPreguntas').value = '';
+    document.querySelectorAll('.pregunta-editable').forEach(pregunta => {
+        pregunta.style.display = 'block';
+    });
+}
+
+// Detectar preguntas duplicadas
+async function detectarPreguntasDuplicadas() {
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        const todasLasPreguntas = [];
+        const duplicadas = [];
+        
+        // Recopilar todas las preguntas
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            if (tema.preguntas) {
+                tema.preguntas.forEach((pregunta, index) => {
+                    todasLasPreguntas.push({
+                        texto: pregunta.texto.toLowerCase().trim(),
+                        temaId: doc.id,
+                        temaNombre: tema.nombre,
+                        preguntaIndex: index,
+                        preguntaCompleta: pregunta,
+                        fechaCreacion: pregunta.fechaCreacion || tema.fechaCreacion || new Date('2020-01-01')
+                    });
+                });
+            }
+        });
+        
+        // Encontrar duplicadas
+        for (let i = 0; i < todasLasPreguntas.length; i++) {
+            for (let j = i + 1; j < todasLasPreguntas.length; j++) {
+                if (todasLasPreguntas[i].texto === todasLasPreguntas[j].texto) {
+                    duplicadas.push({
+                        pregunta1: todasLasPreguntas[i],
+                        pregunta2: todasLasPreguntas[j]
+                    });
+                }
+            }
+        }
+        
+        if (duplicadas.length === 0) {
+            alert('No se encontraron preguntas duplicadas');
+            return;
+        }
+        
+        mostrarPreguntasDuplicadas(duplicadas);
+        
+    } catch (error) {
+        console.error('Error detectando duplicadas:', error);
+        alert('Error al detectar preguntas duplicadas');
+    }
+}
+
+// Mostrar preguntas duplicadas - VERSION LIMPIA
+function mostrarPreguntasDuplicadas(duplicadas) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    
+    const modalContent = document.createElement('div');
+modalContent.className = 'modal-content';
+modalContent.style.maxWidth = '90vw';
+modalContent.style.width = '800px';
+modalContent.style.height = 'auto';
+modalContent.style.maxHeight = '85vh';
+modalContent.style.display = 'flex';
+modalContent.style.flexDirection = 'column';
+modalContent.style.margin = '2vh auto';
+    
+    const titulo = document.createElement('h3');
+    titulo.textContent = 'Preguntas Duplicadas Encontradas (' + duplicadas.length + ')';
+    modalContent.appendChild(titulo);
+    
+    const listaDuplicadas = document.createElement('div');
+    listaDuplicadas.id = 'listaDuplicadas';
+    listaDuplicadas.style.overflowY = 'auto';
+listaDuplicadas.style.flexGrow = '1';
+listaDuplicadas.style.marginBottom = '20px';
+    
+    duplicadas.forEach((dup, index) => {
+        const duplicadaItem = document.createElement('div');
+        duplicadaItem.className = 'duplicada-item';
+        duplicadaItem.style.border = '1px solid #dee2e6';
+        duplicadaItem.style.margin = '10px 0';
+        duplicadaItem.style.padding = '15px';
+        duplicadaItem.style.borderRadius = '5px';
+        
+        duplicadaItem.innerHTML = 
+            '<h4>Duplicado ' + (index + 1) + ':</h4>' +
+            '<div style="background: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 3px; position: relative;">' +
+                '<strong>Tema:</strong> ' + dup.pregunta1.temaNombre + '<br>' +
+                '<strong>Pregunta:</strong> ' + dup.pregunta1.preguntaCompleta.texto +
+                '<button class="btn-danger btn-sm" style="position: absolute; top: 10px; right: 10px;" onclick="eliminarEspecifica(\'' + dup.pregunta1.temaId + '\', ' + dup.pregunta1.preguntaIndex + ', ' + index + ')">' +
+                    'Eliminar' +
+                '</button>' +
+            '</div>' +
+            '<div style="background: #fff3cd; padding: 10px; margin: 5px 0; border-radius: 3px; position: relative;">' +
+                '<strong>Tema:</strong> ' + dup.pregunta2.temaNombre + '<br>' +
+                '<strong>Pregunta:</strong> ' + dup.pregunta2.preguntaCompleta.texto +
+                '<button class="btn-danger btn-sm" style="position: absolute; top: 10px; right: 10px;" onclick="eliminarEspecifica(\'' + dup.pregunta2.temaId + '\', ' + dup.pregunta2.preguntaIndex + ', ' + index + ')">' +
+                    'Eliminar' +
+                '</button>' +
+            '</div>';
+        
+        listaDuplicadas.appendChild(duplicadaItem);
+    });
+    
+    modalContent.appendChild(listaDuplicadas);
+    
+    const modalActions = document.createElement('div');
+    modalActions.className = 'modal-actions';
+    modalActions.style.flexShrink = '0';
+modalActions.style.borderTop = '1px solid #dee2e6';
+modalActions.style.paddingTop = '15px';
+modalActions.style.textAlign = 'center';
+    modalActions.innerHTML = 
+    '<button class="btn-warning" onclick="eliminarTodasAmarillas()">Eliminar Todas las Amarillas</button>' +
+    '<button class="btn-secondary" onclick="cerrarModalDuplicadas()">Cerrar</button>' +
+    '<button class="btn-primary" onclick="volverADetectar()">Volver a Detectar</button>';
+    
+    modalContent.appendChild(modalActions);
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    window.modalDuplicadas = modal;
+    window.duplicadasData = duplicadas;
+}
+
+// Eliminar pregunta especifica
+window.eliminarEspecifica = async function(temaId, preguntaIndex, duplicadoIndex) {
+    if (confirm('¿Eliminar esta pregunta duplicada?')) {
+        await eliminarPregunta(temaId, preguntaIndex);
+        
+        const items = document.querySelectorAll('.duplicada-item');
+        if (items[duplicadoIndex]) {
+            items[duplicadoIndex].remove();
+        }
+        
+        const titulo = document.querySelector('h3');
+        const restantes = document.querySelectorAll('.duplicada-item').length;
+        titulo.textContent = 'Preguntas Duplicadas Encontradas (' + restantes + ')';
+        
+        if (restantes === 0) {
+            document.getElementById('listaDuplicadas').innerHTML = '<p style="text-align: center; color: #28a745; font-weight: bold;">¡No quedan preguntas duplicadas!</p>';
+        }
+    }
+};
+
+// Volver a detectar duplicadas
+window.volverADetectar = function() {
+    cerrarModalDuplicadas();
+    detectarPreguntasDuplicadas();
+};
+
+// Cerrar modal de duplicadas
+window.cerrarModalDuplicadas = function() {
+    if (window.modalDuplicadas) {
+        document.body.removeChild(window.modalDuplicadas);
+        window.modalDuplicadas = null;
+    }
+};
+
+// Eliminar todas las preguntas que están en amarillo
+window.eliminarTodasAmarillas = async function() {
+    if (!window.duplicadasData) return;
+    
+    const confirmacion = confirm('¿Eliminar todas las preguntas que están en amarillo? Esta acción no se puede deshacer.');
+    if (!confirmacion) return;
+    
+    try {
+        // Agrupar eliminaciones por tema
+        const eliminacionesPorTema = {};
+        
+        window.duplicadasData.forEach(dup => {
+            const preguntaAEliminar = dup.pregunta2; // Siempre la amarilla
+            
+            if (!eliminacionesPorTema[preguntaAEliminar.temaId]) {
+                eliminacionesPorTema[preguntaAEliminar.temaId] = [];
+            }
+            eliminacionesPorTema[preguntaAEliminar.temaId].push(preguntaAEliminar.preguntaIndex);
+        });
+        
+        let totalEliminadas = 0;
+        
+        // Procesar cada tema por separado
+        for (const temaId in eliminacionesPorTema) {
+            const indices = eliminacionesPorTema[temaId];
+            
+            // Ordenar índices en orden descendente para eliminar de atrás hacia adelante
+            indices.sort((a, b) => b - a);
+            
+            const temaRef = doc(db, "temas", temaId);
+            const temaDoc = await getDoc(temaRef);
+            const temaData = temaDoc.data();
+            let preguntas = [...temaData.preguntas];
+            
+            // Eliminar preguntas en orden descendente
+            indices.forEach(index => {
+                preguntas.splice(index, 1);
+                totalEliminadas++;
+            });
+            
+            await updateDoc(temaRef, { preguntas });
+        }
+        
+        alert('Se eliminaron ' + totalEliminadas + ' preguntas duplicadas (las amarillas).');
+        cerrarModalDuplicadas();
+        cargarBancoPreguntas();
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al eliminar las preguntas duplicadas');
+    }
+};
+
+// Crear subtema
+window.crearSubtema = function(temaPadreId) {
+    // Marcar como subtema y preseleccionar padre
+    window.crearSubtemaFlag = temaPadreId;
+    modalCrearTema.style.display = 'block';
+    document.getElementById('esSubtema').checked = true;
+    mostrarOpcionSubtema();
+    cargarTemasPadre(temaPadreId);
+};
+
+// Mostrar/ocultar opción de subtema
+function mostrarOpcionSubtema() {
+    const esSubtema = document.getElementById('esSubtema').checked;
+    const temaPadreSelect = document.getElementById('temaPadreSelect');
+    temaPadreSelect.style.display = esSubtema ? 'block' : 'none';
+    
+    if (esSubtema) {
+        cargarTemasPadre();
+    }
+}
+
+// Cargar temas padre en select
+async function cargarTemasPadre(preseleccionado = null) {
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        const temaPadreSelect = document.getElementById('temaPadreSelect');
+        temaPadreSelect.innerHTML = '<option value="">Selecciona tema padre...</option>';
+        
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            // Solo mostrar temas principales (sin padre)
+            if (!tema.temaPadreId) {
+                const option = document.createElement('option');
+                option.value = doc.id;
+                option.textContent = tema.nombre;
+                if (doc.id === preseleccionado) {
+                    option.selected = true;
+                }
+                temaPadreSelect.appendChild(option);
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error cargando temas padre:', error);
+    }
+}
+
+// Event listener para checkbox de subtema
+document.getElementById('esSubtema').addEventListener('change', mostrarOpcionSubtema);
+// ==== FUNCIONALIDAD TEST ALEATORIO ====
+
+// Variables globales para el test
+let testActual = null;
+let cronometroInterval = null;
+let tiempoRestanteSegundos = 0;
+let respuestasUsuario = {};
+
+// Inicializar funcionalidad de test aleatorio
+function inicializarTestAleatorio() {
+    try {
+        // Verificar que estamos en la sección correcta
+        const seccionAleatorio = document.getElementById('aleatorio-section');
+        if (!seccionAleatorio || !seccionAleatorio.classList.contains('active')) {
+            return;
+        }
+
+        // Botones de cantidad - Verificar que existan antes de agregar listeners
+        const botonesCantidad = document.querySelectorAll('.btn-cantidad');
+        if (botonesCantidad.length > 0) {
+            botonesCantidad.forEach(btn => {
+                // Remover listener previo si existe
+                btn.removeEventListener('click', manejarClickCantidad);
+                // Agregar nuevo listener
+                btn.addEventListener('click', manejarClickCantidad);
+            });
+        }
+
+        // Botones de tiempo - Verificar que existan antes de agregar listeners
+        const botonesTiempo = document.querySelectorAll('.btn-tiempo');
+        if (botonesTiempo.length > 0) {
+            botonesTiempo.forEach(btn => {
+                // Remover listener previo si existe
+                btn.removeEventListener('click', manejarClickTiempo);
+                // Agregar nuevo listener
+                btn.addEventListener('click', manejarClickTiempo);
+            });
+        }
+
+        // Selector de tema - Verificar que exista
+        const selectorTema = document.getElementById('seleccionarTemaTest');
+        if (selectorTema) {
+            selectorTema.removeEventListener('change', actualizarPreguntasDisponibles);
+            selectorTema.addEventListener('change', actualizarPreguntasDisponibles);
+        }
+
+        // Botón empezar test - Verificar que exista
+        const btnEmpezar = document.getElementById('empezarTestBtn');
+        if (btnEmpezar) {
+            btnEmpezar.removeEventListener('click', empezarTest);
+            btnEmpezar.addEventListener('click', empezarTest);
+        }
+
+        // Botón finalizar test - Verificar que exista
+        const btnFinalizar = document.getElementById('finalizarTestBtn');
+        if (btnFinalizar) {
+            btnFinalizar.removeEventListener('click', finalizarTest);
+            btnFinalizar.addEventListener('click', finalizarTest);
+        }
+
+        // Cargar temas en el selector - Solo si el usuario está autenticado
+        if (currentUser) {
+            cargarTemasParaTest();
+        }
+
+         // Cargar Test de Repaso disponible
+        if (currentUser) {
+            cargarTestRepaso();
+        }
+
+    } catch (error) {
+        console.error('Error inicializando test aleatorio:', error);
+    }
+}
+
+// Funciones separadas para manejar clics (mejor práctica)
+function manejarClickCantidad() {
+    try {
+        document.querySelectorAll('.btn-cantidad').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const inputPreguntasSeleccionadas = document.getElementById('preguntasSeleccionadas');
+        if (inputPreguntasSeleccionadas) {
+            inputPreguntasSeleccionadas.value = this.dataset.cantidad;
+        }
+    } catch (error) {
+        console.error('Error manejando click cantidad:', error);
+    }
+}
+
+function manejarClickTiempo() {
+    try {
+        document.querySelectorAll('.btn-tiempo').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const inputTiempoSeleccionado = document.getElementById('tiempoSeleccionado');
+        if (inputTiempoSeleccionado) {
+            inputTiempoSeleccionado.value = this.dataset.tiempo;
+        }
+    } catch (error) {
+        console.error('Error manejando click tiempo:', error);
+    }
+}
+
+// Cargar temas para test con dropdown y subtemas
+// FUNCIÓN CORREGIDA: cargarTemasParaTest
+async function cargarTemasParaTest() {
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        const listaContainer = document.getElementById('listaTemasDropdown');
+        
+        if (!listaContainer) return;
+        
+        // Limpiar contenedor
+        listaContainer.innerHTML = '';
+        
+        // Separar temas principales y subtemas
+        const temasPrincipales = [];
+        const subtemasPorPadre = {};
+        let totalPreguntasVerificadas = 0;
+        
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            const temaId = doc.id;
+            const preguntasVerificadas = tema.preguntas ? 
+                tema.preguntas.filter(p => p.verificada === true).length : 0;
+            
+            totalPreguntasVerificadas += preguntasVerificadas;
+            
+            if (tema.temaPadreId) {
+                // Es un subtema
+                if (!subtemasPorPadre[tema.temaPadreId]) {
+                    subtemasPorPadre[tema.temaPadreId] = [];
+                }
+                subtemasPorPadre[tema.temaPadreId].push({
+                    id: temaId,
+                    nombre: tema.nombre,
+                    preguntasVerificadas: preguntasVerificadas
+                });
+            } else {
+                // Es un tema principal
+                temasPrincipales.push({
+                    id: temaId,
+                    nombre: tema.nombre,
+                    preguntasVerificadas: preguntasVerificadas,
+                    orden: tema.orden || 0
+                });
+            }
+        });
+
+        // Actualizar contador de "Todos los temas"
+        const preguntasTodosTemas = document.getElementById('preguntasTodosTemas');
+        if (preguntasTodosTemas) {
+            preguntasTodosTemas.textContent = `${totalPreguntasVerificadas} preguntas`;
+        }
+
+        // Ordenar temas principales por orden
+        temasPrincipales.sort((a, b) => a.orden - b.orden);
+
+        // *** AQUÍ ESTÁ LA CORRECCIÓN PRINCIPAL ***
+        // Renderizar temas principales con sus subtemas
+        temasPrincipales.forEach((tema) => {
+            const temaDiv = document.createElement('div');
+            temaDiv.className = 'tema-dropdown-item';
+            
+            const tieneSubtemas = subtemasPorPadre[tema.id] && subtemasPorPadre[tema.id].length > 0;
+            
+            // ESTRUCTURA HTML CORREGIDA - SIN ESTILOS INLINE
+            temaDiv.innerHTML = `
+                <div class="tema-principal-row">
+                    <label class="tema-label">
+                        <div class="checkbox-y-nombre">
+                            <input type="checkbox" class="tema-checkbox" value="${tema.id}" 
+                                   data-preguntas="${tema.preguntasVerificadas}" 
+                                   onclick="debugClick(this)" onchange="manejarSeleccionTema(event)">
+                            <span class="tema-nombre">${tema.nombre}</span>
+                        </div>
+                        <span class="tema-preguntas">${tema.preguntasVerificadas} preguntas</span>
+                    </label>
+                    ${tieneSubtemas ? `
+                        <div class="subtemas-toggle" onclick="toggleSubtemas('${tema.id}')">
+                            <span class="subtema-arrow" id="arrow-${tema.id}">▶</span>
+                        </div>
+                    ` : ''}
+                </div>
+                ${tieneSubtemas ? `
+                    <div class="subtemas-container" id="subtemas-${tema.id}" style="display: none;">
+                        ${subtemasPorPadre[tema.id].map(subtema => `
+                            <div class="subtema-row">
+                                <label class="subtema-label">
+                                    <div class="checkbox-y-nombre">
+                                        <input type="checkbox" class="tema-checkbox" value="${subtema.id}" 
+                                               data-preguntas="${subtema.preguntasVerificadas}" 
+                                               onclick="debugClick(this)" onchange="manejarSeleccionTema(event)">
+                                        <span class="subtema-nombre">↳ ${subtema.nombre}</span>
+                                    </div>
+                                    <span class="subtema-preguntas">${subtema.preguntasVerificadas} preguntas</span>
+                                </label>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            `;
+            
+            listaContainer.appendChild(temaDiv);
+        });
+
+        // Actualizar contador inicial
+        actualizarPreguntasDisponibles();
+        
+        // Debug DOM después de cargar
+        setTimeout(() => {
+            console.log('=== DEBUG DOM DESPUÉS DE CARGAR ===');
+            const todosCheckbox = document.getElementById('todosLosTemas');
+            const temasCheckboxes = document.querySelectorAll('.tema-checkbox');
+            const labels = document.querySelectorAll('.tema-label, .subtema-label');
+            
+            console.log('Todos los temas checkbox:', todosCheckbox);
+            console.log('Temas checkboxes encontrados:', temasCheckboxes.length);
+            console.log('Labels encontrados:', labels.length);
+            
+            temasCheckboxes.forEach((cb, i) => {
+                console.log(`Checkbox ${i}:`, cb.value, 'clickeable:', cb.style.pointerEvents !== 'none');
+            });
+            
+            labels.forEach((label, i) => {
+                console.log(`Label ${i}:`, label.innerHTML.substring(0, 100));
+            });
+            console.log('=====================================');
+        }, 500);
+        
+    } catch (error) {
+        console.error('Error cargando temas para test:', error);
+    }
+}
+
+// Funciones globales para el dropdown
+window.toggleDropdownTemas = function() {
+    const content = document.getElementById('dropdownTemasContent');
+    const arrow = document.querySelector('.dropdown-arrow');
+    
+    if (content.style.display === 'block') {
+        content.style.display = 'none';
+        arrow.textContent = '▼';
+    } else {
+        content.style.display = 'block';
+        arrow.textContent = '▲';
+    }
+};
+
+window.toggleSubtemas = function(temaId) {
+    const container = document.getElementById(`subtemas-${temaId}`);
+    const arrow = document.getElementById(`arrow-${temaId}`);
+    
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        arrow.textContent = '▼';
+    } else {
+        container.style.display = 'none';
+        arrow.textContent = '▶';
+    }
+};
+
+
+// Cerrar dropdown al hacer click fuera
+document.addEventListener('click', function(event) {
+    const dropdown = document.querySelector('.dropdown-temas');
+    const content = document.getElementById('dropdownTemasContent');
+    
+    if (dropdown && !dropdown.contains(event.target) && content && content.style.display === 'block') {
+        content.style.display = 'none';
+        document.querySelector('.dropdown-arrow').textContent = '▼';
+    }
+});
+
+// Actualizar contador de preguntas disponibles
+async function actualizarPreguntasDisponibles() {
+    const infoElement = document.getElementById('preguntasDisponibles');
+    if (!infoElement) return;
+    
+    try {
+        const todosLosTemas = document.getElementById('todosLosTemas');
+        const temasCheckboxes = document.querySelectorAll('.tema-checkbox:checked');
+        
+        let preguntasVerificadas = 0;
+        
+        if (todosLosTemas && todosLosTemas.checked) {
+            // Contar todas las preguntas verificadas
+            const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+            const querySnapshot = await getDocs(q);
+            
+            querySnapshot.forEach((doc) => {
+                const tema = doc.data();
+                if (tema.preguntas) {
+                    preguntasVerificadas += tema.preguntas.filter(p => p.verificada).length;
+                }
+            });
+        } else {
+            // Sumar preguntas de temas seleccionados
+            temasCheckboxes.forEach(checkbox => {
+                preguntasVerificadas += parseInt(checkbox.dataset.preguntas) || 0;
+            });
+        }
+
+        infoElement.textContent = `${preguntasVerificadas} preguntas verificadas disponibles`;
+    } catch (error) {
+        console.error('Error actualizando preguntas disponibles:', error);
+        infoElement.textContent = 'Error al cargar preguntas';
+    }
+}
+
+// Empezar test
+async function empezarTest() {
+    const temasSeleccionados = obtenerTemasSeleccionados();
+    const numPreguntas = document.getElementById('preguntasSeleccionadas').value;
+    const tiempoSeleccionado = document.getElementById('tiempoSeleccionado').value;
+    const nombreTest = document.getElementById('nombreTest').value.trim();
+
+    // Validaciones
+    if (!nombreTest) {
+        alert('Por favor, ingresa un nombre para el test');
+        return;
+    }
+
+    if (!temasSeleccionados || (Array.isArray(temasSeleccionados) && temasSeleccionados.length === 0)) {
+        alert('Por favor, selecciona al menos un tema');
+        return;
+    }
+
+    try {
+        // Obtener preguntas verificadas
+        const preguntasDisponibles = await obtenerPreguntasVerificadas(temasSeleccionados);
+        
+        if (preguntasDisponibles.length === 0) {
+            alert('No hay preguntas verificadas disponibles para los temas seleccionados');
+            return;
+        }
+
+        // Determinar número final de preguntas
+        const numFinal = numPreguntas === 'todas' ? preguntasDisponibles.length : Math.min(parseInt(numPreguntas), preguntasDisponibles.length);
+        
+        if (numFinal > preguntasDisponibles.length) {
+            alert(`Solo hay ${preguntasDisponibles.length} preguntas verificadas disponibles`);
+            return;
+        }
+
+        // Obtener preguntas únicas y aleatorias
+        const preguntasSeleccionadas = obtenerPreguntasUnicasAleatorias(preguntasDisponibles, numFinal);
+
+        // Crear objeto de test
+        testActual = {
+            id: generarIdTest(),
+            nombre: nombreTest,
+            tema: temasSeleccionados,
+            preguntas: preguntasSeleccionadas,
+            tiempoLimite: tiempoSeleccionado,
+            fechaInicio: new Date(),
+            usuarioId: currentUser.uid,
+            esRepaso: false  // Marcar como test normal (no repaso)
+        };
+
+        respuestasUsuario = {};
+
+        // Mostrar interfaz del test
+        mostrarInterfazTest();
+        
+        // Iniciar cronómetro si hay límite de tiempo
+        if (tiempoSeleccionado !== 'sin') {
+            iniciarCronometro(parseInt(tiempoSeleccionado) * 60);
+        }
+
+    } catch (error) {
+        console.error('Error empezando test:', error);
+        alert('Error al iniciar el test');
+    }
+}
+
+// Obtener temas seleccionados
+function obtenerTemasSeleccionados() {
+    const todosLosTemas = document.getElementById('todosLosTemas');
+    const temasCheckboxes = document.querySelectorAll('.tema-checkbox:checked');
+    
+    if (todosLosTemas && todosLosTemas.checked) {
+        return 'todos';
+    } else {
+        return Array.from(temasCheckboxes).map(cb => cb.value);
+    }
+}
+
+// Obtener preguntas verificadas (VERSIÓN CON DEBUG)
+async function obtenerPreguntasVerificadas(temasSeleccionados) {
+    console.log('=== OBTENER PREGUNTAS VERIFICADAS ===');
+    console.log('Temas seleccionados:', temasSeleccionados);
+    
+    let preguntasVerificadas = [];
+
+    if (temasSeleccionados === 'todos') {
+        console.log('Caso: todos los temas');
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            console.log(`Procesando tema: ${tema.nombre} (ID: ${doc.id})`);
+            
+            if (tema.preguntas) {
+                console.log(`  Total preguntas en el tema: ${tema.preguntas.length}`);
+                
+                tema.preguntas.forEach((pregunta, index) => {
+                    if (pregunta.verificada) {
+                        preguntasVerificadas.push({
+                            ...pregunta,
+                            temaId: doc.id,
+                            temaNombre: tema.nombre,
+                            temaEpigrafe: tema.epigrafe || ''
+                        });
+                        console.log(`  Pregunta verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
+                    } else {
+                        console.log(`  Pregunta NO verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
+                    }
+                });
+            } else {
+                console.log(`  Tema sin preguntas`);
+            }
+        });
+    } else if (Array.isArray(temasSeleccionados)) {
+        console.log('Caso: array de temas específicos');
+        console.log('IDs de temas a procesar:', temasSeleccionados);
+        
+        // Múltiples temas específicos
+        for (const temaId of temasSeleccionados) {
+            console.log(`\nBuscando tema con ID: ${temaId}`);
+            
+            const temaDoc = await getDoc(doc(db, "temas", temaId));
+            if (temaDoc.exists()) {
+                const tema = temaDoc.data();
+                console.log(`  Tema encontrado: ${tema.nombre}`);
+                
+                if (tema.preguntas) {
+                    console.log(`  Total preguntas en el tema: ${tema.preguntas.length}`);
+                    
+                    tema.preguntas.forEach((pregunta, index) => {
+                        if (pregunta.verificada) {
+                            preguntasVerificadas.push({
+                                ...pregunta,
+                                temaId: temaId,
+                                temaNombre: tema.nombre,
+                                temaEpigrafe: tema.epigrafe || ''
+                            });
+                            console.log(`    Pregunta verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
+                        } else {
+                            console.log(`    Pregunta NO verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
+                        }
+                    });
+                } else {
+                    console.log(`  Tema sin preguntas`);
+                }
+            } else {
+                console.log(`  ❌ TEMA NO ENCONTRADO: ${temaId}`);
+            }
+        }
+    }
+
+    console.log(`\nRESUMEN FINAL:`);
+    console.log(`Total preguntas verificadas recopiladas: ${preguntasVerificadas.length}`);
+    
+    // Agrupar por tema para el resumen
+    const resumenPorTema = {};
+    preguntasVerificadas.forEach(p => {
+        const tema = p.temaNombre || p.temaId || 'sin-tema';
+        resumenPorTema[tema] = (resumenPorTema[tema] || 0) + 1;
+    });
+    
+    console.log('Distribución de preguntas verificadas por tema:');
+    Object.entries(resumenPorTema).forEach(([tema, count]) => {
+        console.log(`  ${tema}: ${count} preguntas`);
+    });
+    
+    console.log('=====================================');
+    return preguntasVerificadas;
+}
+
+// Mostrar interfaz del test
+function mostrarInterfazTest() {
+    // Ocultar configuración
+    document.querySelector('.test-config-container').style.display = 'none';
+    
+    // Ocultar test de repaso durante la ejecución del test
+    const containerRepaso = document.getElementById('testRepasoContainer');
+    if (containerRepaso) {
+        containerRepaso.style.display = 'none';
+    }
+    
+    // Mostrar test en ejecución
+    document.getElementById('testEnEjecucion').style.display = 'block';
+    
+    // Actualizar header
+    document.getElementById('tituloTestActual').textContent = testActual.nombre;
+    document.getElementById('totalPreguntasTest').textContent = testActual.preguntas.length;
+    
+    // Generar preguntas
+    generarPreguntasTest();
+}
+
+// Generar preguntas del test
+function generarPreguntasTest() {
+    const container = document.getElementById('preguntasTestContainer');
+    container.innerHTML = '';
+
+    testActual.preguntas.forEach((pregunta, index) => {
+        const preguntaDiv = document.createElement('div');
+        preguntaDiv.className = 'pregunta-test';
+        
+        preguntaDiv.innerHTML = `
+            <div class="pregunta-header">
+                <div class="pregunta-numero">${index + 1}</div>
+                <div class="pregunta-tema-info">
+                    ${pregunta.temaNombre}${pregunta.temaEpigrafe ? ` - ${pregunta.temaEpigrafe}` : ''}
+                </div>
+            </div>
+            <div class="pregunta-texto">${pregunta.texto}</div>
+            <div class="opciones-test">
+                ${pregunta.opciones.map(opcion => `
+                    <label class="opcion-test" data-pregunta="${index}" data-opcion="${opcion.letra}">
+                        <input type="radio" name="pregunta_${index}" value="${opcion.letra}">
+                        <span class="opcion-texto">${opcion.letra}) ${opcion.texto}</span>
+                    </label>
+                `).join('')}
+            </div>
+        `;
+
+        container.appendChild(preguntaDiv);
+    });
+
+    // Agregar event listeners para respuestas
+    document.querySelectorAll('.opcion-test').forEach(opcion => {
+        opcion.addEventListener('click', function() {
+            const preguntaIndex = this.dataset.pregunta;
+            const opcionLetra = this.dataset.opcion;
+            
+            // Deseleccionar otras opciones de la misma pregunta
+            document.querySelectorAll(`input[name="pregunta_${preguntaIndex}"]`).forEach(radio => {
+                radio.closest('.opcion-test').classList.remove('seleccionada');
+            });
+            
+            // Seleccionar esta opción
+            this.classList.add('seleccionada');
+            this.querySelector('input').checked = true;
+            
+            // Guardar respuesta
+            respuestasUsuario[preguntaIndex] = opcionLetra;
+            
+            // Actualizar progreso
+            actualizarProgreso();
+        });
+    });
+}
+
+// Actualizar progreso
+function actualizarProgreso() {
+    const respondidas = Object.keys(respuestasUsuario).length;
+    document.getElementById('preguntaActualNum').textContent = respondidas;
+}
+
+// Iniciar cronómetro
+function iniciarCronometro(segundos) {
+    tiempoRestanteSegundos = segundos;
+    
+    cronometroInterval = setInterval(() => {
+        tiempoRestanteSegundos--;
+        actualizarDisplayCronometro();
+        
+        if (tiempoRestanteSegundos <= 0) {
+            clearInterval(cronometroInterval);
+            finalizarTest();
+        }
+    }, 1000);
+    
+    actualizarDisplayCronometro();
+}
+
+// Actualizar display del cronómetro
+function actualizarDisplayCronometro() {
+    const minutos = Math.floor(tiempoRestanteSegundos / 60);
+    const segundos = tiempoRestanteSegundos % 60;
+    const display = `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
+    
+    document.getElementById('tiempoRestante').textContent = display;
+    
+    // Cambiar color cuando quedan menos de 5 minutos
+    if (tiempoRestanteSegundos <= 300) {
+        document.getElementById('tiempoRestante').style.color = '#dc3545';
+    }
+}
+
+// Finalizar test
+async function finalizarTest() {
+    console.log('=== DEBUG FINALIZAR TEST ===');
+    console.log('testActual completo:', testActual);
+    console.log('testActual.tema:', testActual.tema);
+    console.log('tipo de testActual.tema:', typeof testActual.tema);
+    console.log('Array.isArray(testActual.tema):', Array.isArray(testActual.tema));
+    console.log('===============================');
+    
+    if (cronometroInterval) {
+        clearInterval(cronometroInterval);
+    }
+    
+    // Calcular resultados
+    const resultados = calcularResultados();
+    
+    // Guardar resultado en Firebase
+    try {
+        await guardarResultado(resultados);
+    } catch (error) {
+        console.error('Error guardando resultado:', error);
+    }
+    
+    // Registrar test en progreso automáticamente
+    try {
+        // Obtener temas utilizados en el test
+        let temasUtilizados = [];
+        
+        console.log('=== PROCESANDO TEMAS PARA PROGRESO ===');
+        console.log('testActual.tema antes de procesar:', testActual.tema);
+        
+        if (testActual.tema === 'todos') {
+            console.log('Caso: todos los temas');
+            // Si fue test de todos los temas, obtener todos los temas únicos de las preguntas
+            const temasUnicos = new Set();
+            testActual.preguntas.forEach(pregunta => {
+                if (pregunta.temaId) {
+                    temasUnicos.add(pregunta.temaId);
+                }
+            });
+            temasUtilizados = Array.from(temasUnicos);
+        } else if (Array.isArray(testActual.tema)) {
+            console.log('Caso: array de temas específicos');
+            // Si fue selección específica de temas
+            temasUtilizados = testActual.tema;
+        } else if (typeof testActual.tema === 'string') {
+            console.log('Caso: tema string individual');
+            // Si fue un tema específico
+            temasUtilizados = [testActual.tema];
+        } else {
+            console.log('Caso: no reconocido - extrayendo de preguntas');
+            // Fallback: extraer de las preguntas
+            const temasUnicos = new Set();
+            testActual.preguntas.forEach(pregunta => {
+                if (pregunta.temaId) {
+                    temasUnicos.add(pregunta.temaId);
+                }
+            });
+            temasUtilizados = Array.from(temasUnicos);
+        }
+        
+        console.log('Temas utilizados calculados:', temasUtilizados);
+        console.log('Función registrarTestCompletado existe:', typeof window.registrarTestCompletado === 'function');
+        console.log('=====================================');
+        
+        // Registrar directamente en Firebase sin depender de Progreso.js
+try {
+    await registrarTestDirectamente(temasUtilizados);
+} catch (error) {
+    console.error('Error registrando test directamente:', error);
+}
+        
+    } catch (error) {
+        console.error('Error integrando con progreso:', error);
+    }
+    
+    // Mostrar resultados
+    mostrarResultados(resultados);
+}
+
+// Calcular resultados
+function calcularResultados() {
+    let correctas = 0;
+    let incorrectas = 0;
+    let sinResponder = 0;
+    
+    const detalleRespuestas = testActual.preguntas.map((pregunta, index) => {
+        const respuestaUsuario = respuestasUsuario[index];
+        const respuestaCorrecta = pregunta.respuestaCorrecta;
+        
+        let estado = 'sin-respuesta';
+        if (respuestaUsuario) {
+            if (respuestaUsuario === respuestaCorrecta) {
+                estado = 'correcta';
+                correctas++;
+            } else {
+                estado = 'incorrecta';
+                incorrectas++;
+            }
+        } else {
+            sinResponder++;
+        }
+        
+        return {
+            pregunta,
+            respuestaUsuario,
+            respuestaCorrecta,
+            estado,
+            indice: index + 1
+        };
+    });
+    
+    const total = testActual.preguntas.length;
+    const porcentaje = total > 0 ? Math.round((correctas / total) * 100) : 0;
+    
+    return {
+        correctas,
+        incorrectas,
+        sinResponder,
+        total,
+        porcentaje,
+        detalleRespuestas,
+        test: testActual,
+        tiempoEmpleado: testActual.tiempoLimite !== 'sin' ? 
+            (parseInt(testActual.tiempoLimite) * 60) - tiempoRestanteSegundos : 
+            Math.floor((new Date() - testActual.fechaInicio) / 1000)
+    };
+}
+
+// Mostrar resultados
+function mostrarResultados(resultados) {
+    // Ocultar test en ejecución
+    document.getElementById('testEnEjecucion').style.display = 'none';
+    
+    // Mostrar contenedor de resultados
+    const container = document.getElementById('resultadosTest');
+    container.style.display = 'block';
+    
+    // Generar HTML de resultados
+    container.innerHTML = generarHTMLResultados(resultados);
+    
+    // Scroll al top
+    window.scrollTo(0, 0);
+}
+
+// Generar HTML de resultados
+function generarHTMLResultados(resultados) {
+    const { correctas, incorrectas, sinResponder, total, porcentaje, detalleRespuestas, tiempoEmpleado } = resultados;
+    
+    // Determinar mensaje según porcentaje
+    let mensaje = '';
+    let icono = '';
+    if (porcentaje >= 90) {
+        mensaje = 'Excelente trabajo!';
+        icono = '🏆';
+    } else if (porcentaje >= 75) {
+        mensaje = 'Muy bien!';
+        icono = '⭐';
+    } else if (porcentaje >= 60) {
+        mensaje = 'Buen trabajo';
+        icono = '📈';
+    } else {
+        mensaje = 'Sigue practicando!';
+        icono = '📚';
+    }
+
+    const tiempoFormateado = formatearTiempo(tiempoEmpleado);
+
+    let html = '<div class="resultado-header">';
+    html += '<div class="resultado-icono">' + icono + '</div>';
+    html += '<div class="resultado-porcentaje">' + porcentaje + '%</div>';
+    html += '<div class="resultado-fraccion">' + correctas + '/' + total + '</div>';
+    html += '<div class="resultado-mensaje">' + mensaje + '</div>';
+    html += '<div class="resultado-detalles">';
+    html += testActual.nombre + ' - ' + new Date().toLocaleDateString('es-ES') + ' ' + new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+    html += '<br>Tiempo empleado: ' + tiempoFormateado;
+    html += '</div>';
+    html += '</div>';
+
+    html += '<div class="estadisticas-grid">';
+    html += '<div class="estadistica-card correctas">';
+    html += '<div class="estadistica-icono">✅</div>';
+    html += '<div class="estadistica-numero">' + correctas + '</div>';
+    html += '<div class="estadistica-label">Correctas</div>';
+    html += '</div>';
+    html += '<div class="estadistica-card incorrectas">';
+    html += '<div class="estadistica-icono">❌</div>';
+    html += '<div class="estadistica-numero">' + incorrectas + '</div>';
+    html += '<div class="estadistica-label">Incorrectas</div>';
+    html += '</div>';
+    html += '<div class="estadistica-card sin-responder">';
+    html += '<div class="estadistica-icono">⭕</div>';
+    html += '<div class="estadistica-numero">' + sinResponder + '</div>';
+    html += '<div class="estadistica-label">Sin responder</div>';
+    html += '</div>';
+    html += '</div>';
+
+    html += '<div class="revision-respuestas">';
+    html += '<div class="revision-header">';
+    html += '<h3>Revision de Respuestas</h3>';
+    html += '<button onclick="volverAConfigurarTest()" class="btn-empezar-test" style="margin-top: 15px;">Hacer Otro Test</button>';
+    html += '</div>';
+    
+    detalleRespuestas.forEach(detalle => {
+        html += '<div class="pregunta-revision ' + detalle.estado + '">';
+        html += '<div class="revision-pregunta-header">';
+        html += '<strong>Pregunta ' + detalle.indice + '</strong>';
+        html += '<span class="revision-estado ' + detalle.estado + '">';
+        if (detalle.estado === 'correcta') {
+            html += 'Correcta';
+        } else if (detalle.estado === 'incorrecta') {
+            html += 'Incorrecta';
+        } else {
+            html += 'Sin responder';
+        }
+        html += '</span>';
+        html += '<span class="pregunta-tema-info">';
+        html += detalle.pregunta.temaNombre;
+        if (detalle.pregunta.temaEpigrafe) {
+            html += ' - ' + detalle.pregunta.temaEpigrafe;
+        }
+        html += '</span>';
+        html += '</div>';
+        html += '<div class="pregunta-texto">' + detalle.pregunta.texto + '</div>';
+        html += '<div class="todas-las-opciones">';
+        
+        detalle.pregunta.opciones.forEach(opcion => {
+            let clases = 'opcion-revision';
+            if (opcion.letra === detalle.respuestaCorrecta) {
+                clases += ' correcta';
+            }
+            if (opcion.letra === detalle.respuestaUsuario) {
+                clases += ' seleccionada';
+            }
+            
+            html += '<div class="' + clases + '">';
+            html += opcion.letra + ') ' + opcion.texto;
+            if (opcion.letra === detalle.respuestaCorrecta) {
+                html += ' ✓';
+            }
+            if (opcion.letra === detalle.respuestaUsuario && opcion.letra !== detalle.respuestaCorrecta) {
+                html += ' ✗';
+            }
+            html += '</div>';
+        });
+        
+        html += '</div>';
+        if (!detalle.respuestaUsuario) {
+            html += '<div class="sin-respuesta-nota">No respondiste esta pregunta</div>';
+        }
+        html += '</div>';
+    });
+    
+    html += '</div>';
+    html += '<div style="text-align: center; margin-top: 30px;">';
+    html += '<button onclick="volverAConfigurarTest()" class="btn-empezar-test">Hacer Otro Test</button>';
+    html += '</div>';
+
+    return html;
+}
+
+// Guardar resultado en Firebase
+async function guardarResultado(resultados) {
+    try {
+        // Limpiar datos antes de guardar para evitar undefined
+        const datosLimpios = {
+            correctas: resultados.correctas || 0,
+            incorrectas: resultados.incorrectas || 0,
+            sinResponder: resultados.sinResponder || 0,
+            total: resultados.total || 0,
+            porcentaje: resultados.porcentaje || 0,
+            tiempoEmpleado: resultados.tiempoEmpleado || 0,
+            test: {
+                id: resultados.test.id || '',
+                nombre: resultados.test.nombre || '',
+                tema: resultados.test.tema || 'todos',
+                fechaInicio: resultados.test.fechaInicio || new Date()
+            },
+            detalleRespuestas: (resultados.detalleRespuestas || []).map(detalle => ({
+                indice: detalle.indice || 0,
+                estado: detalle.estado || 'sin-respuesta',
+                respuestaUsuario: detalle.respuestaUsuario || null,
+                respuestaCorrecta: detalle.respuestaCorrecta || 'A',
+                pregunta: {
+                    texto: detalle.pregunta?.texto || '',
+                    temaNombre: detalle.pregunta?.temaNombre || '',
+                    temaEpigrafe: detalle.pregunta?.temaEpigrafe || '',
+                    temaId: detalle.pregunta?.temaId || '',
+                    opciones: (detalle.pregunta?.opciones || []).map(opcion => ({
+                        letra: opcion.letra || 'A',
+                        texto: opcion.texto || '',
+                        esCorrecta: Boolean(opcion.esCorrecta)
+                    }))
+                }
+            })),
+            fechaCreacion: new Date(),
+            usuarioId: currentUser.uid
+        };
+
+        // Guardar resultado principal
+        await addDoc(collection(db, "resultados"), datosLimpios);
+
+        // Guardar preguntas falladas para el test de repaso (SOLO si NO es un test de repaso)
+        if (!testActual.esRepaso) {
+            const preguntasFalladas = resultados.detalleRespuestas.filter(detalle => 
+                detalle.estado === 'incorrecta' || detalle.estado === 'sin-respuesta'
+            );
+
+            if (preguntasFalladas.length > 0) {
+                // Guardar cada pregunta fallada en la colección especial
+                const promesasGuardado = preguntasFalladas.map(async (detalle) => {
+                    const preguntaFallada = {
+                        usuarioId: currentUser.uid,
+                        pregunta: {
+                            texto: detalle.pregunta.texto,
+                            opciones: detalle.pregunta.opciones,
+                            respuestaCorrecta: detalle.respuestaCorrecta,
+                            temaId: detalle.pregunta.temaId || '',
+                            temaNombre: detalle.pregunta.temaNombre || '',
+                            temaEpigrafe: detalle.pregunta.temaEpigrafe || ''
+                        },
+                        respuestaUsuario: detalle.respuestaUsuario,
+                        estado: detalle.estado,
+                        fechaFallo: new Date(),
+                        testId: resultados.test.id,
+                        testNombre: resultados.test.nombre
+                    };
+
+                    return addDoc(collection(db, "preguntasFalladas"), preguntaFallada);
+                });
+
+                await Promise.all(promesasGuardado);
+                console.log(`${preguntasFalladas.length} preguntas falladas guardadas para repaso`);
+            }
+        } else {
+            // Si ES un test de repaso, eliminar las preguntas respondidas correctamente
+            const preguntasCorrectas = resultados.detalleRespuestas.filter(detalle => 
+                detalle.estado === 'correcta'
+            );
+
+            if (preguntasCorrectas.length > 0) {
+                const promesasEliminacion = preguntasCorrectas.map(async (detalle) => {
+                    // Buscar y eliminar la pregunta fallada que ahora fue respondida correctamente
+                    const q = query(
+                        collection(db, "preguntasFalladas"),
+                        where("usuarioId", "==", currentUser.uid),
+                        where("pregunta.texto", "==", detalle.pregunta.texto)
+                    );
+                    
+                    const querySnapshot = await getDocs(q);
+                    const eliminaciones = [];
+                    
+                    querySnapshot.forEach((doc) => {
+                        eliminaciones.push(deleteDoc(doc.ref));
+                    });
+                    
+                    return Promise.all(eliminaciones);
+                });
+
+                await Promise.all(promesasEliminacion);
+                console.log(`${preguntasCorrectas.length} preguntas falladas eliminadas tras respuesta correcta`);
+                
+                // Actualizar interfaz del test de repaso
+                setTimeout(() => cargarTestRepaso(), 1000);
+            }
+        }
+
+    } catch (error) {
+        console.error('Error guardando resultado:', error);
+        throw error;
+    }
+}
+
+function generarIdTest() {
+    return 'test_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+function formatearTiempo(segundos) {
+    const horas = Math.floor(segundos / 3600);
+    const minutos = Math.floor((segundos % 3600) / 60);
+    const segs = segundos % 60;
+    
+    if (horas > 0) {
+        return `${horas}:${minutos.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
+    } else {
+        return `${minutos}:${segs.toString().padStart(2, '0')}`;
+    }
+}
+
+// Volver a configurar test
+window.volverAConfigurarTest = function() {
+    // Limpiar variables
+    testActual = null;
+    respuestasUsuario = {};
+    
+    if (cronometroInterval) {
+        clearInterval(cronometroInterval);
+    }
+    
+    // IMPORTANTE: Cambiar a la sección aleatorio
+    cambiarSeccion('aleatorio');
+    
+    // Mostrar configuración y ocultar otras pantallas
+    const configContainer = document.querySelector('.test-config-container');
+    const testEjecucion = document.getElementById('testEnEjecucion');
+    const resultadosTest = document.getElementById('resultadosTest');
+    const containerRepaso = document.getElementById('testRepasoContainer');
+    
+    if (configContainer) {
+        configContainer.style.display = 'block';
+    }
+    if (testEjecucion) {
+        testEjecucion.style.display = 'none';
+    }
+    if (resultadosTest) {
+        resultadosTest.style.display = 'none';
+    }
+    // Mostrar test de repaso nuevamente si hay preguntas falladas
+    if (containerRepaso) {
+        cargarTestRepaso();
+    }
+    
+    // Limpiar formulario
+    const nombreTest = document.getElementById('nombreTest');
+    const tiempoRestante = document.getElementById('tiempoRestante');
+    
+    if (nombreTest) {
+        nombreTest.value = '';
+    }
+    if (tiempoRestante) {
+        tiempoRestante.style.color = '#dc3545';
+    }
+    
+    // Actualizar preguntas disponibles
+    if (typeof actualizarPreguntasDisponibles === 'function') {
+        actualizarPreguntasDisponibles();
+    }
+};
+// Cargar historial de resultados
+async function cargarResultados() {
+    try {
+        const listResultados = document.getElementById('listaResultados');
+        if (!listResultados) return;
+        
+        const q = query(
+    collection(db, "resultados"), 
+    where("usuarioId", "==", currentUser.uid)
+);
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+            listResultados.innerHTML = '<p>No has realizado ningún test aún.</p>';
+            return;
+        }
+        
+        listResultados.innerHTML = '';
+
+// Agregar botón eliminar todos más discreto
+const eliminarTodosBtn = document.createElement('div');
+eliminarTodosBtn.className = 'controles-resultados-discreto';
+eliminarTodosBtn.innerHTML = `
+    <button class="btn-eliminar-discreto" onclick="eliminarTodosResultados()" title="Eliminar todos los resultados">
+        🗑️ Limpiar historial
+    </button>
+`;
+listResultados.appendChild(eliminarTodosBtn);
+        
+        
+        querySnapshot.forEach((doc) => {
+            const resultado = doc.data();
+            const fecha = resultado.fechaCreacion.toDate().toLocaleDateString('es-ES');
+            const hora = resultado.fechaCreacion.toDate().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+            
+            const resultadoDiv = document.createElement('div');
+            resultadoDiv.className = 'resultado-historial';
+            resultadoDiv.innerHTML = `
+    <div class="resultado-item">
+        <div class="resultado-info">
+            <h4>${resultado.test.nombre}</h4>
+            <p class="fecha-resultado">${fecha} - ${hora}</p>
+            <p class="tema-resultado">Tema: ${resultado.test.tema === 'todos' ? 'Todos los temas' : 'Tema específico'}</p>
+        </div>
+        <div class="resultado-detalles">
+            <div class="estadisticas-mini">
+                <span class="stat-item correctas">✅ ${resultado.correctas}</span>
+                <span class="stat-item incorrectas">❌ ${resultado.incorrectas}</span>
+                <span class="stat-item sin-responder">⏭️ ${resultado.sinResponder}</span>
+                <span class="stat-item total">📊 ${resultado.total}</span>
+            </div>
+        </div>
+        <div class="resultado-stats">
+            <span class="porcentaje">${resultado.porcentaje}%</span>
+            <span class="fraccion">${resultado.correctas}/${resultado.total}</span>
+        </div>
+        <div class="resultado-acciones">
+            <button class="btn-eliminar-resultado" onclick="eliminarResultado('${doc.id}')" title="Eliminar resultado">
+                🗑️
+            </button>
+        </div>
+    </div>
+`;
+            listResultados.appendChild(resultadoDiv);
+        });
+        
+    } catch (error) {
+        console.error('Error cargando resultados:', error);
+    }
+}
+// Eliminar resultado específico
+window.eliminarResultado = async function(resultadoId) {
+    if (confirm('¿Estás seguro de que quieres eliminar este resultado? Esta acción no se puede deshacer.')) {
+        try {
+            await deleteDoc(doc(db, "resultados", resultadoId));
+            
+            // Recargar la lista de resultados
+            cargarResultados();
+            
+        } catch (error) {
+            console.error('Error eliminando resultado:', error);
+            alert('Error al eliminar el resultado');
+        }
+    }
+};
+// Eliminar todos los resultados
+window.eliminarTodosResultados = async function() {
+    const confirmacion = prompt('Esta acción eliminará TODOS tus resultados permanentemente.\nEscribe "ELIMINAR TODO" para confirmar:');
+    
+    if (confirmacion === 'ELIMINAR TODO') {
+        try {
+            const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
+            const querySnapshot = await getDocs(q);
+            
+            const promises = [];
+            querySnapshot.forEach((doc) => {
+                promises.push(deleteDoc(doc.ref));
+            });
+            
+            await Promise.all(promises);
+            
+            alert('Todos los resultados han sido eliminados');
+            cargarResultados();
+            
+        } catch (error) {
+            console.error('Error eliminando todos los resultados:', error);
+            alert('Error al eliminar los resultados');
+        }
+    } else if (confirmacion !== null) {
+        alert('Confirmación incorrecta. No se eliminó nada.');
+    }
+};
+// ==== FUNCIONALIDAD IMPORTAR/EXPORTAR ====
+
+// FUNCIONALIDAD IMPORTAR ARCHIVO
+async function manejarArchivoSeleccionado(event) {
+    const archivo = event.target.files[0];
+    if (!archivo) return;
+    
+    if (!archivo.name.endsWith('.json')) {
+        alert('Por favor selecciona un archivo JSON válido');
+        return;
+    }
+    
+    try {
+        const texto = await leerArchivo(archivo);
+        const datos = JSON.parse(texto);
+        
+        if (validarFormatoJSON(datos)) {
+            procesarArchivoImportado(datos);
+        } else {
+            alert('El archivo no tiene el formato correcto de preguntas');
+        }
+    } catch (error) {
+        console.error('Error procesando archivo:', error);
+        alert('Error al procesar el archivo. Verifica que sea un JSON válido');
+    }
+    
+    event.target.value = '';
+}
+
+function leerArchivo(archivo) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsText(archivo);
+    });
+}
+
+function validarFormatoJSON(datos) {
+    return datos && 
+           datos.questionsData && 
+           Array.isArray(datos.questionsData) &&
+           datos.questionsData.length > 0;
+}
+
+function procesarArchivoImportado(datos) {
+    console.log('=== DATOS RECIBIDOS ===');
+    console.log('Datos completos:', datos);
+    console.log('questionsData[0]:', datos.questionsData[0]);
+    
+    const numPreguntas = datos.questionsData.length;
+    const temaOriginal = datos.originalTopic?.name || 'Tema Importado';
+    
+    // Convertir formato con validación estricta
+    const preguntasConvertidas = datos.questionsData.map((q, index) => {
+        console.log(`=== PROCESANDO PREGUNTA ${index + 1} ===`);
+        console.log('Pregunta completa:', q);
+        console.log('question:', q.question);
+        console.log('options:', q.options);
+        console.log('correctAnswer:', q.correctAnswer);
+        console.log('isVerified:', q.isVerified);
+        
+        // Validar campos obligatorios
+        if (!q.question) {
+            console.error(`Pregunta ${index + 1}: question es undefined`);
+            return null;
+        }
+        
+        if (!q.options || !Array.isArray(q.options) || q.options.length < 4) {
+            console.error(`Pregunta ${index + 1}: options inválido`, q.options);
+            return null;
+        }
+        
+        if (q.correctAnswer === undefined || q.correctAnswer === null) {
+            console.error(`Pregunta ${index + 1}: correctAnswer es undefined`);
+            return null;
+        }
+        
+        // Obtener índice de respuesta correcta
+let indiceCorrecta = 0;
+if (typeof q.correctAnswer === 'number') {
+    indiceCorrecta = q.correctAnswer;
+} else if (typeof q.correctAnswer === 'string') {
+    if (['A', 'B', 'C', 'D'].includes(q.correctAnswer.toUpperCase())) {
+        indiceCorrecta = ['A', 'B', 'C', 'D'].indexOf(q.correctAnswer.toUpperCase());
+    } else {
+        indiceCorrecta = parseInt(q.correctAnswer) || 0;
+    }
+}
+
+console.log(`Índice correcto calculado: ${indiceCorrecta} para correctAnswer: ${q.correctAnswer}`);
+
+const preguntaConvertida = {
+    texto: String(q.question).trim(),
+    opciones: q.options.slice(0, 4).map((opcion, opcionIndex) => ({
+        letra: ['A', 'B', 'C', 'D'][opcionIndex],
+        texto: String(opcion || '').trim(),
+        esCorrecta: opcionIndex === indiceCorrecta
+    })),
+    respuestaCorrecta: ['A', 'B', 'C', 'D'][indiceCorrecta] || 'A',
+    verificada: Boolean(q.isVerified),
+    fechaCreacion: new Date()
+};
+        
+        console.log('Pregunta convertida:', preguntaConvertida);
+        return preguntaConvertida;
+    }).filter(p => p !== null);
+    
+    console.log('=== RESULTADO FINAL ===');
+    console.log(`Preguntas convertidas: ${preguntasConvertidas.length}/${numPreguntas}`);
+    console.log('Primera pregunta convertida:', preguntasConvertidas[0]);
+    
+    if (preguntasConvertidas.length === 0) {
+        alert('No se pudieron procesar las preguntas. Revisa la consola para más detalles.');
+        return;
+    }
+    
+    mostrarModalImportacion(preguntasConvertidas.length, temaOriginal, preguntasConvertidas);
+}
+
+async function mostrarModalImportacion(numPreguntas, temaOriginal, preguntasConvertidas) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>📁 Importar Preguntas</h3>
+            <p>Se encontraron <strong>${numPreguntas} preguntas</strong> del tema "<strong>${temaOriginal}</strong>"</p>
+            <label for="temaDestinoSelect">Seleccionar tema destino:</label>
+            <select id="temaDestinoSelect">
+                <option value="">Selecciona un tema...</option>
+            </select>
+            <div class="modal-actions">
+                <button id="confirmarImportacion" class="btn-primary">Asignar Preguntas</button>
+                <button id="cancelarImportacion" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Cargar temas disponibles
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        const select = document.getElementById('temaDestinoSelect');
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            const option = document.createElement('option');
+            option.value = doc.id;
+            option.textContent = tema.nombre;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error cargando temas:', error);
+        alert('Error cargando temas');
+        return;
+    }
+    
+    // Event listeners del modal
+    document.getElementById('confirmarImportacion').addEventListener('click', () => {
+        importarPreguntasDirecto(preguntasConvertidas, modal);
+    });
+    
+    document.getElementById('cancelarImportacion').addEventListener('click', () => {
+        document.body.removeChild(modal);
+        document.getElementById('fileInput').value = '';
+    });
+}
+
+async function importarPreguntasDirecto(preguntasConvertidas, modal) {
+    const temaId = document.getElementById('temaDestinoSelect').value;
+    
+    if (!temaId) {
+        alert('Selecciona un tema destino');
+        return;
+    }
+    
+    try {
+        console.log('Importando', preguntasConvertidas.length, 'preguntas al tema', temaId);
+        
+        const temaRef = doc(db, "temas", temaId);
+        const temaDoc = await getDoc(temaRef);
+        
+        if (!temaDoc.exists()) {
+            alert('El tema seleccionado no existe');
+            return;
+        }
+        
+        const temaData = temaDoc.data();
+        const preguntasExistentes = temaData.preguntas || [];
+        
+        const todasLasPreguntas = [...preguntasExistentes, ...preguntasConvertidas];
+        
+        await updateDoc(temaRef, {
+            preguntas: todasLasPreguntas,
+            ultimaActualizacion: new Date()
+        });
+        
+        alert(`${preguntasConvertidas.length} preguntas importadas exitosamente`);
+        
+        // Cerrar modal
+        document.body.removeChild(modal);
+        document.getElementById('fileInput').value = '';
+        
+        // Recargar banco si está activo
+        if (document.getElementById('banco-section').classList.contains('active')) {
+            cargarBancoPreguntas();
+        }
+        
+    } catch (error) {
+        console.error('Error detallado importando preguntas:', error);
+        alert(`Error al importar las preguntas: ${error.message}`);
+    }
+}
+
+// Exportar preguntas de un tema
+window.exportarTema = async function(temaId) {
+    try {
+        const temaDoc = await getDoc(doc(db, "temas", temaId));
+        if (!temaDoc.exists()) {
+            alert('Tema no encontrado');
+            return;
+        }
+        
+        const tema = temaDoc.data();
+        if (!tema.preguntas || tema.preguntas.length === 0) {
+            alert('Este tema no tiene preguntas para exportar');
+            return;
+        }
+        
+        // Crear objeto JSON en el formato requerido
+        const exportData = {
+            version: "questions_export_1.0",
+            exportDate: new Date().toISOString(),
+            exportTimestamp: Date.now(),
+            exportType: "questions_by_topic",
+            originalUser: currentUser.displayName || currentUser.email,
+            originalTopic: {
+                id: Date.now(),
+                name: tema.nombre
+            },
+            questionsData: tema.preguntas.map((pregunta, index) => ({
+                id: Date.now() + Math.random(),
+                question: pregunta.texto,
+                options: pregunta.opciones.map(op => op.texto),
+                correctAnswer: pregunta.opciones.findIndex(op => op.esCorrecta),
+                explanation: "",
+                isVerified: pregunta.verificada || false,
+                originalTopicId: Date.now(),
+                createdAt: new Date().toISOString()
+            })),
+            stats: {
+                totalQuestions: tema.preguntas.length,
+                verifiedQuestions: tema.preguntas.filter(p => p.verificada).length,
+                originalTopicName: tema.nombre
+            }
+        };
+        
+        // Descargar archivo
+        descargarJSON(exportData, `preguntas_${tema.nombre}_${new Date().toISOString().split('T')[0]}.json`);
+        
+    } catch (error) {
+        console.error('Error exportando tema:', error);
+        alert('Error al exportar el tema');
+    }
+};
+
+// Descargar archivo JSON
+function descargarJSON(data, filename) {
+    const dataStr = JSON.stringify(data, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = filename;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+}
+// Función para registrar test directamente en Firebase
+async function registrarTestDirectamente(temasUtilizados) {
+    try {
+        console.log('Registrando test directamente para temas:', temasUtilizados);
+        
+        // Obtener datos de progreso del usuario
+        const progresoDoc = await getDoc(doc(db, "progreso", currentUser.uid));
+        
+        if (!progresoDoc.exists()) {
+            console.log('No existe progreso para el usuario');
+            return;
+        }
+        
+        const progresoData = progresoDoc.data();
+        
+        // Incrementar testsAutomaticos para cada tema utilizado
+        let temasActualizados = 0;
+        
+        temasUtilizados.forEach(temaId => {
+            if (progresoData.temas && progresoData.temas[temaId]) {
+                // Asegurar que existe el campo testsAutomaticos
+                if (progresoData.temas[temaId].testsAutomaticos === undefined) {
+                    progresoData.temas[temaId].testsAutomaticos = 0;
+                }
+                
+                progresoData.temas[temaId].testsAutomaticos++;
+                progresoData.temas[temaId].ultimaActualizacion = new Date();
+                temasActualizados++;
+                
+                console.log(`Test automático registrado para tema ${temaId}: ${progresoData.temas[temaId].testsAutomaticos}`);
+            }
+        });
+        
+        if (temasActualizados > 0) {
+            // Guardar en Firebase
+            progresoData.ultimaActualizacion = new Date();
+            await setDoc(doc(db, "progreso", currentUser.uid), progresoData);
+            console.log(`Test registrado exitosamente en ${temasActualizados} temas`);
+        }
+        
+    } catch (error) {
+        console.error('Error registrando test directamente:', error);
+    }
+}
+// Funciones auxiliares mejoradas
+function mezclarArray(array) {
+    const shuffled = [...array];
+    
+    // Algoritmo Fisher-Yates mejorado para mejor aleatoriedad
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    
+    // Segunda pasada para asegurar máxima aleatoriedad
+    for (let i = 0; i < shuffled.length; i++) {
+        const j = Math.floor(Math.random() * shuffled.length);
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    
+    return shuffled;
+}
+
+// Función para obtener preguntas con distribución proporcional entre temas
+function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
+    console.log('=== DISTRIBUCIÓN PROPORCIONAL DEBUG ===');
+    console.log(`Total preguntas recibidas: ${preguntas.length}`);
+    console.log(`Cantidad solicitada: ${cantidad}`);
+    
+    // Debug: mostrar todas las preguntas recibidas con sus temas
+    console.log('Preguntas recibidas por tema:');
+    preguntas.forEach((p, i) => {
+        console.log(`  ${i}: ${p.temaNombre} (ID: ${p.temaId}) - ${p.texto.substring(0, 50)}...`);
+    });
+    
+    // Crear un Map para asegurar unicidad por texto de pregunta
+    const preguntasUnicas = new Map();
+    
+    preguntas.forEach(pregunta => {
+        const clave = pregunta.texto.toLowerCase().trim();
+        if (!preguntasUnicas.has(clave)) {
+            preguntasUnicas.set(clave, pregunta);
+        } else {
+            console.log(`DUPLICADO DETECTADO: ${pregunta.texto.substring(0, 50)}...`);
+        }
+    });
+    
+    const arrayUnico = Array.from(preguntasUnicas.values());
+    console.log(`Preguntas únicas después de filtrar: ${arrayUnico.length}`);
+    
+    // Debug: mostrar preguntas únicas por tema
+    console.log('Preguntas únicas por tema:');
+    arrayUnico.forEach((p, i) => {
+        console.log(`  ${i}: ${p.temaNombre} (ID: ${p.temaId}) - ${p.texto.substring(0, 50)}...`);
+    });
+    
+    // Si se piden todas las preguntas o hay menos disponibles, devolver todas mezcladas
+    if (cantidad >= arrayUnico.length) {
+        return mezclarArray(arrayUnico);
+    }
+    
+    // Agrupar preguntas por tema para distribución proporcional
+    const preguntasPorTema = {};
+    arrayUnico.forEach(pregunta => {
+        const temaId = pregunta.temaId || 'sin-tema';
+        if (!preguntasPorTema[temaId]) {
+            preguntasPorTema[temaId] = [];
+        }
+        preguntasPorTema[temaId].push(pregunta);
+    });
+    
+    console.log('Agrupación por tema:');
+    Object.entries(preguntasPorTema).forEach(([temaId, preguntas]) => {
+        console.log(`  Tema ${temaId}: ${preguntas.length} preguntas`);
+        preguntas.forEach((p, i) => {
+            console.log(`    ${i}: ${p.temaNombre} - ${p.texto.substring(0, 50)}...`);
+        });
+    });
+    
+    const temasConPreguntas = Object.keys(preguntasPorTema);
+    console.log(`Total temas encontrados: ${temasConPreguntas.length}`);
+    
+    // Si solo hay un tema con preguntas, devolver muestra aleatoria normal
+    if (temasConPreguntas.length === 1) {
+        console.log('Solo un tema disponible, devolviendo muestra aleatoria');
+        const mezclado = mezclarArray(arrayUnico);
+        return mezclado.slice(0, cantidad);
+    }
+    
+    // Calcular distribución proporcional
+    const preguntasSeleccionadas = [];
+    const preguntasPorTemaMinimo = Math.floor(cantidad / temasConPreguntas.length);
+    const preguntasExtra = cantidad % temasConPreguntas.length;
+    
+    console.log(`Distribución calculada:`);
+    console.log(`  Preguntas mínimas por tema: ${preguntasPorTemaMinimo}`);
+    console.log(`  Preguntas extra a distribuir: ${preguntasExtra}`);
+    console.log(`  Total temas: ${temasConPreguntas.length}`);
+    
+    // Asignar preguntas garantizando que TODOS los temas estén representados
+    temasConPreguntas.forEach((temaId, index) => {
+        const preguntasDelTema = [...preguntasPorTema[temaId]]; // No mezclar aún
+        let preguntasATomar = preguntasPorTemaMinimo;
+        
+        // Si hay preguntas extra, distribuirlas en los primeros temas
+        if (index < preguntasExtra) {
+            preguntasATomar += 1;
+        }
+        
+        // GARANTIZAR al menos 1 pregunta por tema si es posible
+        if (preguntasATomar === 0 && preguntasDelTema.length > 0) {
+            preguntasATomar = 1;
+        }
+        
+        // No tomar más preguntas de las disponibles en el tema
+        preguntasATomar = Math.min(preguntasATomar, preguntasDelTema.length);
+        
+        console.log(`Procesando tema ${temaId} (${index + 1}/${temasConPreguntas.length}):`);
+        console.log(`  Preguntas disponibles: ${preguntasDelTema.length}`);
+        console.log(`  Preguntas a tomar: ${preguntasATomar}`);
+        
+        // Mezclar solo las preguntas de este tema específico
+        const preguntasDelTemaMezcladas = mezclarArray(preguntasDelTema);
+        const preguntasTomadas = preguntasDelTemaMezcladas.slice(0, preguntasATomar);
+        
+        console.log(`  Preguntas tomadas realmente: ${preguntasTomadas.length}`);
+        preguntasTomadas.forEach((p, i) => {
+            console.log(`    ${i}: ${p.temaNombre} - ${p.texto.substring(0, 50)}...`);
+        });
+        
+        preguntasSeleccionadas.push(...preguntasTomadas);
+    });
+    
+    console.log(`Total preguntas seleccionadas: ${preguntasSeleccionadas.length}`);
+    console.log('Verificación final de distribución:');
+    
+    // Verificar distribución final
+    const distribucionFinal = {};
+    preguntasSeleccionadas.forEach(p => {
+        const tema = p.temaNombre || p.temaId || 'sin-tema';
+        distribucionFinal[tema] = (distribucionFinal[tema] || 0) + 1;
+    });
+    
+    Object.entries(distribucionFinal).forEach(([tema, count]) => {
+        console.log(`  ${tema}: ${count} preguntas`);
+    });
+    
+    console.log('==========================================');
+    
+    // Mezclar el resultado final para que no aparezcan agrupadas por tema
+    return mezclarArray(preguntasSeleccionadas);
+}
+// ==== FUNCIONALIDAD TEST DE REPASO ====
+
+// Cargar y mostrar Test de Repaso disponible
+async function cargarTestRepaso() {
+    try {
+        const q = query(
+            collection(db, "preguntasFalladas"), 
+            where("usuarioId", "==", currentUser.uid)
+        );
+        const querySnapshot = await getDocs(q);
+        
+        const containerRepaso = document.getElementById('testRepasoContainer');
+        if (!containerRepaso) return;
+
+        if (querySnapshot.empty) {
+            containerRepaso.style.display = 'none';
+            return;
+        }
+
+        const totalPreguntasFalladas = querySnapshot.size;
+        containerRepaso.style.display = 'block';
+        
+        // Actualizar el contador en la interfaz
+        const contadorElement = containerRepaso.querySelector('.repaso-contador');
+        if (contadorElement) {
+            contadorElement.textContent = `${totalPreguntasFalladas} preguntas`;
+        }
+        
+        // Actualizar el botón
+        const botonRepaso = containerRepaso.querySelector('.btn-test-repaso');
+        if (botonRepaso) {
+            botonRepaso.textContent = `🔄 Test de Repaso (${totalPreguntasFalladas} preguntas)`;
+        }
+
+    } catch (error) {
+        console.error('Error cargando test de repaso:', error);
+    }
+}
+
+// Iniciar Test de Repaso
+window.iniciarTestRepaso = async function() {
+    try {
+        // Cargar preguntas falladas
+        const q = query(
+            collection(db, "preguntasFalladas"), 
+            where("usuarioId", "==", currentUser.uid)
+        );
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+            alert('No hay preguntas falladas disponibles para repasar');
+            return;
+        }
+
+        // Convertir a formato de preguntas
+        const preguntasRepaso = [];
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            preguntasRepaso.push({
+                ...data.pregunta,
+                documentId: doc.id // Para poder eliminarla después si es correcta
+            });
+        });
+
+        // Obtener preguntas únicas y aleatorias para el repaso
+        const preguntasMezcladas = obtenerPreguntasUnicasAleatorias(preguntasRepaso, preguntasRepaso.length);
+
+        // Crear objeto test
+        testActual = {
+            id: generarIdTest(),
+            nombre: `Test de Repaso - ${new Date().toLocaleDateString()}`,
+            tema: 'repaso',
+            preguntas: preguntasMezcladas,
+            tiempoLimite: 'sin',
+            fechaInicio: new Date(),
+            esRepaso: true
+        };
+
+        // Inicializar respuestas
+        respuestasUsuario = {};
+
+        // Iniciar test
+        mostrarInterfazTest();
+
+    } catch (error) {
+        console.error('Error iniciando test de repaso:', error);
+        alert('Error al cargar el test de repaso');
+    }
+};
+
+// Limpiar todas las preguntas falladas
+window.limpiarTodasPreguntasFalladas = async function() {
+    if (!confirm('¿Estás seguro de que quieres eliminar todas las preguntas falladas? Esta acción no se puede deshacer.')) {
+        return;
+    }
+
+    try {
+        const q = query(
+            collection(db, "preguntasFalladas"), 
+            where("usuarioId", "==", currentUser.uid)
+        );
+        const querySnapshot = await getDocs(q);
+        
+        const promesasEliminacion = [];
+        querySnapshot.forEach((doc) => {
+            promesasEliminacion.push(deleteDoc(doc.ref));
+        });
+
+        await Promise.all(promesasEliminacion);
+        alert('Todas las preguntas falladas han sido eliminadas');
+        
+        // Actualizar interfaz
+        await cargarTestRepaso();
+
+    } catch (error) {
+        console.error('Error eliminando todas las preguntas falladas:', error);
+        alert('Error al eliminar las preguntas falladas');
+    }
+};
+// Funciones globales para el dropdown
+window.toggleDropdownTemas = function() {
+    const content = document.getElementById('dropdownTemasContent');
+    const arrow = document.querySelector('.dropdown-arrow');
+    
+    if (content.style.display === 'block') {
+        content.style.display = 'none';
+        arrow.textContent = '▼';
+    } else {
+        content.style.display = 'block';
+        arrow.textContent = '▲';
+    }
+};
+
+window.toggleSubtemas = function(temaId) {
+    const container = document.getElementById(`subtemas-${temaId}`);
+    const arrow = document.getElementById(`arrow-${temaId}`);
+    
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        arrow.textContent = '▼';
+    } else {
+        container.style.display = 'none';
+        arrow.textContent = '▶';
+    }
+};
+
+
+// Cerrar dropdown al hacer click fuera
+document.addEventListener('click', function(event) {
+    const dropdown = document.querySelector('.dropdown-temas');
+    const content = document.getElementById('dropdownTemasContent');
+    
+    if (dropdown && !dropdown.contains(event.target) && content && content.style.display === 'block') {
+        content.style.display = 'none';
+        document.querySelector('.dropdown-arrow').textContent = '▼';
+    }
+});
+window.debugClick = function(checkbox) {
+    console.log('=== CLICK EN CHECKBOX ===');
+    console.log('Checkbox clicado:', checkbox);
+    console.log('Value:', checkbox.value);
+    console.log('Checked antes:', checkbox.checked);
+    console.log('========================');
+};
+
+// =================================
+// FUNCIONES DROPDOWN - VERSIÓN FINAL
+// =================================
+
+window.toggleDropdownTemas = function() {
+    const content = document.getElementById('dropdownTemasContent');
+    const arrow = document.querySelector('.dropdown-arrow');
+    
+    if (!content || !arrow) return;
+    
+    if (content.style.display === 'block') {
+        content.style.display = 'none';
+        arrow.textContent = '▼';
+    } else {
+        content.style.display = 'block';
+        arrow.textContent = '▲';
+    }
+};
+
+window.toggleSubtemas = function(temaId) {
+    const container = document.getElementById(`subtemas-${temaId}`);
+    const arrow = document.getElementById(`arrow-${temaId}`);
+    
+    if (!container || !arrow) return;
+    
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        arrow.textContent = '▼';
+    } else {
+        container.style.display = 'none';
+        arrow.textContent = '▶';
+    }
+};
+
+window.manejarSeleccionTema = function(event) {
+    console.log('=== DEBUG MANEJO SELECCIÓN TEMA ===');
+    
+    const todosLosTemas = document.getElementById('todosLosTemas');
+    const temasCheckboxes = document.querySelectorAll('.tema-checkbox:not(#todosLosTemas)');
+    const placeholder = document.querySelector('.dropdown-placeholder');
+    
+    if (!todosLosTemas || !placeholder) {
+        console.log('❌ Elementos no encontrados');
+        return;
+    }
+    
+    const checkboxClickeado = event.target;
+    console.log('Checkbox clickeado:', checkboxClickeado.value, 'Checked:', checkboxClickeado.checked);
+    
+    // Si se clickeó "Todos los temas"
+    if (checkboxClickeado === todosLosTemas) {
+        console.log('✅ Click en "Todos los temas"');
+        if (todosLosTemas.checked) {
+            temasCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            placeholder.textContent = 'Todos los temas seleccionados';
+        }
+    } else {
+        // Se clickeó un tema específico
+        console.log('✅ Click en tema específico');
+        
+        // Si se marca un tema específico, desmarcar "Todos los temas"
+        if (checkboxClickeado.checked) {
+            console.log('Desmarcando "Todos los temas"');
+            todosLosTemas.checked = false;
+        }
+        
+        // Contar temas seleccionados después del cambio
+        const temasSeleccionados = Array.from(temasCheckboxes).filter(cb => cb.checked);
+        console.log('Temas seleccionados después del click:', temasSeleccionados.length);
+        
+        if (temasSeleccionados.length === 0) {
+            console.log('No hay temas seleccionados - marcando "Todos"');
+            todosLosTemas.checked = true;
+            placeholder.textContent = 'Todos los temas seleccionados';
+        } else {
+            placeholder.textContent = `${temasSeleccionados.length} tema(s) seleccionado(s)`;
+        }
+    }
+    
+    console.log('=================================');
+    actualizarPreguntasDisponibles();
+};
+
+// Cerrar dropdown al hacer click fuera
+document.addEventListener('click', function(event) {
+    const dropdown = document.querySelector('.dropdown-temas');
+    const content = document.getElementById('dropdownTemasContent');
+    
+    if (dropdown && !dropdown.contains(event.target) && content && content.style.display === 'block') {
+        content.style.display = 'none';
+        const arrow = document.querySelector('.dropdown-arrow');
+        if (arrow) arrow.textContent = '▼';
+    }
+});
