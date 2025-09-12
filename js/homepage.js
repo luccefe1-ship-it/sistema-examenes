@@ -43,7 +43,7 @@ function obtenerSaludoPorHorario() {
     
     // Añadir el nombre del usuario si está disponible
     if (nombreUsuario) {
-        return `${saludo} ${nombreUsuario}`;
+        return `${saludo}, ${nombreUsuario}`;
     } else {
         return saludo;
     }
