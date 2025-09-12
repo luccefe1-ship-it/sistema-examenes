@@ -1,11 +1,91 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Progreso - Plataforma Exámenes</title>
-    <link rel="stylesheet" href="css/style.css">
+    
+    <!-- SOLO EL CSS DE PROGRESO, SIN EL STYLE.CSS PROBLEMÁTICO -->
     <link rel="stylesheet" href="css/Progreso.css">
+    
+    <style>
+        /* CSS MÍNIMO NECESARIO PARA QUE FUNCIONE */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            overflow-y: auto;
+            font-family: Arial, sans-serif;
+            scroll-padding-top: 80px !important; /* ESTO EVITA QUE EL SCROLL ATRAVIESE EL HEADER */
+        }
+
+        body {
+            background: radial-gradient(ellipse at top, rgba(45,75,140,0.6) 0%, rgba(60,95,170,0.7) 50%, rgba(40,45,80,0.8) 100%);
+            min-height: 100vh;
+            padding-top: 80px;
+        }
+
+        /* NAVBAR BÁSICO */
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            height: 60px;
+        }
+
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            height: 100%;
+        }
+
+        .nav-content h1 {
+            color: #333;
+            font-size: 20px;
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .nav-actions span {
+            color: #666;
+        }
+
+        #logoutBtn, #backBtn {
+            padding: 8px 16px;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #logoutBtn {
+            background: #e53e3e;
+        }
+
+        #backBtn {
+            background: #6c757d;
+        }
+
+        /* CONTENEDOR SIN MARGIN-TOP */
+        .container-progreso {
+            margin-top: 0 !important;
+        }
+    </style>
 </head>
 <body>
     <!-- Header principal -->
@@ -80,58 +160,57 @@
             </div>
         </div>
 
-        <!-- Leyenda de Colores -->
-        <div class="leyenda-container">
-            <h3 class="leyenda-titulo">🎨 Leyenda de Vueltas</h3>
-            <div class="leyenda-grid">
-                <div class="leyenda-item">
-                    <div class="color-muestra vuelta-1"></div>
-                    <span class="color-nombre">Primera</span>
-                </div>
-                <div class="leyenda-item">
-                    <div class="color-muestra vuelta-2"></div>
-                    <span class="color-nombre">Segunda</span>
-                </div>
-                <div class="leyenda-item">
-                    <div class="color-muestra vuelta-3"></div>
-                    <span class="color-nombre">Tercera</span>
-                </div>
-                <div class="leyenda-item">
-                    <div class="color-muestra vuelta-4"></div>
-                    <span class="color-nombre">Cuarta</span>
-                </div>
-                <div class="leyenda-item">
-                    <div class="color-muestra vuelta-5"></div>
-                    <span class="color-nombre">Quinta</span>
-                </div>
-                <div class="leyenda-item">
-                    <div class="color-muestra vuelta-6"></div>
-                    <span class="color-nombre">Sexta</span>
-                </div>
-            </div>
+        <!-- Botón Ver Estadísticas (reemplaza leyenda-container) -->
+<div class="estadisticas-container">
+    <button id="verEstadisticasBtn" class="btn-ver-estadisticas">
+        📊 Ver Estadísticas Detalladas
+    </button>
+</div>
+
+<!-- Modal de Estadísticas -->
+<div id="modalEstadisticas" class="modal">
+    <div class="modal-content modal-estadisticas">
+        <div class="modal-header">
+            <h3>📊 Estadísticas Detalladas por Tema</h3>
+            <button class="modal-close" onclick="cerrarModalEstadisticas()">×</button>
         </div>
+        <div class="grafica-container">
+            <canvas id="graficaEstadisticas" width="800" height="400"></canvas>
+        </div>
+        <div class="estadisticas-info">
+    <p><strong>Fórmula de ponderación:</strong> (Páginas Leídas × 0.4) + (Vueltas Completadas × 0.4) + (Tests Realizados × 0.2)</p>
+</div>
+<div class="detalles-temas">
+    <h4>Detalles por Tema:</h4>
+    <div id="leyendaDetalles" class="leyenda-detalles">
+        <!-- Los detalles se generarán dinámicamente -->
+    </div>
+</div>
+        <div class="modal-actions">
+            <button onclick="cerrarModalEstadisticas()" class="btn-secondary">Cerrar</button>
+        </div>
+    </div>
+</div>
 
         <!-- Botón volver -->
         <div class="volver-container">
-            <button onclick="window.location.href='homepage.html'" class="btn-volver">
+            <button class="btn-volver" onclick="window.location.href='homepage.html'">
                 ← Volver al Menú Principal
             </button>
         </div>
     </div>
 
     <!-- Modal Personalizar Temas -->
-    <div id="modalPersonalizar" class="modal">
+    <div id="modalPersonalizarTemas" class="modal">
         <div class="modal-content">
-            <h3>⚙️ Personalizar Temas</h3>
-            <p style="text-align: center; color: #6b7280; margin-bottom: 20px;">
-                Configura el número de páginas de cada tema
-            </p>
+            <h3>Personalizar Páginas por Tema</h3>
             <div id="listaTemasPersonalizar" class="lista-temas-personalizar">
-                <!-- Los temas se cargarán aquí -->
+                <!-- Los temas se cargarán dinámicamente -->
             </div>
             <div class="modal-actions">
-                <button id="guardarPersonalizacion" class="btn-primary">💾 Guardar</button>
-                <button id="cancelarPersonalizacion" class="btn-secondary">❌ Cancelar</button>
+                <button id="guardarPersonalizacion" class="btn-primary">Guardar Cambios</button>
+                <button id="restaurarDefecto" class="btn-restaurar">Restaurar Valores por Defecto</button>
+                <button id="cancelarPersonalizacion" class="btn-secondary">Cancelar</button>
             </div>
         </div>
     </div>
