@@ -678,3 +678,242 @@ window.registrarTestCompletado = async function(temasUtilizados) {
         console.error('Error registrando test completado:', error);
     }
 };
+// Funcionalidad de Estadísticas Detalladas
+
+// Event listener para el botón Ver Estadísticas
+document.addEventListener('DOMContentLoaded', () => {
+    const btnVerEstadisticas = document.getElementById('verEstadisticasBtn');
+    if (btnVerEstadisticas) {
+        btnVerEstadisticas.addEventListener('click', mostrarModalEstadisticas);
+    }
+});
+
+// Mostrar modal de estadísticas
+function mostrarModalEstadisticas() {
+    const modal = document.getElementById('modalEstadisticas');
+    if (modal) {
+        modal.style.display = 'block';
+        setTimeout(() => {
+            generarGraficaEstadisticas();
+            generarDetallesTemas(); // AGREGAR ESTA LÍNEA
+        }, 100);
+    }
+}
+
+// Cerrar modal de estadísticas
+function cerrarModalEstadisticas() {
+    const modal = document.getElementById('modalEstadisticas');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Cerrar modal al hacer click fuera
+window.addEventListener('click', (event) => {
+    const modal = document.getElementById('modalEstadisticas');
+    if (event.target === modal) {
+        cerrarModalEstadisticas();
+    }
+});
+
+// Generar gráfica de estadísticas con Canvas
+function generarGraficaEstadisticas() {
+    const canvas = document.getElementById('graficaEstadisticas');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Configurar canvas
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    
+    // Limpiar canvas
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    
+    // Obtener datos de temas
+    const datosEstadisticas = calcularEstadisticasTemas();
+    
+    if (datosEstadisticas.length === 0) {
+        // Mostrar mensaje cuando no hay datos
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No hay datos disponibles', canvasWidth / 2, canvasHeight / 2);
+        return;
+    }
+    
+    // Configuración de la gráfica
+    const padding = 80;
+    const graphWidth = canvasWidth - (padding * 2);
+    const graphHeight = canvasHeight - (padding * 2);
+    const barWidth = graphWidth / datosEstadisticas.length * 0.8;
+    const maxValue = Math.max(...datosEstadisticas.map(d => d.puntuacion));
+    
+    // Dibujar ejes
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    // Eje Y (vertical)
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, canvasHeight - padding);
+    // Eje X (horizontal)
+    ctx.lineTo(canvasWidth - padding, canvasHeight - padding);
+    ctx.stroke();
+    
+    // Dibujar barras
+    datosEstadisticas.forEach((dato, index) => {
+        const x = padding + (index * (graphWidth / datosEstadisticas.length)) + (graphWidth / datosEstadisticas.length - barWidth) / 2;
+        const barHeight = (dato.puntuacion / maxValue) * graphHeight;
+        const y = canvasHeight - padding - barHeight;
+        
+        // Color de la barra según la vuelta
+        const colores = {
+            1: '#ef4444', // Rojo
+            2: '#3b82f6', // Azul
+            3: '#10b981', // Verde
+            4: '#f59e0b', // Naranja
+            5: '#8b5cf6', // Púrpura
+            6: '#e11d48'  // Rosa
+        };
+        
+        // Crear gradiente para la barra
+        const gradient = ctx.createLinearGradient(0, y, 0, y + barHeight);
+        gradient.addColorStop(0, colores[dato.vuelta] || '#6b7280');
+        gradient.addColorStop(1, colores[dato.vuelta] + '80' || '#6b728080');
+        
+        // Dibujar barra
+        ctx.fillStyle = gradient;
+        ctx.fillRect(x, y, barWidth, barHeight);
+        
+        // Borde de la barra
+        ctx.strokeStyle = colores[dato.vuelta] || '#6b7280';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, barWidth, barHeight);
+        
+        // Valor encima de la barra
+        ctx.fillStyle = '#1f2937';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(dato.puntuacion.toFixed(1), x + barWidth / 2, y - 5);
+        
+     // Nombre del tema (horizontal, debajo del eje)
+ctx.fillStyle = '#374151';
+ctx.font = '12px Arial';
+ctx.textAlign = 'center';
+ctx.fillText(dato.nombre, x + barWidth / 2, canvasHeight - padding + 20);
+    });
+    
+    // Etiquetas del eje Y
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 5; i++) {
+        const value = (maxValue / 5) * i;
+        const y = canvasHeight - padding - (i / 5) * graphHeight;
+        ctx.fillText(value.toFixed(1), padding - 10, y + 4);
+    }
+    
+    // Título del eje Y
+    ctx.save();
+    ctx.translate(20, canvasHeight / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = '#374151';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Puntuación Ponderada', 0, 0);
+    ctx.restore();
+    
+    // Título del eje X
+    ctx.fillStyle = '#374151';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Temas', canvasWidth / 2, canvasHeight - 10);
+}
+
+// Calcular estadísticas ponderadas por tema
+function calcularEstadisticasTemas() {
+    if (!progresoData || !progresoData.temas) return [];
+    
+    const estadisticas = [];
+    
+    Object.entries(progresoData.temas).forEach(([temaId, temaProgreso]) => {
+        // Buscar información del tema en temasDelBanco
+        const temaInfo = temasDelBanco.find(t => t.id === temaId);
+        const nombreTema = temaInfo ? temaInfo.nombre : `Tema ${temaId}`;
+        
+        // Calcular componentes de la puntuación
+        const paginasLeidas = temaProgreso.paginasEstudiadas || 0;
+        const paginasTotales = temaProgreso.paginasTotales || 1;
+        const porcentajePaginas = (paginasLeidas / paginasTotales) * 100;
+        
+        // Vueltas completadas
+        const vueltasCompletadas = temaProgreso.vueltas ? 
+            temaProgreso.vueltas.filter(v => v.completada).length : 0;
+        
+        // Tests realizados (automáticos + manuales)
+        const testsAutomaticos = temaProgreso.testsAutomaticos || 0;
+        const testsManuales = temaProgreso.testsManuales || 0;
+        const totalTests = testsAutomaticos + testsManuales;
+        
+        // Fórmula de ponderación:
+        // (Páginas Leídas × 0.4) + (Vueltas Completadas × 0.4) + (Tests Realizados × 0.2)
+        const puntuacionPaginas = porcentajePaginas * 0.4;
+        const puntuacionVueltas = vueltasCompletadas * 40 * 0.4; // 40 puntos por vuelta completada
+        const puntuacionTests = totalTests * 10 * 0.2; // 10 puntos por test
+        
+        const puntuacionTotal = puntuacionPaginas + puntuacionVueltas + puntuacionTests;
+        
+        estadisticas.push({
+            nombre: nombreTema,
+            puntuacion: puntuacionTotal,
+            vuelta: temaProgreso.vueltaActual || 1,
+            paginasLeidas,
+            paginasTotales,
+            vueltasCompletadas,
+            totalTests,
+            detalles: {
+                porcentajePaginas: porcentajePaginas.toFixed(1),
+                puntuacionPaginas: puntuacionPaginas.toFixed(1),
+                puntuacionVueltas: puntuacionVueltas.toFixed(1),
+                puntuacionTests: puntuacionTests.toFixed(1)
+            }
+        });
+    });
+    
+    // Ordenar por puntuación descendente
+    return estadisticas.sort((a, b) => b.puntuacion - a.puntuacion);
+}
+
+// Hacer accesibles las funciones globalmente
+window.mostrarModalEstadisticas = mostrarModalEstadisticas;
+window.cerrarModalEstadisticas = cerrarModalEstadisticas;
+// Generar detalles de cada tema
+function generarDetallesTemas() {
+    const contenedor = document.getElementById('leyendaDetalles');
+    if (!contenedor) return;
+    
+    const datosEstadisticas = calcularEstadisticasTemas();
+    contenedor.innerHTML = '';
+    
+    if (datosEstadisticas.length === 0) {
+        contenedor.innerHTML = '<p style="text-align: center; color: #6b7280;">No hay datos disponibles</p>';
+        return;
+    }
+    
+    datosEstadisticas.forEach(dato => {
+        const nombreVuelta = obtenerNombreVuelta(dato.vuelta);
+        
+        const detalleDiv = document.createElement('div');
+        detalleDiv.className = `detalle-tema vuelta-${dato.vuelta}`;
+        
+        detalleDiv.innerHTML = `
+            <div class="nombre-tema">${dato.nombre}</div>
+            <div class="info-tema">${dato.paginasLeidas}/${dato.paginasTotales} páginas leídas en ${nombreVuelta.toLowerCase()} vuelta</div>
+            <div class="info-tema">${dato.vueltasCompletadas} vueltas completadas</div>
+            <div class="info-tema">${dato.totalTests} tests realizados</div>
+            <div class="puntuacion-tema">Puntuación: ${dato.puntuacion.toFixed(1)}</div>
+        `;
+        
+        contenedor.appendChild(detalleDiv);
+    });
+}
