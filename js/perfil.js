@@ -2,23 +2,21 @@ import { auth, db } from './firebase-config.js';
 import { 
     signOut, 
     onAuthStateChanged, 
+    updateEmail, 
     updatePassword, 
-    updateEmail,
-    reauthenticateWithCredential,
+    reauthenticateWithCredential, 
     EmailAuthProvider,
     deleteUser
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
     doc, 
     getDoc, 
-    updateDoc,
-    setDoc,    // AÑADIR ESTA LÍNEA
-    deleteDoc,
-    collection,
-    query,
-    where,
-    getDocs,
-    writeBatch
+    setDoc, 
+    collection, 
+    getDocs, 
+    query, 
+    where, 
+    writeBatch 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // Variables globales
@@ -29,33 +27,26 @@ let userData = null;
 const userNameSpan = document.getElementById('userName');
 const backBtn = document.getElementById('backBtn');
 const logoutBtn = document.getElementById('logoutBtn');
-
-// Información del perfil
 const userDisplayName = document.getElementById('userDisplayName');
 const userEmail = document.getElementById('userEmail');
 const userInitials = document.getElementById('userInitials');
 const fechaRegistro = document.getElementById('fechaRegistro');
-
-// Estadísticas
 const testsRealizados = document.getElementById('testsRealizados');
 const puntuacionTotal = document.getElementById('puntuacionTotal');
 const rachaActual = document.getElementById('rachaActual');
 
-// Botones principales
+// Elementos de modales
 const editarInfoBtn = document.getElementById('editarInfoBtn');
 const cambiarPasswordBtn = document.getElementById('cambiarPasswordBtn');
 const eliminarCuentaBtn = document.getElementById('eliminarCuentaBtn');
 
-// Modales
 const modalEditarInfo = document.getElementById('modalEditarInfo');
 const modalCambiarPassword = document.getElementById('modalCambiarPassword');
 const modalEliminarCuenta = document.getElementById('modalEliminarCuenta');
 
-// Formularios
 const editarInfoForm = document.getElementById('editarInfoForm');
 const cambiarPasswordForm = document.getElementById('cambiarPasswordForm');
 
-// Campos de formularios
 const editNombre = document.getElementById('editNombre');
 const editEmail = document.getElementById('editEmail');
 const currentPassword = document.getElementById('currentPassword');
@@ -122,7 +113,12 @@ async function cargarDatosUsuario() {
         }
     } catch (error) {
         console.error('Error cargando datos:', error);
-        mostrarMensaje('Error al cargar datos del usuario', 'error');
+        // ELIMINADO: mostrarMensaje('Error al cargar datos del usuario', 'error');
+        // Usar datos básicos como fallback silencioso
+        userNameSpan.textContent = currentUser.email;
+        userDisplayName.textContent = currentUser.email.split('@')[0];
+        userEmail.textContent = currentUser.email;
+        userInitials.textContent = currentUser.email.charAt(0).toUpperCase();
     }
 }
 
@@ -200,7 +196,6 @@ function cerrarModales() {
     modalEliminarCuenta.style.display = 'none';
 }
 
-// Guardar cambios de información personal
 // Guardar cambios de información personal
 async function guardarCambiosInfo(e) {
     e.preventDefault();
@@ -296,8 +291,6 @@ async function cambiarContrasena(e) {
     }
     
     try {
-        mostrarMensaje('Cambiando contraseña...', 'warning');
-        
         // Reautenticar usuario
         const credential = EmailAuthProvider.credential(currentUser.email, passwordActual);
         await reauthenticateWithCredential(currentUser, credential);
@@ -306,7 +299,6 @@ async function cambiarContrasena(e) {
         await updatePassword(currentUser, nuevaPassword);
         
         cerrarModales();
-        cambiarPasswordForm.reset();
         mostrarMensaje('Contraseña cambiada correctamente', 'success');
         
     } catch (error) {
@@ -323,28 +315,23 @@ async function cambiarContrasena(e) {
     }
 }
 
-// Validar campos para eliminar cuenta
+// Validar campos para habilitar botón de eliminar cuenta
 function validarEliminacion() {
     const textoConfirmacion = confirmDeleteText.value.trim();
     const password = deletePassword.value.trim();
     
-    const esValido = textoConfirmacion === 'ELIMINAR' && password.length > 0;
+    const esValido = textoConfirmacion === 'ELIMINAR CUENTA' && password.length > 0;
     confirmarEliminarBtn.disabled = !esValido;
 }
 
-// Eliminar cuenta permanentemente
+// Eliminar cuenta
 async function eliminarCuenta() {
     const password = deletePassword.value;
-    
-    if (!password) {
-        mostrarMensaje('Ingresa tu contraseña para confirmar', 'error');
-        return;
-    }
     
     try {
         mostrarMensaje('Eliminando cuenta...', 'warning');
         
-        // Reautenticar usuario
+        // Reautenticar antes de eliminar
         const credential = EmailAuthProvider.credential(currentUser.email, password);
         await reauthenticateWithCredential(currentUser, credential);
         
