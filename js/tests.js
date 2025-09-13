@@ -653,10 +653,12 @@ function crearSubtemaHTML(subtemaId, subtema) {
                     <div class="subtema-nombre">📁 ${subtema.nombre}</div>
                     <div class="subtema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
                 </div>
-                <div class="subtema-acciones">
-                    <button class="btn-secondary btn-sm" onclick="editarTema('${subtemaId}')">✏️</button>
-                    <button class="btn-danger btn-sm" onclick="eliminarTema('${subtemaId}')">🗑️</button>
-                </div>
+                
+<div class="subtema-acciones">
+    <button class="btn-exportar btn-sm" onclick="exportarTema('${subtemaId}')">📤 Exportar</button>
+    <button class="btn-secondary btn-sm" onclick="editarTema('${subtemaId}')">✏️</button>
+    <button class="btn-danger btn-sm" onclick="eliminarTema('${subtemaId}')">🗑️</button>
+</div>
             </div>
             ${subtema.descripcion ? `<div class="subtema-descripcion">${subtema.descripcion}</div>` : ''}
             ${numPreguntas > 0 ? `
@@ -2398,6 +2400,15 @@ eliminarTodosBtn.innerHTML = `
     </button>
 `;
 listResultados.appendChild(eliminarTodosBtn);
+// Cargar todos los temas del usuario para poder mostrar nombres
+const temasQuery = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+const temasSnapshot = await getDocs(temasQuery);
+const temasMap = new Map();
+
+temasSnapshot.forEach((doc) => {
+    const tema = doc.data();
+    temasMap.set(doc.id, tema.nombre);
+});
         
         
         querySnapshot.forEach((doc) => {
@@ -2412,7 +2423,7 @@ listResultados.appendChild(eliminarTodosBtn);
         <div class="resultado-info">
             <h4>${resultado.test.nombre}</h4>
             <p class="fecha-resultado">${fecha} - ${hora}</p>
-            <p class="tema-resultado">Tema: ${resultado.test.tema === 'todos' ? 'Todos los temas' : 'Tema específico'}</p>
+            <p class="tema-resultado">Tema: ${obtenerTextoTemas(resultado.test.tema, temasMap)}</p>
         </div>
         <div class="resultado-detalles">
             <div class="estadisticas-mini">
@@ -3217,3 +3228,20 @@ document.addEventListener('click', function(event) {
         if (arrow) arrow.textContent = '▼';
     }
 });
+// Función auxiliar para obtener texto de temas
+function obtenerTextoTemas(tema, temasMap) {
+    if (tema === 'todos') {
+        return 'Todos los temas';
+    } else if (tema === 'repaso') {
+        return 'Test de repaso';
+    } else if (Array.isArray(tema)) {
+        const nombresTemasSeleccionados = tema.map(temaId => 
+            temasMap.get(temaId) || `Tema ${temaId}`
+        );
+        return nombresTemasSeleccionados.join(', ');
+    } else if (typeof tema === 'string') {
+        return temasMap.get(tema) || `Tema ${tema}`;
+    } else {
+        return 'Tema específico';
+    }
+}
