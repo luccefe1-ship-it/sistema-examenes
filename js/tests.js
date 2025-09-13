@@ -2420,23 +2420,22 @@ temasSnapshot.forEach((doc) => {
             resultadoDiv.className = 'resultado-historial';
             resultadoDiv.innerHTML = `
     <div class="resultado-item">
-        <div class="resultado-info">
-            <h4>${resultado.test.nombre}</h4>
-            <p class="fecha-resultado">${fecha} - ${hora}</p>
-            <p class="tema-resultado">Tema: ${obtenerTextoTemas(resultado.test.tema, temasMap)}</p>
-        </div>
+       <div class="resultado-info">
+    <h4>${obtenerTextoTemas(resultado.test.tema, temasMap)}</h4>
+    <p class="nombre-test">${resultado.test.nombre}</p>
+    <p class="fecha-resultado">${fecha} - ${hora}</p>
+</div>
         <div class="resultado-detalles">
             <div class="estadisticas-mini">
-                <span class="stat-item correctas">✅ ${resultado.correctas}</span>
-                <span class="stat-item incorrectas">❌ ${resultado.incorrectas}</span>
-                <span class="stat-item sin-responder">⏭️ ${resultado.sinResponder}</span>
-                <span class="stat-item total">📊 ${resultado.total}</span>
+                <span class="stat-item correctas">${resultado.correctas}</span>
+<span class="stat-item incorrectas">${resultado.incorrectas}</span>
+<span class="stat-item sin-responder">${resultado.sinResponder}</span>
+<span class="stat-item total">${resultado.total}</span>
             </div>
         </div>
         <div class="resultado-stats">
-            <span class="porcentaje">${resultado.porcentaje}%</span>
-            <span class="fraccion">${resultado.correctas}/${resultado.total}</span>
-        </div>
+    <span class="fraccion-principal ${resultado.correctas >= resultado.total/2 ? 'aprobado' : 'suspenso'}">${resultado.correctas}/${resultado.total}</span>
+</div>
         <div class="resultado-acciones">
             <button class="btn-eliminar-resultado" onclick="eliminarResultado('${doc.id}')" title="Eliminar resultado">
                 🗑️
