@@ -7,6 +7,7 @@ const userNameSpan = document.getElementById('userName');
 const logoutBtn = document.getElementById('logoutBtn');
 const saludoHorario = document.getElementById('saludoHorario');
 const fraseMotivaional = document.getElementById('fraseMotivaional');
+const iconoHora = document.getElementById('iconoHora');
 
 // Variable para almacenar el nombre del usuario
 let nombreUsuario = '';
@@ -26,6 +27,52 @@ const frasesMotivaionales = [
     "la constancia es la clave",
     "otro día, otra oportunidad"
 ];
+
+// Función para actualizar icono según la hora
+function actualizarIconoHora() {
+    const ahora = new Date();
+    const hora = ahora.getHours();
+    
+    if (iconoHora) {
+        // Limpiar clases anteriores
+        iconoHora.className = 'icono-hora';
+        
+        if (hora >= 6 && hora < 18) {
+            // Día: Sol amarillo brillante
+            iconoHora.textContent = '☀️';
+            iconoHora.classList.add('manana');
+        } else if (hora >= 18 && hora < 21) {
+            // Tarde: Sol naranja
+            iconoHora.textContent = '🌅';
+            iconoHora.classList.add('tarde');
+        } else {
+            // Noche: Luna
+            iconoHora.textContent = '🌙';
+            iconoHora.classList.add('noche');
+        }
+    }
+}
+
+// Función para actualizar el fondo según la hora
+function actualizarFondoHora() {
+    const ahora = new Date();
+    const hora = ahora.getHours();
+    const body = document.body;
+    
+    // Limpiar clases anteriores
+    body.classList.remove('dia', 'tarde', 'noche');
+    
+    if (hora >= 6 && hora < 18) {
+        // Día (6:00 - 18:00) - Fondo claro
+        body.classList.add('dia');
+    } else if (hora >= 18 && hora < 21) {
+        // Tarde (18:00 - 21:00) - Fondo actual
+        body.classList.add('tarde');
+    } else {
+        // Noche (21:00 - 6:00) - Fondo oscuro
+        body.classList.add('noche');
+    }
+}
 
 // Función para obtener saludo según la hora CON EL NOMBRE DEL USUARIO
 function obtenerSaludoPorHorario() {
@@ -61,6 +108,10 @@ function actualizarSaludoDinamico() {
         saludoHorario.textContent = obtenerSaludoPorHorario();
         fraseMotivaional.textContent = obtenerFraseMotivaionalAleatoria();
     }
+    
+    // Actualizar el icono y el fondo también
+    actualizarIconoHora();
+    actualizarFondoHora();
 }
 
 // Función para cambiar la frase motivacional cada cierto tiempo
@@ -132,9 +183,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const profileBtn = document.getElementById('profileBtn');
     if (profileBtn) {
         profileBtn.addEventListener('click', () => {
-    window.location.href = './perfil.html';
-});
+            window.location.href = './perfil.html';
+        });
     }
+    
+    // APLICAR FONDO INMEDIATAMENTE AL CARGAR
+    actualizarFondoHora();
+    console.log('Fondo aplicado en DOMContentLoaded:', document.body.className);
+    
 });
 
 // Actualizar saludo cada minuto por si cambia la hora
@@ -143,6 +199,8 @@ setInterval(() => {
         const nuevoSaludo = obtenerSaludoPorHorario();
         if (saludoHorario.textContent !== nuevoSaludo) {
             saludoHorario.textContent = nuevoSaludo;
+            actualizarIconoHora(); // También actualizar el icono
+            actualizarFondoHora(); // También actualizar el fondo
         }
     }
 }, 60000); // 1 minuto
