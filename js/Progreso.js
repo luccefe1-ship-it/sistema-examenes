@@ -88,6 +88,14 @@ function setupEventListeners() {
         });
     }
 
+    // Botón Ver Estadísticas - AGREGAR ESTO
+    const verEstadisticasBtn = document.getElementById('verEstadisticasBtn');
+    
+    if (verEstadisticasBtn) {
+        verEstadisticasBtn.addEventListener('click', () => {
+            abrirModalEstadisticas();
+        });
+    }
 
     // Modal
     const guardarPersonalizacionBtn = document.getElementById('guardarPersonalizacion');
@@ -130,6 +138,7 @@ async function inicializarProgreso() {
         // 4. Renderizar interfaz
         renderizarTablaProgreso();
         
+    
         console.log('Sistema de progreso inicializado');
         
     } catch (error) {
@@ -151,7 +160,7 @@ async function cargarTemasDelBanco() {
             const tema = doc.data();
             
             // Solo agregar temas principales (no subtemas)
-            if (!tema.esSubtema || !tema.temaPadreId) {
+            if (!tema.temaPadreId) {
                 temasDelBanco.push({
                     id: doc.id,
                     nombre: tema.nombre,
@@ -162,8 +171,23 @@ async function cargarTemasDelBanco() {
             }
         });
         
-        // Ordenar temas por el orden establecido
-        temasDelBanco.sort((a, b) => a.orden - b.orden);
+        // Ordenar temas con ordenamiento numérico inteligente (igual que banco)
+        temasDelBanco.sort((a, b) => {
+            const nombreA = a.nombre;
+            const nombreB = b.nombre;
+            
+            // Extraer números del nombre si existen
+            const numeroA = nombreA.match(/\d+/);
+            const numeroB = nombreB.match(/\d+/);
+            
+            if (numeroA && numeroB) {
+                // Si ambos tienen números, ordenar por número
+                return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+            } else {
+                // Si no tienen números, orden alfabético normal
+                return nombreA.localeCompare(nombreB);
+            }
+        });
         
         console.log('Temas del banco cargados:', temasDelBanco.length);
         
@@ -284,11 +308,29 @@ function renderizarTablaProgreso() {
     const tablaContent = document.getElementById('tablaProgresoContent');
     tablaContent.innerHTML = '';
     
-    // Ordenar temas por el orden establecido en el banco
+    // Ordenar temas con el mismo sistema que banco de preguntas (numérico inteligente)
     const temasOrdenados = Object.entries(progresoData.temas).sort(([idA], [idB]) => {
         const temaA = temasDelBanco.find(t => t.id === idA);
         const temaB = temasDelBanco.find(t => t.id === idB);
-        return (temaA?.orden || 0) - (temaB?.orden || 0);
+        
+        if (!temaA || !temaB) {
+            return 0; // Si no se encuentra el tema, mantener orden actual
+        }
+        
+        const nombreA = temaA.nombre;
+        const nombreB = temaB.nombre;
+        
+        // Extraer números del nombre si existen
+        const numeroA = nombreA.match(/\d+/);
+        const numeroB = nombreB.match(/\d+/);
+        
+        if (numeroA && numeroB) {
+            // Si ambos tienen números, ordenar por número
+            return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+        } else {
+            // Si no tienen números, orden alfabético normal
+            return nombreA.localeCompare(nombreB);
+        }
     });
     
     // Renderizar cada tema en el orden correcto
@@ -568,8 +610,30 @@ function abrirModalPersonalizar() {
     const listaContainer = document.getElementById('listaTemasPersonalizar');
     listaContainer.innerHTML = '';
     
+    // Ordenar temas igual que en la tabla principal
+    const temasOrdenados = Object.entries(progresoData.temas).sort(([idA], [idB]) => {
+        const temaA = temasDelBanco.find(t => t.id === idA);
+        const temaB = temasDelBanco.find(t => t.id === idB);
+        
+        if (!temaA || !temaB) {
+            return 0;
+        }
+        
+        const nombreA = temaA.nombre;
+        const nombreB = temaB.nombre;
+        
+        const numeroA = nombreA.match(/\d+/);
+        const numeroB = nombreB.match(/\d+/);
+        
+        if (numeroA && numeroB) {
+            return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+        } else {
+            return nombreA.localeCompare(nombreB);
+        }
+    });
+    
     // Cargar cada tema con su configuración actual
-    Object.entries(progresoData.temas).forEach(([temaId, temaProgreso]) => {
+    temasOrdenados.forEach(([temaId, temaProgreso]) => {
         const itemHTML = `
             <div class="tema-personalizar-item">
                 <div class="tema-personalizar-nombre">${temaProgreso.nombre}</div>
@@ -585,11 +649,10 @@ function abrirModalPersonalizar() {
         listaContainer.innerHTML += itemHTML;
     });
     
-    document.getElementById('modalPersonalizar').style.display = 'flex';
+    document.getElementById('modalPersonalizarTemas').style.display = 'flex';
 }
-
 function cerrarModalPersonalizar() {
-    document.getElementById('modalPersonalizar').style.display = 'none';
+    document.getElementById('modalPersonalizarTemas').style.display = 'none';
 }
 
 async function guardarPersonalizacion() {
