@@ -409,7 +409,7 @@ function crearElementoTema(tema, esClickeable) {
     tema.preguntas.forEach(pregunta => {
         const preguntaDiv = document.createElement('div');
         preguntaDiv.className = 'pregunta-item';
-        preguntaDiv.textContent = pregunta.pregunta.substring(0, 50) + '...';
+        preguntaDiv.textContent = pregunta.pregunta;
         
         if (esClickeable) {
             preguntaDiv.addEventListener('click', () => {
