@@ -267,6 +267,7 @@ async function crearTema() {
 }
 
 // Cargar temas en el select
+// Cargar temas en el select
 async function cargarTemasEnSelect() {
     try {
         const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
@@ -274,12 +275,47 @@ async function cargarTemasEnSelect() {
         
         listaTemaSelect.innerHTML = '<option value="">Selecciona un tema...</option>';
         
+        // Separar temas principales y subtemas
+        const temasPrincipales = [];
+        const subtemasPorPadre = {};
+
         querySnapshot.forEach((doc) => {
             const tema = doc.data();
+            if (tema.temaPadreId) {
+                // Es un subtema
+                if (!subtemasPorPadre[tema.temaPadreId]) {
+                    subtemasPorPadre[tema.temaPadreId] = [];
+                }
+                subtemasPorPadre[tema.temaPadreId].push({ id: doc.id, data: tema });
+            } else {
+                // Es un tema principal
+                temasPrincipales.push({ 
+                    id: doc.id, 
+                    data: tema,
+                    orden: tema.orden || 0
+                });
+            }
+        });
+
+        // Ordenar temas principales por orden
+        temasPrincipales.sort((a, b) => a.orden - b.orden);
+
+        // Agregar temas principales al select
+        temasPrincipales.forEach(({ id, data: tema }) => {
             const option = document.createElement('option');
-            option.value = doc.id;
-            option.textContent = tema.nombre;
+            option.value = id;
+            option.textContent = `📚 ${tema.nombre}`;
             listaTemaSelect.appendChild(option);
+
+            // Agregar subtemas si los tiene
+            if (subtemasPorPadre[id]) {
+                subtemasPorPadre[id].forEach(subtema => {
+                    const subOption = document.createElement('option');
+                    subOption.value = subtema.id;
+                    subOption.textContent = `  ↳ ${subtema.data.nombre}`;
+                    listaTemaSelect.appendChild(subOption);
+                });
+            }
         });
         
     } catch (error) {
@@ -2412,8 +2448,13 @@ temasSnapshot.forEach((doc) => {
         
         
         querySnapshot.forEach((doc) => {
-            const resultado = doc.data();
-            const fecha = resultado.fechaCreacion.toDate().toLocaleDateString('es-ES');
+    const resultado = doc.data();
+    
+    if (!esTemaValido(resultado.test.tema, temasMap)) {
+        return;
+    }
+    
+    const fecha = resultado.fechaCreacion.toDate().toLocaleDateString('es-ES');
             const hora = resultado.fechaCreacion.toDate().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
             
             const resultadoDiv = document.createElement('div');
@@ -2640,13 +2681,49 @@ async function mostrarModalImportacion(numPreguntas, temaOriginal, preguntasConv
         const querySnapshot = await getDocs(q);
         
         const select = document.getElementById('temaDestinoSelect');
-        querySnapshot.forEach((doc) => {
-            const tema = doc.data();
-            const option = document.createElement('option');
-            option.value = doc.id;
-            option.textContent = tema.nombre;
-            select.appendChild(option);
+
+// Separar temas principales y subtemas
+const temasPrincipales = [];
+const subtemasPorPadre = {};
+
+querySnapshot.forEach((doc) => {
+    const tema = doc.data();
+    if (tema.temaPadreId) {
+        // Es un subtema
+        if (!subtemasPorPadre[tema.temaPadreId]) {
+            subtemasPorPadre[tema.temaPadreId] = [];
+        }
+        subtemasPorPadre[tema.temaPadreId].push({ id: doc.id, data: tema });
+    } else {
+        // Es un tema principal
+        temasPrincipales.push({ 
+            id: doc.id, 
+            data: tema,
+            orden: tema.orden || 0
         });
+    }
+});
+
+// Ordenar temas principales por orden
+temasPrincipales.sort((a, b) => a.orden - b.orden);
+
+// Agregar temas principales al select
+temasPrincipales.forEach(({ id, data: tema }) => {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = tema.nombre;
+    select.appendChild(option);
+
+    // Agregar subtemas si los tiene
+    if (subtemasPorPadre[id]) {
+        subtemasPorPadre[id].forEach(subtema => {
+            const subOption = document.createElement('option');
+            subOption.value = subtema.id;
+            subOption.textContent = `  ↳ ${subtema.data.nombre}`;
+            select.appendChild(subOption);
+        });
+    }
+});
     } catch (error) {
         console.error('Error cargando temas:', error);
         alert('Error cargando temas');
@@ -3227,20 +3304,35 @@ document.addEventListener('click', function(event) {
         if (arrow) arrow.textContent = '▼';
     }
 });
-// Función auxiliar para obtener texto de temas
 function obtenerTextoTemas(tema, temasMap) {
     if (tema === 'todos') {
         return 'Todos los temas';
     } else if (tema === 'repaso') {
         return 'Test de repaso';
     } else if (Array.isArray(tema)) {
-        const nombresTemasSeleccionados = tema.map(temaId => 
-            temasMap.get(temaId) || `Tema ${temaId}`
-        );
+        const nombresTemasSeleccionados = tema
+            .filter(temaId => temasMap.has(temaId))
+            .map(temaId => temasMap.get(temaId));
+        
+        if (nombresTemasSeleccionados.length === 0) {
+            return 'Temas eliminados';
+        }
+        
         return nombresTemasSeleccionados.join(', ');
     } else if (typeof tema === 'string') {
-        return temasMap.get(tema) || `Tema ${tema}`;
+        return temasMap.get(tema) || 'Tema eliminado';
     } else {
         return 'Tema específico';
     }
+}
+// Verificar si un tema es válido (no eliminado)
+function esTemaValido(tema, temasMap) {
+    if (tema === 'todos' || tema === 'repaso') {
+        return true;
+    } else if (Array.isArray(tema)) {
+        return tema.some(temaId => temasMap.has(temaId));
+    } else if (typeof tema === 'string') {
+        return temasMap.has(tema);
+    }
+    return false;
 }
