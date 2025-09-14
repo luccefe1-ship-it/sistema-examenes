@@ -580,8 +580,23 @@ async function cargarBancoPreguntas() {
             }
         });
 
-        // ORDENAR TEMAS PRINCIPALES POR EL CAMPO ORDEN
-        temasPrincipales.sort((a, b) => a.orden - b.orden);
+// ORDENAR TEMAS CON ORDEN NUMÉRICO INTELIGENTE
+temasPrincipales.sort((a, b) => {
+    const nombreA = a.data.nombre;
+    const nombreB = b.data.nombre;
+    
+    // Extraer números del nombre si existen
+    const numeroA = nombreA.match(/\d+/);
+    const numeroB = nombreB.match(/\d+/);
+    
+    if (numeroA && numeroB) {
+        // Si ambos tienen números, ordenar por número
+        return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+    } else {
+        // Si no tienen números, orden alfabético normal
+        return nombreA.localeCompare(nombreB);
+    }
+});
 
         // Renderizar temas principales con sus subtemas
         temasPrincipales.forEach(({ id, data: tema }) => {
