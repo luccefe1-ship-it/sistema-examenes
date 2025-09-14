@@ -3,15 +3,14 @@ import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/
 import { 
     doc, 
     getDoc, 
-    setDoc,
-    collection, 
+    updateDoc,  // <- Esta línea debe estar presente
     addDoc, 
+    deleteDoc, 
     getDocs, 
     query, 
-    where,
-    updateDoc,
-    arrayUnion,
-    deleteDoc
+    where, 
+    collection, 
+    writeBatch 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 // Variables globales
 let currentUser = null;
@@ -297,8 +296,24 @@ async function cargarTemasEnSelect() {
             }
         });
 
-        // Ordenar temas principales por orden
-        temasPrincipales.sort((a, b) => a.orden - b.orden);
+        
+        // Ordenar temas con ordenamiento numérico inteligente (igual que banco)
+temasPrincipales.sort((a, b) => {
+    const nombreA = a.data.nombre;
+    const nombreB = b.data.nombre;
+    
+    // Extraer números del nombre si existen
+    const numeroA = nombreA.match(/\d+/);
+    const numeroB = nombreB.match(/\d+/);
+    
+    if (numeroA && numeroB) {
+        // Si ambos tienen números, ordenar por número
+        return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+    } else {
+        // Si no tienen números, orden alfabético normal
+        return nombreA.localeCompare(nombreB);
+    }
+});
 
         // Agregar temas principales al select
         temasPrincipales.forEach(({ id, data: tema }) => {
@@ -1071,11 +1086,33 @@ window.eliminarTodosTemas = async function() {
 };
 
 // Funciones globales para los botones
-window.editarTema = function(temaId) {
-    // Por implementar
-    alert('Función de editar tema en desarrollo');
+window.editarTema = async function(temaId) {
+    try {
+        const temaDoc = await getDoc(doc(db, "temas", temaId));
+        if (!temaDoc.exists()) {
+            alert('Tema no encontrado');
+            return;
+        }
+        
+        const temaData = temaDoc.data();
+        const nuevoNombre = prompt('Nuevo nombre del tema:', temaData.nombre);
+        
+        if (nuevoNombre && nuevoNombre.trim() !== '' && nuevoNombre !== temaData.nombre) {
+            await updateDoc(doc(db, "temas", temaId), {
+                nombre: nuevoNombre.trim(),
+                fechaModificacion: new Date()
+            });
+            
+            // Recargar la lista de temas
+            await cargarBancoPreguntas();
+            alert('Tema actualizado correctamente');
+        }
+        
+    } catch (error) {
+        console.error('Error editando tema:', error);
+        alert('Error al editar el tema');
+    }
 };
-
 window.eliminarTema = async function(temaId) {
     if (confirm('¿Estás seguro de que quieres eliminar este tema? Esta acción no se puede deshacer.')) {
         try {
@@ -1546,8 +1583,24 @@ async function cargarTemasParaTest() {
             preguntasTodosTemas.textContent = `${totalPreguntasVerificadas} preguntas`;
         }
 
-        // Ordenar temas principales por orden
-        temasPrincipales.sort((a, b) => a.orden - b.orden);
+       
+        // Ordenar temas con ordenamiento numérico inteligente (igual que banco)
+temasPrincipales.sort((a, b) => {
+    const nombreA = a.data.nombre;
+    const nombreB = b.data.nombre;
+    
+    // Extraer números del nombre si existen
+    const numeroA = nombreA.match(/\d+/);
+    const numeroB = nombreB.match(/\d+/);
+    
+    if (numeroA && numeroB) {
+        // Si ambos tienen números, ordenar por número
+        return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+    } else {
+        // Si no tienen números, orden alfabético normal
+        return nombreA.localeCompare(nombreB);
+    }
+});
 
         // *** AQUÍ ESTÁ LA CORRECCIÓN PRINCIPAL ***
         // Renderizar temas principales con sus subtemas
@@ -2719,9 +2772,23 @@ querySnapshot.forEach((doc) => {
     }
 });
 
-// Ordenar temas principales por orden
-temasPrincipales.sort((a, b) => a.orden - b.orden);
-
+// Ordenar temas con ordenamiento numérico inteligente (igual que banco)
+temasPrincipales.sort((a, b) => {
+    const nombreA = a.data.nombre;
+    const nombreB = b.data.nombre;
+    
+    // Extraer números del nombre si existen
+    const numeroA = nombreA.match(/\d+/);
+    const numeroB = nombreB.match(/\d+/);
+    
+    if (numeroA && numeroB) {
+        // Si ambos tienen números, ordenar por número
+        return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+    } else {
+        // Si no tienen números, orden alfabético normal
+        return nombreA.localeCompare(nombreB);
+    }
+});
 // Agregar temas principales al select
 temasPrincipales.forEach(({ id, data: tema }) => {
     const option = document.createElement('option');
