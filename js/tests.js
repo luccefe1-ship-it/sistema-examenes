@@ -221,6 +221,23 @@ async function crearTema() {
     }
 
     try {
+        // Verificar si ya existe un tema con ese nombre
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+
+        let nombreExiste = false;
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            if (tema.nombre.toLowerCase() === nombre.toLowerCase()) {
+                nombreExiste = true;
+            }
+        });
+
+        if (nombreExiste) {
+            alert('Ya existe un tema con ese nombre. Por favor, elige un nombre diferente.');
+            return;
+        }
+
         const esSubtema = document.getElementById('esSubtema').checked;
         const temaPadreId = document.getElementById('temaPadreSelect').value;
 
@@ -235,7 +252,7 @@ async function crearTema() {
         };
 
         const docRef = await addDoc(collection(db, "temas"), temaData);
-        
+
         // Seleccionar automáticamente el tema creado
         temaSeleccionado = {
             id: docRef.id,
@@ -244,7 +261,7 @@ async function crearTema() {
 
         actualizarTemaSeleccionado();
         cerrarModal(modalCrearTema);
-        
+
         // Limpiar campos
         nombreTema.value = '';
         descripcionTema.value = '';
@@ -258,7 +275,7 @@ async function crearTema() {
         if (document.getElementById('banco-section').classList.contains('active')) {
             cargarBancoPreguntas();
         }
-        
+
     } catch (error) {
         console.error('Error creando tema:', error);
         alert('Error al crear el tema');
