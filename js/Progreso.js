@@ -701,7 +701,7 @@ async function guardarPersonalizacion() {
 }
 // Función para resetear todos los temas
 async function resetearTodosTemas() {
-    const confirmar = confirm(`¿Estás seguro de que quieres resetear TODOS los temas a vuelta 1?\n\nEsto reiniciará:\n- Todas las vueltas a "Primera"\n- Todas las páginas estudiadas a 0\n- Mantendrá los tests realizados\n\nEsta acción no se puede deshacer.`);
+    const confirmar = confirm(`¿Estás seguro de que quieres resetear TODOS los temas a vuelta 1?\n\nEsto reiniciará:\n- Todas las vueltas a "Primera"\n- Todas las páginas estudiadas a 0\n- Todos los tests realizados a 0\n\nEsta acción no se puede deshacer.`);
     
     if (confirmar) {
         try {
@@ -714,16 +714,19 @@ async function resetearTodosTemas() {
                 tema.vueltas = [
                     { numero: 1, completada: false, fechaInicio: new Date() }
                 ];
+                // RESETEAR TAMBIÉN LOS TESTS
+                tema.testsAutomaticos = 0;
+                tema.testsManuales = 0;
                 tema.ultimaActualizacion = new Date();
                 
-                console.log(`Tema ${tema.nombre} reiniciado`);
+                console.log(`Tema ${tema.nombre} reiniciado completamente`);
             }
             
             // Guardar y actualizar
             await guardarProgreso();
             renderizarTablaProgreso();
             
-            alert(`${temas.length} temas reiniciados exitosamente`);
+            alert(`${temas.length} temas reiniciados exitosamente (incluyendo tests)`);
             
         } catch (error) {
             console.error('Error reiniciando todos los temas:', error);
@@ -822,7 +825,9 @@ function generarGraficaEstadisticas() {
     
     const ctx = canvas.getContext('2d');
     
-    // Configurar canvas
+    // Configurar canvas más alto para mejor legibilidad
+    canvas.width = 1000;
+    canvas.height = 600;
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
     
@@ -835,35 +840,56 @@ function generarGraficaEstadisticas() {
     if (datosEstadisticas.length === 0) {
         // Mostrar mensaje cuando no hay datos
         ctx.fillStyle = '#6b7280';
-        ctx.font = '16px Arial';
+        ctx.font = '18px Arial';
         ctx.textAlign = 'center';
         ctx.fillText('No hay datos disponibles', canvasWidth / 2, canvasHeight / 2);
         return;
     }
     
-    // Configuración de la gráfica
-    const padding = 80;
+    // Configuración mejorada de la gráfica
+    const padding = 100;
+    const bottomPadding = 120; // Más espacio abajo para etiquetas
     const graphWidth = canvasWidth - (padding * 2);
-    const graphHeight = canvasHeight - (padding * 2);
-    const barWidth = graphWidth / datosEstadisticas.length * 0.8;
+    const graphHeight = canvasHeight - padding - bottomPadding;
+    const barWidth = Math.min(60, graphWidth / datosEstadisticas.length * 0.7); // Barras más anchas pero con límite
     const maxValue = Math.max(...datosEstadisticas.map(d => d.puntuacion));
     
-    // Dibujar ejes
+    // Fondo de la gráfica
+    ctx.fillStyle = '#fafafa';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    
+    // Dibujar líneas de grid horizontales
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 5; i++) {
+        const y = padding + (i / 5) * graphHeight;
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(canvasWidth - padding, y);
+        ctx.stroke();
+    }
+    
+    // Dibujar ejes principales
     ctx.strokeStyle = '#374151';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     ctx.beginPath();
     // Eje Y (vertical)
     ctx.moveTo(padding, padding);
-    ctx.lineTo(padding, canvasHeight - padding);
+    ctx.lineTo(padding, canvasHeight - bottomPadding);
     // Eje X (horizontal)
-    ctx.lineTo(canvasWidth - padding, canvasHeight - padding);
+    ctx.lineTo(canvasWidth - padding, canvasHeight - bottomPadding);
     ctx.stroke();
+    
+    // Calcular espaciado entre barras
+    const totalBarsWidth = datosEstadisticas.length * barWidth;
+    const totalSpacing = graphWidth - totalBarsWidth;
+    const spaceBetweenBars = totalSpacing / (datosEstadisticas.length + 1);
     
     // Dibujar barras
     datosEstadisticas.forEach((dato, index) => {
-        const x = padding + (index * (graphWidth / datosEstadisticas.length)) + (graphWidth / datosEstadisticas.length - barWidth) / 2;
+        const x = padding + spaceBetweenBars + (index * (barWidth + spaceBetweenBars));
         const barHeight = (dato.puntuacion / maxValue) * graphHeight;
-        const y = canvasHeight - padding - barHeight;
+        const y = canvasHeight - bottomPadding - barHeight;
         
         // Color de la barra según la vuelta
         const colores = {
@@ -878,43 +904,64 @@ function generarGraficaEstadisticas() {
         // Crear gradiente para la barra
         const gradient = ctx.createLinearGradient(0, y, 0, y + barHeight);
         gradient.addColorStop(0, colores[dato.vuelta] || '#6b7280');
-        gradient.addColorStop(1, colores[dato.vuelta] + '80' || '#6b728080');
+        gradient.addColorStop(1, (colores[dato.vuelta] || '#6b7280') + '80');
+        
+        // Sombra de la barra
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 2;
         
         // Dibujar barra
         ctx.fillStyle = gradient;
         ctx.fillRect(x, y, barWidth, barHeight);
         
+        // Resetear sombra
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        
         // Borde de la barra
         ctx.strokeStyle = colores[dato.vuelta] || '#6b7280';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 2;
         ctx.strokeRect(x, y, barWidth, barHeight);
         
         // Valor encima de la barra
         ctx.fillStyle = '#1f2937';
-        ctx.font = 'bold 12px Arial';
+        ctx.font = 'bold 14px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(dato.puntuacion.toFixed(1), x + barWidth / 2, y - 5);
+        ctx.fillText(dato.puntuacion.toFixed(1), x + barWidth / 2, y - 8);
         
-     // Nombre del tema (horizontal, debajo del eje)
-ctx.fillStyle = '#374151';
-ctx.font = '12px Arial';
-ctx.textAlign = 'center';
-ctx.fillText(dato.nombre, x + barWidth / 2, canvasHeight - padding + 20);
+        // Nombre del tema (rotado 45 grados para mejor legibilidad)
+        ctx.save();
+        ctx.translate(x + barWidth / 2, canvasHeight - bottomPadding + 15);
+        ctx.rotate(-Math.PI / 4); // Rotar 45 grados
+        ctx.fillStyle = '#374151';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'right';
+        
+        // Truncar nombres muy largos
+        let nombreMostrar = dato.nombre;
+        if (nombreMostrar.length > 15) {
+            nombreMostrar = nombreMostrar.substring(0, 15) + '...';
+        }
+        
+        ctx.fillText(nombreMostrar, 0, 0);
+        ctx.restore();
     });
     
-    // Etiquetas del eje Y
+    // Etiquetas del eje Y (valores)
     ctx.fillStyle = '#6b7280';
     ctx.font = '12px Arial';
     ctx.textAlign = 'right';
     for (let i = 0; i <= 5; i++) {
         const value = (maxValue / 5) * i;
-        const y = canvasHeight - padding - (i / 5) * graphHeight;
-        ctx.fillText(value.toFixed(1), padding - 10, y + 4);
+        const y = canvasHeight - bottomPadding - (i / 5) * graphHeight;
+        ctx.fillText(value.toFixed(1), padding - 15, y + 4);
     }
     
     // Título del eje Y
     ctx.save();
-    ctx.translate(20, canvasHeight / 2);
+    ctx.translate(25, canvasHeight / 2);
     ctx.rotate(-Math.PI / 2);
     ctx.fillStyle = '#374151';
     ctx.font = 'bold 14px Arial';
@@ -926,7 +973,13 @@ ctx.fillText(dato.nombre, x + barWidth / 2, canvasHeight - padding + 20);
     ctx.fillStyle = '#374151';
     ctx.font = 'bold 14px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('Temas', canvasWidth / 2, canvasHeight - 10);
+    ctx.fillText('Temas', canvasWidth / 2, canvasHeight - 15);
+    
+    // Título principal de la gráfica
+    ctx.fillStyle = '#1f2937';
+    ctx.font = 'bold 20px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Progreso por Temas', canvasWidth / 2, 30);
 }
 
 // Calcular estadísticas ponderadas por tema
