@@ -1869,8 +1869,6 @@ async function actualizarPreguntasDisponibles() {
     }
 }
 
-// Empezar test
-// Función corregida para obtener temas seleccionados
 function obtenerTemasSeleccionados() {
     console.log('=== DEBUG OBTENER TEMAS SELECCIONADOS ===');
     
@@ -1999,6 +1997,7 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                         let temaIdParaProgreso = doc.id;
                         if (tema.temaPadreId) {
                             temaIdParaProgreso = tema.temaPadreId;
+                            console.log(`EPÍGRAFE: ${tema.nombre} -> TEMA PADRE: ${tema.temaPadreId}`);
                         }
 
                         preguntasVerificadas.push({
@@ -2037,6 +2036,7 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                                 let temaIdParaProgreso = temaId;
                                 if (tema.temaPadreId) {
                                     temaIdParaProgreso = tema.temaPadreId;
+                                    console.log(`EPÍGRAFE: ${tema.nombre} -> TEMA PADRE: ${tema.temaPadreId}`);
                                 }
 
                                 preguntasVerificadas.push({
@@ -2233,18 +2233,28 @@ async function finalizarTest() {
         
         if (testActual.tema === 'todos') {
             console.log('Caso: todos los temas');
-            // Si fue test de todos los temas, obtener todos los temas únicos de las preguntas
+            // Si fue test de todos los temas, obtener todos los temas únicos de las preguntas usando temaIdProgreso
             const temasUnicos = new Set();
             testActual.preguntas.forEach(pregunta => {
-                if (pregunta.temaId) {
-                    temasUnicos.add(pregunta.temaId);
+                const temaProgreso = pregunta.temaIdProgreso || pregunta.temaId;
+                console.log(`PREGUNTA: ${pregunta.texto.substring(0, 30)}... -> TEMA PROGRESO: ${temaProgreso}`);
+                if (temaProgreso) {
+                    temasUnicos.add(temaProgreso);
                 }
             });
             temasUtilizados = Array.from(temasUnicos);
         } else if (Array.isArray(testActual.tema)) {
-            console.log('Caso: array de temas específicos');
-            // Si fue selección específica de temas
-            temasUtilizados = testActual.tema;
+            console.log('Caso: array de temas específicos - EXTRAYENDO temaIdProgreso');
+            // CORRECCIÓN: Extraer de las preguntas usando temaIdProgreso en lugar de usar testActual.tema directamente
+            const temasUnicos = new Set();
+            testActual.preguntas.forEach(pregunta => {
+                const temaProgreso = pregunta.temaIdProgreso || pregunta.temaId;
+                console.log(`PREGUNTA: ${pregunta.texto.substring(0, 30)}... -> TEMA PROGRESO: ${temaProgreso}`);
+                if (temaProgreso) {
+                    temasUnicos.add(temaProgreso);
+                }
+            });
+            temasUtilizados = Array.from(temasUnicos);
         } else if (typeof testActual.tema === 'string' && testActual.tema !== 'repaso') {
             console.log('Caso: tema string individual');
             // Si fue un tema específico (pero no repaso)
@@ -2252,16 +2262,18 @@ async function finalizarTest() {
         } else {
             console.log('Caso: no reconocido o repaso - extrayendo de preguntas');
             // Fallback: extraer de las preguntas usando temaIdProgreso
-const temasUnicos = new Set();
-testActual.preguntas.forEach(pregunta => {
-    const temaProgreso = pregunta.temaIdProgreso || pregunta.temaId;
-    if (temaProgreso) {
-        temasUnicos.add(temaProgreso);
-    }
-});
-temasUtilizados = Array.from(temasUnicos);
+            const temasUnicos = new Set();
+            testActual.preguntas.forEach(pregunta => {
+                const temaProgreso = pregunta.temaIdProgreso || pregunta.temaId;
+                console.log(`PREGUNTA: ${pregunta.texto.substring(0, 30)}... -> TEMA PROGRESO: ${temaProgreso}`);
+                if (temaProgreso) {
+                    temasUnicos.add(temaProgreso);
+                }
+            });
+            temasUtilizados = Array.from(temasUnicos);
         }
         
+        console.log('TEMAS FINALES PARA PROGRESO:', temasUtilizados);
         console.log('Temas utilizados calculados:', temasUtilizados);
         
         // USAR SIEMPRE LA FUNCIÓN DIRECTA para mayor confiabilidad
