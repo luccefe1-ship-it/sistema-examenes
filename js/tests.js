@@ -52,12 +52,33 @@ const listaTemas = document.getElementById('listaTemas');
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', () => {
+    // Ocultar todo el contenido hasta que se decida qué mostrar
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) mainContent.style.display = 'none';
+    
     // Verificar autenticación
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             currentUser = user;
             await cargarDatosUsuario();
             await cargarTemas();
+            
+          // Verificar si debe ir a una sección específica por URL
+const urlParams = new URLSearchParams(window.location.search);
+const sectionParam = urlParams.get('section');
+if (sectionParam === 'aleatorio') {
+    cambiarSeccion('aleatorio');
+} else {
+    // Verificar si debe ir a banco
+    const debeAbrirBanco = localStorage.getItem('openBanco') === 'true';
+    if (debeAbrirBanco) {
+        localStorage.removeItem('openBanco');
+        cambiarSeccion('banco');
+    }
+}
+            
+            // Mostrar contenido ahora que ya se decidió la sección
+            if (mainContent) mainContent.style.display = 'block';
             
             // Inicializar test aleatorio si la sección está activa
             const seccionAleatorio = document.getElementById('aleatorio-section');
@@ -140,9 +161,24 @@ function setupEventListeners() {
     });
 
     // Asignar preguntas
-asignarPreguntasBtn.addEventListener('click', async () => {
-    await asignarPreguntasATema();
-});
+    asignarPreguntasBtn.addEventListener('click', async () => {
+        await asignarPreguntasATema();
+    });
+
+    // Importar archivo
+    const importarArchivoBtn = document.getElementById('importarArchivoBtn');
+    const fileInput = document.getElementById('fileInput');
+
+    if (importarArchivoBtn) {
+        importarArchivoBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', manejarArchivoSeleccionado);
+    }
+}
 
 // Importar archivo
 const importarArchivoBtn = document.getElementById('importarArchivoBtn');
@@ -157,7 +193,7 @@ if (importarArchivoBtn) {
 if (fileInput) {
     fileInput.addEventListener('change', manejarArchivoSeleccionado);
 }
-}
+
 
 // Cargar datos del usuario
 async function cargarDatosUsuario() {
@@ -177,6 +213,10 @@ async function cargarDatosUsuario() {
 
 // Cambiar sección activa
 function cambiarSeccion(seccionId) {
+    // Ocultar contenido temporalmente durante el cambio
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) mainContent.style.opacity = '0';
+    
     // Actualizar botones
     subNavBtns.forEach(btn => {
         btn.classList.remove('active');
@@ -200,14 +240,18 @@ function cambiarSeccion(seccionId) {
         cargarBancoPreguntas();
     }
     else if (seccionId === 'aleatorio') {
-        // Inicializar test aleatorio con un pequeño delay para asegurar que el DOM esté listo
         setTimeout(() => {
             inicializarTestAleatorio();
         }, 100);
     }
-    else if (seccionId === 'resultados') {
-        cargarResultados();
-    }
+   
+else if (seccionId === 'resultados') {
+    cargarResultados();
+}
+    // Mostrar contenido nuevamente
+    setTimeout(() => {
+        if (mainContent) mainContent.style.opacity = '1';
+    }, 300);
 }
 
 // Crear nuevo tema
