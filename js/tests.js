@@ -687,10 +687,23 @@ temasPrincipales.sort((a, b) => {
     }
 });
 
-// ORDENAR SUBTEMAS ALFABÉTICAMENTE DENTRO DE CADA TEMA PADRE
+// ORDENAR SUBTEMAS CON ORDENAMIENTO NUMÉRICO INTELIGENTE (IGUAL QUE TEMAS PRINCIPALES)
 Object.keys(subtemasPorPadre).forEach(padreId => {
     subtemasPorPadre[padreId].sort((a, b) => {
-        return a.data.nombre.localeCompare(b.data.nombre);
+        const nombreA = a.data.nombre;
+        const nombreB = b.data.nombre;
+        
+        // Extraer números del nombre si existen
+        const numeroA = nombreA.match(/\d+/);
+        const numeroB = nombreB.match(/\d+/);
+        
+        if (numeroA && numeroB) {
+            // Si ambos tienen números, ordenar por número
+            return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+        } else {
+            // Si no tienen números, orden alfabético normal
+            return nombreA.localeCompare(nombreB);
+        }
     });
 });
         // Renderizar temas principales con sus subtemas
