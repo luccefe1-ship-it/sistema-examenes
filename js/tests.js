@@ -695,12 +695,13 @@ temasPrincipales.sort((a, b) => {
                         <div class="tema-nombre">📚 ${tema.nombre}</div>
                         <div class="tema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
                     </div>
-                    <div class="tema-acciones">
-                        <button class="btn-secondary" onclick="crearSubtema('${id}')">📂 Crear Subtema</button>
-                        <button class="btn-exportar" onclick="exportarTema('${id}')">📤 Exportar</button>
-                        <button class="btn-secondary" onclick="editarTema('${id}')">✏️ Editar</button>
-                        <button class="btn-danger" onclick="eliminarTema('${id}')">🗑️ Eliminar</button>
-                    </div>
+                  <div class="tema-acciones">
+    <button class="btn-secondary" onclick="crearSubtema('${id}')">📂 Crear Subtema</button>
+    <button class="btn-importar" onclick="importarATema('${id}')">📥 Importar</button>
+    <button class="btn-exportar" onclick="exportarTema('${id}')">📤 Exportar</button>
+    <button class="btn-secondary" onclick="editarTema('${id}')">✏️ Editar</button>
+    <button class="btn-danger" onclick="eliminarTema('${id}')">🗑️ Eliminar</button>
+</div>
                 </div>
                 ${tema.descripcion ? `<div class="tema-descripcion">${tema.descripcion}</div>` : ''}
                 ${subtemasHTML}
@@ -782,6 +783,7 @@ function crearSubtemaHTML(subtemaId, subtema) {
                 </div>
                 
 <div class="subtema-acciones">
+    <button class="btn-importar btn-sm" onclick="importarATema('${subtemaId}')">📥 Importar</button>
     <button class="btn-exportar btn-sm" onclick="exportarTema('${subtemaId}')">📤 Exportar</button>
     <button class="btn-secondary btn-sm" onclick="editarTema('${subtemaId}')">✏️</button>
     <button class="btn-danger btn-sm" onclick="eliminarTema('${subtemaId}')">🗑️</button>
@@ -1647,8 +1649,8 @@ async function cargarTemasParaTest() {
        
         // Ordenar temas con ordenamiento numérico inteligente (igual que banco)
 temasPrincipales.sort((a, b) => {
-    const nombreA = a.data.nombre;
-    const nombreB = b.data.nombre;
+    const nombreA = a.nombre;
+    const nombreB = b.nombre;
     
     // Extraer números del nombre si existen
     const numeroA = nombreA.match(/\d+/);
@@ -3478,4 +3480,128 @@ function esTemaValido(tema, temasMap) {
         return temasMap.has(tema);
     }
     return false;
+}
+// Función para importar preguntas directamente a un tema específico
+window.importarATema = function(temaId) {
+    // Crear input file temporal
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.json';
+    fileInput.style.display = 'none';
+    
+    fileInput.addEventListener('change', async function(event) {
+        const archivo = event.target.files[0];
+        if (!archivo) return;
+        
+        if (!archivo.name.endsWith('.json')) {
+            alert('Por favor selecciona un archivo JSON válido');
+            return;
+        }
+        
+        try {
+            const texto = await leerArchivo(archivo);
+            const datos = JSON.parse(texto);
+            
+            if (validarFormatoJSON(datos)) {
+                // Procesar preguntas
+                const preguntasConvertidas = procesarPreguntasImportadas(datos);
+                
+                if (preguntasConvertidas.length === 0) {
+                    alert('No se pudieron procesar las preguntas del archivo');
+                    return;
+                }
+                
+                // Importar directamente al tema seleccionado
+                await importarPreguntasDirectoATema(preguntasConvertidas, temaId);
+                
+            } else {
+                alert('El archivo no tiene el formato correcto de preguntas');
+            }
+        } catch (error) {
+            console.error('Error procesando archivo:', error);
+            alert('Error al procesar el archivo. Verifica que sea un JSON válido');
+        }
+        
+        // Limpiar
+        document.body.removeChild(fileInput);
+    });
+    
+    // Agregar al DOM y hacer click
+    document.body.appendChild(fileInput);
+    fileInput.click();
+};
+
+// Función auxiliar para procesar preguntas importadas
+function procesarPreguntasImportadas(datos) {
+    const preguntasConvertidas = datos.questionsData.map((q, index) => {
+        // Validar campos obligatorios
+        if (!q.question || !q.options || !Array.isArray(q.options) || q.options.length < 4) {
+            return null;
+        }
+        
+        // Obtener índice de respuesta correcta
+        let indiceCorrecta = 0;
+        if (typeof q.correctAnswer === 'number') {
+            indiceCorrecta = q.correctAnswer;
+        } else if (typeof q.correctAnswer === 'string') {
+            if (['A', 'B', 'C', 'D'].includes(q.correctAnswer.toUpperCase())) {
+                indiceCorrecta = ['A', 'B', 'C', 'D'].indexOf(q.correctAnswer.toUpperCase());
+            } else {
+                indiceCorrecta = parseInt(q.correctAnswer) || 0;
+            }
+        }
+
+        return {
+            texto: String(q.question).trim(),
+            opciones: q.options.slice(0, 4).map((opcion, opcionIndex) => ({
+                letra: ['A', 'B', 'C', 'D'][opcionIndex],
+                texto: String(opcion || '').trim(),
+                esCorrecta: opcionIndex === indiceCorrecta
+            })),
+            respuestaCorrecta: ['A', 'B', 'C', 'D'][indiceCorrecta] || 'A',
+            verificada: Boolean(q.isVerified),
+            fechaCreacion: new Date()
+        };
+    }).filter(p => p !== null);
+    
+    return preguntasConvertidas;
+}
+
+// Función para importar preguntas directamente a un tema específico
+async function importarPreguntasDirectoATema(preguntasConvertidas, temaId) {
+    try {
+        // Obtener nombre del tema
+        const temaDoc = await getDoc(doc(db, "temas", temaId));
+        if (!temaDoc.exists()) {
+            alert('El tema seleccionado no existe');
+            return;
+        }
+        
+        const temaData = temaDoc.data();
+        const nombreTema = temaData.nombre;
+        
+        // Confirmar importación
+        if (!confirm(`¿Importar ${preguntasConvertidas.length} preguntas al tema "${nombreTema}"?`)) {
+            return;
+        }
+        
+        const preguntasExistentes = temaData.preguntas || [];
+        const todasLasPreguntas = [...preguntasExistentes, ...preguntasConvertidas];
+        
+        await updateDoc(doc(db, "temas", temaId), {
+            preguntas: todasLasPreguntas,
+            ultimaActualizacion: new Date()
+        });
+        
+        alert(`${preguntasConvertidas.length} preguntas importadas exitosamente al tema "${nombreTema}"`);
+        
+        // Recargar banco si está activo
+        if (document.getElementById('banco-section').classList.contains('active')) {
+            cargarBancoPreguntas();
+        }
+        
+    } catch (error) {
+        console.error('Error importando preguntas al tema:', error);
+        alert(`Error al importar las preguntas: ${error.message}`);
+    }
 }
