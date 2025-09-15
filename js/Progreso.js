@@ -96,7 +96,11 @@ function setupEventListeners() {
             abrirModalEstadisticas();
         });
     }
-
+// Event listener para resetear todos los temas
+const resetearTodosBtn = document.getElementById('resetearTodosBtn');
+if (resetearTodosBtn) {
+    resetearTodosBtn.addEventListener('click', resetearTodosTemas);
+}
     // Modal
     const guardarPersonalizacionBtn = document.getElementById('guardarPersonalizacion');
     const cancelarPersonalizacionBtn = document.getElementById('cancelarPersonalizacion');
@@ -693,6 +697,38 @@ async function guardarPersonalizacion() {
     } catch (error) {
         console.error('Error guardando personalización:', error);
         alert('Error al guardar la configuración');
+    }
+}
+// Función para resetear todos los temas
+async function resetearTodosTemas() {
+    const confirmar = confirm(`¿Estás seguro de que quieres resetear TODOS los temas a vuelta 1?\n\nEsto reiniciará:\n- Todas las vueltas a "Primera"\n- Todas las páginas estudiadas a 0\n- Mantendrá los tests realizados\n\nEsta acción no se puede deshacer.`);
+    
+    if (confirmar) {
+        try {
+            const temas = Object.values(progresoData.temas);
+            
+            for (const tema of temas) {
+                // Resetear tema a estado inicial
+                tema.paginasEstudiadas = 0;
+                tema.vueltaActual = 1;
+                tema.vueltas = [
+                    { numero: 1, completada: false, fechaInicio: new Date() }
+                ];
+                tema.ultimaActualizacion = new Date();
+                
+                console.log(`Tema ${tema.nombre} reiniciado`);
+            }
+            
+            // Guardar y actualizar
+            await guardarProgreso();
+            renderizarTablaProgreso();
+            
+            alert(`${temas.length} temas reiniciados exitosamente`);
+            
+        } catch (error) {
+            console.error('Error reiniciando todos los temas:', error);
+            alert('Error al reiniciar todos los temas');
+        }
     }
 }
 
