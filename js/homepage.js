@@ -42,8 +42,8 @@ function actualizarIconoHora() {
             iconoHora.textContent = '☀️';
             iconoHora.classList.add('manana');
         } else if (hora >= 18 && hora < 21) {
-            // Tarde: Sol naranja
-            iconoHora.textContent = '🌅';
+            // Tarde: Sol naranja  
+iconoHora.textContent = '☀️';
             iconoHora.classList.add('tarde');
         } else {
             // Noche: Luna
