@@ -706,6 +706,18 @@ Object.keys(subtemasPorPadre).forEach(padreId => {
         }
     });
 });
+// NUEVA SECCIÓN: Sumar preguntas de subtemas a los temas principales
+temasPrincipales.forEach(tema => {
+    if (subtemasPorPadre[tema.id]) {
+        const preguntasSubtemas = subtemasPorPadre[tema.id].reduce((total, subtema) => {
+            const preguntasSubtema = subtema.data.preguntas?.length || 0;
+            return total + preguntasSubtema;
+        }, 0);
+        tema.data.preguntasTotal = (tema.data.preguntas?.length || 0) + preguntasSubtemas;
+    } else {
+        tema.data.preguntasTotal = tema.data.preguntas?.length || 0;
+    }
+});
         // Renderizar temas principales con sus subtemas
         temasPrincipales.forEach(({ id, data: tema }) => {
             const temaDiv = document.createElement('div');
@@ -713,9 +725,9 @@ Object.keys(subtemasPorPadre).forEach(padreId => {
             temaDiv.draggable = true;
             temaDiv.dataset.temaId = id;
             
-            const numPreguntas = tema.preguntas?.length || 0;
             const fechaCreacion = tema.fechaCreacion?.toDate?.()?.toLocaleDateString() || 'Fecha desconocida';
             const estaAbierto = temasAbiertos.has(id);
+            const numPreguntas = tema.preguntasTotal || tema.preguntas?.length || 0;
             
             // Generar HTML de subtemas
             const subtemasHTML = subtemasPorPadre[id] && subtemasPorPadre[id].length > 0 ? 
@@ -1228,7 +1240,7 @@ window.vaciarTema = async function(temaId) {
         }
         
         const temaData = temaDoc.data();
-        const numPreguntas = temaData.preguntas?.length || 0;
+        const numPreguntas = temaData.preguntasTotal || temaData.preguntas?.length || 0;
         
         if (numPreguntas === 0) {
             alert('Este tema ya está vacío');
@@ -1714,32 +1726,40 @@ async function cargarTemasParaTest() {
             }
         });
 
+        // NUEVA SECCIÓN: Sumar preguntas de subtemas a los temas principales
+        temasPrincipales.forEach(tema => {
+            if (subtemasPorPadre[tema.id]) {
+                const preguntasSubtemas = subtemasPorPadre[tema.id].reduce((total, subtema) => {
+                    return total + subtema.preguntasVerificadas;
+                }, 0);
+                tema.preguntasVerificadas += preguntasSubtemas;
+            }
+        });
+
         // Actualizar contador de "Todos los temas"
         const preguntasTodosTemas = document.getElementById('preguntasTodosTemas');
         if (preguntasTodosTemas) {
             preguntasTodosTemas.textContent = `${totalPreguntasVerificadas} preguntas`;
         }
 
-       
         // Ordenar temas con ordenamiento numérico inteligente (igual que banco)
-temasPrincipales.sort((a, b) => {
-    const nombreA = a.nombre;
-    const nombreB = b.nombre;
-    
-    // Extraer números del nombre si existen
-    const numeroA = nombreA.match(/\d+/);
-    const numeroB = nombreB.match(/\d+/);
-    
-    if (numeroA && numeroB) {
-        // Si ambos tienen números, ordenar por número
-        return parseInt(numeroA[0]) - parseInt(numeroB[0]);
-    } else {
-        // Si no tienen números, orden alfabético normal
-        return nombreA.localeCompare(nombreB);
-    }
-});
+        temasPrincipales.sort((a, b) => {
+            const nombreA = a.nombre;
+            const nombreB = b.nombre;
+            
+            // Extraer números del nombre si existen
+            const numeroA = nombreA.match(/\d+/);
+            const numeroB = nombreB.match(/\d+/);
+            
+            if (numeroA && numeroB) {
+                // Si ambos tienen números, ordenar por número
+                return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+            } else {
+                // Si no tienen números, orden alfabético normal
+                return nombreA.localeCompare(nombreB);
+            }
+        });
 
-        // *** AQUÍ ESTÁ LA CORRECCIÓN PRINCIPAL ***
         // Renderizar temas principales con sus subtemas
         temasPrincipales.forEach((tema) => {
             const temaDiv = document.createElement('div');
@@ -1814,23 +1834,24 @@ temasPrincipales.sort((a, b) => {
     } catch (error) {
         console.error('Error cargando temas para test:', error);
     }
+    
     // Al final de cargarTemasParaTest(), FORZAR configuración
-setTimeout(() => {
-    console.log('Ejecutando configuración post-carga...');
-    forzarEventListeners();
-    
-    // Marcar primer botón de cantidad como activo
-    const primerCantidad = document.querySelector('.btn-cantidad');
-    if (primerCantidad) {
-        primerCantidad.click();
-    }
-    
-    // Marcar último botón de tiempo como activo (Sin tiempo)
-    const ultimoTiempo = document.querySelector('.btn-tiempo[data-tiempo="sin"]');
-    if (ultimoTiempo) {
-        ultimoTiempo.click();
-    }
-}, 500);
+    setTimeout(() => {
+        console.log('Ejecutando configuración post-carga...');
+        forzarEventListeners();
+        
+        // Marcar primer botón de cantidad como activo
+        const primerCantidad = document.querySelector('.btn-cantidad');
+        if (primerCantidad) {
+            primerCantidad.click();
+        }
+        
+        // Marcar último botón de tiempo como activo (Sin tiempo)
+        const ultimoTiempo = document.querySelector('.btn-tiempo[data-tiempo="sin"]');
+        if (ultimoTiempo) {
+            ultimoTiempo.click();
+        }
+    }, 500);
 }
 
 // Actualizar contador de preguntas disponibles
@@ -2974,6 +2995,20 @@ querySnapshot.forEach((doc) => {
             data: tema,
             orden: tema.orden || 0
         });
+    }
+});
+
+// NUEVA SECCIÓN: Sumar preguntas de subtemas a los temas principales
+temasPrincipales.forEach(tema => {
+    if (subtemasPorPadre[tema.id]) {
+        const preguntasSubtemas = subtemasPorPadre[tema.id].reduce((total, subtema) => {
+            const preguntasSubtema = subtema.data.preguntas?.length || 0;
+            return total + preguntasSubtema;
+        }, 0);
+        // Agregar las preguntas de subtemas al total del tema principal
+        tema.data.preguntasTotal = (tema.data.preguntas?.length || 0) + preguntasSubtemas;
+    } else {
+        tema.data.preguntasTotal = tema.data.preguntas?.length || 0;
     }
 });
 
