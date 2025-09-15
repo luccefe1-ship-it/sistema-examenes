@@ -1995,9 +1995,16 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                 
                 tema.preguntas.forEach((pregunta, index) => {
                     if (pregunta.verificada) {
+                        // Determinar el tema para progreso
+                        let temaIdParaProgreso = doc.id;
+                        if (tema.temaPadreId) {
+                            temaIdParaProgreso = tema.temaPadreId;
+                        }
+
                         preguntasVerificadas.push({
                             ...pregunta,
                             temaId: doc.id,
+                            temaIdProgreso: temaIdParaProgreso,
                             temaNombre: tema.nombre,
                             temaEpigrafe: tema.epigrafe || ''
                         });
@@ -2026,9 +2033,16 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                         let preguntasVerificadasTema = 0;
                         tema.preguntas.forEach((pregunta, index) => {
                             if (pregunta.verificada) {
+                                // Determinar el tema para progreso
+                                let temaIdParaProgreso = temaId;
+                                if (tema.temaPadreId) {
+                                    temaIdParaProgreso = tema.temaPadreId;
+                                }
+
                                 preguntasVerificadas.push({
                                     ...pregunta,
                                     temaId: temaId,
+                                    temaIdProgreso: temaIdParaProgreso,
                                     temaNombre: tema.nombre,
                                     temaEpigrafe: tema.epigrafe || ''
                                 });
@@ -2237,14 +2251,15 @@ async function finalizarTest() {
             temasUtilizados = [testActual.tema];
         } else {
             console.log('Caso: no reconocido o repaso - extrayendo de preguntas');
-            // Fallback: extraer de las preguntas
-            const temasUnicos = new Set();
-            testActual.preguntas.forEach(pregunta => {
-                if (pregunta.temaId) {
-                    temasUnicos.add(pregunta.temaId);
-                }
-            });
-            temasUtilizados = Array.from(temasUnicos);
+            // Fallback: extraer de las preguntas usando temaIdProgreso
+const temasUnicos = new Set();
+testActual.preguntas.forEach(pregunta => {
+    const temaProgreso = pregunta.temaIdProgreso || pregunta.temaId;
+    if (temaProgreso) {
+        temasUnicos.add(temaProgreso);
+    }
+});
+temasUtilizados = Array.from(temasUnicos);
         }
         
         console.log('Temas utilizados calculados:', temasUtilizados);
@@ -3724,8 +3739,9 @@ async function registrarTestDirectamenteEnTests(temasUtilizados) {
             }
             
             // Incrementar contador de tests automáticos
-            progresoData.temas[temaId].testsAutomaticos = (progresoData.temas[temaId].testsAutomaticos || 0) + 1;
-            progresoData.temas[temaId].ultimaActualizacion = new Date();
+progresoData.temas[temaId].testsAutomaticos = (progresoData.temas[temaId].testsAutomaticos || 0) + 1;
+
+progresoData.temas[temaId].ultimaActualizacion = new Date();
             
             console.log(`Test registrado para tema ${temaId}: ${progresoData.temas[temaId].testsAutomaticos} tests`);
             temasActualizados++;
