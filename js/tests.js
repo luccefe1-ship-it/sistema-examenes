@@ -239,12 +239,15 @@ function cambiarSeccion(seccionId) {
     if (seccionId === 'banco') {
         cargarBancoPreguntas();
     }
-    else if (seccionId === 'aleatorio') {
-        setTimeout(() => {
-            inicializarTestAleatorio();
-        }, 100);
-    }
-   
+else if (seccionId === 'aleatorio') {
+    setTimeout(() => {
+        // Limpiar completamente la interfaz de test antes de inicializar
+        limpiarInterfazTestCompleta();
+        inicializarTestAleatorio();
+        // Cargar test de repaso al cambiar de sección
+        cargarTestRepaso();
+    }, 100);
+}
 else if (seccionId === 'resultados') {
     cargarResultados();
 }
@@ -1554,10 +1557,10 @@ function inicializarTestAleatorio() {
             cargarTemasParaTest();
         }
 
-         // Cargar Test de Repaso disponible
-        if (currentUser) {
-            cargarTestRepaso();
-        }
+      // Cargar Test de Repaso disponible
+if (currentUser) {
+    cargarTestRepaso();
+}
 
     } catch (error) {
         console.error('Error inicializando test aleatorio:', error);
@@ -2235,6 +2238,12 @@ function mostrarResultados(resultados) {
     // Ocultar test en ejecución
     document.getElementById('testEnEjecucion').style.display = 'none';
     
+    // NUEVO: Ocultar test de repaso cuando se muestran resultados
+const containerRepaso = document.getElementById('testRepasoContainer');
+if (containerRepaso) {
+    containerRepaso.style.display = 'none';
+}
+    
     // Mostrar contenedor de resultados
     const container = document.getElementById('resultadosTest');
     container.style.display = 'block';
@@ -2242,10 +2251,22 @@ function mostrarResultados(resultados) {
     // Generar HTML de resultados
     container.innerHTML = generarHTMLResultados(resultados);
     
-    // Scroll al top
-    window.scrollTo(0, 0);
+    // NUEVO: Scroll automático al tope absoluto de la página
+setTimeout(() => {
+    // Intentar múltiples métodos para asegurar que llegue arriba del todo
+    window.scrollTo({ 
+        top: 0, 
+        left: 0,
+        behavior: 'smooth' 
+    });
+    
+    // Scroll adicional para asegurar posición
+    setTimeout(() => {
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+    }, 500);
+}, 100);
 }
-
 // Generar HTML de resultados
 function generarHTMLResultados(resultados) {
     const { correctas, incorrectas, sinResponder, total, porcentaje, detalleRespuestas, tiempoEmpleado } = resultados;
@@ -2270,39 +2291,52 @@ function generarHTMLResultados(resultados) {
     const tiempoFormateado = formatearTiempo(tiempoEmpleado);
 
     let html = '<div class="resultado-header">';
-    html += '<div class="resultado-icono">' + icono + '</div>';
-    html += '<div class="resultado-porcentaje">' + porcentaje + '%</div>';
-    html += '<div class="resultado-fraccion">' + correctas + '/' + total + '</div>';
-    html += '<div class="resultado-mensaje">' + mensaje + '</div>';
-    html += '<div class="resultado-detalles">';
-    html += testActual.nombre + ' - ' + new Date().toLocaleDateString('es-ES') + ' ' + new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
-    html += '<br>Tiempo empleado: ' + tiempoFormateado;
-    html += '</div>';
-    html += '</div>';
+// Botón hacer otro test arriba
+html += '<div style="text-align: center; margin-bottom: 20px;">';
+html += '<button onclick="volverAConfigurarTest()" class="btn-empezar-test">Hacer Otro Test</button>';
+html += '</div>';
+html += '<div class="resultado-icono">' + icono + '</div>';
+// Determinar color según aciertos
+let colorPuntuacion = '';
+if (correctas > total / 2) {
+    colorPuntuacion = '#28a745'; // Verde - más de la mitad correctas
+} else if (correctas === total / 2) {
+    colorPuntuacion = '#ffc107'; // Amarillo - exactamente la mitad
+} else {
+    colorPuntuacion = '#dc3545'; // Rojo - menos de la mitad correctas
+}
 
-    html += '<div class="estadisticas-grid">';
-    html += '<div class="estadistica-card correctas">';
-    html += '<div class="estadistica-icono">✅</div>';
-    html += '<div class="estadistica-numero">' + correctas + '</div>';
-    html += '<div class="estadistica-label">Correctas</div>';
-    html += '</div>';
-    html += '<div class="estadistica-card incorrectas">';
-    html += '<div class="estadistica-icono">❌</div>';
-    html += '<div class="estadistica-numero">' + incorrectas + '</div>';
-    html += '<div class="estadistica-label">Incorrectas</div>';
-    html += '</div>';
-    html += '<div class="estadistica-card sin-responder">';
-    html += '<div class="estadistica-icono">⭕</div>';
-    html += '<div class="estadistica-numero">' + sinResponder + '</div>';
-    html += '<div class="estadistica-label">Sin responder</div>';
-    html += '</div>';
-    html += '</div>';
+html += '<div class="resultado-porcentaje" style="color: ' + colorPuntuacion + '">' + correctas + '/' + total + '</div>';
 
-    html += '<div class="revision-respuestas">';
-    html += '<div class="revision-header">';
-    html += '<h3>Revision de Respuestas</h3>';
-    html += '<button onclick="volverAConfigurarTest()" class="btn-empezar-test" style="margin-top: 15px;">Hacer Otro Test</button>';
-    html += '</div>';
+html += '<div class="resultado-mensaje">' + mensaje + '</div>';
+html += '<div class="resultado-detalles">';
+html += testActual.nombre + ' - ' + new Date().toLocaleDateString('es-ES') + ' ' + new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+html += '<br>Tiempo empleado: ' + tiempoFormateado;
+html += '</div>';
+html += '</div>';
+
+html += '<div class="estadisticas-grid">';
+html += '<div class="estadistica-card correctas">';
+html += '<div class="estadistica-icono">✅</div>';
+html += '<div class="estadistica-numero">' + correctas + '</div>';
+html += '<div class="estadistica-label">Correctas</div>';
+html += '</div>';
+html += '<div class="estadistica-card incorrectas">';
+html += '<div class="estadistica-icono">❌</div>';
+html += '<div class="estadistica-numero">' + incorrectas + '</div>';
+html += '<div class="estadistica-label">Incorrectas</div>';
+html += '</div>';
+html += '<div class="estadistica-card sin-responder">';
+html += '<div class="estadistica-icono">⭕</div>';
+html += '<div class="estadistica-numero">' + sinResponder + '</div>';
+html += '<div class="estadistica-label">Sin responder</div>';
+html += '</div>';
+html += '</div>';
+
+html += '<div class="revision-respuestas">';
+html += '<div class="revision-header">';
+html += '<h3>Revision de Respuestas</h3>';
+html += '</div>';
     
     detalleRespuestas.forEach(detalle => {
         html += '<div class="pregunta-revision ' + detalle.estado + '">';
@@ -2518,10 +2552,10 @@ window.volverAConfigurarTest = function() {
     if (resultadosTest) {
         resultadosTest.style.display = 'none';
     }
-    // Mostrar test de repaso nuevamente si hay preguntas falladas
-    if (containerRepaso) {
-        cargarTestRepaso();
-    }
+ // Mostrar test de repaso nuevamente si hay preguntas falladas
+if (containerRepaso) {
+    cargarTestRepaso();
+}
     
     // Limpiar formulario
     const nombreTest = document.getElementById('nombreTest');
@@ -3603,5 +3637,41 @@ async function importarPreguntasDirectoATema(preguntasConvertidas, temaId) {
     } catch (error) {
         console.error('Error importando preguntas al tema:', error);
         alert(`Error al importar las preguntas: ${error.message}`);
+    }
+}
+// Limpiar completamente la interfaz de test
+function limpiarInterfazTestCompleta() {
+    // Limpiar variables globales
+    testActual = null;
+    respuestasUsuario = {};
+    
+    if (cronometroInterval) {
+        clearInterval(cronometroInterval);
+    }
+    
+    // Mostrar configuración y ocultar otras pantallas
+    const configContainer = document.querySelector('.test-config-container');
+    const testEjecucion = document.getElementById('testEnEjecucion');
+    const resultadosTest = document.getElementById('resultadosTest');
+    
+    if (configContainer) {
+        configContainer.style.display = 'block';
+    }
+    if (testEjecucion) {
+        testEjecucion.style.display = 'none';
+    }
+    if (resultadosTest) {
+        resultadosTest.style.display = 'none';
+    }
+    
+    // Limpiar formulario
+    const nombreTest = document.getElementById('nombreTest');
+    const tiempoRestante = document.getElementById('tiempoRestante');
+    
+    if (nombreTest) {
+        nombreTest.value = '';
+    }
+    if (tiempoRestante) {
+        tiempoRestante.style.color = '#dc3545';
     }
 }
