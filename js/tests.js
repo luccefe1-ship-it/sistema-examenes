@@ -126,6 +126,13 @@ function setupEventListeners() {
     crearTemaBtn.addEventListener('click', () => {
         modalCrearTema.style.display = 'block';
     });
+    // Botón crear tema en banco de preguntas
+const crearTemaBancoBtn = document.getElementById('crearTemaBancoBtn');
+if (crearTemaBancoBtn) {
+    crearTemaBancoBtn.addEventListener('click', () => {
+        modalCrearTema.style.display = 'block';
+    });
+}
 
     seleccionarTemaBtn.addEventListener('click', async () => {
         await cargarTemasEnSelect();
@@ -680,6 +687,12 @@ temasPrincipales.sort((a, b) => {
     }
 });
 
+// ORDENAR SUBTEMAS ALFABÉTICAMENTE DENTRO DE CADA TEMA PADRE
+Object.keys(subtemasPorPadre).forEach(padreId => {
+    subtemasPorPadre[padreId].sort((a, b) => {
+        return a.data.nombre.localeCompare(b.data.nombre);
+    });
+});
         // Renderizar temas principales con sus subtemas
         temasPrincipales.forEach(({ id, data: tema }) => {
             const temaDiv = document.createElement('div');
@@ -692,19 +705,29 @@ temasPrincipales.sort((a, b) => {
             const estaAbierto = temasAbiertos.has(id);
             
             // Generar HTML de subtemas
-            const subtemasHTML = subtemasPorPadre[id] ? 
-                subtemasPorPadre[id].map(subtema => crearSubtemaHTML(subtema.id, subtema.data)).join('') : '';
+            const subtemasHTML = subtemasPorPadre[id] && subtemasPorPadre[id].length > 0 ? 
+    `<div class="subtemas-wrapper" id="subtemas-wrapper-${id}">
+        ${subtemasPorPadre[id].map(subtema => crearSubtemaHTML(subtema.id, subtema.data)).join('')}
+    </div>` : '';
             
             temaDiv.innerHTML = `
                 <div class="tema-header">
                     <div class="tema-info">
-                        <div class="tema-nombre">📚 ${tema.nombre}</div>
+                        <div class="tema-nombre">
+    📚 ${tema.nombre}
+    ${subtemasPorPadre[id] && subtemasPorPadre[id].length > 0 ? 
+        `<button class="btn-toggle-subtemas" onclick="toggleSubtemasVisibilidad('${id}')" title="Mostrar/Ocultar subtemas">
+            <span id="toggle-icon-${id}">📂</span>
+        </button>` : ''
+    }
+</div>
                         <div class="tema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
                     </div>
                   <div class="tema-acciones">
     <button class="btn-secondary" onclick="crearSubtema('${id}')">📂 Crear Subtema</button>
     <button class="btn-importar" onclick="importarATema('${id}')">📥 Importar</button>
     <button class="btn-exportar" onclick="exportarTema('${id}')">📤 Exportar</button>
+    <button class="btn-warning" onclick="vaciarTema('${id}')">🧹 Vaciar Tema</button>
     <button class="btn-secondary" onclick="editarTema('${id}')">✏️ Editar</button>
     <button class="btn-danger" onclick="eliminarTema('${id}')">🗑️ Eliminar</button>
 </div>
@@ -1180,6 +1203,38 @@ window.editarTema = async function(temaId) {
     } catch (error) {
         console.error('Error editando tema:', error);
         alert('Error al editar el tema');
+    }
+};
+// Vaciar tema (eliminar solo las preguntas)
+window.vaciarTema = async function(temaId) {
+    try {
+        const temaDoc = await getDoc(doc(db, "temas", temaId));
+        if (!temaDoc.exists()) {
+            alert('Tema no encontrado');
+            return;
+        }
+        
+        const temaData = temaDoc.data();
+        const numPreguntas = temaData.preguntas?.length || 0;
+        
+        if (numPreguntas === 0) {
+            alert('Este tema ya está vacío');
+            return;
+        }
+        
+        if (confirm(`¿Estás seguro de que quieres eliminar las ${numPreguntas} preguntas del tema "${temaData.nombre}"? El tema se mantendrá pero quedará vacío.`)) {
+            await updateDoc(doc(db, "temas", temaId), {
+                preguntas: [],
+                ultimaActualizacion: new Date()
+            });
+            
+            alert(`Se eliminaron ${numPreguntas} preguntas del tema "${temaData.nombre}"`);
+            cargarBancoPreguntas();
+        }
+        
+    } catch (error) {
+        console.error('Error vaciando tema:', error);
+        alert('Error al vaciar el tema');
     }
 };
 window.eliminarTema = async function(temaId) {
@@ -3730,3 +3785,25 @@ function forzarEventListeners() {
     }, 2000); // Aumentar a 2 segundos
 }
 // Llamar la función cuando se cambie a la sección aleatorio
+// Variables para recordar estado de subtemas
+let subtemasOcultos = new Set();
+
+// Función para mostrar/ocultar subtemas
+window.toggleSubtemasVisibilidad = function(temaId) {
+    const wrapper = document.getElementById(`subtemas-wrapper-${temaId}`);
+    const icon = document.getElementById(`toggle-icon-${temaId}`);
+    
+    if (!wrapper || !icon) return;
+    
+    if (subtemasOcultos.has(temaId)) {
+        // Mostrar subtemas
+        wrapper.style.display = 'block';
+        icon.textContent = '📂';
+        subtemasOcultos.delete(temaId);
+    } else {
+        // Ocultar subtemas
+        wrapper.style.display = 'none';
+        icon.textContent = '📁';
+        subtemasOcultos.add(temaId);
+    }
+};
