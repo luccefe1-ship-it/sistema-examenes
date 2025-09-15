@@ -3,14 +3,15 @@ import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/
 import { 
     doc, 
     getDoc, 
-    updateDoc,  // <- Esta línea debe estar presente
+    updateDoc,
     addDoc, 
     deleteDoc, 
     getDocs, 
     query, 
     where, 
     collection, 
-    writeBatch 
+    writeBatch,
+    setDoc  // <-- AÑADIR ESTA LÍNEA
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 // Variables globales
 let currentUser = null;
@@ -246,6 +247,8 @@ else if (seccionId === 'aleatorio') {
         inicializarTestAleatorio();
         // Cargar test de repaso al cambiar de sección
         cargarTestRepaso();
+        // Forzar event listeners
+        forzarEventListeners();
     }, 100);
 }
 else if (seccionId === 'resultados') {
@@ -1743,46 +1746,24 @@ temasPrincipales.sort((a, b) => {
     } catch (error) {
         console.error('Error cargando temas para test:', error);
     }
+    // Al final de cargarTemasParaTest(), FORZAR configuración
+setTimeout(() => {
+    console.log('Ejecutando configuración post-carga...');
+    forzarEventListeners();
+    
+    // Marcar primer botón de cantidad como activo
+    const primerCantidad = document.querySelector('.btn-cantidad');
+    if (primerCantidad) {
+        primerCantidad.click();
+    }
+    
+    // Marcar último botón de tiempo como activo (Sin tiempo)
+    const ultimoTiempo = document.querySelector('.btn-tiempo[data-tiempo="sin"]');
+    if (ultimoTiempo) {
+        ultimoTiempo.click();
+    }
+}, 500);
 }
-
-// Funciones globales para el dropdown
-window.toggleDropdownTemas = function() {
-    const content = document.getElementById('dropdownTemasContent');
-    const arrow = document.querySelector('.dropdown-arrow');
-    
-    if (content.style.display === 'block') {
-        content.style.display = 'none';
-        arrow.textContent = '▼';
-    } else {
-        content.style.display = 'block';
-        arrow.textContent = '▲';
-    }
-};
-
-window.toggleSubtemas = function(temaId) {
-    const container = document.getElementById(`subtemas-${temaId}`);
-    const arrow = document.getElementById(`arrow-${temaId}`);
-    
-    if (container.style.display === 'none') {
-        container.style.display = 'block';
-        arrow.textContent = '▼';
-    } else {
-        container.style.display = 'none';
-        arrow.textContent = '▶';
-    }
-};
-
-
-// Cerrar dropdown al hacer click fuera
-document.addEventListener('click', function(event) {
-    const dropdown = document.querySelector('.dropdown-temas');
-    const content = document.getElementById('dropdownTemasContent');
-    
-    if (dropdown && !dropdown.contains(event.target) && content && content.style.display === 'block') {
-        content.style.display = 'none';
-        document.querySelector('.dropdown-arrow').textContent = '▼';
-    }
-});
 
 // Actualizar contador de preguntas disponibles
 async function actualizarPreguntasDisponibles() {
@@ -1821,8 +1802,46 @@ async function actualizarPreguntasDisponibles() {
 }
 
 // Empezar test
+// Función corregida para obtener temas seleccionados
+function obtenerTemasSeleccionados() {
+    console.log('=== DEBUG OBTENER TEMAS SELECCIONADOS ===');
+    
+    const todosLosTemas = document.getElementById('todosLosTemas');
+    
+    if (todosLosTemas && todosLosTemas.checked) {
+        console.log('RESULTADO: "todos"');
+        return 'todos';
+    }
+    
+    // Obtener checkboxes marcados excluyendo "todos los temas"
+    const checkboxesMarcados = document.querySelectorAll('.tema-checkbox:checked:not(#todosLosTemas)');
+    console.log('Checkboxes de temas específicos encontrados:', checkboxesMarcados.length);
+    
+    const idsSeleccionados = Array.from(checkboxesMarcados).map(cb => cb.value);
+    console.log('IDs extraídos:', idsSeleccionados);
+    
+    if (idsSeleccionados.length === 0) {
+        console.log('FALLBACK: No hay temas específicos, devolviendo "todos"');
+        return 'todos';
+    }
+    
+    console.log('RESULTADO FINAL:', idsSeleccionados);
+    return idsSeleccionados;
+}
+
+
+// Empezar test
 async function empezarTest() {
+    console.log('=== DEBUG EMPEZAR TEST ===');
+    
     const temasSeleccionados = obtenerTemasSeleccionados();
+    console.log('Temas seleccionados devueltos:', temasSeleccionados);
+    console.log('Tipo de temasSeleccionados:', typeof temasSeleccionados);
+    console.log('Es array:', Array.isArray(temasSeleccionados));
+    if (Array.isArray(temasSeleccionados)) {
+        console.log('Longitud del array:', temasSeleccionados.length);
+    }
+    
     const numPreguntas = document.getElementById('preguntasSeleccionadas').value;
     const tiempoSeleccionado = document.getElementById('tiempoSeleccionado').value;
     const nombreTest = document.getElementById('nombreTest').value.trim();
@@ -1848,7 +1867,8 @@ async function empezarTest() {
         }
 
         // Determinar número final de preguntas
-        const numFinal = numPreguntas === 'todas' ? preguntasDisponibles.length : Math.min(parseInt(numPreguntas), preguntasDisponibles.length);
+        const numFinal = numPreguntas === 'todas' ? 
+            preguntasDisponibles.length : Math.min(parseInt(numPreguntas), preguntasDisponibles.length);
         
         if (numFinal > preguntasDisponibles.length) {
             alert(`Solo hay ${preguntasDisponibles.length} preguntas verificadas disponibles`);
@@ -1867,7 +1887,7 @@ async function empezarTest() {
             tiempoLimite: tiempoSeleccionado,
             fechaInicio: new Date(),
             usuarioId: currentUser.uid,
-            esRepaso: false  // Marcar como test normal (no repaso)
+            esRepaso: false
         };
 
         respuestasUsuario = {};
@@ -1886,19 +1906,7 @@ async function empezarTest() {
     }
 }
 
-// Obtener temas seleccionados
-function obtenerTemasSeleccionados() {
-    const todosLosTemas = document.getElementById('todosLosTemas');
-    const temasCheckboxes = document.querySelectorAll('.tema-checkbox:checked');
-    
-    if (todosLosTemas && todosLosTemas.checked) {
-        return 'todos';
-    } else {
-        return Array.from(temasCheckboxes).map(cb => cb.value);
-    }
-}
-
-// Obtener preguntas verificadas (VERSIÓN CON DEBUG)
+// Obtener preguntas verificadas (VERSIÓN CORREGIDA)
 async function obtenerPreguntasVerificadas(temasSeleccionados) {
     console.log('=== OBTENER PREGUNTAS VERIFICADAS ===');
     console.log('Temas seleccionados:', temasSeleccionados);
@@ -1926,53 +1934,59 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                             temaEpigrafe: tema.epigrafe || ''
                         });
                         console.log(`  Pregunta verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
-                    } else {
-                        console.log(`  Pregunta NO verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
                     }
                 });
-            } else {
-                console.log(`  Tema sin preguntas`);
             }
         });
-    } else if (Array.isArray(temasSeleccionados)) {
+    } else if (Array.isArray(temasSeleccionados) && temasSeleccionados.length > 0) {
         console.log('Caso: array de temas específicos');
         console.log('IDs de temas a procesar:', temasSeleccionados);
         
-        // Múltiples temas específicos
+        // CORRECCIÓN: Procesar cada tema del array
         for (const temaId of temasSeleccionados) {
-            console.log(`\nBuscando tema con ID: ${temaId}`);
+            console.log(`\n--- Procesando tema ID: ${temaId} ---`);
             
-            const temaDoc = await getDoc(doc(db, "temas", temaId));
-            if (temaDoc.exists()) {
-                const tema = temaDoc.data();
-                console.log(`  Tema encontrado: ${tema.nombre}`);
-                
-                if (tema.preguntas) {
-                    console.log(`  Total preguntas en el tema: ${tema.preguntas.length}`);
+            try {
+                const temaDoc = await getDoc(doc(db, "temas", temaId));
+                if (temaDoc.exists()) {
+                    const tema = temaDoc.data();
+                    console.log(`✅ Tema encontrado: ${tema.nombre}`);
                     
-                    tema.preguntas.forEach((pregunta, index) => {
-                        if (pregunta.verificada) {
-                            preguntasVerificadas.push({
-                                ...pregunta,
-                                temaId: temaId,
-                                temaNombre: tema.nombre,
-                                temaEpigrafe: tema.epigrafe || ''
-                            });
-                            console.log(`    Pregunta verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
-                        } else {
-                            console.log(`    Pregunta NO verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
-                        }
-                    });
+                    if (tema.preguntas && tema.preguntas.length > 0) {
+                        console.log(`  Total preguntas en el tema: ${tema.preguntas.length}`);
+                        
+                        let preguntasVerificadasTema = 0;
+                        tema.preguntas.forEach((pregunta, index) => {
+                            if (pregunta.verificada) {
+                                preguntasVerificadas.push({
+                                    ...pregunta,
+                                    temaId: temaId,
+                                    temaNombre: tema.nombre,
+                                    temaEpigrafe: tema.epigrafe || ''
+                                });
+                                preguntasVerificadasTema++;
+                                console.log(`    ✓ Pregunta verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
+                            } else {
+                                console.log(`    ✗ Pregunta NO verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
+                            }
+                        });
+                        
+                        console.log(`  📊 Total verificadas de este tema: ${preguntasVerificadasTema}`);
+                    } else {
+                        console.log(`  ⚠️ Tema sin preguntas`);
+                    }
                 } else {
-                    console.log(`  Tema sin preguntas`);
+                    console.log(`  ❌ TEMA NO ENCONTRADO: ${temaId}`);
                 }
-            } else {
-                console.log(`  ❌ TEMA NO ENCONTRADO: ${temaId}`);
+            } catch (error) {
+                console.error(`Error procesando tema ${temaId}:`, error);
             }
         }
+    } else {
+        console.log('❌ Caso no válido - temasSeleccionados:', temasSeleccionados);
     }
 
-    console.log(`\nRESUMEN FINAL:`);
+    console.log(`\n=== RESUMEN FINAL ===`);
     console.log(`Total preguntas verificadas recopiladas: ${preguntasVerificadas.length}`);
     
     // Agrupar por tema para el resumen
@@ -2149,12 +2163,12 @@ async function finalizarTest() {
             console.log('Caso: array de temas específicos');
             // Si fue selección específica de temas
             temasUtilizados = testActual.tema;
-        } else if (typeof testActual.tema === 'string') {
+        } else if (typeof testActual.tema === 'string' && testActual.tema !== 'repaso') {
             console.log('Caso: tema string individual');
-            // Si fue un tema específico
+            // Si fue un tema específico (pero no repaso)
             temasUtilizados = [testActual.tema];
         } else {
-            console.log('Caso: no reconocido - extrayendo de preguntas');
+            console.log('Caso: no reconocido o repaso - extrayendo de preguntas');
             // Fallback: extraer de las preguntas
             const temasUnicos = new Set();
             testActual.preguntas.forEach(pregunta => {
@@ -2166,15 +2180,14 @@ async function finalizarTest() {
         }
         
         console.log('Temas utilizados calculados:', temasUtilizados);
-        console.log('Función registrarTestCompletado existe:', typeof window.registrarTestCompletado === 'function');
-        console.log('=====================================');
         
-        // Registrar directamente en Firebase sin depender de Progreso.js
-try {
-    await registrarTestDirectamente(temasUtilizados);
-} catch (error) {
-    console.error('Error registrando test directamente:', error);
-}
+        // USAR SIEMPRE LA FUNCIÓN DIRECTA para mayor confiabilidad
+        if (temasUtilizados.length > 0) {
+            console.log('Registrando test directamente...');
+            await registrarTestDirectamenteEnTests(temasUtilizados);
+        } else {
+            console.log('No hay temas válidos para registrar');
+        }
         
     } catch (error) {
         console.error('Error integrando con progreso:', error);
@@ -3030,50 +3043,7 @@ function descargarJSON(data, filename) {
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
 }
-// Función para registrar test directamente en Firebase
-async function registrarTestDirectamente(temasUtilizados) {
-    try {
-        console.log('Registrando test directamente para temas:', temasUtilizados);
-        
-        // Obtener datos de progreso del usuario
-        const progresoDoc = await getDoc(doc(db, "progreso", currentUser.uid));
-        
-        if (!progresoDoc.exists()) {
-            console.log('No existe progreso para el usuario');
-            return;
-        }
-        
-        const progresoData = progresoDoc.data();
-        
-        // Incrementar testsAutomaticos para cada tema utilizado
-        let temasActualizados = 0;
-        
-        temasUtilizados.forEach(temaId => {
-            if (progresoData.temas && progresoData.temas[temaId]) {
-                // Asegurar que existe el campo testsAutomaticos
-                if (progresoData.temas[temaId].testsAutomaticos === undefined) {
-                    progresoData.temas[temaId].testsAutomaticos = 0;
-                }
-                
-                progresoData.temas[temaId].testsAutomaticos++;
-                progresoData.temas[temaId].ultimaActualizacion = new Date();
-                temasActualizados++;
-                
-                console.log(`Test automático registrado para tema ${temaId}: ${progresoData.temas[temaId].testsAutomaticos}`);
-            }
-        });
-        
-        if (temasActualizados > 0) {
-            // Guardar en Firebase
-            progresoData.ultimaActualizacion = new Date();
-            await setDoc(doc(db, "progreso", currentUser.uid), progresoData);
-            console.log(`Test registrado exitosamente en ${temasActualizados} temas`);
-        }
-        
-    } catch (error) {
-        console.error('Error registrando test directamente:', error);
-    }
-}
+
 // Funciones auxiliares mejoradas
 function mezclarArray(array) {
     const shuffled = [...array];
@@ -3095,14 +3065,14 @@ function mezclarArray(array) {
 
 // Función para obtener preguntas con distribución proporcional entre temas
 function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
-    console.log('=== DISTRIBUCIÓN PROPORCIONAL DEBUG ===');
+    console.log('=== DISTRIBUCIÓN PARITARIA DEBUG ===');
     console.log(`Total preguntas recibidas: ${preguntas.length}`);
     console.log(`Cantidad solicitada: ${cantidad}`);
     
-    // Debug: mostrar todas las preguntas recibidas con sus temas
-    console.log('Preguntas recibidas por tema:');
-    preguntas.forEach((p, i) => {
-        console.log(`  ${i}: ${p.temaNombre} (ID: ${p.temaId}) - ${p.texto.substring(0, 50)}...`);
+    // AÑADIR ESTE DEBUG
+    console.log('DETALLE DE PREGUNTAS RECIBIDAS:');
+    preguntas.forEach((p, index) => {
+        console.log(`${index + 1}. ${p.temaNombre || p.temaId} - Verificada: ${p.verificada} - "${p.texto.substring(0, 50)}..."`);
     });
     
     // Crear un Map para asegurar unicidad por texto de pregunta
@@ -3120,107 +3090,69 @@ function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
     const arrayUnico = Array.from(preguntasUnicas.values());
     console.log(`Preguntas únicas después de filtrar: ${arrayUnico.length}`);
     
-    // Debug: mostrar preguntas únicas por tema
-    console.log('Preguntas únicas por tema:');
-    arrayUnico.forEach((p, i) => {
-        console.log(`  ${i}: ${p.temaNombre} (ID: ${p.temaId}) - ${p.texto.substring(0, 50)}...`);
+    // Agrupar por tema
+    const preguntasPorTema = {};
+    arrayUnico.forEach(pregunta => {
+        const tema = pregunta.temaNombre || pregunta.temaId || 'Desconocido';
+        if (!preguntasPorTema[tema]) {
+            preguntasPorTema[tema] = [];
+        }
+        preguntasPorTema[tema].push(pregunta);
+    });
+    
+    const temas = Object.keys(preguntasPorTema);
+    console.log(`Temas encontrados: ${temas.join(', ')}`);
+    
+    temas.forEach(tema => {
+        console.log(`${tema}: ${preguntasPorTema[tema].length} preguntas`);
     });
     
     // Si se piden todas las preguntas o hay menos disponibles, devolver todas mezcladas
     if (cantidad >= arrayUnico.length) {
+        console.log('Devolviendo todas las preguntas mezcladas');
         return mezclarArray(arrayUnico);
     }
     
-    // Agrupar preguntas por tema para distribución proporcional
-    const preguntasPorTema = {};
-    arrayUnico.forEach(pregunta => {
-        const temaId = pregunta.temaId || 'sin-tema';
-        if (!preguntasPorTema[temaId]) {
-            preguntasPorTema[temaId] = [];
-        }
-        preguntasPorTema[temaId].push(pregunta);
-    });
-    
-    console.log('Agrupación por tema:');
-    Object.entries(preguntasPorTema).forEach(([temaId, preguntas]) => {
-        console.log(`  Tema ${temaId}: ${preguntas.length} preguntas`);
-        preguntas.forEach((p, i) => {
-            console.log(`    ${i}: ${p.temaNombre} - ${p.texto.substring(0, 50)}...`);
-        });
-    });
-    
-    const temasConPreguntas = Object.keys(preguntasPorTema);
-    console.log(`Total temas encontrados: ${temasConPreguntas.length}`);
-    
-    // Si solo hay un tema con preguntas, devolver muestra aleatoria normal
-    if (temasConPreguntas.length === 1) {
-        console.log('Solo un tema disponible, devolviendo muestra aleatoria');
-        const mezclado = mezclarArray(arrayUnico);
-        return mezclado.slice(0, cantidad);
+    if (temas.length === 1) {
+        console.log('Solo un tema, selección aleatoria normal');
+        return mezclarArray(arrayUnico).slice(0, cantidad);
     }
     
-    // Calcular distribución proporcional
-    const preguntasSeleccionadas = [];
-    const preguntasPorTemaMinimo = Math.floor(cantidad / temasConPreguntas.length);
-    const preguntasExtra = cantidad % temasConPreguntas.length;
+    // RESTO DE LA FUNCIÓN IGUAL...
+    const preguntasPorTemaObjetivo = Math.floor(cantidad / temas.length);
+    const preguntasExtra = cantidad % temas.length;
     
-    console.log(`Distribución calculada:`);
-    console.log(`  Preguntas mínimas por tema: ${preguntasPorTemaMinimo}`);
-    console.log(`  Preguntas extra a distribuir: ${preguntasExtra}`);
-    console.log(`  Total temas: ${temasConPreguntas.length}`);
+    console.log(`Preguntas por tema: ${preguntasPorTemaObjetivo}`);
+    console.log(`Preguntas extra: ${preguntasExtra}`);
     
-    // Asignar preguntas garantizando que TODOS los temas estén representados
-    temasConPreguntas.forEach((temaId, index) => {
-        const preguntasDelTema = [...preguntasPorTema[temaId]]; // No mezclar aún
-        let preguntasATomar = preguntasPorTemaMinimo;
-        
-        // Si hay preguntas extra, distribuirlas en los primeros temas
+    const preguntasFinales = [];
+    
+    temas.forEach((tema, index) => {
+        let preguntasATomar = preguntasPorTemaObjetivo;
         if (index < preguntasExtra) {
             preguntasATomar += 1;
         }
         
-        // GARANTIZAR al menos 1 pregunta por tema si es posible
-        if (preguntasATomar === 0 && preguntasDelTema.length > 0) {
-            preguntasATomar = 1;
-        }
+        const preguntasDelTema = preguntasPorTema[tema];
+        const preguntasTomadas = Math.min(preguntasATomar, preguntasDelTema.length);
         
-        // No tomar más preguntas de las disponibles en el tema
-        preguntasATomar = Math.min(preguntasATomar, preguntasDelTema.length);
+        const preguntasMezcladas = mezclarArray([...preguntasDelTema]);
+        preguntasFinales.push(...preguntasMezcladas.slice(0, preguntasTomadas));
         
-        console.log(`Procesando tema ${temaId} (${index + 1}/${temasConPreguntas.length}):`);
-        console.log(`  Preguntas disponibles: ${preguntasDelTema.length}`);
-        console.log(`  Preguntas a tomar: ${preguntasATomar}`);
-        
-        // Mezclar solo las preguntas de este tema específico
-        const preguntasDelTemaMezcladas = mezclarArray(preguntasDelTema);
-        const preguntasTomadas = preguntasDelTemaMezcladas.slice(0, preguntasATomar);
-        
-        console.log(`  Preguntas tomadas realmente: ${preguntasTomadas.length}`);
-        preguntasTomadas.forEach((p, i) => {
-            console.log(`    ${i}: ${p.temaNombre} - ${p.texto.substring(0, 50)}...`);
-        });
-        
-        preguntasSeleccionadas.push(...preguntasTomadas);
+        console.log(`${tema}: ${preguntasTomadas} preguntas seleccionadas`);
     });
     
-    console.log(`Total preguntas seleccionadas: ${preguntasSeleccionadas.length}`);
-    console.log('Verificación final de distribución:');
+    if (preguntasFinales.length < cantidad) {
+        const preguntasUsadas = new Set(preguntasFinales.map(p => p.texto));
+        const preguntasRestantes = arrayUnico.filter(p => !preguntasUsadas.has(p.texto));
+        const faltantes = cantidad - preguntasFinales.length;
+        
+        preguntasFinales.push(...mezclarArray(preguntasRestantes).slice(0, faltantes));
+        console.log(`Agregadas ${faltantes} preguntas adicionales`);
+    }
     
-    // Verificar distribución final
-    const distribucionFinal = {};
-    preguntasSeleccionadas.forEach(p => {
-        const tema = p.temaNombre || p.temaId || 'sin-tema';
-        distribucionFinal[tema] = (distribucionFinal[tema] || 0) + 1;
-    });
-    
-    Object.entries(distribucionFinal).forEach(([tema, count]) => {
-        console.log(`  ${tema}: ${count} preguntas`);
-    });
-    
-    console.log('==========================================');
-    
-    // Mezclar el resultado final para que no aparezcan agrupadas por tema
-    return mezclarArray(preguntasSeleccionadas);
+    console.log(`Total final: ${preguntasFinales.length} preguntas`);
+    return mezclarArray(preguntasFinales);
 }
 // ==== FUNCIONALIDAD TEST DE REPASO ====
 
@@ -3675,3 +3607,126 @@ function limpiarInterfazTestCompleta() {
         tiempoRestante.style.color = '#dc3545';
     }
 }
+// Función para registrar test directamente si Progreso.js no está cargado
+// Función mejorada para registrar test directamente con mejor manejo de datos
+async function registrarTestDirectamenteEnTests(temasUtilizados) {
+    try {
+        console.log('=== REGISTRANDO TEST DIRECTAMENTE ===');
+        console.log('Temas a registrar:', temasUtilizados);
+        
+        // Obtener o crear documento de progreso
+        const progresoRef = doc(db, "progreso", currentUser.uid);
+        let progresoDoc = await getDoc(progresoRef);
+        let progresoData = {};
+        
+        if (progresoDoc.exists()) {
+            progresoData = progresoDoc.data();
+            console.log('Documento de progreso existente encontrado');
+        } else {
+            console.log('Creando nuevo documento de progreso');
+            progresoData = {
+                usuarioId: currentUser.uid,
+                temas: {},
+                fechaCreacion: new Date(),
+                ultimaActualizacion: new Date()
+            };
+        }
+        
+        // Asegurar que existe la estructura de temas
+        if (!progresoData.temas) {
+            progresoData.temas = {};
+        }
+        
+        let temasActualizados = 0;
+        
+        // Registrar test para cada tema utilizado
+        for (const temaId of temasUtilizados) {
+            console.log(`Procesando tema: ${temaId}`);
+            
+            // Inicializar tema si no existe
+            if (!progresoData.temas[temaId]) {
+                progresoData.temas[temaId] = {
+                    sesionesEstudio: 0,
+                    testsAutomaticos: 0,
+                    preguntasMemorizadas: 0,
+                    fechaCreacion: new Date(),
+                    ultimaActualizacion: new Date()
+                };
+                console.log(`Tema ${temaId} inicializado`);
+            }
+            
+            // Incrementar contador de tests automáticos
+            progresoData.temas[temaId].testsAutomaticos = (progresoData.temas[temaId].testsAutomaticos || 0) + 1;
+            progresoData.temas[temaId].ultimaActualizacion = new Date();
+            
+            console.log(`Test registrado para tema ${temaId}: ${progresoData.temas[temaId].testsAutomaticos} tests`);
+            temasActualizados++;
+        }
+        
+        if (temasActualizados > 0) {
+            // Actualizar fecha de última actualización general
+            progresoData.ultimaActualizacion = new Date();
+            
+            // Guardar en Firebase usando setDoc para asegurar que se guarde
+            await setDoc(progresoRef, progresoData);
+            
+            console.log(`✅ Test registrado exitosamente en ${temasActualizados} temas`);
+            console.log('Datos guardados:', progresoData.temas);
+        } else {
+            console.log('❌ No se actualizaron temas');
+        }
+        
+        console.log('=====================================');
+        
+    } catch (error) {
+        console.error('❌ Error registrando test directamente:', error);
+        console.error('Stack trace:', error.stack);
+    }
+}
+// CORRECCIÓN DEFINITIVA DE EVENT LISTENERS
+// REEMPLAZA COMPLETAMENTE la función forzarEventListeners
+function forzarEventListeners() {
+    console.log('=== FORZAR EVENT LISTENERS ===');
+    
+    // ESPERAR MÁS TIEMPO para que TODO esté cargado
+    setTimeout(() => {
+        // 1. BOTÓN EMPEZAR TEST (este debe existir siempre)
+        const btnEmpezar = document.getElementById('empezarTestBtn');
+        if (btnEmpezar) {
+            btnEmpezar.removeEventListener('click', empezarTest);
+            btnEmpezar.addEventListener('click', empezarTest);
+            console.log('✅ Botón empezar test configurado');
+        } else {
+            console.log('❌ No se encontró empezarTestBtn');
+        }
+
+        // 2. BOTONES DE CANTIDAD (estos se crean dinámicamente)
+        const botonesCantidad = document.querySelectorAll('.btn-cantidad');
+        console.log(`Botones cantidad encontrados: ${botonesCantidad.length}`);
+        botonesCantidad.forEach(btn => {
+            btn.removeEventListener('click', manejarClickCantidad);
+            btn.addEventListener('click', manejarClickCantidad);
+        });
+
+        // 3. BOTONES DE TIEMPO (estos se crean dinámicamente)  
+        const botonesTiempo = document.querySelectorAll('.btn-tiempo');
+        console.log(`Botones tiempo encontrados: ${botonesTiempo.length}`);
+        botonesTiempo.forEach(btn => {
+            btn.removeEventListener('click', manejarClickTiempo);
+            btn.addEventListener('click', manejarClickTiempo);
+        });
+
+        // 4. VERIFICAR INPUTS OCULTOS
+        const inputCantidad = document.getElementById('preguntasSeleccionadas');
+        const inputTiempo = document.getElementById('tiempoSeleccionado');
+        console.log('Input cantidad existe:', !!inputCantidad);
+        console.log('Input tiempo existe:', !!inputTiempo);
+
+        // 5. VERIFICAR DROPDOWN
+        const dropdown = document.querySelector('.dropdown-temas');
+        console.log('Dropdown existe:', !!dropdown);
+
+        console.log('=== FIN FORZAR EVENT LISTENERS ===');
+    }, 2000); // Aumentar a 2 segundos
+}
+// Llamar la función cuando se cambie a la sección aleatorio
