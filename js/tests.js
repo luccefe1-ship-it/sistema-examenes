@@ -468,6 +468,7 @@ function procesarTextoPreguntas() {
 }
 
 // Parsear preguntas del texto
+// Parsear preguntas del texto
 function parsearPreguntas(texto) {
     const preguntas = [];
     const lineas = texto.split('\n');
@@ -490,13 +491,18 @@ function parsearPreguntas(texto) {
                 texto: matchPregunta[2],
                 opciones: [],
                 respuestaCorrecta: null,
-                fechaCreacion: new Date() // Agregar fecha actual a preguntas nuevas
+                fechaCreacion: new Date()
             };
         }
-        // Detectar opciones (formato: "A) texto" o "A)**texto")
+        // Detectar opciones - PATRÓN MEJORADO
         else if (preguntaActual && linea.match(/^[A-D]\)/)) {
-            const esCorrecta = linea.includes(')**');
-            const textoOpcion = linea.replace(/^[A-D]\)\*?\*?/, '').trim();
+            // Detectar si es respuesta correcta (con ** antes o después del texto)
+            const esCorrecta = linea.includes(')**') || linea.includes('**');
+            
+            // Limpiar el texto de la opción (remover A), B), etc. y los asteriscos)
+            let textoOpcion = linea.replace(/^[A-D]\)/, '').trim();
+            textoOpcion = textoOpcion.replace(/\*\*/g, '').trim();
+            
             const letra = linea.charAt(0);
             
             preguntaActual.opciones.push({
@@ -516,12 +522,17 @@ function parsearPreguntas(texto) {
         preguntas.push(preguntaActual);
     }
     
-    // Validar preguntas
-    return preguntas.filter(p => 
-        p.opciones.length === 4 && 
-        p.respuestaCorrecta && 
-        p.texto.length > 0
-    );
+    // Validar preguntas - logging para debug
+    const preguntasValidas = preguntas.filter(p => {
+        const esValida = p.opciones.length === 4 && p.respuestaCorrecta && p.texto.length > 0;
+        if (!esValida) {
+            console.log('Pregunta inválida:', p);
+        }
+        return esValida;
+    });
+    
+    console.log(`Procesadas ${preguntas.length} preguntas, ${preguntasValidas.length} válidas`);
+    return preguntasValidas;
 }
 
 // Mostrar vista previa de preguntas
