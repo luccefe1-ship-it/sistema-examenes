@@ -742,7 +742,7 @@ temasPrincipales.forEach(tema => {
             
             // Generar HTML de subtemas
             const subtemasHTML = subtemasPorPadre[id] && subtemasPorPadre[id].length > 0 ? 
-    `<div class="subtemas-wrapper" id="subtemas-wrapper-${id}">
+    `<div class="subtemas-wrapper" id="subtemas-wrapper-${id}" style="display: none;">
         ${subtemasPorPadre[id].map(subtema => crearSubtemaHTML(subtema.id, subtema.data)).join('')}
     </div>` : '';
             
@@ -753,7 +753,7 @@ temasPrincipales.forEach(tema => {
     📚 ${tema.nombre}
     ${subtemasPorPadre[id] && subtemasPorPadre[id].length > 0 ? 
         `<button class="btn-toggle-subtemas" onclick="toggleSubtemasVisibilidad('${id}')" title="Mostrar/Ocultar subtemas">
-            <span id="toggle-icon-${id}">📂</span>
+            <span id="toggle-icon-${id}">📁</span>
         </button>` : ''
     }
 </div>
@@ -770,16 +770,29 @@ temasPrincipales.forEach(tema => {
                 </div>
                 ${tema.descripcion ? `<div class="tema-descripcion">${tema.descripcion}</div>` : ''}
                 ${subtemasHTML}
-                ${numPreguntas > 0 ? `
-                    <div class="preguntas-tema">
-                        <details ${estaAbierto ? 'open' : ''} ontoggle="manejarToggleTema(event, '${id}')">
-                            <summary>Ver y editar preguntas (${numPreguntas})</summary>
-                            <div class="lista-preguntas" id="preguntas-${id}">
-                                ${tema.preguntas.map((pregunta, index) => crearPreguntaEditable(pregunta, index, id)).join('')}
-                            </div>
-                        </details>
+                ${(() => {
+    const preguntasPropias = tema.preguntas?.length || 0;
+    const tieneSubtemas = subtemasPorPadre[id] && subtemasPorPadre[id].length > 0;
+    
+    if (preguntasPropias > 0) {
+        // Tema con preguntas propias
+        return `
+            <div class="preguntas-tema">
+                <details ontoggle="manejarToggleTema(event, '${id}')">
+                    <summary>Ver y editar preguntas (${preguntasPropias})</summary>
+                    <div class="lista-preguntas" id="preguntas-${id}">
+                        ${tema.preguntas.map((pregunta, index) => crearPreguntaEditable(pregunta, index, id)).join('')}
                     </div>
-                ` : ''}
+                </details>
+            </div>
+        `;
+    } else if (tieneSubtemas) {
+        // Tema sin preguntas propias pero con subtemas - NO mostrar desplegable adicional
+        return '';
+    } else {
+        return '';
+    }
+})()}
             `;
             
             listaTemas.appendChild(temaDiv);
@@ -800,6 +813,16 @@ window.manejarToggleTema = function(event, temaId) {
         temasAbiertos.add(temaId);
     } else {
         temasAbiertos.delete(temaId);
+    }
+};
+
+// Manejar toggle de subtemas desplegables
+window.manejarToggleSubtemas = function(event, temaId) {
+    // Similar a manejarToggleTema pero para subtemas
+    if (event.target.open) {
+        temasAbiertos.add(`subtemas-${temaId}`);
+    } else {
+        temasAbiertos.delete(`subtemas-${temaId}`);
     }
 };
 
@@ -857,7 +880,7 @@ function crearSubtemaHTML(subtemaId, subtema) {
             ${subtema.descripcion ? `<div class="subtema-descripcion">${subtema.descripcion}</div>` : ''}
             ${numPreguntas > 0 ? `
                 <div class="preguntas-tema">
-                    <details ${estaAbierto ? 'open' : ''} ontoggle="manejarToggleTema(event, '${subtemaId}')">
+                    <details ontoggle="manejarToggleTema(event, '${subtemaId}')">
                         <summary>Ver y editar preguntas (${numPreguntas})</summary>
                         <div class="lista-preguntas" id="preguntas-${subtemaId}">
                             ${subtema.preguntas.map((pregunta, index) => crearPreguntaEditable(pregunta, index, subtemaId)).join('')}
@@ -868,6 +891,24 @@ function crearSubtemaHTML(subtemaId, subtema) {
         </div>
     `;
 }
+
+// Función para mostrar/ocultar subtemas
+window.toggleSubtemasVisibilidad = function(temaId) {
+    const wrapper = document.getElementById(`subtemas-wrapper-${temaId}`);
+    const icon = document.getElementById(`toggle-icon-${temaId}`);
+    
+    if (!wrapper || !icon) return;
+    
+    if (wrapper.style.display === 'none') {
+        // Mostrar subtemas
+        wrapper.style.display = 'block';
+        icon.textContent = '📂';
+    } else {
+        // Ocultar subtemas
+        wrapper.style.display = 'none';
+        icon.textContent = '📁';
+    }
+};
 
 // Configurar drag and drop para reordenar temas y subtemas
 function configurarDragAndDrop() {
@@ -3882,15 +3923,22 @@ window.toggleSubtemasVisibilidad = function(temaId) {
     
     if (!wrapper || !icon) return;
     
-    if (subtemasOcultos.has(temaId)) {
+    if (wrapper.style.display === 'none') {
         // Mostrar subtemas
         wrapper.style.display = 'block';
         icon.textContent = '📂';
-        subtemasOcultos.delete(temaId);
     } else {
         // Ocultar subtemas
         wrapper.style.display = 'none';
         icon.textContent = '📁';
-        subtemasOcultos.add(temaId);
+    }
+};
+// Manejar toggle de subtemas desplegables
+window.manejarToggleSubtemas = function(event, temaId) {
+    // Similar a manejarToggleTema pero para subtemas
+    if (event.target.open) {
+        temasAbiertos.add(`subtemas-${temaId}`);
+    } else {
+        temasAbiertos.delete(`subtemas-${temaId}`);
     }
 };
