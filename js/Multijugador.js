@@ -26,6 +26,8 @@ let misPreguntasVerificadas = [];
 let preguntasRival = [];
 let turnoActual = null;
 let unsubscribeSala = null;
+let cronometroRespuesta = null;
+let tiempoRespuestaRestante = 0;
 
 // Elementos del DOM
 const pantallaInicial = document.getElementById('pantallaInicial');
@@ -497,6 +499,7 @@ function limpiarVentanaCentral() {
     
     textoPregunta.textContent = 'Selecciona una pregunta del rival para empezar';
     opcionesPregunta.innerHTML = '';
+    detenerCronometroRespuesta();
 }
 
 async function seleccionarPregunta(pregunta) {
@@ -509,7 +512,8 @@ async function seleccionarPregunta(pregunta) {
         const salaRef = doc(db, 'salas', claveActual);
         await updateDoc(salaRef, {
             'juego.preguntaActual': pregunta,
-            'juego.respondiendo': rival
+            'juego.respondiendo': rival,
+            'juego.tiempoInicioPregunta': Date.now()
         });
         
     } catch (error) {
@@ -535,6 +539,8 @@ function mostrarPreguntaParaResponder(pregunta) {
         btn.addEventListener('click', () => responderPregunta(index, pregunta));
         opcionesPregunta.appendChild(btn);
     });
+    
+    iniciarCronometroRespuesta();
 }
 
 function mostrarPreguntaEsperando(pregunta, salaData) {
@@ -543,6 +549,11 @@ function mostrarPreguntaEsperando(pregunta, salaData) {
     
     textoPregunta.textContent = pregunta.pregunta;
     opcionesPregunta.innerHTML = '';
+    
+    // Mostrar cronómetro también para el que espera
+    if (!salaData.juego?.resultadoVisible) {
+        iniciarCronometroRespuesta();
+    }
     
     pregunta.opciones.forEach((opcion, index) => {
         const div = document.createElement('div');
@@ -603,6 +614,7 @@ function mostrarPreguntaEsperando(pregunta, salaData) {
 
 async function responderPregunta(indiceSeleccionado, pregunta) {
     try {
+        detenerCronometroRespuesta();
         console.log('Respuesta seleccionada:', indiceSeleccionado);
         
         const esCorrecta = indiceSeleccionado === pregunta.respuestaCorrecta;
@@ -634,11 +646,13 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
         });
         
         setTimeout(async () => {
+            detenerCronometroRespuesta();
             await updateDoc(salaRef, {
                 'juego.preguntaActual': null,
                 'juego.respondiendo': null,
                 'juego.respuestaSeleccionada': null,
                 'juego.resultadoVisible': false,
+                'juego.tiempoInicioPregunta': null,
                 turno: jugadorActual
             });
         }, 3000);
@@ -865,3 +879,111 @@ window.addEventListener('beforeunload', function() {
 });
 
 console.log('Multijugador.js cargado completamente');
+function iniciarCronometroRespuesta() {
+    const cronometroElement = document.getElementById('cronometroRespuesta');
+    const tiempoElement = document.getElementById('tiempoRespuesta');
+    
+    if (!cronometroElement || !tiempoElement) return;
+    
+    // Detener cronómetro anterior si existe
+    if (cronometroRespuesta) {
+        clearInterval(cronometroRespuesta);
+    }
+    
+    tiempoRespuestaRestante = 60;
+    cronometroElement.classList.remove('hidden', 'warning', 'danger');
+    
+    cronometroRespuesta = setInterval(() => {
+        tiempoRespuestaRestante--;
+        
+        const minutos = Math.floor(tiempoRespuestaRestante / 60);
+        const segundos = tiempoRespuestaRestante % 60;
+        const display = `${minutos}:${segundos.toString().padStart(2, '0')}`;
+        
+        tiempoElement.textContent = display;
+        
+               if (tiempoRespuestaRestante <= 10) {
+            cronometroElement.className = 'cronometro-respuesta danger';
+        } else {
+            cronometroElement.className = 'cronometro-respuesta';
+        }
+        
+        if (tiempoRespuestaRestante <= 0) {
+            detenerCronometroRespuesta();
+            tiempoAgotado();
+        }
+    }, 1000);
+}
+
+function detenerCronometroRespuesta() {
+    if (cronometroRespuesta) {
+        clearInterval(cronometroRespuesta);
+        cronometroRespuesta = null;
+    }
+    
+    const cronometroElement = document.getElementById('cronometroRespuesta');
+    if (cronometroElement) {
+        cronometroElement.classList.add('hidden');
+    }
+}
+
+async function tiempoAgotado() {
+    try {
+        const salaRef = doc(db, 'salas', claveActual);
+        const snapshot = await getDoc(salaRef);
+        const salaData = snapshot.data();
+        
+        const erroresActuales = salaData.jugadores[jugadorActual].errores || 0;
+        const nuevosErrores = erroresActuales + 1;
+        
+        await updateDoc(salaRef, {
+            [`jugadores.${jugadorActual}.errores`]: nuevosErrores,
+            'juego.respuestaSeleccionada': -1,
+            'juego.resultadoVisible': true
+        });
+        
+        mostrarMensajeTiempoAgotado();
+        
+        if (nuevosErrores < 3) {
+          setTimeout(async () => {
+                detenerCronometroRespuesta();
+                await updateDoc(salaRef, {
+                    'juego.preguntaActual': null,
+                    'juego.respondiendo': null,
+                    'juego.respuestaSeleccionada': null,
+                    'juego.resultadoVisible': false,
+                    'juego.tiempoInicioPregunta': null,
+                    turno: jugadorActual
+                });
+            }, 3000);
+        }
+        
+    } catch (error) {
+        console.error('Error manejando tiempo agotado:', error);
+    }
+}
+
+function mostrarMensajeTiempoAgotado() {
+    const opcionesPregunta = document.getElementById('opcionesPregunta');
+    if (opcionesPregunta) {
+        const botones = opcionesPregunta.querySelectorAll('.opcion-btn');
+        botones.forEach(boton => {
+            boton.disabled = true;
+            boton.style.backgroundColor = '#f8f9fa';
+            boton.style.color = '#6c757d';
+        });
+        
+        const mensajeDiv = document.createElement('div');
+        mensajeDiv.style.cssText = `
+            background: #dc3545;
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            margin-top: 1rem;
+        `;
+        mensajeDiv.textContent = '⏰ TIEMPO AGOTADO - Se cuenta como respuesta incorrecta';
+        opcionesPregunta.appendChild(mensajeDiv);
+    }
+}
