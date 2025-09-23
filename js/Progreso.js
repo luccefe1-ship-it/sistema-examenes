@@ -463,7 +463,8 @@ function actualizarProgresoGeneral() {
             paginasTotalesGlobal += tema.paginasTotales;
             
             // Páginas estudiadas: incluir vueltas completadas
-            const vueltas_completadas = tema.vueltas.filter(v => v.completada).length;
+            const vueltas_completadas = (tema.vueltas && Array.isArray(tema.vueltas)) ? 
+                tema.vueltas.filter(v => v.completada).length : 0;
             paginasEstudiadasGlobal += (vueltas_completadas * tema.paginasTotales) + tema.paginasEstudiadas;
             
             testsGlobal += (tema.testsAutomaticos || 0) + (tema.testsManuales || 0);
