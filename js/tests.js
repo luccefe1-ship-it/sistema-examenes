@@ -2793,7 +2793,7 @@ temasSnapshot.forEach((doc) => {
 });
         
         
-        querySnapshot.forEach((doc) => {
+       querySnapshot.forEach((doc) => {
     const resultado = doc.data();
     
     if (!esTemaValido(resultado.test.tema, temasMap)) {
@@ -2806,7 +2806,7 @@ temasSnapshot.forEach((doc) => {
             const resultadoDiv = document.createElement('div');
             resultadoDiv.className = 'resultado-historial';
             resultadoDiv.innerHTML = `
-    <div class="resultado-item">
+    <div class="resultado-item" onclick="mostrarDetalleResultado('${doc.id}')" style="cursor: pointer;">
        <div class="resultado-info">
     <h4>${obtenerTextoTemas(resultado.test.tema, temasMap)}</h4>
     <p class="nombre-test">${resultado.test.nombre}</p>
@@ -2823,7 +2823,7 @@ temasSnapshot.forEach((doc) => {
         <div class="resultado-stats">
     <span class="fraccion-principal ${resultado.correctas >= resultado.total/2 ? 'aprobado' : 'suspenso'}">${resultado.correctas}/${resultado.total}</span>
 </div>
-        <div class="resultado-acciones">
+        <div class="resultado-acciones" onclick="event.stopPropagation()">
             <button class="btn-eliminar-resultado" onclick="eliminarResultado('${doc.id}')" title="Eliminar resultado">
                 🗑️
             </button>
@@ -3941,4 +3941,191 @@ window.manejarToggleSubtemas = function(event, temaId) {
     } else {
         temasAbiertos.delete(`subtemas-${temaId}`);
     }
+};
+// Mostrar detalle completo de un resultado
+window.mostrarDetalleResultado = async function(resultadoId) {
+    try {
+        const resultadoDoc = await getDoc(doc(db, "resultados", resultadoId));
+        if (!resultadoDoc.exists()) {
+            alert('Resultado no encontrado');
+            return;
+        }
+        
+        const resultado = resultadoDoc.data();
+        
+        // Crear modal para mostrar detalle
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'block';
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+        modalContent.style.maxWidth = '90vw';
+        modalContent.style.width = '800px';
+        modalContent.style.maxHeight = '85vh';
+        modalContent.style.overflow = 'auto';
+        
+        // Generar HTML del detalle (reutilizar la función de mostrar resultados)
+        modalContent.innerHTML = generarHTMLResultadosDetalle(resultado);
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        // Cerrar modal al hacer clic fuera
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                document.body.removeChild(modal);
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error cargando detalle del resultado:', error);
+        alert('Error al cargar el detalle del resultado');
+    }
+};
+
+// Función para generar HTML de resultados detallado
+function generarHTMLResultadosDetalle(resultado) {
+    const { correctas, incorrectas, sinResponder, total, detalleRespuestas } = resultado;
+    const porcentaje = total > 0 ? Math.round((correctas / total) * 100) : 0;
+    const tiempoEmpleado = resultado.tiempoEmpleado || 0;
+    
+    // Determinar mensaje según porcentaje
+    let mensaje = '';
+    let icono = '';
+    if (porcentaje >= 90) {
+        mensaje = 'Excelente trabajo!';
+        icono = '🏆';
+    } else if (porcentaje >= 75) {
+        mensaje = 'Muy bien!';
+        icono = '⭐';
+    } else if (porcentaje >= 60) {
+        mensaje = 'Buen trabajo';
+        icono = '📈';
+    } else {
+        mensaje = 'Sigue practicando!';
+        icono = '📚';
+    }
+
+    const tiempoFormateado = formatearTiempo(tiempoEmpleado);
+    const fechaTest = resultado.test.fechaInicio ? 
+        new Date(resultado.test.fechaInicio.seconds * 1000).toLocaleDateString('es-ES') : 
+        'Fecha desconocida';
+
+    let html = '<div class="resultado-header">';
+    
+    // Botón cerrar en la esquina superior derecha
+    html += '<button onclick="cerrarModalDetalle()" style="position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>';
+    
+    html += '<div class="resultado-icono">' + icono + '</div>';
+    
+    // Determinar color según aciertos
+    let colorPuntuacion = '';
+    if (correctas > total / 2) {
+        colorPuntuacion = '#28a745'; // Verde
+    } else if (correctas === total / 2) {
+        colorPuntuacion = '#ffc107'; // Amarillo
+    } else {
+        colorPuntuacion = '#dc3545'; // Rojo
+    }
+
+    html += '<div class="resultado-porcentaje" style="color: ' + colorPuntuacion + '">' + correctas + '/' + total + '</div>';
+    html += '<div class="resultado-mensaje">' + mensaje + '</div>';
+    html += '<div class="resultado-detalles">';
+    html += resultado.test.nombre + ' - ' + fechaTest;
+    html += '<br>Tiempo empleado: ' + tiempoFormateado;
+    html += '</div>';
+    html += '</div>';
+
+    html += '<div class="estadisticas-grid">';
+    html += '<div class="estadistica-card correctas">';
+    html += '<div class="estadistica-icono">✅</div>';
+    html += '<div class="estadistica-numero">' + correctas + '</div>';
+    html += '<div class="estadistica-label">Correctas</div>';
+    html += '</div>';
+    html += '<div class="estadistica-card incorrectas">';
+    html += '<div class="estadistica-icono">❌</div>';
+    html += '<div class="estadistica-numero">' + incorrectas + '</div>';
+    html += '<div class="estadistica-label">Incorrectas</div>';
+    html += '</div>';
+    html += '<div class="estadistica-card sin-responder">';
+    html += '<div class="estadistica-icono">⭕</div>';
+    html += '<div class="estadistica-numero">' + sinResponder + '</div>';
+    html += '<div class="estadistica-label">Sin responder</div>';
+    html += '</div>';
+    html += '</div>';
+
+    // Mostrar preguntas y respuestas detalladas
+    if (detalleRespuestas && detalleRespuestas.length > 0) {
+        html += '<div class="revision-respuestas">';
+        html += '<div class="revision-header">';
+        html += '<h3>Revision de Respuestas</h3>';
+        html += '</div>';
+        
+        detalleRespuestas.forEach(detalle => {
+            html += '<div class="pregunta-revision ' + detalle.estado + '">';
+            html += '<div class="revision-pregunta-header">';
+            html += '<strong>Pregunta ' + detalle.indice + '</strong>';
+            html += '<span class="revision-estado ' + detalle.estado + '">';
+            if (detalle.estado === 'correcta') {
+                html += 'Correcta';
+            } else if (detalle.estado === 'incorrecta') {
+                html += 'Incorrecta';
+            } else {
+                html += 'Sin responder';
+            }
+            html += '</span>';
+            html += '<span class="pregunta-tema-info">';
+            html += detalle.pregunta.temaNombre || 'Tema desconocido';
+            if (detalle.pregunta.temaEpigrafe) {
+                html += ' - ' + detalle.pregunta.temaEpigrafe;
+            }
+            html += '</span>';
+            html += '</div>';
+            html += '<div class="pregunta-texto">' + detalle.pregunta.texto + '</div>';
+            html += '<div class="todas-las-opciones">';
+            
+            if (detalle.pregunta.opciones) {
+                detalle.pregunta.opciones.forEach(opcion => {
+                    let clases = 'opcion-revision';
+                    if (opcion.letra === detalle.respuestaCorrecta) {
+                        clases += ' correcta';
+                    }
+                    if (opcion.letra === detalle.respuestaUsuario) {
+                        clases += ' seleccionada';
+                    }
+                    
+                    html += '<div class="' + clases + '">';
+                    html += opcion.letra + ') ' + opcion.texto;
+                    if (opcion.letra === detalle.respuestaCorrecta) {
+                        html += ' ✓';
+                    }
+                    if (opcion.letra === detalle.respuestaUsuario && opcion.letra !== detalle.respuestaCorrecta) {
+                        html += ' ✗';
+                    }
+                    html += '</div>';
+                });
+            }
+            
+            html += '</div>';
+            if (!detalle.respuestaUsuario) {
+                html += '<div class="sin-respuesta-nota">No respondiste esta pregunta</div>';
+            }
+            html += '</div>';
+        });
+        
+        html += '</div>';
+    }
+
+    return html;
+}
+
+// Función para cerrar el modal de detalle
+window.cerrarModalDetalle = function() {
+    const modales = document.querySelectorAll('.modal');
+    modales.forEach(modal => {
+        if (modal.parentNode) {
+            document.body.removeChild(modal);
+        }
+    });
 };
