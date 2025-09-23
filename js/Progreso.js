@@ -408,7 +408,14 @@ function crearFilaTema(temaId, temaProgreso) {
 
 // Funciones auxiliares que se implementarán en el siguiente paso
 function calcularPorcentajeTema(temaProgreso) {
-    return Math.round((temaProgreso.paginasEstudiadas / temaProgreso.paginasTotales) * 100);
+    // Validar que existan los valores necesarios
+    const paginasEstudiadas = temaProgreso.paginasEstudiadas || 0;
+    const paginasTotales = temaProgreso.paginasTotales || 30; // valor por defecto
+    
+    // Evitar división por cero
+    if (paginasTotales <= 0) return 0;
+    
+    return Math.round((paginasEstudiadas / paginasTotales) * 100);
 }
 
 function obtenerNombreVuelta(numeroVuelta) {
