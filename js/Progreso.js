@@ -258,6 +258,28 @@ async function sincronizarProgresoConBanco() {
                 // Actualizar nombre si cambió
                 progresoData.temas[tema.id].nombre = tema.nombre;
                 
+                // Asegurar que la estructura de vueltas existe y es válida
+                if (!progresoData.temas[tema.id].vueltas || !Array.isArray(progresoData.temas[tema.id].vueltas)) {
+                    progresoData.temas[tema.id].vueltas = [
+                        { numero: 1, completada: false, fechaInicio: new Date() }
+                    ];
+                }
+                
+                // Asegurar que vueltaActual existe
+                if (!progresoData.temas[tema.id].vueltaActual) {
+                    progresoData.temas[tema.id].vueltaActual = 1;
+                }
+                
+                // Asegurar que paginasTotales existe
+                if (!progresoData.temas[tema.id].paginasTotales) {
+                    progresoData.temas[tema.id].paginasTotales = 30;
+                }
+                
+                // Asegurar que paginasEstudiadas existe
+                if (progresoData.temas[tema.id].paginasEstudiadas === undefined) {
+                    progresoData.temas[tema.id].paginasEstudiadas = 0;
+                }
+                
                 // Migrar datos antiguos si es necesario
                 if (progresoData.temas[tema.id].testsRealizados !== undefined) {
                     // Migrar de sistema antiguo
