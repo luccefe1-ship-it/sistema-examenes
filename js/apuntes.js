@@ -726,24 +726,38 @@ window.toggleResaltado = function() {
     
     const selection = window.getSelection();
     if (selection.rangeCount > 0 && !selection.isCollapsed) {
-        const range = selection.getRangeAt(0);
-        
         if (colorSeleccionado === 'none') {
-            // Quitar resaltado
+            // Quitar CUALQUIER tipo de formato de fondo
             document.execCommand('removeFormat', false, null);
-            // También quitar spans de resaltado manualmente
-            const parentSpan = range.commonAncestorContainer.parentElement;
-            if (parentSpan && parentSpan.classList.contains('resaltado')) {
-                parentSpan.outerHTML = parentSpan.innerHTML;
-            }
+            document.execCommand('hiliteColor', false, 'transparent');
+            document.execCommand('backColor', false, 'transparent');
         } else {
-            // Aplicar resaltado usando execCommand para preservar estructura
+            // Primero limpiar cualquier formato existente del texto seleccionado
+            document.execCommand('hiliteColor', false, 'transparent');
+            document.execCommand('backColor', false, 'transparent');
+            // Luego aplicar el nuevo color
             document.execCommand('hiliteColor', false, colorSeleccionado);
         }
         
         selection.removeAllRanges();
     } else {
         alert('Selecciona el texto que quieres resaltar primero');
+    }
+};
+window.limpiarTodoFormato = function() {
+    const editor = document.getElementById('contenidoEditor');
+    editor.focus();
+    
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0 && !selection.isCollapsed) {
+        document.execCommand('removeFormat', false, null);
+        document.execCommand('hiliteColor', false, 'transparent');
+        document.execCommand('backColor', false, 'transparent');
+        selection.removeAllRanges();
+    } else {
+        // Si no hay selección, limpiar todo el contenido
+        const content = editor.innerHTML;
+        editor.innerHTML = content.replace(/style="[^"]*"/g, '').replace(/<span[^>]*>/g, '').replace(/<\/span>/g, '');
     }
 };
 
