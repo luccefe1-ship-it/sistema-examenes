@@ -162,7 +162,6 @@ async function crearSala() {
                 jugador1: {
                     uid: currentUser.uid,
                     nombre: nombreAnfitrion,
-                    preguntas: misPreguntasVerificadas,
                     errores: 0,
                     listo: false
                 },
@@ -220,11 +219,10 @@ async function unirseSala() {
         esAnfitrion = false;
         jugadorActual = 'jugador2';
         
-        await updateDoc(salaRef, {
+                await updateDoc(salaRef, {
             'jugadores.jugador2': {
                 uid: currentUser.uid,
                 nombre: nombreInvitado,
-                preguntas: misPreguntasVerificadas,
                 errores: 0,
                 listo: false
             }
@@ -334,17 +332,16 @@ function mostrarInterfazJuego(salaData) {
         rival = 'jugador2';
         document.getElementById('nombreUsuarioActual').textContent = jugador1.nombre;
         document.getElementById('nombreRival').textContent = jugador2.nombre;
-        preguntasRival = jugador2.preguntas;
+        cargarPreguntasRival(jugador2.uid);
     } else {
         rival = 'jugador1';
         document.getElementById('nombreUsuarioActual').textContent = jugador2.nombre;
         document.getElementById('nombreRival').textContent = jugador1.nombre;
-        preguntasRival = jugador1.preguntas;
+        cargarPreguntasRival(jugador1.uid);
     }
     
     actualizarMarcadores(salaData);
     mostrarTemasUsuario();
-    mostrarTemasRival();
     actualizarTurno(salaData);
 }
 
@@ -985,5 +982,55 @@ function mostrarMensajeTiempoAgotado() {
         `;
         mensajeDiv.textContent = '⏰ TIEMPO AGOTADO - Se cuenta como respuesta incorrecta';
         opcionesPregunta.appendChild(mensajeDiv);
+    }
+}
+async function cargarPreguntasRival(rivalUid) {
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", rivalUid));
+        const querySnapshot = await getDocs(q);
+        
+        preguntasRival = [];
+        
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            const temaId = doc.id;
+            
+            if (tema.preguntas && Array.isArray(tema.preguntas)) {
+                tema.preguntas.forEach((pregunta, index) => {
+                    if (pregunta.verificada === true && 
+                        pregunta.texto && 
+                        pregunta.opciones && 
+                        Array.isArray(pregunta.opciones) && 
+                        pregunta.opciones.length === 4) {
+                        
+                        const opcionesValidas = pregunta.opciones.every(op => 
+                            op && op.texto && typeof op.texto === 'string'
+                        );
+                        
+                        const tieneRespuestaCorrecta = pregunta.opciones.some(op => op.esCorrecta === true);
+                        
+                        if (opcionesValidas && tieneRespuestaCorrecta) {
+                            const respuestaCorrecta = pregunta.opciones.findIndex(op => op.esCorrecta === true);
+                            
+                            preguntasRival.push({
+                                id: `${temaId}_${index}`,
+                                temaId: temaId,
+                                temaNombre: tema.nombre || 'Tema sin nombre',
+                                temaEpigrafe: tema.descripcion || '',
+                                pregunta: pregunta.texto,
+                                opciones: pregunta.opciones.map(op => op.texto),
+                                respuestaCorrecta: respuestaCorrecta,
+                                esSubtema: false
+                            });
+                        }
+                    }
+                });
+            }
+        });
+        
+        mostrarTemasRival();
+        
+    } catch (error) {
+        console.error('Error cargando preguntas del rival:', error);
     }
 }
