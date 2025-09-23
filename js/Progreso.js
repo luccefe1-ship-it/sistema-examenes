@@ -430,6 +430,17 @@ function configurarControlesTabla() {
 
 function actualizarProgresoGeneral() {
     try {
+        // Validar que progresoData y progresoData.temas existan
+        if (!progresoData || !progresoData.temas) {
+            // No hay datos de progreso disponibles
+            document.getElementById('progresoGeneralMemorizado').textContent = '0/0';
+            document.getElementById('progresoGeneralTests').textContent = '0';
+            document.getElementById('progresoGeneralVuelta').textContent = 'Primera';
+            document.getElementById('barraProgresoGeneral').style.width = '0%';
+            document.getElementById('porcentajeProgresoGeneral').textContent = '0%';
+            return;
+        }
+
         const temas = Object.values(progresoData.temas);
         
         if (temas.length === 0) {
