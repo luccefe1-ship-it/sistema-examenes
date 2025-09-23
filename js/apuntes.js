@@ -702,9 +702,61 @@ window.editarNombreEpigrafe = async function(index) {
         }
     }
 };
+let colorSeleccionado = 'yellow';
+
+// Manejar selección de colores
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        document.querySelectorAll('.color-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+                e.target.classList.add('selected');
+                colorSeleccionado = e.target.dataset.color;
+            });
+        });
+        
+        // Seleccionar amarillo por defecto
+        document.querySelector('.color-option[data-color="yellow"]').classList.add('selected');
+    }, 500);
+});
+
+window.toggleResaltado = function() {
+    const editor = document.getElementById('contenidoEditor');
+    editor.focus();
+    
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0 && !selection.isCollapsed) {
+        const range = selection.getRangeAt(0);
+        
+        if (colorSeleccionado === 'none') {
+            // Quitar resaltado
+            document.execCommand('removeFormat', false, null);
+            // También quitar spans de resaltado manualmente
+            const parentSpan = range.commonAncestorContainer.parentElement;
+            if (parentSpan && parentSpan.classList.contains('resaltado')) {
+                parentSpan.outerHTML = parentSpan.innerHTML;
+            }
+        } else {
+            // Aplicar resaltado usando execCommand para preservar estructura
+            document.execCommand('hiliteColor', false, colorSeleccionado);
+        }
+        
+        selection.removeAllRanges();
+    } else {
+        alert('Selecciona el texto que quieres resaltar primero');
+    }
+};
+
 window.formatearTexto = function(comando) {
-    document.execCommand(comando, false, null);
-    document.getElementById('contenidoEditor').focus();
+    if (comando === 'insertOrderedList' || comando === 'insertUnorderedList') {
+        const editor = document.getElementById('contenidoEditor');
+        editor.focus();
+        document.execCommand(comando, false, null);
+    } else {
+        const editor = document.getElementById('contenidoEditor');
+        editor.focus();
+        document.execCommand(comando, false, null);
+    }
 };
 
 window.insertarSaltoLinea = function() {
