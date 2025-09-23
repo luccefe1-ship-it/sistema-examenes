@@ -341,9 +341,14 @@ async function cargarTemasApuntes() {
 async function seleccionarTema(temaId) {
     console.log('Seleccionando tema:', temaId);
     
-    if (!temaId) {
-        document.getElementById('temaActualApuntes').textContent = 'Ningún tema seleccionado';
+ if (!temaId) {
+        document.getElementById('temaActualApuntes').style.display = 'none';
         document.getElementById('mainContentApuntes').style.display = 'none';
+        // Eliminar botón flotante si existe
+        let btnEliminarExistente = document.getElementById('btnEliminarTemaFlotante');
+        if (btnEliminarExistente) {
+            btnEliminarExistente.remove();
+        }
         return;
     }
 
@@ -356,11 +361,24 @@ async function seleccionarTema(temaId) {
 
         const temaData = temaDoc.data();
         
-        // Actualizar nombre con botón eliminar tema
-        document.getElementById('temaActualApuntes').innerHTML = `
-            ${temaData.nombre}
-            <button onclick="eliminarTema('${temaId}')" style="margin-left: 15px; background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">🗑️ Eliminar Tema</button>
+       // Ocultar el display del tema actual
+        document.getElementById('temaActualApuntes').style.display = 'none';
+        
+        // Crear botón eliminar en la esquina superior derecha
+        let btnEliminarExistente = document.getElementById('btnEliminarTemaFlotante');
+        if (btnEliminarExistente) {
+            btnEliminarExistente.remove();
+        }
+        
+        const btnEliminar = document.createElement('button');
+        btnEliminar.id = 'btnEliminarTemaFlotante';
+        btnEliminar.className = 'btn-eliminar-tema-flotante';
+        btnEliminar.innerHTML = `
+            <span class="icono">🗑️</span>
+            <span class="texto">Eliminar Tema</span>
         `;
+        btnEliminar.onclick = () => eliminarTema(temaId);
+        document.querySelector('.tema-selector-container').appendChild(btnEliminar);
         
         // Actualizar header del índice con nombre del tema
         document.querySelector('.indice-header h3').innerHTML = `
