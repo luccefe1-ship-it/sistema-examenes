@@ -252,8 +252,7 @@ else if (seccionId === 'aleatorio') {
         // Limpiar completamente la interfaz de test antes de inicializar
         limpiarInterfazTestCompleta();
         inicializarTestAleatorio();
-        // Cargar test de repaso al cambiar de sección
-        cargarTestRepaso();
+        
         // Forzar event listeners
         forzarEventListeners();
     }, 100);
@@ -2416,37 +2415,50 @@ function calcularResultados() {
 
 // Mostrar resultados
 function mostrarResultados(resultados) {
-    // Ocultar test en ejecución
-    document.getElementById('testEnEjecucion').style.display = 'none';
+    // Ocultar COMPLETAMENTE test en ejecución
+    const testEjecucion = document.getElementById('testEnEjecucion');
+    if (testEjecucion) {
+        testEjecucion.style.display = 'none';
+    }
     
-    // NUEVO: Ocultar test de repaso cuando se muestran resultados
-const containerRepaso = document.getElementById('testRepasoContainer');
-if (containerRepaso) {
-    containerRepaso.style.display = 'none';
-}
+    // Ocultar COMPLETAMENTE test de repaso
+    const containerRepaso = document.getElementById('testRepasoContainer');
+    if (containerRepaso) {
+        containerRepaso.style.display = 'none';
+    }
     
-    // Mostrar contenedor de resultados
+    // Ocultar COMPLETAMENTE configuración del test
+    const configContainer = document.querySelector('.test-config-container');
+    if (configContainer) {
+        configContainer.style.display = 'none';
+    }
+    
+    // Resetear el contenedor principal
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        mainContent.style.paddingTop = '0';
+        mainContent.style.marginTop = '120px';
+    }
+    
+    // Mostrar contenedor de resultados limpio
     const container = document.getElementById('resultadosTest');
     container.style.display = 'block';
+    container.style.position = 'static';
+    container.style.zIndex = 'auto';
+    container.style.width = '100%';
+    container.style.top = 'auto';
+    container.style.left = 'auto';
     
     // Generar HTML de resultados
     container.innerHTML = generarHTMLResultados(resultados);
     
-    // NUEVO: Scroll automático al tope absoluto de la página
-setTimeout(() => {
-    // Intentar múltiples métodos para asegurar que llegue arriba del todo
-    window.scrollTo({ 
-        top: 0, 
-        left: 0,
-        behavior: 'smooth' 
-    });
-    
-    // Scroll adicional para asegurar posición
+    // Scroll suave al inicio después de un breve delay
     setTimeout(() => {
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
-    }, 500);
-}, 100);
+        window.scrollTo({ 
+            top: 0, 
+            behavior: 'smooth' 
+        });
+    }, 300);
 }
 // Generar HTML de resultados
 function generarHTMLResultados(resultados) {
@@ -2516,7 +2528,7 @@ html += '</div>';
 
 html += '<div class="revision-respuestas">';
 html += '<div class="revision-header">';
-html += '<h3>Revision de Respuestas</h3>';
+html += '<h3>Revisión de Respuestas</h3>';
 html += '</div>';
     
     detalleRespuestas.forEach(detalle => {
@@ -2706,6 +2718,7 @@ function formatearTiempo(segundos) {
 }
 
 // Volver a configurar test
+// Volver a configurar test
 window.volverAConfigurarTest = function() {
     // Limpiar variables
     testActual = null;
@@ -2718,25 +2731,24 @@ window.volverAConfigurarTest = function() {
     // IMPORTANTE: Cambiar a la sección aleatorio
     cambiarSeccion('aleatorio');
     
-    // Mostrar configuración y ocultar otras pantallas
-    const configContainer = document.querySelector('.test-config-container');
-    const testEjecucion = document.getElementById('testEnEjecucion');
+    // Ocultar resultados COMPLETAMENTE
     const resultadosTest = document.getElementById('resultadosTest');
-    const containerRepaso = document.getElementById('testRepasoContainer');
-    
-    if (configContainer) {
-        configContainer.style.display = 'block';
+    if (resultadosTest) {
+        resultadosTest.style.display = 'none';
+        resultadosTest.innerHTML = ''; // Limpiar contenido
     }
+    
+    // Ocultar test en ejecución
+    const testEjecucion = document.getElementById('testEnEjecucion');
     if (testEjecucion) {
         testEjecucion.style.display = 'none';
     }
-    if (resultadosTest) {
-        resultadosTest.style.display = 'none';
+    
+    // Mostrar configuración
+    const configContainer = document.querySelector('.test-config-container');
+    if (configContainer) {
+        configContainer.style.display = 'block';
     }
- // Mostrar test de repaso nuevamente si hay preguntas falladas
-if (containerRepaso) {
-    cargarTestRepaso();
-}
     
     // Limpiar formulario
     const nombreTest = document.getElementById('nombreTest');
@@ -2748,6 +2760,9 @@ if (containerRepaso) {
     if (tiempoRestante) {
         tiempoRestante.style.color = '#dc3545';
     }
+    
+    // Scroll al inicio
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     
     // Actualizar preguntas disponibles
     if (typeof actualizarPreguntasDisponibles === 'function') {
