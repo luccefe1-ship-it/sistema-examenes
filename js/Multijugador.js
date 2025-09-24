@@ -28,6 +28,7 @@ let turnoActual = null;
 let unsubscribeSala = null;
 let cronometroRespuesta = null;
 let tiempoRespuestaRestante = 0;
+let temasSeleccionados = new Set();
 
 // Elementos del DOM
 const pantallaInicial = document.getElementById('pantallaInicial');
@@ -63,19 +64,60 @@ async function cargarPreguntasVerificadas() {
         querySnapshot.forEach((doc) => {
             const tema = doc.data();
             const temaId = doc.id;
+            const nombreTemaPrincipal = tema.nombre;
             
-            if (tema.preguntas) {
+            // Cargar preguntas principales del tema
+            if (tema.preguntas && Array.isArray(tema.preguntas)) {
                 tema.preguntas.forEach((pregunta, index) => {
-                    if (pregunta.verificada === true) {
-                        misPreguntasVerificadas.push({
-                            id: `${temaId}_${index}`,
-                            temaId: temaId,
-                            temaNombre: tema.nombre,
-                            temaEpigrafe: tema.descripcion || '',
-                            pregunta: pregunta.texto,
-                            opciones: pregunta.opciones.map(op => op.texto),
-                            respuestaCorrecta: pregunta.opciones.findIndex(op => op.esCorrecta),
-                            esSubtema: false
+                    if (pregunta.verificada === true && 
+                        pregunta.texto && 
+                        pregunta.opciones && 
+                        Array.isArray(pregunta.opciones) && 
+                        pregunta.opciones.length === 4) {
+                        
+                        const respuestaCorrecta = pregunta.opciones.findIndex(op => op.esCorrecta === true);
+                        if (respuestaCorrecta !== -1) {
+                            misPreguntasVerificadas.push({
+                                id: `${temaId}_${index}`,
+                                temaId: temaId,
+                                temaNombre: nombreTemaPrincipal, // Usar nombre del tema principal
+                                temaEpigrafe: tema.descripcion || '',
+                                pregunta: pregunta.texto,
+                                opciones: pregunta.opciones.map(op => op.texto),
+                                respuestaCorrecta: respuestaCorrecta,
+                                esSubtema: false
+                            });
+                        }
+                    }
+                });
+            }
+            
+            // Cargar preguntas de subtemas PERO asignarlas al tema principal
+            if (tema.subtemas && Array.isArray(tema.subtemas)) {
+                tema.subtemas.forEach((subtema, subtemaIndex) => {
+                    if (subtema.preguntas && Array.isArray(subtema.preguntas)) {
+                        subtema.preguntas.forEach((pregunta, preguntaIndex) => {
+                            if (pregunta.verificada === true && 
+                                pregunta.texto && 
+                                pregunta.opciones && 
+                                Array.isArray(pregunta.opciones) && 
+                                pregunta.opciones.length === 4) {
+                                
+                                const respuestaCorrecta = pregunta.opciones.findIndex(op => op.esCorrecta === true);
+                                if (respuestaCorrecta !== -1) {
+                                    misPreguntasVerificadas.push({
+                                        id: `${temaId}_subtema${subtemaIndex}_${preguntaIndex}`,
+                                        temaId: temaId,
+                                        temaNombre: nombreTemaPrincipal, // Usar nombre del tema principal, no del subtema
+                                        temaEpigrafe: tema.descripcion || '',
+                                        pregunta: pregunta.texto,
+                                        opciones: pregunta.opciones.map(op => op.texto),
+                                        respuestaCorrecta: respuestaCorrecta,
+                                        esSubtema: true,
+                                        subtemaOriginal: subtema.nombre // Guardar referencia al subtema original
+                                    });
+                                }
+                            }
                         });
                     }
                 });
@@ -179,7 +221,7 @@ async function crearSala() {
         await setDoc(doc(db, 'salas', claveActual), salaData);
         
         cerrarModales();
-        mostrarSalaEspera();
+        await mostrarSalaEspera();
         escucharCambiosSala();
         
         console.log('Sala creada:', claveActual);
@@ -229,7 +271,7 @@ async function unirseSala() {
         });
         
         cerrarModales();
-        mostrarSalaEspera();
+        await mostrarSalaEspera();
         escucharCambiosSala();
         
         console.log('Unido a sala:', claveActual);
@@ -243,11 +285,12 @@ async function unirseSala() {
 // ===============================================
 // SALA DE ESPERA
 // ===============================================
-function mostrarSalaEspera() {
+async function mostrarSalaEspera() {
     pantallaInicial.style.display = 'none';
     salaEspera.classList.remove('hidden');
     
     document.getElementById('claveGenerada').textContent = claveActual;
+    await mostrarSelectorTemas();
 }
 
 function escucharCambiosSala() {
@@ -257,7 +300,7 @@ function escucharCambiosSala() {
     
     const salaRef = doc(db, 'salas', claveActual);
     
-    unsubscribeSala = onSnapshot(salaRef, (doc) => {
+    unsubscribeSala = onSnapshot(salaRef, async (doc) => {
         if (!doc.exists()) {
             alert('La sala fue eliminada');
             volverAInicio();
@@ -267,9 +310,9 @@ function escucharCambiosSala() {
         const salaData = doc.data();
         actualizarSalaEspera(salaData);
         
-        if (salaData.jugadores.jugador1?.listo && salaData.jugadores.jugador2?.listo) {
-            mostrarInterfazJuego(salaData);
-        }
+       if (salaData.jugadores.jugador1?.listo && salaData.jugadores.jugador2?.listo) {
+    await mostrarInterfazJuego(salaData);
+}
         
         if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
             mostrarResultado(salaData);
@@ -298,20 +341,26 @@ function actualizarSalaEspera(salaData) {
     }
     
     const misDatos = salaData.jugadores[jugadorActual];
-    if (misDatos?.listo) {
-        btnListo.textContent = 'Estás listo';
-        btnListo.disabled = true;
-    } else {
-        btnListo.textContent = 'Estoy Listo';
-        btnListo.disabled = !salaData.jugadores.jugador2;
-    }
+if (misDatos?.listo) {
+    btnListo.textContent = 'Estás listo';
+    btnListo.disabled = true;
+} else {
+    btnListo.textContent = 'Estoy Listo';
+    const haySegundoJugador = salaData.jugadores.jugador2;
+    btnListo.disabled = !haySegundoJugador || temasSeleccionados.size === 0;
+}
 }
 
 async function marcarListo() {
     try {
+        const preguntasSeleccionadas = filtrarPreguntasPorTemasSeleccionados();
+        const temasSeleccionadosArray = Array.from(temasSeleccionados);
+        
         const salaRef = doc(db, 'salas', claveActual);
         await updateDoc(salaRef, {
-            [`jugadores.${jugadorActual}.listo`]: true
+            [`jugadores.${jugadorActual}.listo`]: true,
+            [`jugadores.${jugadorActual}.temasSeleccionados`]: temasSeleccionadosArray,
+            [`jugadores.${jugadorActual}.preguntasDisponibles`]: preguntasSeleccionadas.length
         });
         
     } catch (error) {
@@ -321,7 +370,7 @@ async function marcarListo() {
 // ===============================================
 // INTERFAZ DEL JUEGO
 // ===============================================
-function mostrarInterfazJuego(salaData) {
+async function mostrarInterfazJuego(salaData) {
     salaEspera.classList.add('hidden');
     interfazJuego.classList.remove('hidden');
     
@@ -329,16 +378,22 @@ function mostrarInterfazJuego(salaData) {
     const jugador2 = salaData.jugadores.jugador2;
     
     if (jugadorActual === 'jugador1') {
-        rival = 'jugador2';
-        document.getElementById('nombreUsuarioActual').textContent = jugador1.nombre;
-        document.getElementById('nombreRival').textContent = jugador2.nombre;
-        cargarPreguntasRival(jugador2.uid);
-    } else {
-        rival = 'jugador1';
-        document.getElementById('nombreUsuarioActual').textContent = jugador2.nombre;
-        document.getElementById('nombreRival').textContent = jugador1.nombre;
-        cargarPreguntasRival(jugador1.uid);
-    }
+    rival = 'jugador2';
+    document.getElementById('nombreUsuarioActual').textContent = jugador1.nombre;
+    document.getElementById('nombreRival').textContent = jugador2.nombre;
+    // Cargar solo los temas que el rival seleccionó
+    const temasRival = salaData.jugadores.jugador2.temasSeleccionados || null;
+    window.rivalUidGlobal = jugador2.uid; // Guardar UID del rival globalmente
+    cargarPreguntasRival(jugador2.uid, temasRival);
+} else {
+    rival = 'jugador1';
+    document.getElementById('nombreUsuarioActual').textContent = jugador2.nombre;
+    document.getElementById('nombreRival').textContent = jugador1.nombre;
+    // Cargar solo los temas que el rival seleccionó
+    const temasRival = salaData.jugadores.jugador1.temasSeleccionados || null;
+    window.rivalUidGlobal = jugador1.uid; // Guardar UID del rival globalmente
+    cargarPreguntasRival(jugador1.uid, temasRival);
+}
     
     actualizarMarcadores(salaData);
     mostrarTemasUsuario();
@@ -360,7 +415,10 @@ function actualizarMarcadores(salaData) {
 
 function mostrarTemasUsuario() {
     const container = document.getElementById('temasUsuario');
-    const temasAgrupados = agruparPreguntasPorTemas(misPreguntasVerificadas);
+    
+    // Filtrar solo las preguntas de los temas que YO seleccioné
+    const misPreguntasFiltradas = filtrarPreguntasPorTemasSeleccionados();
+    const temasAgrupados = agruparPreguntasPorTemas(misPreguntasFiltradas);
     
     container.innerHTML = '';
     
@@ -370,19 +428,63 @@ function mostrarTemasUsuario() {
     });
 }
 
-function mostrarTemasRival() {
+async function mostrarTemasRival() {
     const container = document.getElementById('temasRival');
-    const temasAgrupados = agruparPreguntasPorTemas(preguntasRival);
     
-    container.innerHTML = '';
+    console.log('=== DEBUG MOSTRAR TEMAS RIVAL ===');
+    console.log('rivalUidGlobal:', window.rivalUidGlobal);
+    console.log('preguntasRival length:', preguntasRival.length);
+    console.log('jugadorActual:', jugadorActual);
+    console.log('rival:', rival);
     
-    Object.values(temasAgrupados).forEach(tema => {
-        const temaElement = crearElementoTema(tema, true);
-        container.appendChild(temaElement);
-    });
+    try {
+        // Usar directamente el UID global del rival que se estableció en mostrarInterfazJuego
+        const rivalUid = window.rivalUidGlobal;
+        
+        if (!rivalUid) {
+            console.log('❌ No hay rivalUid - usando fallback');
+            // Fallback al método anterior si no hay UID del rival
+            const temasAgrupados = agruparPreguntasPorTemas(preguntasRival);
+            container.innerHTML = '';
+            Object.values(temasAgrupados).forEach(tema => {
+                const temaElement = crearElementoTema(tema, true);
+                container.appendChild(temaElement);
+            });
+            return;
+        }
+        
+        console.log('✅ Usando rivalUid:', rivalUid);
+        
+        // TEMPORAL: Usar método simple primero
+        console.log('🔄 Usando método simple para debug...');
+        const temasAgrupados = agruparPreguntasPorTemas(preguntasRival);
+        container.innerHTML = '';
+        
+        console.log('Temas agrupados:', Object.keys(temasAgrupados));
+        
+        Object.values(temasAgrupados).forEach(tema => {
+            console.log('Creando tema:', tema.nombre, 'con', tema.preguntas.length, 'preguntas');
+            const temaElement = crearElementoTema(tema, true);
+            container.appendChild(temaElement);
+        });
+        
+        console.log('✅ Temas rival mostrados correctamente');
+        
+    } catch (error) {
+        console.error('❌ Error mostrando temas rival:', error);
+        // Fallback al método anterior
+        const temasAgrupados = agruparPreguntasPorTemas(preguntasRival);
+        container.innerHTML = '';
+        Object.values(temasAgrupados).forEach(tema => {
+            const temaElement = crearElementoTema(tema, true);
+            container.appendChild(temaElement);
+        });
+    }
 }
 
 function crearElementoTema(tema, esClickeable) {
+    console.log('Creando elemento tema:', tema.nombre, 'clickeable:', esClickeable, 'preguntas:', tema.preguntas.length);
+    
     const temaDiv = document.createElement('div');
     temaDiv.className = 'tema-container';
     
@@ -420,6 +522,93 @@ function crearElementoTema(tema, esClickeable) {
         
         containerDiv.appendChild(preguntaDiv);
     });
+    
+    temaDiv.appendChild(headerDiv);
+    temaDiv.appendChild(containerDiv);
+    
+    return temaDiv;
+}
+
+function crearElementoTemaEstructurado(tema, tieneSubtemas, subtemas, esClickeable) {
+    const temaDiv = document.createElement('div');
+    temaDiv.className = 'tema-container-estructurado';
+    
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'tema-header';
+    headerDiv.innerHTML = `
+        📚 ${tema.nombre} (${tema.preguntas.length} preguntas)
+        ${tieneSubtemas ? '<span class="toggle-icon">📁</span>' : ''}
+    `;
+    
+    const containerDiv = document.createElement('div');
+    containerDiv.className = 'tema-content';
+    containerDiv.style.display = 'none';
+    
+    if (esClickeable) {
+        headerDiv.style.cursor = 'pointer';
+        headerDiv.addEventListener('click', () => {
+            if (turnoActual !== jugadorActual) return;
+            
+            const isExpanded = containerDiv.style.display !== 'none';
+            containerDiv.style.display = isExpanded ? 'none' : 'block';
+            headerDiv.classList.toggle('expandido', !isExpanded);
+            
+            const toggleIcon = headerDiv.querySelector('.toggle-icon');
+            if (toggleIcon) {
+                toggleIcon.textContent = isExpanded ? '📁' : '📂';
+            }
+        });
+    }
+    
+    // Agregar preguntas del tema principal
+    tema.preguntas.forEach(pregunta => {
+        const preguntaDiv = document.createElement('div');
+        preguntaDiv.className = 'pregunta-item';
+        preguntaDiv.textContent = pregunta.pregunta;
+        
+        if (esClickeable) {
+            preguntaDiv.addEventListener('click', () => {
+                if (turnoActual === jugadorActual) {
+                    seleccionarPregunta(pregunta);
+                }
+            });
+        }
+        
+        containerDiv.appendChild(preguntaDiv);
+    });
+    
+    // Agregar subtemas si los tiene
+    if (tieneSubtemas) {
+        subtemas.forEach(subtema => {
+            if (subtema.preguntas.length > 0) {
+                const subtemaDiv = document.createElement('div');
+                subtemaDiv.className = 'subtema-container';
+                subtemaDiv.innerHTML = `<div class="subtema-header">↳ ${subtema.nombre} (${subtema.preguntas.length} preguntas)</div>`;
+                
+                const subtemaContent = document.createElement('div');
+                subtemaContent.className = 'subtema-content';
+                
+                subtema.preguntas.forEach(pregunta => {
+                    const preguntaDiv = document.createElement('div');
+                    preguntaDiv.className = 'pregunta-item subtema-pregunta';
+                    preguntaDiv.textContent = pregunta.pregunta;
+                    
+                    if (esClickeable) {
+                        preguntaDiv.addEventListener('click', () => {
+                            if (turnoActual === jugadorActual) {
+                                seleccionarPregunta(pregunta);
+                            }
+                        });
+                    }
+                    
+                    subtemaContent.appendChild(preguntaDiv);
+                });
+                
+                subtemaDiv.appendChild(subtemaContent);
+                containerDiv.appendChild(subtemaDiv);
+            }
+        });
+    }
     
     temaDiv.appendChild(headerDiv);
     temaDiv.appendChild(containerDiv);
@@ -746,18 +935,30 @@ function copiarClaveSala() {
 
 function agruparPreguntasPorTemas(preguntas) {
     const temasAgrupados = {};
+    const temasOrdenados = new Map(); // Para mantener orden de inserción
     
     preguntas.forEach(pregunta => {
-        const tema = pregunta.temaNombre;
+        let claveTema = pregunta.temaNombre;
         
-        if (!temasAgrupados[tema]) {
-            temasAgrupados[tema] = {
-                nombre: tema,
-                preguntas: []
-            };
+        // Si es subtema, añadir prefijo para diferenciarlo
+        if (pregunta.esSubtema) {
+            claveTema = `📁 ${pregunta.temaNombre}`;
         }
         
-        temasAgrupados[tema].preguntas.push(pregunta);
+        if (!temasOrdenados.has(claveTema)) {
+            temasOrdenados.set(claveTema, {
+                nombre: claveTema,
+                preguntas: [],
+                esSubtema: pregunta.esSubtema
+            });
+        }
+        
+        temasOrdenados.get(claveTema).preguntas.push(pregunta);
+    });
+    
+    // Convertir Map a objeto manteniendo orden
+    temasOrdenados.forEach((valor, clave) => {
+        temasAgrupados[clave] = valor;
     });
     
     return temasAgrupados;
@@ -808,7 +1009,7 @@ async function repetirDuelo() {
         });
         
         pantallaResultado.classList.add('hidden');
-        mostrarSalaEspera();
+        await mostrarSalaEspera();
         
         const btnListo = document.getElementById('btnEstoyListo');
         btnListo.disabled = false;
@@ -874,8 +1075,99 @@ window.addEventListener('beforeunload', function() {
         salirDeSala();
     }
 });
+// Funciones para el selector de temas con estructura de carpetas
+function configurarEventListenersSelector() {
+    // Event listeners para checkboxes principales
+    document.querySelectorAll('.tema-checkbox-principal').forEach(checkbox => {
+        checkbox.addEventListener('change', manejarCambioTemaPrincipal);
+    });
+    
+    // Event listeners para checkboxes de subtemas
+    document.querySelectorAll('.tema-checkbox-subtema').forEach(checkbox => {
+        checkbox.addEventListener('change', manejarCambioSubtema);
+    });
+}
+
+function manejarCambioTemaPrincipal(event) {
+    const checkbox = event.target;
+    const temaNombre = checkbox.dataset.tema;
+    const temaId = checkbox.id.replace('tema-', '');
+    
+    // Actualizar selección del tema principal
+    if (checkbox.checked) {
+        temasSeleccionados.add(temaNombre);
+    } else {
+        temasSeleccionados.delete(temaNombre);
+    }
+    
+    // Sincronizar subtemas con el tema principal
+    const subtemas = document.querySelectorAll(`#subtemas-${temaId} .tema-checkbox-subtema`);
+    subtemas.forEach(subtemaCheckbox => {
+        subtemaCheckbox.checked = checkbox.checked;
+        const subtemaNombre = subtemaCheckbox.dataset.tema;
+        
+        if (checkbox.checked) {
+            temasSeleccionados.add(subtemaNombre);
+        } else {
+            temasSeleccionados.delete(subtemaNombre);
+        }
+    });
+    
+    actualizarTemasSeleccionados();
+}
+
+function manejarCambioSubtema(event) {
+    const checkbox = event.target;
+    const subtemaNombre = checkbox.dataset.tema;
+    
+    // Actualizar selección del subtema
+    if (checkbox.checked) {
+        temasSeleccionados.add(subtemaNombre);
+    } else {
+        temasSeleccionados.delete(subtemaNombre);
+    }
+    
+    actualizarTemasSeleccionados();
+}
+
+window.toggleSubtemasSelector = function(temaId) {
+    const container = document.getElementById(`subtemas-${temaId}`);
+    const arrow = document.getElementById(`arrow-${temaId}`);
+    
+    if (!container || !arrow) return;
+    
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        arrow.textContent = '📂';
+    } else {
+        container.style.display = 'none';
+        arrow.textContent = '📁';
+    }
+};
+function actualizarTemasSeleccionados() {
+    actualizarContadorTemas();
+    
+    const btnListo = document.getElementById('btnEstoyListo');
+    const haySegundoJugador = document.getElementById('nombreJugador2').textContent !== '';
+    
+    btnListo.disabled = temasSeleccionados.size === 0 || !haySegundoJugador;
+}
+
+function actualizarContadorTemas() {
+    const contador = document.getElementById('temasSeleccionadosCount');
+    if (contador) {
+        contador.textContent = `${temasSeleccionados.size} temas seleccionados`;
+    }
+}
+
+function filtrarPreguntasPorTemasSeleccionados() {
+    return misPreguntasVerificadas.filter(pregunta => 
+        temasSeleccionados.has(pregunta.temaNombre)
+    );
+}
 
 console.log('Multijugador.js cargado completamente');
+
 function iniciarCronometroRespuesta() {
     const cronometroElement = document.getElementById('cronometroRespuesta');
     const tiempoElement = document.getElementById('tiempoRespuesta');
@@ -984,7 +1276,7 @@ function mostrarMensajeTiempoAgotado() {
         opcionesPregunta.appendChild(mensajeDiv);
     }
 }
-async function cargarPreguntasRival(rivalUid) {
+async function cargarPreguntasRival(rivalUid, temasPermitidos = null) {
     try {
         const q = query(collection(db, "temas"), where("usuarioId", "==", rivalUid));
         const querySnapshot = await getDocs(q);
@@ -994,7 +1286,9 @@ async function cargarPreguntasRival(rivalUid) {
         querySnapshot.forEach((doc) => {
             const tema = doc.data();
             const temaId = doc.id;
+            const nombreTemaPrincipal = tema.nombre; // USAR EL NOMBRE DEL TEMA PRINCIPAL
             
+            // Cargar preguntas principales del tema
             if (tema.preguntas && Array.isArray(tema.preguntas)) {
                 tema.preguntas.forEach((pregunta, index) => {
                     if (pregunta.verificada === true && 
@@ -1012,25 +1306,197 @@ async function cargarPreguntasRival(rivalUid) {
                         if (opcionesValidas && tieneRespuestaCorrecta) {
                             const respuestaCorrecta = pregunta.opciones.findIndex(op => op.esCorrecta === true);
                             
-                            preguntasRival.push({
-                                id: `${temaId}_${index}`,
-                                temaId: temaId,
-                                temaNombre: tema.nombre || 'Tema sin nombre',
-                                temaEpigrafe: tema.descripcion || '',
-                                pregunta: pregunta.texto,
-                                opciones: pregunta.opciones.map(op => op.texto),
-                                respuestaCorrecta: respuestaCorrecta,
-                                esSubtema: false
-                            });
+                            // Solo añadir si el TEMA PRINCIPAL está en la lista permitida
+                            if (!temasPermitidos || temasPermitidos.includes(nombreTemaPrincipal)) {
+                                preguntasRival.push({
+                                    id: `${temaId}_${index}`,
+                                    temaId: temaId,
+                                    temaNombre: nombreTemaPrincipal, // NOMBRE DEL TEMA PRINCIPAL
+                                    temaEpigrafe: tema.descripcion || '',
+                                    pregunta: pregunta.texto,
+                                    opciones: pregunta.opciones.map(op => op.texto),
+                                    respuestaCorrecta: respuestaCorrecta,
+                                    esSubtema: false
+                                });
+                            }
                         }
+                    }
+                });
+            }
+            
+            // Cargar preguntas de subtemas PERO ASIGNARLAS AL TEMA PRINCIPAL
+            if (tema.subtemas && Array.isArray(tema.subtemas)) {
+                tema.subtemas.forEach((subtema, subtemaIndex) => {
+                    if (subtema.preguntas && Array.isArray(subtema.preguntas)) {
+                        subtema.preguntas.forEach((pregunta, preguntaIndex) => {
+                            if (pregunta.verificada === true && 
+                                pregunta.texto && 
+                                pregunta.opciones && 
+                                Array.isArray(pregunta.opciones) && 
+                                pregunta.opciones.length === 4) {
+                                
+                                const opcionesValidas = pregunta.opciones.every(op => 
+                                    op && op.texto && typeof op.texto === 'string'
+                                );
+                                
+                                const tieneRespuestaCorrecta = pregunta.opciones.some(op => op.esCorrecta === true);
+                                
+                                if (opcionesValidas && tieneRespuestaCorrecta) {
+                                    const respuestaCorrecta = pregunta.opciones.findIndex(op => op.esCorrecta === true);
+                                    
+                                    // Solo añadir si el TEMA PRINCIPAL está en la lista permitida
+                                    if (!temasPermitidos || temasPermitidos.includes(nombreTemaPrincipal)) {
+                                        preguntasRival.push({
+                                            id: `${temaId}_subtema${subtemaIndex}_${preguntaIndex}`,
+                                            temaId: temaId,
+                                            temaNombre: nombreTemaPrincipal, // NOMBRE DEL TEMA PRINCIPAL, NO DEL SUBTEMA
+                                            temaEpigrafe: tema.descripcion || '',
+                                            pregunta: pregunta.texto,
+                                            opciones: pregunta.opciones.map(op => op.texto),
+                                            respuestaCorrecta: respuestaCorrecta,
+                                            esSubtema: true,
+                                            subtemaOriginal: subtema.nombre
+                                        });
+                                    }
+                                }
+                            }
+                        });
                     }
                 });
             }
         });
         
-        mostrarTemasRival();
+        await mostrarTemasRival();
         
     } catch (error) {
         console.error('Error cargando preguntas del rival:', error);
+    }
+}
+
+
+async function mostrarSelectorTemas() {
+    const container = document.getElementById('temasDisponibles');
+    
+    try {
+        // Cargar temas desde Firebase igual que en el banco
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        // Separar temas principales y subtemas
+        const temasPrincipales = [];
+        const subtemasPorPadre = {};
+
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            const temaId = doc.id;
+            
+            // Contar preguntas verificadas de este tema
+            const preguntasVerificadas = tema.preguntas ? 
+                tema.preguntas.filter(p => p.verificada === true).length : 0;
+            
+            if (tema.temaPadreId) {
+                // Es un subtema
+                if (!subtemasPorPadre[tema.temaPadreId]) {
+                    subtemasPorPadre[tema.temaPadreId] = [];
+                }
+                subtemasPorPadre[tema.temaPadreId].push({
+                    id: temaId,
+                    nombre: tema.nombre,
+                    preguntasVerificadas: preguntasVerificadas
+                });
+            } else {
+                // Es un tema principal
+                temasPrincipales.push({
+                    id: temaId,
+                    nombre: tema.nombre,
+                    preguntasVerificadas: preguntasVerificadas,
+                    orden: tema.orden || 0
+                });
+            }
+        });
+
+        // Sumar preguntas de subtemas a los temas principales
+        temasPrincipales.forEach(tema => {
+            if (subtemasPorPadre[tema.id]) {
+                const preguntasSubtemas = subtemasPorPadre[tema.id].reduce((total, subtema) => {
+                    return total + subtema.preguntasVerificadas;
+                }, 0);
+                tema.preguntasVerificadas += preguntasSubtemas;
+            }
+        });
+
+        // Ordenar temas con ordenamiento numérico inteligente
+        temasPrincipales.sort((a, b) => {
+            const nombreA = a.nombre;
+            const nombreB = b.nombre;
+            
+            const numeroA = nombreA.match(/\d+/);
+            const numeroB = nombreB.match(/\d+/);
+            
+            if (numeroA && numeroB) {
+                return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+            } else {
+                return nombreA.localeCompare(nombreB);
+            }
+        });
+
+        container.innerHTML = '';
+        container.className = 'temas-estructura-banco';
+        
+        // Renderizar temas principales con sus subtemas
+        temasPrincipales.forEach((tema) => {
+            const tieneSubtemas = subtemasPorPadre[tema.id] && subtemasPorPadre[tema.id].length > 0;
+            
+            const temaDiv = document.createElement('div');
+            temaDiv.className = 'tema-selector-card';
+            
+            temaDiv.innerHTML = `
+                <div class="tema-principal-selector">
+                    <label class="tema-checkbox-container">
+                        <input type="checkbox" class="tema-checkbox-principal" id="tema-${tema.id}" data-tema="${tema.nombre}" checked>
+                        <span class="tema-nombre-selector">📚 ${tema.nombre}</span>
+                        <span class="tema-contador-selector">${tema.preguntasVerificadas} preguntas</span>
+                    </label>
+                    ${tieneSubtemas ? `
+                        <button class="toggle-subtemas-selector" onclick="toggleSubtemasSelector('${tema.id}')">
+                            <span id="arrow-${tema.id}">📁</span>
+                        </button>
+                    ` : ''}
+                </div>
+                ${tieneSubtemas ? `
+                    <div class="subtemas-container-selector" id="subtemas-${tema.id}" style="display: none;">
+                        ${subtemasPorPadre[tema.id].map(subtema => `
+                            <div class="subtema-selector">
+                                <label class="subtema-checkbox-container">
+                                    <input type="checkbox" class="tema-checkbox-subtema" id="subtema-${subtema.id}" data-tema="${subtema.nombre}" checked>
+                                    <span class="subtema-nombre-selector">↳ ${subtema.nombre}</span>
+                                    <span class="subtema-contador-selector">${subtema.preguntasVerificadas} preguntas</span>
+                                </label>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            `;
+            
+            container.appendChild(temaDiv);
+            
+            // Añadir tema principal a seleccionados por defecto
+            temasSeleccionados.add(tema.nombre);
+            
+            // Añadir subtemas a seleccionados por defecto
+            if (tieneSubtemas) {
+                subtemasPorPadre[tema.id].forEach(subtema => {
+                    temasSeleccionados.add(subtema.nombre);
+                });
+            }
+        });
+        
+        // Configurar event listeners
+        configurarEventListenersSelector();
+        actualizarContadorTemas();
+        
+    } catch (error) {
+        console.error('Error cargando temas para selector:', error);
+        container.innerHTML = '<p>Error cargando temas</p>';
     }
 }
