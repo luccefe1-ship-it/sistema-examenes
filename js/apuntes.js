@@ -591,7 +591,11 @@ function seleccionarEpigrafe(index, epigrafes) {
     itemSeleccionado.classList.add('seleccionado');
     
     // Actualizar navegación
-    document.getElementById('epigrafeActual').textContent = epigrafes[index].titulo;
+    const epigrafeActualElement = document.getElementById('epigrafeActual');
+    epigrafeActualElement.innerHTML = `
+        ${epigrafes[index].titulo}
+        <button onclick="iniciarEdicion()" class="btn-editar-flotante" title="Editar nota">✏️</button>
+    `;
     document.getElementById('epigrafeAnterior').disabled = index === 0;
     document.getElementById('epigrafeSiguiente').disabled = index === epigrafes.length - 1;
     
@@ -603,7 +607,7 @@ function mostrarContenidoEpigrafe(epigrafe) {
     const contenidoNota = document.getElementById('contenidoNota');
     
     if (!epigrafe.contenido || epigrafe.contenido.trim() === '') {
-        contenidoNota.innerHTML = `
+          contenidoNota.innerHTML = `
             <div style="background: #fff3cd; border: 2px dashed #ffc107; border-radius: 8px; padding: 40px; text-align: center; color: #856404; font-style: italic;">
                 <p>📝 Este epígrafe está vacío</p>
                 <p>Haz clic en el botón editar para añadir contenido</p>
@@ -611,10 +615,9 @@ function mostrarContenidoEpigrafe(epigrafe) {
             </div>
         `;
     } else {
-        contenidoNota.innerHTML = `
+       contenidoNota.innerHTML = `
     <div style="position: relative; min-height: 200px;">
         <div style="line-height: 1.6; font-size: 16px; color: #495057; word-wrap: break-word;">${epigrafe.contenido}</div>
-        <button onclick="iniciarEdicion()" style="position: absolute; top: -5px; right: -5px; background: #17a2b8; color: white; border: none; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" title="Editar nota">✏️</button>
     </div>
 `;
     }
@@ -672,8 +675,12 @@ const nuevoContenido = document.getElementById('contenidoEditor').innerHTML.trim
         mostrarEpigrafesEnLista(epigrafesActuales);
         mostrarContenidoEpigrafe(epigrafesActuales[epigrafeSeleccionado]);
         
-        // Actualizar nombre en navegación
-        document.getElementById('epigrafeActual').textContent = nuevoTitulo;
+        // Actualizar nombre en navegación con botón incluido
+        const epigrafeActualElement = document.getElementById('epigrafeActual');
+        epigrafeActualElement.innerHTML = `
+            ${nuevoTitulo}
+            <button onclick="iniciarEdicion()" class="btn-editar-flotante" title="Editar nota">✏️</button>
+        `;
         
         // Reseleccionar para mantener el estado
         setTimeout(() => {
@@ -837,6 +844,124 @@ window.limpiarTodoFormato = function() {
         const content = editor.innerHTML;
         editor.innerHTML = content.replace(/style="[^"]*"/g, '').replace(/<span[^>]*>/g, '').replace(/<\/span>/g, '');
     }
+};
+
+// Variables para la barra flotante
+let barraFlotante = null;
+let timeoutOcultar = null;
+
+// Función para crear la barra flotante
+function crearBarraFlotante() {
+    const barra = document.createElement('div');
+    barra.id = 'barraHerramientasFlotante';
+    barra.className = 'barra-flotante';
+    barra.innerHTML = `
+        <button type="button" class="btn-formato-flotante" onclick="formatearTextoFlotante('bold')" title="Negrita"><b>B</b></button>
+        <button type="button" class="btn-formato-flotante" onclick="formatearTextoFlotante('underline')" title="Subrayado"><u>U</u></button>
+        <button type="button" class="btn-formato-flotante" onclick="formatearTextoFlotante('italic')" title="Cursiva"><i>I</i></button>
+        <button type="button" class="btn-formato-flotante" onclick="toggleResaltadoFlotante()" title="Resaltar">🖍️</button>
+        <div class="color-picker-flotante">
+            <div class="color-option-flotante no-highlight" data-color="none" title="Quitar resaltado">❌</div>
+            <div class="color-option-flotante" data-color="yellow" style="background-color: yellow;" title="Amarillo"></div>
+            <div class="color-option-flotante" data-color="lightgreen" style="background-color: lightgreen;" title="Verde"></div>
+            <div class="color-option-flotante" data-color="lightblue" style="background-color: lightblue;" title="Azul"></div>
+            <div class="color-option-flotante" data-color="pink" style="background-color: pink;" title="Rosa"></div>
+        </div>
+    `;
+    document.body.appendChild(barra);
+    return barra;
+}
+
+// Función para mostrar la barra flotante
+function mostrarBarraFlotante(x, y) {
+    if (!barraFlotante) {
+        barraFlotante = crearBarraFlotante();
+        
+        // Configurar eventos de los colores flotantes
+        barraFlotante.querySelectorAll('.color-option-flotante').forEach(option => {
+            option.addEventListener('click', (e) => {
+                barraFlotante.querySelectorAll('.color-option-flotante').forEach(o => o.classList.remove('selected'));
+                e.target.classList.add('selected');
+                colorSeleccionado = e.target.dataset.color;
+            });
+        });
+    }
+    
+    barraFlotante.style.display = 'flex';
+    
+    // Mejor posicionamiento considerando el scroll
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    
+    barraFlotante.style.left = Math.max(10, x - 100) + 'px';
+    barraFlotante.style.top = Math.max(10, y + scrollTop - 60) + 'px';
+    
+    // Limpiar timeout anterior
+    if (timeoutOcultar) {
+        clearTimeout(timeoutOcultar);
+    }
+}
+
+// Función para ocultar la barra flotante
+function ocultarBarraFlotante() {
+    if (barraFlotante) {
+        timeoutOcultar = setTimeout(() => {
+            barraFlotante.style.display = 'none';
+        }, 300);
+    }
+}
+
+// Event listener para detectar selección
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        const editor = document.getElementById('contenidoEditor');
+        if (editor) {
+            editor.addEventListener('mouseup', (e) => {
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0 && !selection.isCollapsed) {
+                    const range = selection.getRangeAt(0);
+                    const rect = range.getBoundingClientRect();
+                    mostrarBarraFlotante(rect.left + rect.width / 2 - 100, rect.top);
+                } else {
+                    ocultarBarraFlotante();
+                }
+            });
+            
+            editor.addEventListener('keyup', (e) => {
+                const selection = window.getSelection();
+                if (selection.rangeCount === 0 || selection.isCollapsed) {
+                    ocultarBarraFlotante();
+                }
+            });
+        }
+    }, 1000);
+});
+
+// Funciones específicas para la barra flotante
+window.formatearTextoFlotante = function(comando) {
+    const editor = document.getElementById('contenidoEditor');
+    editor.focus();
+    document.execCommand(comando, false, null);
+    ocultarBarraFlotante();
+};
+
+window.toggleResaltadoFlotante = function() {
+    const editor = document.getElementById('contenidoEditor');
+    editor.focus();
+    
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0 && !selection.isCollapsed) {
+        if (colorSeleccionado === 'none') {
+            document.execCommand('removeFormat', false, null);
+            document.execCommand('hiliteColor', false, 'transparent');
+            document.execCommand('backColor', false, 'transparent');
+        } else {
+            document.execCommand('hiliteColor', false, 'transparent');
+            document.execCommand('backColor', false, 'transparent');
+            document.execCommand('hiliteColor', false, colorSeleccionado);
+        }
+    }
+    ocultarBarraFlotante();
 };
 
 window.formatearTexto = function(comando) {
