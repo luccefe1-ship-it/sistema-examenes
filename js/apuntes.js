@@ -341,7 +341,7 @@ async function cargarTemasApuntes() {
 async function seleccionarTema(temaId) {
     console.log('Seleccionando tema:', temaId);
     
- if (!temaId) {
+    if (!temaId) {
         document.getElementById('temaActualApuntes').style.display = 'none';
         document.getElementById('mainContentApuntes').style.display = 'none';
         // Eliminar botón flotante si existe
@@ -415,7 +415,9 @@ async function seleccionarTema(temaId) {
         
     } catch (error) {
         console.error('Error seleccionando tema:', error);
-        alert('Error al cargar el tema');
+        console.error('Detalles del error:', error.message);
+        console.error('Stack trace:', error.stack);
+        alert('Error al cargar el tema: ' + error.message);
     }
 }
 
@@ -493,7 +495,65 @@ function mostrarEpigrafesEnLista(epigrafes) {
         return;
     }
 
-    epigrafes.forEach((epigrafe, index) => {
+    // Ordenar epígrafes con algoritmo inteligente para números y números romanos
+    const epigrafesOrdenados = [...epigrafes].sort((a, b) => {
+        const tituloA = a.titulo;
+        const tituloB = b.titulo;
+        
+        // Función para extraer números romanos y convertirlos a decimales
+        function romanoADecimal(romano) {
+            const valores = {
+                'I': 1, 'V': 5, 'X': 10, 'L': 50, 
+                'C': 100, 'D': 500, 'M': 1000
+            };
+            
+            let total = 0;
+            for (let i = 0; i < romano.length; i++) {
+                const actual = valores[romano[i]];
+                const siguiente = valores[romano[i + 1]];
+                
+                if (siguiente && actual < siguiente) {
+                    total += siguiente - actual;
+                    i++; // Saltar el siguiente carácter
+                } else {
+                    total += actual;
+                }
+            }
+            return total;
+        }
+        
+        // Extraer números romanos del título
+        const romanoA = tituloA.match(/^[IVXLCDM]+/);
+        const romanoB = tituloB.match(/^[IVXLCDM]+/);
+        
+        // Extraer números arábigos del título
+        const numeroA = tituloA.match(/^\d+/);
+        const numeroB = tituloB.match(/^\d+/);
+        
+        // Si ambos tienen números romanos al inicio
+        if (romanoA && romanoB) {
+            const valorA = romanoADecimal(romanoA[0]);
+            const valorB = romanoADecimal(romanoB[0]);
+            return valorA - valorB;
+        }
+        
+        // Si ambos tienen números arábigos al inicio
+        if (numeroA && numeroB) {
+            return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+        }
+        
+        // Si uno tiene número romano y otro arábigo, los romanos van primero
+        if (romanoA && numeroB) return -1;
+        if (numeroA && romanoB) return 1;
+        
+        // Si no tienen números, ordenar alfabéticamente
+        return tituloA.localeCompare(tituloB);
+    });
+
+    // Actualizar la variable global con los epígrafes ordenados
+    epigrafesActuales = epigrafesOrdenados;
+
+    epigrafesOrdenados.forEach((epigrafe, index) => {
         const li = document.createElement('li');
         li.className = 'epigrafe-item';
         li.dataset.index = index;
@@ -508,7 +568,7 @@ function mostrarEpigrafesEnLista(epigrafes) {
         
         li.addEventListener('click', (e) => {
             if (!e.target.classList.contains('btn-epigrafe')) {
-                seleccionarEpigrafe(index, epigrafes);
+                seleccionarEpigrafe(index, epigrafesOrdenados);
             }
         });
         
