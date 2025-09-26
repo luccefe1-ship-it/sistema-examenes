@@ -217,31 +217,31 @@
             color: #667eea;
         }
 
-        /* Cronómetro flotante */
+        /* Cronómetro flotante - FORZAR POSICIÓN */
         .cronometro {
-            position: absolute;
-            top: -80px;
-            right: 20px;
-            background: #dc3545;
-            color: white;
-            padding: 12px 18px;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
-            z-index: 1000;
-            font-size: 16px;
-            font-weight: bold;
-            text-align: center;
-            min-width: 100px;
+            position: fixed !important;
+            top: 80px !important;
+            right: 20px !important;
+            background: #dc3545 !important;
+            color: white !important;
+            padding: 12px 18px !important;
+            border-radius: 10px !important;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3) !important;
+            z-index: 1000 !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            text-align: center !important;
+            min-width: 100px !important;
         }
 
         .cronometro.warning {
-            background: #ffc107;
-            color: #000;
+            background: #ffc107 !important;
+            color: #000 !important;
         }
 
         .cronometro.danger {
-            background: #dc3545;
-            animation: pulse 1s infinite;
+            background: #dc3545 !important;
+            animation: pulse 1s infinite !important;
         }
 
         @keyframes pulse {
@@ -495,9 +495,12 @@
         /* Responsive */
         @media (max-width: 768px) {
             .cronometro {
-                position: static;
-                margin-bottom: 20px;
-                width: 100%;
+                position: fixed !important;
+                top: 80px !important;
+                right: 10px !important;
+                left: 10px !important;
+                margin-bottom: 0px !important;
+                width: auto !important;
             }
 
             .game-columns {
@@ -544,6 +547,24 @@
             .item-pregunta, .item-respuesta {
                 padding: 12px;
                 font-size: 14px;
+            }
+        }
+
+        /* OVERRIDE DEFINITIVO PARA CRONÓMETRO */
+        #cronometroConexiones {
+            position: fixed !important;
+            top: 80px !important;
+            right: 20px !important;
+            z-index: 1001 !important;
+        }
+
+        @media (max-width: 768px) {
+            #cronometroConexiones {
+                position: fixed !important;
+                top: 80px !important;
+                right: 10px !important;
+                left: 10px !important;
+                width: auto !important;
             }
         }
     </style>
@@ -607,7 +628,7 @@
                     <small>📊 <strong>Modo Estático:</strong> Tienes 2 minutos para conectar 10 preguntas. Si lo logras antes de que acabe el tiempo, pasarás a las siguientes 10 preguntas sin renovar el cronómetro. ¿Cuántas rondas completarás antes de que se agote el tiempo?</small>
                 </div>
                 <div id="descripcionDinamico" class="descripcion-tiempo" style="display: none;">
-                    <small>⚡ <strong>Modo Dinámico:</strong> Empiezas con 2 minutos. Completa 10 conexiones correctas para ganar +30 segundos. ¿Cuántas rondas podrás completar?</small>
+                    <small>⚡ <strong>Modo Dinámico:</strong> Empiezas con 2 minutos. Completa 10 conexiones correctas para ganar +1 minuto adicional. Si fallas una respuesta, debes acertarla antes de pasar a la siguiente ronda. ¿Cuántas rondas completarás?</small>
                 </div>
             </div>
 
@@ -618,11 +639,6 @@
 
         <!-- Área del juego -->
         <div id="gameContainer" class="conexiones-game">
-            <!-- Cronómetro -->
-            <div id="cronometroConexiones" class="cronometro">
-                <div id="tiempoRestante">1:00</div>
-            </div>
-
             <!-- Header del juego -->
             <div class="game-header">
                 <div class="game-info">
@@ -676,8 +692,6 @@
         </div>
     </div>
 
-    <script type="module" src="js/conexiones.js"></script>
-
     <!-- Script para aplicar fondo dinámico -->
     <script>
         function actualizarFondoHora() {
@@ -702,5 +716,12 @@
 
         setInterval(actualizarFondoHora, 60000 * 60);
     </script>
+
+<!-- Cronómetro flotante independiente -->
+    <div id="cronometroConexiones" class="cronometro" style="display: none;">
+        <div id="tiempoRestante">1:00</div>
+    </div>
+
+    <script type="module" src="js/conexiones.js"></script>
 </body>
 </html>
