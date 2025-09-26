@@ -1543,33 +1543,44 @@ function mostrarInformacionPlanning() {
     
     titulo.textContent = `Planning hasta ${fechaLimite}`;
     
-    // Calcular páginas realmente restantes para mostrar información actualizada
+    // Calcular páginas y tests realmente hechos para mostrar información actualizada
     let paginasYaHechas = 0;
+    let testsYaHechos = 0;
+    
     planningGuardado.semanas.forEach(sem => {
-        if (sem.estado === 'cumplido' || sem.estado === 'incumplido') {
+        if (sem.estado === 'cumplido' || sem.estado === 'incumplido' || sem.estado === 'superado') {
             paginasYaHechas += sem.paginasReales;
+            testsYaHechos += sem.testsReales;
         }
     });
     
-    const paginasRestantes = planningGuardado.resultados.totalPaginasPendientes - paginasYaHechas;
+    const paginasRestantes = Math.max(0, planningGuardado.resultados.totalPaginasPendientes - paginasYaHechas);
+    const testsRestantes = Math.max(0, planningGuardado.resultados.totalTestsRecomendados - testsYaHechos);
+    
+    // Calcular nuevo ritmo diario basado en páginas restantes
+    const diasRestantes = Math.ceil((new Date(planningGuardado.fechaLimite) - new Date()) / (1000 * 60 * 60 * 24));
+    const nuevasPaginasPorDia = diasRestantes > 0 ? (paginasRestantes / diasRestantes).toFixed(1) : '0.0';
     
     resumen.innerHTML = `
-        <div class="resumen-item">
-            <strong>Total páginas:</strong> ${planningGuardado.resultados.totalPaginasPendientes}
-        </div>
-        <div class="resumen-item">
-            <strong>Páginas/día:</strong> ${planningGuardado.resultados.paginasPorDia}
-        </div>
-        <div class="resumen-item">
-            <strong>Tests totales:</strong> ${planningGuardado.resultados.totalTestsRecomendados}
-        </div>
-        <div class="resumen-item">
-            <strong>Temas:</strong> ${planningGuardado.temas.length}
-        </div>
-        <div class="resumen-item">
-            <strong>Páginas restantes:</strong> ${paginasRestantes}
-        </div>
-    `;
+    <div class="resumen-item">
+        <strong>Total páginas:</strong> ${planningGuardado.resultados.totalPaginasPendientes}
+    </div>
+    <div class="resumen-item">
+        <strong>Páginas/día:</strong> ${nuevasPaginasPorDia}
+    </div>
+    <div class="resumen-item">
+        <strong>Tests totales:</strong> ${planningGuardado.resultados.totalTestsRecomendados}
+    </div>
+    <div class="resumen-item">
+        <strong>Temas:</strong> ${planningGuardado.temas.length}
+    </div>
+    <div class="resumen-item">
+        <strong>Páginas restantes:</strong> ${paginasRestantes}
+    </div>
+    <div class="resumen-item">
+        <strong>Tests restantes:</strong> ${testsRestantes}
+    </div>
+`;
 }
 
 function mostrarSemanasPlanning() {
@@ -1577,11 +1588,20 @@ function mostrarSemanasPlanning() {
     container.innerHTML = '';
     
     planningGuardado.semanas.forEach(semana => {
-        const semanaDiv = document.createElement('div');
-        semanaDiv.className = 'semana-item';
+        // Convertir fechas de forma segura
+        const fechaInicioObj = semana.fechaInicio?.toDate ? semana.fechaInicio.toDate() : new Date(semana.fechaInicio);
+        const fechaFinObj = semana.fechaFin?.toDate ? semana.fechaFin.toDate() : new Date(semana.fechaFin);
         
-        const fechaInicio = new Date(semana.fechaInicio).toLocaleDateString('es-ES');
-        const fechaFin = new Date(semana.fechaFin).toLocaleDateString('es-ES');
+        const fechaInicio = fechaInicioObj.toLocaleDateString('es-ES', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+        const fechaFin = fechaFinObj.toLocaleDateString('es-ES', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
         
         let estadoClass = 'estado-pendiente';
         let estadoTexto = 'Pendiente';
@@ -1592,7 +1612,13 @@ function mostrarSemanasPlanning() {
         } else if (semana.estado === 'incumplido') {
             estadoClass = 'estado-incumplido';
             estadoTexto = 'No cumplido';
+        } else if (semana.estado === 'superado') {
+            estadoClass = 'estado-superado';
+            estadoTexto = '⭐ Superado';
         }
+        
+        const semanaDiv = document.createElement('div');
+        semanaDiv.className = `semana-item ${semana.estado === 'cumplido' ? 'estado-cumplido' : semana.estado === 'incumplido' ? 'estado-incumplido' : semana.estado === 'superado' ? 'estado-superado' : ''}`;
         
         semanaDiv.innerHTML = `
             <div class="semana-header">
@@ -1663,7 +1689,27 @@ async function confirmarReporteSemana(numeroSemana) {
     const cumplioTests = testsRealizados >= semana.objetivoTests;
     
     if (cumplioPaginas && cumplioTests) {
-        semana.estado = 'cumplido';
+        // Detectar si se superaron significativamente los objetivos (20% más)
+        const superoSignificativamentePaginas = paginasLeidas > semana.objetivoPaginas * 1.2;
+        const superoSignificativamenteTests = testsRealizados > semana.objetivoTests * 1.2;
+        
+        if (superoSignificativamentePaginas || superoSignificativamenteTests) {
+            semana.estado = 'superado';
+            
+            // Ofrecer recalcular planning por superación
+            const recalcular = confirm(
+                `¡Excelente! Has superado los objetivos de esta semana.\n\n` +
+                `Páginas: ${paginasLeidas}/${semana.objetivoPaginas} (${paginasLeidas > semana.objetivoPaginas ? '+' + (paginasLeidas - semana.objetivoPaginas) : ''})\n` +
+                `Tests: ${testsRealizados}/${semana.objetivoTests} (${testsRealizados > semana.objetivoTests ? '+' + (testsRealizados - semana.objetivoTests) : ''})\n\n` +
+                `¿Quieres recalcular el planning para reducir la carga de las próximas semanas?`
+            );
+            
+            if (recalcular) {
+                await recalcularPlanning(numeroSemana);
+            }
+        } else {
+            semana.estado = 'cumplido';
+        }
     } else {
         semana.estado = 'incumplido';
         
@@ -1688,75 +1734,59 @@ async function confirmarReporteSemana(numeroSemana) {
     cerrarModalReporte();
 }
 
-// Función para recalcular planning
+// Función para recalcular planning - CORREGIDA
 async function recalcularPlanning(semanaNumero) {
     try {
-        // El objetivo TOTAL sigue siendo el mismo: hay que leer todas las páginas originales
-        const totalPaginasPendientes = planningGuardado.resultados.totalPaginasPendientes; // Esto NO cambia
-        const totalTestsPendientes = planningGuardado.resultados.totalTestsRecomendados; // Esto NO cambia
-        
-        // Calcular lo ya hecho REALMENTE
-        let paginasYaHechas = 0;
-        let testsYaHechos = 0;
+        // Calcular lo que REALMENTE se ha hecho hasta ahora
+        let paginasRealesHechas = 0;
+        let testsRealesHechos = 0;
         
         planningGuardado.semanas.forEach(sem => {
-            if (sem.estado === 'cumplido' || sem.estado === 'incumplido') {
-                paginasYaHechas += sem.paginasReales;
-                testsYaHechos += sem.testsReales;
+            if (sem.estado === 'cumplido' || sem.estado === 'incumplido' || sem.estado === 'superado') {
+                paginasRealesHechas += sem.paginasReales;
+                testsRealesHechos += sem.testsReales;
             }
         });
         
-        // Las páginas restantes son TODAS las originales menos lo que realmente hiciste
-        const paginasRestantes = totalPaginasPendientes - paginasYaHechas;
-        const testsRestantes = totalTestsPendientes - testsYaHechos;
+        // Lo que AÚN falta por hacer (objetivo original - lo ya hecho)
+        const paginasRestantes = planningGuardado.resultados.totalPaginasPendientes - paginasRealesHechas;
+        const testsRestantes = planningGuardado.resultados.totalTestsRecomendados - testsRealesHechos;
         
-        console.log(`DEBUG: Total original=${totalPaginasPendientes}, Ya hechas=${paginasYaHechas}, Restantes=${paginasRestantes}`);
+        // Contar semanas futuras (pendientes)
+        const semanasFuturas = planningGuardado.semanas.filter(s => s.estado === 'pendiente').length;
         
-        // Contar SOLO semanas futuras (pendientes), NO incumplidas  
-const semanasFuturas = planningGuardado.semanas.filter(s => s.estado === 'pendiente').length;
-console.log(`DEBUG: Total semanas=${planningGuardado.semanas.length}, Semanas futuras=${semanasFuturas}`);
-console.log(`Estados de semanas:`, planningGuardado.semanas.map(s => `Semana${s.numero}:${s.estado}`));
-planningGuardado.semanas.forEach(s => {
-    console.log(`Semana ${s.numero}: estado=${s.estado}, paginasReales=${s.paginasReales}, objetivoPaginas=${s.objetivoPaginas}`);
-});
+        console.log(`RECÁLCULO:
+- Total original páginas: ${planningGuardado.resultados.totalPaginasPendientes}
+- Páginas reales hechas: ${paginasRealesHechas}
+- Páginas que faltan: ${paginasRestantes}
+- Semanas futuras: ${semanasFuturas}`);
         
         if (semanasFuturas > 0) {
+            // Redistributir lo que falta entre las semanas futuras
             const nuevasPaginasPorSemana = Math.ceil(paginasRestantes / semanasFuturas);
             const nuevosTestsPorSemana = Math.ceil(testsRestantes / semanasFuturas);
+            const nuevasPaginasPorDia = (paginasRestantes / (semanasFuturas * 7)).toFixed(1);
             
-            // Actualizar SOLO semanas pendientes (futuras)
+            // Actualizar solo semanas pendientes
             planningGuardado.semanas.forEach(sem => {
                 if (sem.estado === 'pendiente') {
                     sem.objetivoPaginas = nuevasPaginasPorSemana;
                     sem.objetivoTests = nuevosTestsPorSemana;
                 }
-                // Las semanas incumplidas NO se tocan - mantienen estado y objetivos originales
             });
             
-            // Recalcular datos generales basándose en lo que REALMENTE falta
-            const diasRestantes = Math.ceil((new Date(planningGuardado.fechaLimite) - new Date()) / (1000 * 60 * 60 * 24));
-            const diasDisponiblesPorSemanas = semanasFuturas * 7;
-const nuevasPaginasPorDia = diasDisponiblesPorSemanas > 0 ? (paginasRestantes / diasDisponiblesPorSemanas).toFixed(1) : 0;
+            // Actualizar datos generales
+            planningGuardado.resultados.paginasPorDia = nuevasPaginasPorDia;
+            planningGuardado.resultados.paginasPorSemana = nuevasPaginasPorSemana;
+            planningGuardado.resultados.semanasDisponibles = semanasFuturas;
             
-            // Actualizar resultados del planning
-planningGuardado.resultados.paginasPorDia = nuevasPaginasPorDia;
-planningGuardado.resultados.paginasPorSemana = nuevasPaginasPorSemana;
-planningGuardado.resultados.diasDisponibles = diasRestantes;
-planningGuardado.resultados.semanasDisponibles = semanasFuturas;
-
-// GUARDAR INMEDIATAMENTE los cambios recalculados ANTES del alert y mostrar
-await guardarCambiosPlanning();
-
-console.log(`Recálculo completado:
-- Páginas restantes: ${paginasRestantes}
-- Semanas futuras disponibles: ${semanasFuturas}
-- Nuevas páginas/semana: ${nuevasPaginasPorSemana}
-- Nuevas páginas/día: ${nuevasPaginasPorDia}`);
-
-alert(`Planning recalculado:\n- Páginas restantes: ${paginasRestantes}\n- Nuevas páginas/día: ${nuevasPaginasPorDia}\n- Nuevas páginas/semana: ${nuevasPaginasPorSemana}\n- Tests restantes: ${testsRestantes}\n- Semanas futuras: ${semanasFuturas}`);
-
-// Actualizar la información mostrada en el modal
-mostrarInformacionPlanning();
+            // Guardar cambios
+            await guardarCambiosPlanning();
+            
+            alert(`Planning recalculado:\n- Páginas que faltan: ${paginasRestantes}\n- Nuevas páginas/día: ${nuevasPaginasPorDia}\n- Nuevas páginas/semana: ${nuevasPaginasPorSemana}\n- Tests restantes: ${testsRestantes}\n- Semanas futuras: ${semanasFuturas}`);
+            
+            // Actualizar interfaz
+            mostrarInformacionPlanning();
         }
         
     } catch (error) {
