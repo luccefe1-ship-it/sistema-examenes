@@ -8,7 +8,8 @@ import {
     getDocs, 
     query, 
     where,
-    updateDoc
+    updateDoc,
+    deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // Variables globales
@@ -101,6 +102,16 @@ const resetearTodosBtn = document.getElementById('resetearTodosBtn');
 if (resetearTodosBtn) {
     resetearTodosBtn.addEventListener('click', resetearTodosTemas);
 }
+// Botón Crear Planning
+    const crearPlanningBtn = document.getElementById('crearPlanningBtn');
+    if (crearPlanningBtn) {
+        crearPlanningBtn.addEventListener('click', abrirModalPlanning);
+    }
+    // Botón Seguimiento Planning
+    const seguimientoPlanningBtn = document.getElementById('seguimientoPlanningBtn');
+    if (seguimientoPlanningBtn) {
+        seguimientoPlanningBtn.addEventListener('click', abrirModalSeguimiento);
+    }
     // Modal
     const guardarPersonalizacionBtn = document.getElementById('guardarPersonalizacion');
     const cancelarPersonalizacionBtn = document.getElementById('cancelarPersonalizacion');
@@ -144,6 +155,8 @@ async function inicializarProgreso() {
         
     
         console.log('Sistema de progreso inicializado');
+        // 5. Cargar planning guardado
+        await cargarPlanningGuardado();
         
     } catch (error) {
         console.error('Error inicializando progreso:', error);
@@ -1080,6 +1093,691 @@ function calcularEstadisticasTemas() {
 // Hacer accesibles las funciones globalmente
 window.mostrarModalEstadisticas = mostrarModalEstadisticas;
 window.cerrarModalEstadisticas = cerrarModalEstadisticas;
+// ===== FUNCIONALIDAD PLANNING DE ESTUDIO =====
+
+function abrirModalPlanning() {
+    console.log('Abriendo modal planning...');
+    
+    // Generar checkboxes de temas
+    generarCheckboxesTemas();
+    
+    // Establecer fecha mínima como mañana
+    const mañana = new Date();
+    mañana.setDate(mañana.getDate() + 1);
+    document.getElementById('fechaLimite').min = mañana.toISOString().split('T')[0];
+    
+    // Ocultar resultados y mostrar formulario
+    document.getElementById('resultadosPlanning').style.display = 'none';
+    document.querySelector('.planning-form').style.display = 'block';
+    
+    // Configurar event listener del botón calcular
+    const calcularBtn = document.getElementById('calcularPlanningBtn');
+    calcularBtn.onclick = calcularPlanning;
+    
+    document.getElementById('modalCrearPlanning').style.display = 'block';
+}
+
+function cerrarModalPlanning() {
+    document.getElementById('modalCrearPlanning').style.display = 'none';
+}
+
+function generarCheckboxesTemas() {
+    const container = document.getElementById('temasSeleccionados');
+    container.innerHTML = '';
+    
+    if (!progresoData || !progresoData.temas) {
+        container.innerHTML = '<p style="color: #6b7280;">No hay temas disponibles</p>';
+        return;
+    }
+    
+    // Añadir checkbox "Seleccionar todos"
+    const selectAllDiv = document.createElement('div');
+    selectAllDiv.className = 'checkbox-item';
+    selectAllDiv.style.borderBottom = '2px solid #e5e7eb';
+    selectAllDiv.style.marginBottom = '15px';
+    selectAllDiv.style.paddingBottom = '10px';
+    
+    selectAllDiv.innerHTML = `
+        <input type="checkbox" id="selectAllTemas">
+        <label for="selectAllTemas" style="font-weight: 700; color: #374151;">
+            📋 Seleccionar todos los temas
+        </label>
+    `;
+    
+    container.appendChild(selectAllDiv);
+    
+    // Ordenar temas igual que en la tabla
+    const temasOrdenados = Object.entries(progresoData.temas).sort(([idA], [idB]) => {
+        const temaA = temasDelBanco.find(t => t.id === idA);
+        const temaB = temasDelBanco.find(t => t.id === idB);
+        
+        if (!temaA || !temaB) return 0;
+        
+        const nombreA = temaA.nombre;
+        const nombreB = temaB.nombre;
+        
+        const numeroA = nombreA.match(/\d+/);
+        const numeroB = nombreB.match(/\d+/);
+        
+        if (numeroA && numeroB) {
+            return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+        } else {
+            return nombreA.localeCompare(nombreB);
+        }
+    });
+    
+    temasOrdenados.forEach(([temaId, temaProgreso]) => {
+        const paginasPendientes = Math.max(0, temaProgreso.paginasTotales - temaProgreso.paginasEstudiadas);
+        
+        const checkboxDiv = document.createElement('div');
+        checkboxDiv.className = 'checkbox-item';
+        
+        checkboxDiv.innerHTML = `
+            <input type="checkbox" id="tema_${temaId}" value="${temaId}" ${paginasPendientes > 0 ? '' : 'disabled'}>
+            <label for="tema_${temaId}">
+                ${temaProgreso.nombre}
+                <span class="tema-info">(${paginasPendientes}/${temaProgreso.paginasTotales} pág. pendientes)</span>
+            </label>
+        `;
+        
+        container.appendChild(checkboxDiv);
+    });
+    
+    // Configurar funcionalidad "Seleccionar todos"
+    const selectAllCheckbox = document.getElementById('selectAllTemas');
+    const temaCheckboxes = container.querySelectorAll('input[type="checkbox"]:not(#selectAllTemas)');
+    
+    selectAllCheckbox.addEventListener('change', function() {
+        temaCheckboxes.forEach(checkbox => {
+            if (!checkbox.disabled) {
+                checkbox.checked = this.checked;
+            }
+        });
+    });
+    
+    // Actualizar "Seleccionar todos" cuando cambian los checkboxes individuales
+    temaCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const temasHabilitados = Array.from(temaCheckboxes).filter(cb => !cb.disabled);
+            const temasSeleccionados = temasHabilitados.filter(cb => cb.checked);
+            
+            selectAllCheckbox.checked = temasSeleccionados.length === temasHabilitados.length;
+            selectAllCheckbox.indeterminate = temasSeleccionados.length > 0 && temasSeleccionados.length < temasHabilitados.length;
+        });
+    });
+}
+
+function calcularPlanning() {
+    const temasSeleccionados = [];
+    const checkboxes = document.querySelectorAll('#temasSeleccionados input[type="checkbox"]:checked');
+    const fechaLimite = new Date(document.getElementById('fechaLimite').value);
+    
+    // Validaciones
+    if (checkboxes.length === 0) {
+        alert('Selecciona al menos un tema para el planning');
+        return;
+    }
+    
+    if (!fechaLimite || fechaLimite <= new Date()) {
+        alert('Selecciona una fecha límite válida (futura)');
+        return;
+    }
+    
+    // Recopilar datos de temas seleccionados
+    checkboxes.forEach(checkbox => {
+        const temaId = checkbox.value;
+        const temaProgreso = progresoData.temas[temaId];
+        
+        if (temaProgreso) {
+            const paginasPendientes = Math.max(0, temaProgreso.paginasTotales - temaProgreso.paginasEstudiadas);
+            
+            temasSeleccionados.push({
+                id: temaId,
+                nombre: temaProgreso.nombre,
+                paginasTotales: temaProgreso.paginasTotales,
+                paginasEstudiadas: temaProgreso.paginasEstudiadas,
+                paginasPendientes: paginasPendientes,
+                vueltaActual: temaProgreso.vueltaActual
+            });
+        }
+    });
+    
+    // Calcular planning
+    const resultados = procesarPlanning(temasSeleccionados, fechaLimite);
+    
+    // Mostrar resultados
+    mostrarResultadosPlanning(resultados, temasSeleccionados, fechaLimite);
+}
+
+function procesarPlanning(temas, fechaLimite) {
+    const hoy = new Date();
+    const diasDisponibles = Math.ceil((fechaLimite - hoy) / (1000 * 60 * 60 * 24));
+    const semanasDisponibles = Math.round(diasDisponibles / 7 * 10) / 10; // Redondear a 1 decimal
+    
+    // Calcular totales
+    const totalPaginasPendientes = temas.reduce((sum, tema) => sum + tema.paginasPendientes, 0);
+    
+    // Cálculos de distribución
+    const paginasPorDia = (totalPaginasPendientes / diasDisponibles).toFixed(1);
+    const paginasPorSemana = Math.ceil(totalPaginasPendientes / semanasDisponibles);
+    
+    // Tests recomendados por tema (basado en páginas)
+    const temasConTests = temas.map(tema => {
+        // Fórmula: 1 test cada 10-15 páginas, mínimo 2 tests por tema
+        const testsRecomendados = Math.max(2, Math.ceil(tema.paginasTotales / 12));
+        return {
+            ...tema,
+            testsRecomendados
+        };
+    });
+    
+    const totalTestsRecomendados = temasConTests.reduce((sum, tema) => sum + tema.testsRecomendados, 0);
+    
+    return {
+        diasDisponibles,
+        semanasDisponibles,
+        totalPaginasPendientes,
+        paginasPorDia,
+        paginasPorSemana,
+        totalTestsRecomendados,
+        temasConTests
+    };
+}
+
+function mostrarResultadosPlanning(resultados, temasOriginales, fechaLimite) {
+    // Ocultar formulario y mostrar resultados
+    document.querySelector('.planning-form').style.display = 'none';
+    document.getElementById('resultadosPlanning').style.display = 'block';
+    
+    const container = document.getElementById('resumenPlanning');
+    
+    const fechaFormateada = fechaLimite.toLocaleDateString('es-ES', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+    
+    container.innerHTML = `
+        <div class="resultado-item">
+            <div class="resultado-titulo">📅 Plazo disponible</div>
+            <div class="resultado-valor">${resultados.diasDisponibles} días (${resultados.semanasDisponibles} semanas)</div>
+            <div class="resultado-descripcion">Hasta el ${fechaFormateada}</div>
+        </div>
+        
+        <div class="resultado-item">
+            <div class="resultado-titulo">📚 Total páginas pendientes</div>
+            <div class="resultado-valor">${resultados.totalPaginasPendientes} páginas</div>
+            <div class="resultado-descripcion">De ${temasOriginales.length} temas seleccionados</div>
+        </div>
+        
+        <div class="resultado-item">
+            <div class="resultado-titulo">📖 Ritmo diario requerido</div>
+            <div class="resultado-valor">${resultados.paginasPorDia} páginas/día</div>
+            <div class="resultado-descripcion">Distribución uniforme recomendada</div>
+        </div>
+        
+        <div class="resultado-item">
+            <div class="resultado-titulo">📊 Ritmo semanal requerido</div>
+            <div class="resultado-valor">${resultados.paginasPorSemana} páginas/semana</div>
+            <div class="resultado-descripcion">Permite flexibilidad en la planificación</div>
+        </div>
+        
+        <div class="resultado-item">
+            <div class="resultado-titulo">🎯 Tests recomendados</div>
+            <div class="resultado-valor">${resultados.totalTestsRecomendados} tests totales</div>
+            <div class="resultado-descripcion">Distribuidos según extensión de cada tema</div>
+        </div>
+        
+        <div class="temas-detalle">
+            <h5 style="margin-bottom: 15px; color: #374151;">Detalle por tema:</h5>
+            ${resultados.temasConTests.map(tema => `
+                <div class="tema-planning">
+                    <div class="tema-planning-nombre">${tema.nombre}</div>
+                    <div class="tema-planning-datos">
+                        <span>Pendientes: ${tema.paginasPendientes}/${tema.paginasTotales} pág.</span>
+                        <span>Tests recomendados: ${tema.testsRecomendados}</span>
+                        <span>Vuelta actual: ${obtenerNombreVuelta(tema.vueltaActual)}</span>
+                        <span>Días estimados: ${Math.ceil(tema.paginasPendientes / resultados.paginasPorDia)}</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        
+        <div class="form-actions">
+            <button id="guardarPlanningBtn" class="btn-primary">💾 Guardar Planning</button>
+            <button onclick="cerrarModalPlanning()" class="btn-secondary">Cerrar</button>
+        </div>
+    `;
+    
+    // Configurar botón guardar con mejor manejo de errores
+    setTimeout(() => {
+        const btnGuardar = document.getElementById('guardarPlanningBtn');
+        if (btnGuardar) {
+            btnGuardar.onclick = async () => {
+                try {
+                    btnGuardar.disabled = true;
+                    btnGuardar.textContent = '💾 Guardando...';
+                    await guardarPlanning(temasOriginales, resultados, fechaLimite);
+                } catch (error) {
+                    console.error('Error al guardar planning:', error);
+                    alert('Error al guardar el planning: ' + error.message);
+                    btnGuardar.disabled = false;
+                    btnGuardar.textContent = '💾 Guardar Planning';
+                }
+            };
+        }
+    }, 100);
+}
+
+// Variables para planning guardado
+let planningGuardado = null;
+
+// Hacer funciones accesibles globalmente
+window.abrirModalPlanning = abrirModalPlanning;
+window.cerrarModalPlanning = cerrarModalPlanning;
+window.abrirModalSeguimiento = abrirModalSeguimiento;
+window.cerrarModalSeguimiento = cerrarModalSeguimiento;
+window.cerrarModalReporte = cerrarModalReporte;
+
+// Cargar planning guardado al inicializar
+async function cargarPlanningGuardado() {
+    try {
+        const planningDoc = await getDoc(doc(db, "planning", currentUser.uid));
+        if (planningDoc.exists()) {
+            planningGuardado = planningDoc.data();
+            console.log('Planning guardado encontrado');
+        } else {
+            planningGuardado = null;
+            console.log('No hay planning guardado');
+        }
+    } catch (error) {
+        console.error('Error cargando planning:', error);
+        planningGuardado = null;
+    }
+}
+
+// Función para guardar planning
+async function guardarPlanning(datos, resultados, fechaLimite) {
+    try {
+        console.log('Iniciando guardado de planning...');
+        console.log('Datos:', datos);
+        console.log('Resultados:', resultados);
+        console.log('Fecha límite:', fechaLimite);
+        
+        if (!currentUser) {
+            throw new Error('Usuario no autenticado');
+        }
+        
+        if (!datos || datos.length === 0) {
+            throw new Error('No hay temas seleccionados');
+        }
+        
+        if (!fechaLimite || fechaLimite <= new Date()) {
+            throw new Error('Fecha límite inválida');
+        }
+        
+        const planningData = {
+            usuarioId: currentUser.uid,
+            fechaCreacion: new Date(),
+            fechaLimite: fechaLimite,
+            temas: datos,
+            resultados: resultados,
+            semanas: generarSemanasPlanning(resultados, fechaLimite),
+            ultimaActualizacion: new Date()
+        };
+        
+        console.log('Datos del planning a guardar:', planningData);
+        
+        await setDoc(doc(db, "planning", currentUser.uid), planningData);
+        planningGuardado = planningData;
+        
+        console.log('Planning guardado exitosamente en Firebase');
+        
+        alert('✅ Planning guardado exitosamente\n\nYa puedes usar "Seguimiento Planning" para hacer seguimiento semanal de tu progreso.');
+        
+        // Cerrar el modal después de guardar
+        cerrarModalPlanning();
+        
+    } catch (error) {
+        console.error('Error detallado al guardar planning:', error);
+        throw error; // Re-lanzar el error para que lo capture el botón
+    }
+}
+
+// Función para generar semanas del planning
+function generarSemanasPlanning(resultados, fechaLimite) {
+    const semanas = [];
+    const fechaInicio = new Date();
+    const paginasPorSemana = resultados.paginasPorSemana;
+    
+    for (let i = 0; i < Math.ceil(resultados.semanasDisponibles); i++) {
+        const fechaInicioSemana = new Date(fechaInicio);
+        fechaInicioSemana.setDate(fechaInicio.getDate() + (i * 7));
+        
+        const fechaFinSemana = new Date(fechaInicioSemana);
+        fechaFinSemana.setDate(fechaInicioSemana.getDate() + 6);
+        
+        // Para la última semana, ajustar hasta la fecha límite
+        if (fechaFinSemana > fechaLimite) {
+            fechaFinSemana.setTime(fechaLimite.getTime());
+        }
+        
+        semanas.push({
+            numero: i + 1,
+            fechaInicio: fechaInicioSemana,
+            fechaFin: fechaFinSemana,
+            objetivoPaginas: Math.min(paginasPorSemana, resultados.totalPaginasPendientes - (i * paginasPorSemana)),
+            objetivoTests: Math.ceil(resultados.totalTestsRecomendados / resultados.semanasDisponibles),
+            estado: 'pendiente', // pendiente, cumplido, incumplido
+            paginasReales: 0,
+            testsReales: 0,
+            fechaReporte: null
+        });
+    }
+    
+    return semanas;
+}
+
+// Función para eliminar planning
+async function eliminarPlanning() {
+    if (!planningGuardado) return;
+    
+    const confirmar = confirm('¿Estás seguro de que quieres eliminar el planning actual? Esta acción no se puede deshacer.');
+    
+    if (confirmar) {
+        try {
+            // Eliminar de Firebase
+            await deleteDoc(doc(db, "planning", currentUser.uid));
+            
+            // Limpiar datos locales
+            planningGuardado = null;
+            
+            // Planning eliminado exitosamente
+            console.log('Planning eliminado correctamente');
+            
+            // Cerrar modal
+            cerrarModalSeguimiento();
+            
+            alert('Planning eliminado exitosamente');
+            
+        } catch (error) {
+            console.error('Error eliminando planning:', error);
+            alert('Error al eliminar el planning');
+        }
+    }
+}
+
+// Modales de seguimiento
+function abrirModalSeguimiento() {
+    if (!planningGuardado) {
+        alert('⚠️ Primero debes crear un planning\n\nPara usar el seguimiento de planning:\n1. Haz clic en "Crear Planning de Estudio"\n2. Selecciona los temas y fecha límite\n3. Calcula el planning\n4. Guarda el planning\n\nDespués podrás hacer seguimiento semanal de tu progreso.');
+        return;
+    }
+    
+    // Mostrar información del planning
+    mostrarInformacionPlanning();
+    
+    // Mostrar semanas
+    mostrarSemanasPlanning();
+    
+    // Configurar event listeners
+    document.getElementById('eliminarPlanningBtn').onclick = eliminarPlanning;
+    
+    document.getElementById('modalSeguimientoPlanning').style.display = 'block';
+}
+
+function cerrarModalSeguimiento() {
+    document.getElementById('modalSeguimientoPlanning').style.display = 'none';
+}
+
+function cerrarModalReporte() {
+    document.getElementById('modalReportarSemana').style.display = 'none';
+}
+
+function mostrarInformacionPlanning() {
+    const titulo = document.getElementById('planningTitulo');
+    const resumen = document.getElementById('planningResumen');
+    
+    const fechaLimite = new Date(planningGuardado.fechaLimite).toLocaleDateString('es-ES');
+    
+    titulo.textContent = `Planning hasta ${fechaLimite}`;
+    
+    // Calcular páginas realmente restantes para mostrar información actualizada
+    let paginasYaHechas = 0;
+    planningGuardado.semanas.forEach(sem => {
+        if (sem.estado === 'cumplido' || sem.estado === 'incumplido') {
+            paginasYaHechas += sem.paginasReales;
+        }
+    });
+    
+    const paginasRestantes = planningGuardado.resultados.totalPaginasPendientes - paginasYaHechas;
+    
+    resumen.innerHTML = `
+        <div class="resumen-item">
+            <strong>Total páginas:</strong> ${planningGuardado.resultados.totalPaginasPendientes}
+        </div>
+        <div class="resumen-item">
+            <strong>Páginas/día:</strong> ${planningGuardado.resultados.paginasPorDia}
+        </div>
+        <div class="resumen-item">
+            <strong>Tests totales:</strong> ${planningGuardado.resultados.totalTestsRecomendados}
+        </div>
+        <div class="resumen-item">
+            <strong>Temas:</strong> ${planningGuardado.temas.length}
+        </div>
+        <div class="resumen-item">
+            <strong>Páginas restantes:</strong> ${paginasRestantes}
+        </div>
+    `;
+}
+
+function mostrarSemanasPlanning() {
+    const container = document.getElementById('listaSemanas');
+    container.innerHTML = '';
+    
+    planningGuardado.semanas.forEach(semana => {
+        const semanaDiv = document.createElement('div');
+        semanaDiv.className = 'semana-item';
+        
+        const fechaInicio = new Date(semana.fechaInicio).toLocaleDateString('es-ES');
+        const fechaFin = new Date(semana.fechaFin).toLocaleDateString('es-ES');
+        
+        let estadoClass = 'estado-pendiente';
+        let estadoTexto = 'Pendiente';
+        
+        if (semana.estado === 'cumplido') {
+            estadoClass = 'estado-cumplido';
+            estadoTexto = 'Cumplido';
+        } else if (semana.estado === 'incumplido') {
+            estadoClass = 'estado-incumplido';
+            estadoTexto = 'No cumplido';
+        }
+        
+        semanaDiv.innerHTML = `
+            <div class="semana-header">
+                <div class="semana-titulo">Semana ${semana.numero} (${fechaInicio} - ${fechaFin})</div>
+                <div class="semana-estado ${estadoClass}">${estadoTexto}</div>
+            </div>
+            <div class="semana-objetivos">
+                <div><strong>Objetivo:</strong> ${semana.objetivoPaginas} páginas</div>
+                <div><strong>Objetivo:</strong> ${semana.objetivoTests} tests</div>
+                <div><strong>Real:</strong> ${semana.paginasReales} páginas</div>
+                <div><strong>Real:</strong> ${semana.testsReales} tests</div>
+            </div>
+            <div class="semana-acciones">
+                <button class="btn-reportar" onclick="abrirReporteSemana(${semana.numero})">
+                    ${semana.estado === 'pendiente' ? 'Reportar' : 'Editar'}
+                </button>
+            </div>
+        `;
+        
+        container.appendChild(semanaDiv);
+    });
+}
+
+// Función para reportar progreso de semana
+function abrirReporteSemana(numeroSemana) {
+    const semana = planningGuardado.semanas.find(s => s.numero === numeroSemana);
+    if (!semana) return;
+    
+    // Configurar modal
+    document.getElementById('tituloReporteSemana').textContent = `📊 Reportar Semana ${numeroSemana}`;
+    
+    // Mostrar objetivos
+    const objetivosContainer = document.getElementById('objetivosSemana');
+    objetivosContainer.innerHTML = `
+        <div class="objetivo-item">
+            <strong>Páginas objetivo:</strong> ${semana.objetivoPaginas}
+        </div>
+        <div class="objetivo-item">
+            <strong>Tests objetivo:</strong> ${semana.objetivoTests}
+        </div>
+    `;
+    
+    // Prellenar campos si ya hay datos
+    document.getElementById('paginasLeidas').value = semana.paginasReales || 0;
+    document.getElementById('testsRealizados').value = semana.testsReales || 0;
+    
+    // Configurar botón confirmar
+    document.getElementById('confirmarReporteBtn').onclick = () => confirmarReporteSemana(numeroSemana);
+    
+    document.getElementById('modalReportarSemana').style.display = 'block';
+}
+
+// Función para confirmar reporte de semana
+async function confirmarReporteSemana(numeroSemana) {
+    const paginasLeidas = parseInt(document.getElementById('paginasLeidas').value) || 0;
+    const testsRealizados = parseInt(document.getElementById('testsRealizados').value) || 0;
+    
+    const semana = planningGuardado.semanas.find(s => s.numero === numeroSemana);
+    if (!semana) return;
+    
+    // Actualizar datos de la semana
+    semana.paginasReales = paginasLeidas;
+    semana.testsReales = testsRealizados;
+    semana.fechaReporte = new Date();
+    
+    // Determinar si se cumplieron los objetivos
+    const cumplioPaginas = paginasLeidas >= semana.objetivoPaginas;
+    const cumplioTests = testsRealizados >= semana.objetivoTests;
+    
+    if (cumplioPaginas && cumplioTests) {
+        semana.estado = 'cumplido';
+    } else {
+        semana.estado = 'incumplido';
+        
+        // Ofrecer recalcular planning
+        const recalcular = confirm(
+            `No se cumplieron todos los objetivos de esta semana.\n\n` +
+            `Páginas: ${paginasLeidas}/${semana.objetivoPaginas}\n` +
+            `Tests: ${testsRealizados}/${semana.objetivoTests}\n\n` +
+            `¿Quieres recalcular el planning para adaptarlo a la nueva situación?`
+        );
+        
+        if (recalcular) {
+            await recalcularPlanning(numeroSemana);
+        }
+    }
+    
+    // Guardar cambios
+    await guardarCambiosPlanning();
+    
+    // Actualizar interfaz
+    mostrarSemanasPlanning();
+    cerrarModalReporte();
+}
+
+// Función para recalcular planning
+async function recalcularPlanning(semanaNumero) {
+    try {
+        // El objetivo TOTAL sigue siendo el mismo: hay que leer todas las páginas originales
+        const totalPaginasPendientes = planningGuardado.resultados.totalPaginasPendientes; // Esto NO cambia
+        const totalTestsPendientes = planningGuardado.resultados.totalTestsRecomendados; // Esto NO cambia
+        
+        // Calcular lo ya hecho REALMENTE
+        let paginasYaHechas = 0;
+        let testsYaHechos = 0;
+        
+        planningGuardado.semanas.forEach(sem => {
+            if (sem.estado === 'cumplido' || sem.estado === 'incumplido') {
+                paginasYaHechas += sem.paginasReales;
+                testsYaHechos += sem.testsReales;
+            }
+        });
+        
+        // Las páginas restantes son TODAS las originales menos lo que realmente hiciste
+        const paginasRestantes = totalPaginasPendientes - paginasYaHechas;
+        const testsRestantes = totalTestsPendientes - testsYaHechos;
+        
+        console.log(`DEBUG: Total original=${totalPaginasPendientes}, Ya hechas=${paginasYaHechas}, Restantes=${paginasRestantes}`);
+        
+        // Contar SOLO semanas futuras (pendientes), NO incumplidas  
+const semanasFuturas = planningGuardado.semanas.filter(s => s.estado === 'pendiente').length;
+console.log(`DEBUG: Total semanas=${planningGuardado.semanas.length}, Semanas futuras=${semanasFuturas}`);
+console.log(`Estados de semanas:`, planningGuardado.semanas.map(s => `Semana${s.numero}:${s.estado}`));
+planningGuardado.semanas.forEach(s => {
+    console.log(`Semana ${s.numero}: estado=${s.estado}, paginasReales=${s.paginasReales}, objetivoPaginas=${s.objetivoPaginas}`);
+});
+        
+        if (semanasFuturas > 0) {
+            const nuevasPaginasPorSemana = Math.ceil(paginasRestantes / semanasFuturas);
+            const nuevosTestsPorSemana = Math.ceil(testsRestantes / semanasFuturas);
+            
+            // Actualizar SOLO semanas pendientes (futuras)
+            planningGuardado.semanas.forEach(sem => {
+                if (sem.estado === 'pendiente') {
+                    sem.objetivoPaginas = nuevasPaginasPorSemana;
+                    sem.objetivoTests = nuevosTestsPorSemana;
+                }
+                // Las semanas incumplidas NO se tocan - mantienen estado y objetivos originales
+            });
+            
+            // Recalcular datos generales basándose en lo que REALMENTE falta
+            const diasRestantes = Math.ceil((new Date(planningGuardado.fechaLimite) - new Date()) / (1000 * 60 * 60 * 24));
+            const diasDisponiblesPorSemanas = semanasFuturas * 7;
+const nuevasPaginasPorDia = diasDisponiblesPorSemanas > 0 ? (paginasRestantes / diasDisponiblesPorSemanas).toFixed(1) : 0;
+            
+            // Actualizar resultados del planning
+planningGuardado.resultados.paginasPorDia = nuevasPaginasPorDia;
+planningGuardado.resultados.paginasPorSemana = nuevasPaginasPorSemana;
+planningGuardado.resultados.diasDisponibles = diasRestantes;
+planningGuardado.resultados.semanasDisponibles = semanasFuturas;
+
+// GUARDAR INMEDIATAMENTE los cambios recalculados ANTES del alert y mostrar
+await guardarCambiosPlanning();
+
+console.log(`Recálculo completado:
+- Páginas restantes: ${paginasRestantes}
+- Semanas futuras disponibles: ${semanasFuturas}
+- Nuevas páginas/semana: ${nuevasPaginasPorSemana}
+- Nuevas páginas/día: ${nuevasPaginasPorDia}`);
+
+alert(`Planning recalculado:\n- Páginas restantes: ${paginasRestantes}\n- Nuevas páginas/día: ${nuevasPaginasPorDia}\n- Nuevas páginas/semana: ${nuevasPaginasPorSemana}\n- Tests restantes: ${testsRestantes}\n- Semanas futuras: ${semanasFuturas}`);
+
+// Actualizar la información mostrada en el modal
+mostrarInformacionPlanning();
+        }
+        
+    } catch (error) {
+        console.error('Error recalculando planning:', error);
+        alert('Error al recalcular el planning');
+    }
+}
+
+// Función para guardar cambios en planning
+async function guardarCambiosPlanning() {
+    try {
+        planningGuardado.ultimaActualizacion = new Date();
+        await setDoc(doc(db, "planning", currentUser.uid), planningGuardado);
+        console.log('Cambios de planning guardados');
+    } catch (error) {
+        console.error('Error guardando cambios:', error);
+    }
+}
+
+// Agregar función global para reportar semana
+window.abrirReporteSemana = abrirReporteSemana;
 // Generar detalles de cada tema
 function generarDetallesTemas() {
     const contenedor = document.getElementById('leyendaDetalles');
