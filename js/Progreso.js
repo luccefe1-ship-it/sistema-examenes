@@ -1745,7 +1745,17 @@ const fechaLimite = fechaLimiteObj.toLocaleDateString('es-ES');
     
     // Calcular nuevo ritmo diario basado en páginas restantes
 const diasRestantes = Math.ceil((fechaLimiteObj - new Date()) / (1000 * 60 * 60 * 24));
-const nuevasPaginasPorDia = diasRestantes > 0 ? (paginasRestantes / diasRestantes).toFixed(1) : planningGuardado.resultados.paginasPorDia || '0.0';
+// Usar el valor recalculado del planning si existe, sino calcular
+let nuevasPaginasPorDia;
+if (planningGuardado.resultados.paginasPorDia && planningGuardado.resultados.paginasPorDia !== "NaN") {
+    nuevasPaginasPorDia = planningGuardado.resultados.paginasPorDia;
+} else if (diasRestantes > 0 && paginasRestantes > 0) {
+    nuevasPaginasPorDia = (paginasRestantes / diasRestantes).toFixed(1);
+} else if (paginasRestantes <= 0) {
+    nuevasPaginasPorDia = '0.0';
+} else {
+    nuevasPaginasPorDia = 'Fecha límite superada';
+}
 
 console.log(`Cálculo páginas/día:
 - Fecha límite: ${fechaLimiteObj}
@@ -1757,8 +1767,8 @@ console.log(`Cálculo páginas/día:
         <strong>Total páginas:</strong> ${planningGuardado.resultados.totalPaginasPendientes}
     </div>
     <div class="resumen-item">
-        <strong>Páginas/día:</strong> ${nuevasPaginasPorDia}
-    </div>
+    <strong>Páginas/día necesarias:</strong> ${nuevasPaginasPorDia}
+</div>
     <div class="resumen-item">
         <strong>Tests totales:</strong> ${planningGuardado.resultados.totalTestsRecomendados}
     </div>
@@ -1978,9 +1988,17 @@ async function recalcularPlanning(semanaNumero) {
             });
             
             // Actualizar datos generales
-            planningGuardado.resultados.paginasPorDia = nuevasPaginasPorDia;
-            planningGuardado.resultados.paginasPorSemana = nuevasPaginasPorSemana;
-            planningGuardado.resultados.semanasDisponibles = semanasFuturas;
+planningGuardado.resultados.paginasPorDia = nuevasPaginasPorDia;
+planningGuardado.resultados.paginasPorSemana = nuevasPaginasPorSemana;
+planningGuardado.resultados.semanasDisponibles = semanasFuturas;
+planningGuardado.resultados.totalPaginasPendientes = paginasRestantes; // Actualizar también las páginas pendientes
+planningGuardado.resultados.totalTestsRecomendados = testsRestantes; // Actualizar también los tests restantes
+
+console.log(`Datos generales actualizados:
+- Páginas/día: ${nuevasPaginasPorDia}
+- Páginas/semana: ${nuevasPaginasPorSemana}
+- Páginas restantes: ${paginasRestantes}
+- Tests restantes: ${testsRestantes}`);
             
             // Guardar cambios
             await guardarCambiosPlanning();
