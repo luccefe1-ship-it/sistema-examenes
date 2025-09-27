@@ -16,7 +16,12 @@ import {
 let currentUser = null;
 let progresoData = {};
 let temasDelBanco = [];
-
+let planningTracker = {
+    semanaActiva: null,
+    paginasInicio: 0,
+    testsInicio: 0,
+    fechaInicioSemana: null
+};
 console.log('Archivo Progreso.js cargado');
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -156,7 +161,10 @@ async function inicializarProgreso() {
     
         console.log('Sistema de progreso inicializado');
         // 5. Cargar planning guardado
-        await cargarPlanningGuardado();
+await cargarPlanningGuardado();
+
+// 6. Inicializar tracking automático si hay planning activo
+await inicializarTrackingAutomatico();
         
     } catch (error) {
         console.error('Error inicializando progreso:', error);
@@ -590,8 +598,11 @@ window.cambiarPaginas = async function(temaId, cambio) {
         tema.ultimaActualizacion = new Date();
         
         // Guardar y actualizar
-        await guardarProgreso();
-        renderizarTablaProgreso();
+await guardarProgreso();
+renderizarTablaProgreso();
+
+// Actualizar tracking automático si hay semana activa
+actualizarTrackingAutomatico();
         
     } catch (error) {
         console.error('Error cambiando páginas:', error);
@@ -621,8 +632,11 @@ window.cambiarTests = async function(temaId, cambio) {
         console.log(`${tema.nombre}: Tests ${testsAutomaticos}+${nuevosManuales} = ${totalTests}`);
         
         // Guardar y actualizar
-        await guardarProgreso();
-        renderizarTablaProgreso();
+await guardarProgreso();
+renderizarTablaProgreso();
+
+// Actualizar tracking automático si hay semana activa
+actualizarTrackingAutomatico();
         
     } catch (error) {
         console.error('Error cambiando tests:', error);
@@ -651,8 +665,11 @@ window.reiniciarTema = async function(temaId) {
             console.log(`Tema ${tema.nombre} reiniciado`);
             
             // Guardar y actualizar
-            await guardarProgreso();
-            renderizarTablaProgreso();
+await guardarProgreso();
+renderizarTablaProgreso();
+
+// Actualizar tracking automático si hay semana activa
+actualizarTrackingAutomatico();
         }
         
     } catch (error) {
@@ -777,8 +794,11 @@ async function resetearTodosTemas() {
             }
             
             // Guardar y actualizar
-            await guardarProgreso();
-            renderizarTablaProgreso();
+await guardarProgreso();
+renderizarTablaProgreso();
+
+// Actualizar tracking automático si hay semana activa
+actualizarTrackingAutomatico();
             
             alert(`${temas.length} temas reiniciados exitosamente (incluyendo tests)`);
             
@@ -826,8 +846,11 @@ window.registrarTestCompletado = async function(temasUtilizados) {
             // Guardar en Firebase
             await guardarProgreso();
             // Actualizar la interfaz
-            actualizarInterfazProgreso();
-            console.log(`Test registrado exitosamente en ${temasActualizados} temas`);
+actualizarInterfazProgreso();
+console.log(`Test registrado exitosamente en ${temasActualizados} temas`);
+
+// Actualizar tracking automático si hay semana activa
+actualizarTrackingAutomatico();
         }
         
     } catch (error) {
@@ -1089,7 +1112,159 @@ function calcularEstadisticasTemas() {
     // Ordenar por puntuación descendente
     return estadisticas.sort((a, b) => b.puntuacion - a.puntuacion);
 }
+// ===== TRACKING AUTOMÁTICO DE PLANNING =====
 
+async function inicializarTrackingAutomatico() {
+    if (!planningGuardado) return;
+    
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0); // Normalizar a medianoche
+    
+    // Buscar la semana activa (fecha actual está dentro del rango)
+    const semanaActiva = planningGuardado.semanas.find(semana => {
+        const fechaInicio = semana.fechaInicio?.toDate ? semana.fechaInicio.toDate() : new Date(semana.fechaInicio);
+        const fechaFin = semana.fechaFin?.toDate ? semana.fechaFin.toDate() : new Date(semana.fechaFin);
+        
+        fechaInicio.setHours(0, 0, 0, 0);
+        fechaFin.setHours(23, 59, 59, 999);
+        
+        return hoy >= fechaInicio && hoy <= fechaFin && semana.estado === 'pendiente';
+    });
+    
+    if (semanaActiva) {
+        console.log(`Semana activa detectada: Semana ${semanaActiva.numero}`);
+        
+        // Verificar si es el primer día de tracking de esta semana
+        const fechaInicioSemana = semanaActiva.fechaInicio?.toDate ? semanaActiva.fechaInicio.toDate() : new Date(semanaActiva.fechaInicio);
+        fechaInicioSemana.setHours(0, 0, 0, 0);
+        
+        // Si no hay datos de inicio de semana o es una nueva semana
+        if (!semanaActiva.datosInicioSemana || !semanaActiva.datosInicioSemana.inicializado) {
+            // Capturar estado inicial de la semana
+            const estadoInicial = capturarEstadoInicialSemana();
+            
+            semanaActiva.datosInicioSemana = {
+                inicializado: true,
+                fecha: fechaInicioSemana,
+                paginasIniciales: estadoInicial.totalPaginas,
+                testsIniciales: estadoInicial.totalTests,
+                temasPaginas: estadoInicial.temasPaginas,
+                temasTests: estadoInicial.temasTests
+            };
+            
+            // Guardar cambios
+            await guardarCambiosPlanning();
+            console.log('Estado inicial de semana guardado:', semanaActiva.datosInicioSemana);
+        }
+        
+        // Configurar tracker local
+        planningTracker = {
+            semanaActiva: semanaActiva,
+            paginasInicio: semanaActiva.datosInicioSemana.paginasIniciales,
+            testsInicio: semanaActiva.datosInicioSemana.testsIniciales,
+            fechaInicioSemana: fechaInicioSemana,
+            temasPaginasInicio: semanaActiva.datosInicioSemana.temasPaginas,
+            temasTestsInicio: semanaActiva.datosInicioSemana.temasTests
+        };
+        
+        console.log('Tracking automático inicializado:', planningTracker);
+    } else {
+        console.log('No hay semana activa para tracking');
+        planningTracker.semanaActiva = null;
+    }
+}
+
+function capturarEstadoInicialSemana() {
+    let totalPaginas = 0;
+    let totalTests = 0;
+    const temasPaginas = {};
+    const temasTests = {};
+    
+    // Solo contar temas que están en el planning actual
+    if (planningGuardado && planningGuardado.temas) {
+        planningGuardado.temas.forEach(temaPlanning => {
+            const temaProgreso = progresoData.temas[temaPlanning.id];
+            if (temaProgreso) {
+                // Páginas: incluir vueltas completadas + páginas actuales
+                const vueltas_completadas = (temaProgreso.vueltas && Array.isArray(temaProgreso.vueltas)) ? 
+                    temaProgreso.vueltas.filter(v => v.completada).length : 0;
+                const paginasTema = (vueltas_completadas * temaProgreso.paginasTotales) + temaProgreso.paginasEstudiadas;
+                
+                // Tests: automáticos + manuales
+                const testsTema = (temaProgreso.testsAutomaticos || 0) + (temaProgreso.testsManuales || 0);
+                
+                totalPaginas += paginasTema;
+                totalTests += testsTema;
+                
+                temasPaginas[temaPlanning.id] = paginasTema;
+                temasTests[temaPlanning.id] = testsTema;
+            }
+        });
+    }
+    
+    return {
+        totalPaginas,
+        totalTests,
+        temasPaginas,
+        temasTests
+    };
+}
+
+function calcularProgresoSemanaActual() {
+    if (!planningTracker.semanaActiva) return { paginas: 0, tests: 0 };
+    
+    const estadoActual = capturarEstadoInicialSemana();
+    
+    const paginasProgress = Math.max(0, estadoActual.totalPaginas - planningTracker.paginasInicio);
+    const testsProgress = Math.max(0, estadoActual.totalTests - planningTracker.testsInicio);
+    
+    return {
+        paginas: paginasProgress,
+        tests: testsProgress
+    };
+}
+function actualizarTrackingAutomatico() {
+    if (!planningTracker.semanaActiva) return;
+    
+    const progreso = calcularProgresoSemanaActual();
+    console.log(`Tracking automático actualizado: ${progreso.paginas} páginas, ${progreso.tests} tests`);
+    
+    // Opcional: mostrar notificación visual del progreso
+    // mostrarNotificacionProgreso(progreso);
+}
+
+// Función para mostrar notificación de progreso (opcional)
+function mostrarNotificacionProgreso(progreso) {
+    // Crear o actualizar un pequeño indicador en la interfaz
+    let indicador = document.getElementById('indicadorProgreso');
+    if (!indicador) {
+        indicador = document.createElement('div');
+        indicador.id = 'indicadorProgreso';
+        indicador.style.cssText = `
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            background: rgba(34, 197, 94, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            z-index: 1001;
+            transition: opacity 0.3s;
+        `;
+        document.body.appendChild(indicador);
+    }
+    
+    indicador.textContent = `📊 Semana actual: ${progreso.paginas} pág, ${progreso.tests} tests`;
+    indicador.style.opacity = '1';
+    
+    // Ocultar después de 3 segundos
+    setTimeout(() => {
+        if (indicador) indicador.style.opacity = '0';
+    }, 3000);
+}
+// Hacer funciones accesibles globalmente
+window.mostrarModalEstadisticas = mostrarModalEstadisticas;
 // Hacer accesibles las funciones globalmente
 window.mostrarModalEstadisticas = mostrarModalEstadisticas;
 window.cerrarModalEstadisticas = cerrarModalEstadisticas;
@@ -1437,7 +1612,10 @@ async function guardarPlanning(datos, resultados, fechaLimite) {
         alert('✅ Planning guardado exitosamente\n\nYa puedes usar "Seguimiento Planning" para hacer seguimiento semanal de tu progreso.');
         
         // Cerrar el modal después de guardar
-        cerrarModalPlanning();
+cerrarModalPlanning();
+
+// Reinicializar tracking automático con el nuevo planning
+await inicializarTrackingAutomatico();
         
     } catch (error) {
         console.error('Error detallado al guardar planning:', error);
@@ -1539,7 +1717,15 @@ function mostrarInformacionPlanning() {
     const titulo = document.getElementById('planningTitulo');
     const resumen = document.getElementById('planningResumen');
     
-    const fechaLimite = new Date(planningGuardado.fechaLimite).toLocaleDateString('es-ES');
+    // Manejo seguro de fechas
+let fechaLimiteObj;
+if (planningGuardado.fechaLimite?.toDate) {
+    fechaLimiteObj = planningGuardado.fechaLimite.toDate();
+} else {
+    fechaLimiteObj = new Date(planningGuardado.fechaLimite);
+}
+
+const fechaLimite = fechaLimiteObj.toLocaleDateString('es-ES');
     
     titulo.textContent = `Planning hasta ${fechaLimite}`;
     
@@ -1558,9 +1744,14 @@ function mostrarInformacionPlanning() {
     const testsRestantes = Math.max(0, planningGuardado.resultados.totalTestsRecomendados - testsYaHechos);
     
     // Calcular nuevo ritmo diario basado en páginas restantes
-    const diasRestantes = Math.ceil((new Date(planningGuardado.fechaLimite) - new Date()) / (1000 * 60 * 60 * 24));
-    const nuevasPaginasPorDia = diasRestantes > 0 ? (paginasRestantes / diasRestantes).toFixed(1) : '0.0';
-    
+const diasRestantes = Math.ceil((fechaLimiteObj - new Date()) / (1000 * 60 * 60 * 24));
+const nuevasPaginasPorDia = diasRestantes > 0 ? (paginasRestantes / diasRestantes).toFixed(1) : planningGuardado.resultados.paginasPorDia || '0.0';
+
+console.log(`Cálculo páginas/día:
+- Fecha límite: ${fechaLimiteObj}
+- Días restantes: ${diasRestantes}
+- Páginas restantes: ${paginasRestantes}
+- Páginas/día: ${nuevasPaginasPorDia}`);
     resumen.innerHTML = `
     <div class="resumen-item">
         <strong>Total páginas:</strong> ${planningGuardado.resultados.totalPaginasPendientes}
@@ -1661,9 +1852,20 @@ function abrirReporteSemana(numeroSemana) {
         </div>
     `;
     
-    // Prellenar campos si ya hay datos
-    document.getElementById('paginasLeidas').value = semana.paginasReales || 0;
-    document.getElementById('testsRealizados').value = semana.testsReales || 0;
+    // Calcular progreso automático si es la semana activa
+let paginasAutomaticas = semana.paginasReales || 0;
+let testsAutomaticos = semana.testsReales || 0;
+
+if (planningTracker.semanaActiva && planningTracker.semanaActiva.numero === numeroSemana) {
+    const progresoAutomatico = calcularProgresoSemanaActual();
+    paginasAutomaticas = progresoAutomatico.paginas;
+    testsAutomaticos = progresoAutomatico.tests;
+    console.log(`Datos automáticos para semana ${numeroSemana}: ${paginasAutomaticas} páginas, ${testsAutomaticos} tests`);
+}
+
+// Prellenar campos con datos automáticos o guardados
+document.getElementById('paginasLeidas').value = paginasAutomaticas;
+document.getElementById('testsRealizados').value = testsAutomaticos;
     
     // Configurar botón confirmar
     document.getElementById('confirmarReporteBtn').onclick = () => confirmarReporteSemana(numeroSemana);
