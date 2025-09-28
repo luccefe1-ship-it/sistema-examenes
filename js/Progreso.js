@@ -1784,11 +1784,11 @@ console.log(`Cálculo páginas/día:
 `;
 }
 
-function mostrarSemanasPlanning() {
+async function mostrarSemanasPlanning() {
     const container = document.getElementById('listaSemanas');
     container.innerHTML = '';
     
-    planningGuardado.semanas.forEach(semana => {
+    for (const semana of planningGuardado.semanas) {
         // Convertir fechas de forma segura
         const fechaInicioObj = semana.fechaInicio?.toDate ? semana.fechaInicio.toDate() : new Date(semana.fechaInicio);
         const fechaFinObj = semana.fechaFin?.toDate ? semana.fechaFin.toDate() : new Date(semana.fechaFin);
@@ -1818,6 +1818,16 @@ function mostrarSemanasPlanning() {
             estadoTexto = '⭐ Superado';
         }
         
+        // Obtener datos automáticos dinámicos para semanas activas
+        let paginasRealesDinamicas = semana.paginasReales || 0;
+        let testsRealesDinamicos = semana.testsReales || 0;
+        
+        if (semana.estado === 'pendiente' && planningTracker.semanaActiva && planningTracker.semanaActiva.numero === semana.numero) {
+            const progresoDinamico = calcularProgresoSemanaActual();
+            paginasRealesDinamicas = progresoDinamico.paginas;
+            testsRealesDinamicos = progresoDinamico.tests;
+        }
+        
         const semanaDiv = document.createElement('div');
         semanaDiv.className = `semana-item ${semana.estado === 'cumplido' ? 'estado-cumplido' : semana.estado === 'incumplido' ? 'estado-incumplido' : semana.estado === 'superado' ? 'estado-superado' : ''}`;
         
@@ -1829,18 +1839,18 @@ function mostrarSemanasPlanning() {
             <div class="semana-objetivos">
                 <div><strong>Objetivo:</strong> ${semana.objetivoPaginas} páginas</div>
                 <div><strong>Objetivo:</strong> ${semana.objetivoTests} tests</div>
-                <div><strong>Real:</strong> ${semana.paginasReales} páginas</div>
-                <div><strong>Real:</strong> ${semana.testsReales} tests</div>
-            </div>
-            <div class="semana-acciones">
-                <button class="btn-reportar" onclick="abrirReporteSemana(${semana.numero})">
-                    ${semana.estado === 'pendiente' ? 'Reportar' : 'Editar'}
-                </button>
+                <div><strong>Real:</strong> ${paginasRealesDinamicas} páginas ${semana.estado === 'pendiente' && planningTracker.semanaActiva?.numero === semana.numero ? '(automático)' : ''}</div>
+                <div><strong>Real:</strong> ${testsRealesDinamicos} tests ${semana.estado === 'pendiente' && planningTracker.semanaActiva?.numero === semana.numero ? '(automático)' : ''}</div>
             </div>
         `;
         
         container.appendChild(semanaDiv);
-    });
+    }
+    
+    // Actualizar automáticamente cada 15 segundos si hay semana activa
+    if (planningTracker.semanaActiva) {
+        setTimeout(() => mostrarSemanasPlanning(), 15000);
+    }
 }
 
 // Función para reportar progreso de semana
@@ -2058,3 +2068,5 @@ function generarDetallesTemas() {
         contenedor.appendChild(detalleDiv);
     });
 }
+// Funciones de reporte manual eliminadas - sistema automático activo
+console.log('Sistema de seguimiento automático de planning activado');
