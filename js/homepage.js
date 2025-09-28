@@ -341,6 +341,9 @@ async function mostrarObjetivosSemana(semana) {
     }
     
     contenedor.style.display = 'block';
+    
+    // Actualizar automáticamente cada 30 segundos
+    setTimeout(() => mostrarObjetivosSemana(semana), 30000);
 }
 
 function mostrarPropuestaPlanning() {
@@ -507,51 +510,84 @@ async function evaluarSemanaAutomaticamente(semana, planningData) {
 
 // Función para mostrar modal de resultado de semana
 function mostrarModalResultadoSemana(semana, resultado) {
-    // Actualizar contenido del modal
-    document.getElementById('numeroSemanaModal').textContent = semana.numero;
-    
-    // Mostrar fechas de la semana
-    const fechaInicio = semana.fechaInicio?.toDate ? semana.fechaInicio.toDate() : new Date(semana.fechaInicio);
-    const fechaFin = semana.fechaFin?.toDate ? semana.fechaFin.toDate() : new Date(semana.fechaFin);
-    
-    document.getElementById('fechasSemanaModal').textContent = 
-        `${fechaInicio.toLocaleDateString('es-ES')} - ${fechaFin.toLocaleDateString('es-ES')}`;
-    
-    // Resultado principal
-    let estadoTexto = '';
-    let estadoClass = '';
-    let icono = '';
+    let mensaje = `Semana ${semana.numero} finalizada:\n\n`;
+    mensaje += `Páginas: ${resultado.paginasReales}/${resultado.paginasObjetivo}\n`;
+    mensaje += `Tests: ${resultado.testsReales}/${resultado.testsObjetivo}\n\n`;
     
     if (resultado.estado === 'cumplido') {
-        estadoTexto = '¡Objetivos cumplidos!';
-        estadoClass = 'resultado-cumplido';
-        icono = '✅';
+        mensaje += '✅ ¡Objetivos cumplidos!\n\n';
     } else if (resultado.estado === 'superado') {
-        estadoTexto = '¡Objetivos superados!';
-        estadoClass = 'resultado-superado';
-        icono = '⭐';
+        mensaje += '⭐ ¡Objetivos superados!\n\n';
     } else {
-        estadoTexto = 'Objetivos no cumplidos';
-        estadoClass = 'resultado-incumplido';
-        icono = '❌';
+        mensaje += '❌ Objetivos no cumplidos\n\n';
+        // Solo preguntar sobre recálculo si no cumplió objetivos
+        mensaje += '¿Quieres recalcular el planning para adaptar las semanas restantes?';
+        
+        if (confirm(mensaje)) {
+            recalcularPlanningAutomatico(semana.numero);
+        }
+        return;
     }
     
-    document.getElementById('resultadoTextoModal').textContent = `${icono} ${estadoTexto}`;
-    document.getElementById('resultadoTextoModal').className = `resultado-principal ${estadoClass}`;
-    
-    // Detalles de páginas y tests
-    document.getElementById('detallesPaginasModal').innerHTML = `
-        <strong>Páginas:</strong> ${resultado.paginasReales}/${resultado.paginasObjetivo}
-        ${resultado.paginasReales >= resultado.paginasObjetivo ? '✅' : '❌'}
-    `;
-    
-    document.getElementById('detallesTestsModal').innerHTML = `
-        <strong>Tests:</strong> ${resultado.testsReales}/${resultado.testsObjetivo}
-        ${resultado.testsReales >= resultado.testsObjetivo ? '✅' : '❌'}
-    `;
-    
-    // Mostrar modal
-    document.getElementById('modalResultadoSemana').style.display = 'block';
+    // Para cumplido/superado, solo mostrar resultado
+    alert(mensaje);
+}
+
+// Función para recalcular planning automáticamente
+async function recalcularPlanningAutomatico(numeroSemana) {
+    try {
+        const planningDoc = await getDoc(doc(db, "planning", currentUser.uid));
+        if (!planningDoc.exists()) return;
+        
+        const planningData = planningDoc.data();
+        
+        // Calcular lo que se ha hecho hasta ahora
+        let paginasRealesHechas = 0;
+        let testsRealesHechos = 0;
+        
+        planningData.semanas.forEach(sem => {
+            if (sem.estado === 'cumplido' || sem.estado === 'incumplido' || sem.estado === 'superado') {
+                paginasRealesHechas += sem.paginasReales || 0;
+                testsRealesHechos += sem.testsReales || 0;
+            }
+        });
+        
+        // Lo que aún falta
+        const paginasRestantes = Math.max(0, planningData.resultados.totalPaginasPendientes - paginasRealesHechas);
+        const testsRestantes = Math.max(0, planningData.resultados.totalTestsRecomendados - testsRealesHechos);
+        
+        // Semanas futuras pendientes
+        const semanasFuturas = planningData.semanas.filter(s => s.estado === 'pendiente').length;
+        
+        if (semanasFuturas > 0) {
+            // Redistribuir
+            const nuevasPaginasPorSemana = Math.ceil(paginasRestantes / semanasFuturas);
+            const nuevosTestsPorSemana = Math.ceil(testsRestantes / semanasFuturas);
+            const nuevasPaginasPorDia = (paginasRestantes / (semanasFuturas * 7)).toFixed(1);
+            
+            // Actualizar semanas pendientes
+            planningData.semanas.forEach(sem => {
+                if (sem.estado === 'pendiente') {
+                    sem.objetivoPaginas = nuevasPaginasPorSemana;
+                    sem.objetivoTests = nuevosTestsPorSemana;
+                }
+            });
+            
+            // Actualizar datos generales
+            planningData.resultados.paginasPorDia = nuevasPaginasPorDia;
+            planningData.resultados.paginasPorSemana = nuevasPaginasPorSemana;
+            planningData.ultimaActualizacion = new Date();
+            
+            // Guardar
+            await setDoc(doc(db, "planning", currentUser.uid), planningData);
+            
+            alert(`✅ Planning recalculado:\n- Páginas/día: ${nuevasPaginasPorDia}\n- Páginas/semana: ${nuevasPaginasPorSemana}\n- Semanas restantes: ${semanasFuturas}`);
+        }
+        
+    } catch (error) {
+        console.error('Error recalculando planning:', error);
+        alert('Error al recalcular el planning');
+    }
 }
 
 // Función para cerrar modal de resultado
