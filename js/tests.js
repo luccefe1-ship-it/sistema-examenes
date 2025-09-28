@@ -1839,18 +1839,19 @@ async function cargarTemasParaTest() {
                 ${tieneSubtemas ? `
                     <div class="subtemas-container" id="subtemas-${tema.id}" style="display: none;">
                         ${subtemasPorPadre[tema.id].map(subtema => `
-                            <div class="subtema-row">
-                                <label class="subtema-label">
-                                    <div class="checkbox-y-nombre">
-                                        <input type="checkbox" class="tema-checkbox" value="${subtema.id}" 
-                                               data-preguntas="${subtema.preguntasVerificadas}" 
-                                               onclick="debugClick(this)" onchange="manejarSeleccionTema(event)">
-                                        <span class="subtema-nombre">↳ ${subtema.nombre}</span>
-                                    </div>
-                                    <span class="subtema-preguntas">${subtema.preguntasVerificadas} preguntas</span>
-                                </label>
-                            </div>
-                        `).join('')}
+    <div class="subtema-row">
+        <label class="subtema-label">
+            <div class="checkbox-y-nombre">
+                <input type="checkbox" class="tema-checkbox" value="${subtema.id}" 
+                       data-preguntas="${subtema.preguntasVerificadas}" 
+                       data-tema-padre="${tema.id}"
+                       onclick="debugClick(this)" onchange="manejarSeleccionTema(event)">
+                <span class="subtema-nombre">↳ ${subtema.nombre}</span>
+            </div>
+            <span class="subtema-preguntas">${subtema.preguntasVerificadas} preguntas</span>
+        </label>
+    </div>
+`).join('')}
                     </div>
                 ` : ''}
             `;
@@ -1928,9 +1929,33 @@ async function actualizarPreguntasDisponibles() {
                 }
             });
         } else {
-            // Sumar preguntas de temas seleccionados
+            // CORRECCIÓN: No sumar duplicados entre tema padre e hijos
+            const temasSeleccionados = new Set();
+            const subtemasPadres = new Set();
+            
+            // Primero, identificar qué temas son subtemas y cuáles son sus padres
             temasCheckboxes.forEach(checkbox => {
-                preguntasVerificadas += parseInt(checkbox.dataset.preguntas) || 0;
+                const temaPadre = checkbox.getAttribute('data-tema-padre');
+                if (temaPadre) {
+                    subtemasPadres.add(temaPadre);
+                }
+                temasSeleccionados.add(checkbox.value);
+            });
+            
+            // Solo contar preguntas de temas que NO tienen hijos seleccionados
+            temasCheckboxes.forEach(checkbox => {
+                const temaId = checkbox.value;
+                const temaPadre = checkbox.getAttribute('data-tema-padre');
+                
+                // Si es un subtema, contar sus preguntas
+                if (temaPadre) {
+                    preguntasVerificadas += parseInt(checkbox.dataset.preguntas) || 0;
+                }
+                // Si es un tema padre pero NO tiene subtemas seleccionados, contar sus preguntas
+                else if (!subtemasPadres.has(temaId)) {
+                    preguntasVerificadas += parseInt(checkbox.dataset.preguntas) || 0;
+                }
+                // Si es un tema padre CON subtemas seleccionados, NO contar (evitar duplicados)
             });
         }
 
@@ -3582,6 +3607,18 @@ window.manejarSeleccionTema = function(event) {
         if (checkboxClickeado.checked) {
             console.log('Desmarcando "Todos los temas"');
             todosLosTemas.checked = false;
+        }
+        
+        // NUEVA FUNCIONALIDAD: Auto-seleccionar subtemas cuando se selecciona tema principal
+        const temaId = checkboxClickeado.value;
+        const subtemas = document.querySelectorAll(`input[data-tema-padre="${temaId}"]`);
+        
+        if (subtemas.length > 0) {
+            console.log(`Encontrados ${subtemas.length} subtemas para tema ${temaId}`);
+            subtemas.forEach(subtema => {
+                subtema.checked = checkboxClickeado.checked;
+                console.log(`Subtema ${subtema.value} ${checkboxClickeado.checked ? 'seleccionado' : 'deseleccionado'}`);
+            });
         }
         
         // Contar temas seleccionados después del cambio
