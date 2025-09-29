@@ -2833,12 +2833,26 @@ temasSnapshot.forEach((doc) => {
 });
         
         
-       querySnapshot.forEach((doc) => {
-    const resultado = doc.data();
-    
-    if (!esTemaValido(resultado.test.tema, temasMap)) {
-        return;
-    }
+       // Convertir a array y ordenar por fecha descendente
+        const resultados = [];
+        querySnapshot.forEach((doc) => {
+            const resultado = doc.data();
+            
+            if (!esTemaValido(resultado.test.tema, temasMap)) {
+                return;
+            }
+            
+            resultados.push({ id: doc.id, data: resultado });
+        });
+        
+        // Ordenar por fecha de creación descendente (más reciente primero)
+        resultados.sort((a, b) => {
+            const fechaA = a.data.fechaCreacion?.toDate?.() || new Date(a.data.fechaCreacion || 0);
+            const fechaB = b.data.fechaCreacion?.toDate?.() || new Date(b.data.fechaCreacion || 0);
+            return fechaB - fechaA;
+        });
+        
+        resultados.forEach(({ id, data: resultado }) => {
     
     const fecha = resultado.fechaCreacion.toDate().toLocaleDateString('es-ES');
             const hora = resultado.fechaCreacion.toDate().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
@@ -2846,7 +2860,7 @@ temasSnapshot.forEach((doc) => {
             const resultadoDiv = document.createElement('div');
             resultadoDiv.className = 'resultado-historial';
             resultadoDiv.innerHTML = `
-    <div class="resultado-item" onclick="mostrarDetalleResultado('${doc.id}')" style="cursor: pointer;">
+    <div class="resultado-item" onclick="mostrarDetalleResultado('${id}')" style="cursor: pointer;">
        <div class="resultado-info">
     <h4>${obtenerTextoTemas(resultado.test.tema, temasMap)}</h4>
     <p class="nombre-test">${resultado.test.nombre}</p>
