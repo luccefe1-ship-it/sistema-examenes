@@ -166,6 +166,9 @@ onAuthStateChanged(auth, async (user) => {
         actualizarSaludoDinamico();
         iniciarCambioFrasesPeriodico();
         
+        // Cargar widget de semana actual
+        cargarWidgetSemanaActual();
+        
         // Cargar objetivos semanales
         console.log('Iniciando carga de objetivos...');
         cargarObjetivosSemana();
@@ -594,6 +597,182 @@ async function recalcularPlanningAutomatico(numeroSemana) {
 function cerrarModalResultado() {
     document.getElementById('modalResultadoSemana').style.display = 'none';
 }
-
+// ===== WIDGET SEMANA ACTUAL =====
+async function cargarWidgetSemanaActual() {
+    try {
+        // Cargar planning guardado
+        const planningDoc = await getDoc(doc(db, "planning", currentUser.uid));
+        if (!planningDoc.exists()) {
+            document.getElementById('widgetSemanaActual').style.display = 'none';
+            return;
+        }
+        
+        const planningGuardado = planningDoc.data();
+        
+        // Cargar progreso
+        const progresoDoc = await getDoc(doc(db, "progreso", currentUser.uid));
+        if (!progresoDoc.exists()) {
+            document.getElementById('widgetSemanaActual').style.display = 'none';
+            return;
+        }
+        
+        const progresoData = progresoDoc.data();
+        
+        // Buscar semana actual
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        
+        let semanaActual = null;
+        
+        for (const semana of planningGuardado.semanas) {
+            const fechaInicio = semana.fechaInicio?.toDate ? semana.fechaInicio.toDate() : new Date(semana.fechaInicio);
+            const fechaFin = semana.fechaFin?.toDate ? semana.fechaFin.toDate() : new Date(semana.fechaFin);
+            
+            fechaInicio.setHours(0, 0, 0, 0);
+            fechaFin.setHours(23, 59, 59, 999);
+            
+            if (hoy >= fechaInicio && hoy <= fechaFin) {
+                semanaActual = semana;
+                break;
+            }
+        }
+        
+        if (!semanaActual) {
+            document.getElementById('widgetSemanaActual').style.display = 'none';
+            return;
+        }
+        
+        // Calcular progreso de la semana
+        let paginasReales = 0;
+        let testsReales = 0;
+        
+        // Calcular vuelta mínima global
+        let vueltaMinimaPlanning = Infinity;
+        if (planningGuardado && planningGuardado.temas) {
+            planningGuardado.temas.forEach(temaPlanning => {
+                const temaProgreso = progresoData.temas[temaPlanning.id];
+                if (temaProgreso) {
+                    const vueltaTema = temaProgreso.vueltaActual || 1;
+                    if (vueltaTema < vueltaMinimaPlanning) {
+                        vueltaMinimaPlanning = vueltaTema;
+                    }
+                }
+            });
+        }
+        
+        // Construir mapa de páginas acumuladas
+        let paginasAcumuladasHastaSemanaAnterior = {};
+        
+        for (let i = 0; i < semanaActual.numero - 1; i++) {
+            const semanaAnterior = planningGuardado.semanas[i];
+            if (semanaAnterior && semanaAnterior.temasAsignados) {
+                semanaAnterior.temasAsignados.forEach(temaAsignado => {
+                    const temaEncontrado = planningGuardado.temas.find(t => t.nombre === temaAsignado.nombre);
+                    if (temaEncontrado) {
+                        if (!paginasAcumuladasHastaSemanaAnterior[temaEncontrado.id]) {
+                            paginasAcumuladasHastaSemanaAnterior[temaEncontrado.id] = 0;
+                        }
+                        paginasAcumuladasHastaSemanaAnterior[temaEncontrado.id] += temaAsignado.paginas;
+                    }
+                });
+            }
+        }
+        
+        // Calcular páginas y objetivo ajustado
+        let paginasObjetivoAjustado = 0;
+        let paginasLeidasEstaSemana = 0;
+        
+        if (semanaActual.temasAsignados) {
+            semanaActual.temasAsignados.forEach(temaAsignado => {
+                const temaEncontrado = planningGuardado.temas.find(t => t.nombre === temaAsignado.nombre);
+                if (temaEncontrado) {
+                    const temaProgreso = progresoData.temas[temaEncontrado.id];
+                    if (temaProgreso) {
+                        const vueltaTema = temaProgreso.vueltaActual || 1;
+                        const paginasActuales = temaProgreso.paginasEstudiadas || 0;
+                        const paginasTotales = temaProgreso.paginasTotales || 0;
+                        
+                        const paginasEsperadasAnteriores = paginasAcumuladasHastaSemanaAnterior[temaEncontrado.id] || 0;
+                        const paginasEsperadasTotal = paginasEsperadasAnteriores + temaAsignado.paginas;
+                        
+                        if (vueltaTema > vueltaMinimaPlanning || 
+                            (vueltaTema === vueltaMinimaPlanning && paginasActuales >= paginasTotales) ||
+                            paginasActuales >= paginasEsperadasTotal) {
+                            paginasLeidasEstaSemana += temaAsignado.paginas;
+                        } else {
+                            const paginasLeidasDeTema = Math.max(0, paginasActuales - paginasEsperadasAnteriores);
+                            paginasObjetivoAjustado += temaAsignado.paginas;
+                            paginasLeidasEstaSemana += paginasLeidasDeTema;
+                        }
+                    }
+                }
+            });
+        }
+        
+        paginasReales = paginasLeidasEstaSemana;
+        const objetivoPaginasReal = paginasObjetivoAjustado > 0 ? paginasObjetivoAjustado : semanaActual.objetivoPaginas;
+        
+        // Calcular tests
+        const fechaInicio = semanaActual.fechaInicio?.toDate ? semanaActual.fechaInicio.toDate() : new Date(semanaActual.fechaInicio);
+        fechaInicio.setHours(0, 0, 0, 0);
+        
+        if (hoy >= fechaInicio && semanaActual.datosInicioSemana && semanaActual.temasAsignados) {
+            let testsActualesSemana = 0;
+            semanaActual.temasAsignados.forEach(temaAsignado => {
+                const temaEncontrado = planningGuardado.temas.find(t => t.nombre === temaAsignado.nombre);
+                if (temaEncontrado) {
+                    const temaProgreso = progresoData.temas[temaEncontrado.id];
+                    if (temaProgreso) {
+                        testsActualesSemana += (temaProgreso.testsAutomaticos || 0) + (temaProgreso.testsManuales || 0);
+                    }
+                }
+            });
+            
+            const testsIniciales = semanaActual.datosInicioSemana.testsIniciales || 0;
+            const testsRealizadosSemana = Math.max(0, testsActualesSemana - testsIniciales);
+            testsReales = Math.min(testsRealizadosSemana, semanaActual.objetivoTests);
+        }
+        
+        // Calcular días restantes
+        const fechaFin = semanaActual.fechaFin?.toDate ? semanaActual.fechaFin.toDate() : new Date(semanaActual.fechaFin);
+        const diasRestantes = Math.max(0, Math.ceil((fechaFin - hoy) / (1000 * 60 * 60 * 24)));
+        
+        // Calcular porcentaje
+        const porcentajePaginas = objetivoPaginasReal > 0 ? (paginasReales / objetivoPaginasReal) * 100 : 0;
+        const porcentajeTests = semanaActual.objetivoTests > 0 ? (testsReales / semanaActual.objetivoTests) * 100 : 0;
+        const porcentajeTotal = Math.round((porcentajePaginas + porcentajeTests) / 2);
+        
+        // Actualizar interfaz
+        document.getElementById('widgetSemanaActual').style.display = 'block';
+        document.getElementById('tituloSemana').textContent = `Semana ${semanaActual.numero}`;
+        document.getElementById('widgetPaginas').textContent = `${paginasReales}/${objetivoPaginasReal}`;
+        document.getElementById('widgetPaginasRestantes').textContent = `${Math.max(0, objetivoPaginasReal - paginasReales)} restantes`;
+        document.getElementById('widgetTests').textContent = `${testsReales}/${semanaActual.objetivoTests}`;
+        document.getElementById('widgetTestsRestantes').textContent = `${Math.max(0, semanaActual.objetivoTests - testsReales)} restantes`;
+        document.getElementById('widgetDias').textContent = diasRestantes;
+        document.getElementById('widgetBarraProgreso').style.width = `${porcentajeTotal}%`;
+        document.getElementById('widgetPorcentaje').textContent = `${porcentajeTotal}%`;
+        
+        const fechaInicioStr = fechaInicio.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+        const fechaFinStr = fechaFin.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+        document.getElementById('widgetFechas').textContent = `${fechaInicioStr} - ${fechaFinStr}`;
+        
+        // Estado
+        const cumplePaginas = paginasReales >= objetivoPaginasReal;
+        const cumpleTests = testsReales >= semanaActual.objetivoTests;
+        
+        if (cumplePaginas && cumpleTests) {
+            document.getElementById('estadoSemana').textContent = '✅ Completado';
+            document.getElementById('estadoSemana').style.background = 'rgba(16, 185, 129, 0.9)';
+        } else {
+            document.getElementById('estadoSemana').textContent = '🔄 En progreso';
+            document.getElementById('estadoSemana').style.background = 'rgba(59, 130, 246, 0.6)';
+        }
+        
+    } catch (error) {
+        console.error('Error cargando widget semana actual:', error);
+        document.getElementById('widgetSemanaActual').style.display = 'none';
+    }
+}
 // Hacer función accesible globalmente
 window.cerrarModalResultado = cerrarModalResultado;
