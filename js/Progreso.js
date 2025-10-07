@@ -2113,13 +2113,49 @@ async function mostrarSemanasPlanning() {
             paginasReales = semana.paginasReales || 0;
             testsReales = semana.testsReales || 0;
         } else {
-            if (semana.datosInicioSemana) {
-                const estadoActual = capturarEstadoActualSemana();
-                testsReales = Math.max(0, estadoActual.totalTests - semana.datosInicioSemana.testsIniciales);
-            } else {
-                const estadoActual = capturarEstadoActualSemana();
-                testsReales = estadoActual.totalTests;
+            // SOLO contar tests si la semana ya ha comenzado
+        if (hoy >= fechaInicioObj) {
+            // Calcular tests de esta semana usando datosInicioSemana
+            if (semana.datosInicioSemana && semana.temasAsignados) {
+                // Contar tests ACTUALES de los temas de esta semana
+                let testsActualesSemana = 0;
+                semana.temasAsignados.forEach(temaAsignado => {
+                    const temaEncontrado = planningGuardado.temas.find(t => t.nombre === temaAsignado.nombre);
+                    if (temaEncontrado) {
+                        const temaProgreso = progresoData.temas[temaEncontrado.id];
+                        if (temaProgreso) {
+                            testsActualesSemana += (temaProgreso.testsAutomaticos || 0) + (temaProgreso.testsManuales || 0);
+                        }
+                    }
+                });
+                
+                // Restar los tests iniciales de la semana
+                const testsIniciales = semana.datosInicioSemana.testsIniciales || 0;
+                const testsRealizadosSemana = Math.max(0, testsActualesSemana - testsIniciales);
+                
+                // LIMITAR al objetivo: no contar más del objetivo
+                testsReales = Math.min(testsRealizadosSemana, semana.objetivoTests);
+                
+            } else if (semana.temasAsignados) {
+                // Si no hay datos de inicio, contar tests actuales de los temas
+                let testsContados = 0;
+                semana.temasAsignados.forEach(temaAsignado => {
+                    const temaEncontrado = planningGuardado.temas.find(t => t.nombre === temaAsignado.nombre);
+                    if (temaEncontrado) {
+                        const temaProgreso = progresoData.temas[temaEncontrado.id];
+                        if (temaProgreso) {
+                            testsContados += (temaProgreso.testsAutomaticos || 0) + (temaProgreso.testsManuales || 0);
+                        }
+                    }
+                });
+                
+                // LIMITAR al objetivo
+                testsReales = Math.min(testsContados, semana.objetivoTests);
             }
+        } else {
+            // Semana futura: 0 tests
+            testsReales = 0;
+        }
         }
         
         // Ajustar objetivo de páginas si hay temas completados
@@ -2160,6 +2196,10 @@ async function mostrarSemanasPlanning() {
             const cumplePaginas = paginasReales >= objetivoPaginasReal;
             const cumpleTests = testsReales >= semana.objetivoTests;
             
+            // Calcular si SUPERÓ los objetivos (no solo cumplió)
+            const superoPaginas = paginasReales > objetivoPaginasReal;
+            const superoTests = testsReales > semana.objetivoTests;
+            
             if (cumplePaginas && cumpleTests) {
                 semana.estado = 'cumplido';
                 semana.paginasReales = paginasReales;
@@ -2168,14 +2208,8 @@ async function mostrarSemanasPlanning() {
                 
                 estadoClass = 'estado-cumplido';
                 estadoTexto = '🎉 Cumplido';
-                mensajeEstado = `
-                    <div class="mensaje-exito">
-                        <p>¡Felicidades! Has cumplido tus objetivos esta semana.</p>
-                        <div class="acciones-semana-cumplida">
-                            <button onclick="ofrecerRecalculoAutomatico(${semana.numero})" class="btn-recalcular">🔄 Recalcular Planning</button>
-                        </div>
-                    </div>
-                `;
+                
+                mensajeEstado = '<div class="mensaje-exito"><p>¡Felicidades! Has cumplido tus objetivos esta semana.</p></div>';
             } else {
                 estadoClass = 'estado-en-curso';
                 estadoTexto = '📊 En curso';
@@ -2196,7 +2230,6 @@ async function mostrarSemanasPlanning() {
                     <div class="mensaje-error">
                         <p>Lo siento, no has cumplido los objetivos de esta semana.</p>
                         <div class="acciones-semana-incumplida">
-                            <button onclick="recalcularPlanningDesdeIncumplido()" class="btn-recalcular">🔄 Recalcular Planning</button>
                             <button onclick="eliminarPlanning()" class="btn-eliminar-planning">🗑️ Eliminar Planning</button>
                         </div>
                     </div>
@@ -2227,8 +2260,8 @@ async function mostrarSemanasPlanning() {
                         ${temasCompletadosEstaSemana.length > 0 ? `<br><small style="font-size: 10px; color: #10b981;">${temasCompletadosEstaSemana.length} tema(s) ya cumplido(s)</small>` : ''}
                     </div>
                 </div>
-                <div class="progreso-item">
-                    <div class="progreso-label">🎯 Tests:</div>
+               <div class="progreso-item">
+                    <div class="progreso-label">🎯 Tests esta semana:</div>
                     <div class="progreso-valor ${testsReales >= semana.objetivoTests ? 'cumplido' : ''}">
                         ${testsReales} / ${semana.objetivoTests}
                     </div>
