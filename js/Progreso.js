@@ -386,7 +386,7 @@ function renderizarTablaProgreso() {
         tablaContent.innerHTML += filaHTML;
     });
     
-    // Actualizar progreso general
+// Actualizar progreso general
     actualizarProgresoGeneral();
     
     // Configurar event listeners de los controles
@@ -449,13 +449,11 @@ function crearFilaTema(temaId, temaProgreso) {
     `;
 }
 
-// Funciones auxiliares que se implementarán en el siguiente paso
+// Funciones auxiliares
 function calcularPorcentajeTema(temaProgreso) {
-    // Validar que existan los valores necesarios
     const paginasEstudiadas = temaProgreso.paginasEstudiadas || 0;
-    const paginasTotales = temaProgreso.paginasTotales || 30; // valor por defecto
+    const paginasTotales = temaProgreso.paginasTotales || 30;
     
-    // Evitar división por cero
     if (paginasTotales <= 0) return 0;
     
     return Math.round((paginasEstudiadas / paginasTotales) * 100);
@@ -467,7 +465,6 @@ function obtenerNombreVuelta(numeroVuelta) {
 }
 
 function configurarControlesTabla() {
-    // Event listeners ya están configurados en el HTML con onclick
     console.log('Controles de tabla configurados');
 }
 
@@ -475,7 +472,6 @@ function actualizarProgresoGeneral() {
     try {
         // Validar que progresoData y progresoData.temas existan
         if (!progresoData || !progresoData.temas) {
-            // No hay datos de progreso disponibles
             document.getElementById('progresoGeneralMemorizado').textContent = '0/0';
             document.getElementById('progresoGeneralTests').textContent = '0';
             document.getElementById('progresoGeneralVuelta').textContent = 'Primera';
@@ -487,7 +483,6 @@ function actualizarProgresoGeneral() {
         const temas = Object.values(progresoData.temas);
         
         if (temas.length === 0) {
-            // No hay temas
             document.getElementById('progresoGeneralMemorizado').textContent = '0/0';
             document.getElementById('progresoGeneralTests').textContent = '0';
             document.getElementById('progresoGeneralVuelta').textContent = 'Primera';
@@ -496,52 +491,44 @@ function actualizarProgresoGeneral() {
             return;
         }
         
-        // Calcular totales
-        let paginasTotalesGlobal = 0;
-        let paginasEstudiadasGlobal = 0;
-        let testsGlobal = 0;
-        let vueltaMinimaGlobal = 6; // Empezar con máximo
+        // Calcular vuelta mínima global (la más baja de todos los temas)
+        let vueltaMinimaGlobal = Math.min(...temas.map(t => t.vueltaActual || 1));
+        
+        // Calcular páginas totales (suma de todos los temas)
+        const paginasTotalesGlobal = temas.reduce((sum, t) => sum + (t.paginasTotales || 0), 0);
+        
+        // Calcular tests globales
+        const testsGlobal = temas.reduce((sum, t) => 
+            sum + (t.testsAutomaticos || 0) + (t.testsManuales || 0), 0);
+        
+        // NUEVA LÓGICA: Calcular páginas según la vuelta global
+        let paginasLeidas = 0;
         
         temas.forEach(tema => {
-            paginasTotalesGlobal += tema.paginasTotales;
+            const vueltaTema = tema.vueltaActual || 1;
+            const paginasTotalesTema = tema.paginasTotales || 0;
+            const paginasActualesTema = tema.paginasEstudiadas || 0;
             
-            // Páginas estudiadas: incluir vueltas completadas
-            const vueltas_completadas = (tema.vueltas && Array.isArray(tema.vueltas)) ? 
-                tema.vueltas.filter(v => v.completada).length : 0;
-            paginasEstudiadasGlobal += (vueltas_completadas * tema.paginasTotales) + tema.paginasEstudiadas;
-            
-            testsGlobal += (tema.testsAutomaticos || 0) + (tema.testsManuales || 0);
-            
-            // La vuelta global es la mínima de todos los temas
-            vueltaMinimaGlobal = Math.min(vueltaMinimaGlobal, tema.vueltaActual);
+            if (vueltaTema < vueltaMinimaGlobal) {
+                // Este tema está en una vuelta anterior (no debería pasar)
+                paginasLeidas += paginasTotalesTema;
+            } else if (vueltaTema === vueltaMinimaGlobal) {
+                // Este tema está en la vuelta mínima global
+                paginasLeidas += paginasActualesTema;
+            } else {
+                // Este tema está en una vuelta SUPERIOR a la mínima
+                // Contar TODAS sus páginas como completadas para la vuelta mínima
+                paginasLeidas += paginasTotalesTema;
+            }
         });
         
-        // Si no hay temas, vuelta mínima es 1
-        if (vueltaMinimaGlobal === 6 && temas.length === 0) vueltaMinimaGlobal = 1;
-        
-        // Calcular progreso de la vuelta actual global CORREGIDO
-const paginasVueltaActualGlobal = temas.reduce((total, tema) => {
-    // Solo contar páginas si el tema está exactamente en la vuelta mínima
-    if (tema.vueltaActual === vueltaMinimaGlobal) {
-        return total + tema.paginasEstudiadas;
-    }
-    return total;
-}, 0);
-
-// Para el progreso general, solo contar páginas totales de temas en vuelta mínima
-const paginasTotalesVueltaActual = temas.reduce((total, tema) => {
-    if (tema.vueltaActual === vueltaMinimaGlobal) {
-        return total + tema.paginasTotales;
-    }
-    return total;
-}, 0);
-
-const porcentajeVueltaActual = paginasTotalesVueltaActual > 0 ? 
-    Math.round((paginasVueltaActualGlobal / paginasTotalesVueltaActual) * 100) : 0;
+        // Calcular porcentaje
+        const porcentajeVueltaActual = paginasTotalesGlobal > 0 ? 
+            Math.round((paginasLeidas / paginasTotalesGlobal) * 100) : 0;
         
         // Actualizar interfaz
         document.getElementById('progresoGeneralMemorizado').textContent = 
-    `${paginasVueltaActualGlobal}/${paginasTotalesVueltaActual}`;
+            `${paginasLeidas}/${paginasTotalesGlobal}`;
         document.getElementById('progresoGeneralTests').textContent = testsGlobal;
         document.getElementById('progresoGeneralVuelta').textContent = obtenerNombreVuelta(vueltaMinimaGlobal);
         
@@ -551,7 +538,7 @@ const porcentajeVueltaActual = paginasTotalesVueltaActual > 0 ?
         
         document.getElementById('porcentajeProgresoGeneral').textContent = `${porcentajeVueltaActual}%`;
         
-        console.log(`Progreso general: ${paginasVueltaActualGlobal}/${paginasTotalesGlobal} (${porcentajeVueltaActual}%) - Vuelta ${vueltaMinimaGlobal}`);
+        console.log(`Progreso general: ${paginasLeidas}/${paginasTotalesGlobal} (${porcentajeVueltaActual}%) - Vuelta ${vueltaMinimaGlobal}`);
         
     } catch (error) {
         console.error('Error actualizando progreso general:', error);
