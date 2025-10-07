@@ -595,6 +595,11 @@ actualizarTrackingAutomatico();
         console.error('Error cambiando páginas:', error);
         alert('Error al cambiar páginas');
     }
+// Actualizar seguimiento si está abierto
+if (document.getElementById('modalSeguimientoPlanning').style.display === 'block') {
+    mostrarInformacionPlanning();
+    mostrarSemanasPlanning();
+}
 };
 
 window.cambiarTests = async function(temaId, cambio) {
@@ -629,6 +634,11 @@ actualizarTrackingAutomatico();
         console.error('Error cambiando tests:', error);
         alert('Error al cambiar tests');
     }
+// Actualizar seguimiento si está abierto
+if (document.getElementById('modalSeguimientoPlanning').style.display === 'block') {
+    mostrarInformacionPlanning();
+    mostrarSemanasPlanning();
+}
 };
 
 window.reiniciarTema = async function(temaId) {
@@ -663,6 +673,11 @@ actualizarTrackingAutomatico();
         console.error('Error reiniciando tema:', error);
         alert('Error al reiniciar tema');
     }
+// Actualizar seguimiento si está abierto
+if (document.getElementById('modalSeguimientoPlanning').style.display === 'block') {
+    mostrarInformacionPlanning();
+    mostrarSemanasPlanning();
+}
 };
 
 // Funciones del modal
@@ -1105,60 +1120,37 @@ async function inicializarTrackingAutomatico() {
     if (!planningGuardado) return;
     
     const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0); // Normalizar a medianoche
+    hoy.setHours(0, 0, 0, 0);
     
-    // Buscar la semana activa (fecha actual está dentro del rango)
-    const semanaActiva = planningGuardado.semanas.find(semana => {
+    // Inicializar SOLO la semana activa actual
+    for (const semana of planningGuardado.semanas) {
         const fechaInicio = semana.fechaInicio?.toDate ? semana.fechaInicio.toDate() : new Date(semana.fechaInicio);
         const fechaFin = semana.fechaFin?.toDate ? semana.fechaFin.toDate() : new Date(semana.fechaFin);
         
         fechaInicio.setHours(0, 0, 0, 0);
         fechaFin.setHours(23, 59, 59, 999);
         
-        return hoy >= fechaInicio && hoy <= fechaFin && semana.estado === 'pendiente';
-    });
-    
-    if (semanaActiva) {
-        console.log(`Semana activa detectada: Semana ${semanaActiva.numero}`);
+        // Solo inicializar si HOY está dentro de esta semana Y no tiene datos
+        const esSemanaActiva = hoy >= fechaInicio && hoy <= fechaFin;
         
-        // Verificar si es el primer día de tracking de esta semana
-        const fechaInicioSemana = semanaActiva.fechaInicio?.toDate ? semanaActiva.fechaInicio.toDate() : new Date(semanaActiva.fechaInicio);
-        fechaInicioSemana.setHours(0, 0, 0, 0);
-        
-        // Si no hay datos de inicio de semana o es una nueva semana
-        if (!semanaActiva.datosInicioSemana || !semanaActiva.datosInicioSemana.inicializado) {
-            // Capturar estado inicial de la semana
+        if (esSemanaActiva && (!semana.datosInicioSemana || !semana.datosInicioSemana.inicializado)) {
             const estadoInicial = capturarEstadoInicialSemana();
             
-            semanaActiva.datosInicioSemana = {
+            semana.datosInicioSemana = {
                 inicializado: true,
-                fecha: fechaInicioSemana,
+                fecha: fechaInicio,
                 paginasIniciales: estadoInicial.totalPaginas,
                 testsIniciales: estadoInicial.totalTests,
                 temasPaginas: estadoInicial.temasPaginas,
                 temasTests: estadoInicial.temasTests
             };
             
-            // Guardar cambios
             await guardarCambiosPlanning();
-            console.log('Estado inicial de semana guardado:', semanaActiva.datosInicioSemana);
+            console.log(`Estado inicial capturado para Semana ${semana.numero}:`, semana.datosInicioSemana);
         }
-        
-        // Configurar tracker local
-        planningTracker = {
-            semanaActiva: semanaActiva,
-            paginasInicio: semanaActiva.datosInicioSemana.paginasIniciales,
-            testsInicio: semanaActiva.datosInicioSemana.testsIniciales,
-            fechaInicioSemana: fechaInicioSemana,
-            temasPaginasInicio: semanaActiva.datosInicioSemana.temasPaginas,
-            temasTestsInicio: semanaActiva.datosInicioSemana.temasTests
-        };
-        
-        console.log('Tracking automático inicializado:', planningTracker);
-    } else {
-        console.log('No hay semana activa para tracking');
-        planningTracker.semanaActiva = null;
     }
+    
+    console.log('Tracking automático inicializado');
 }
 
 function capturarEstadoInicialSemana() {
@@ -1167,17 +1159,36 @@ function capturarEstadoInicialSemana() {
     const temasPaginas = {};
     const temasTests = {};
     
+    // Calcular vuelta mínima global del planning
+    let vueltaMinimaPlanning = Infinity;
+    if (planningGuardado && planningGuardado.temas) {
+        planningGuardado.temas.forEach(temaPlanning => {
+            const temaProgreso = progresoData.temas[temaPlanning.id];
+            if (temaProgreso) {
+                const vueltaTema = temaProgreso.vueltaActual || 1;
+                if (vueltaTema < vueltaMinimaPlanning) {
+                    vueltaMinimaPlanning = vueltaTema;
+                }
+            }
+        });
+    }
+    
     // Solo contar temas que están en el planning actual
     if (planningGuardado && planningGuardado.temas) {
         planningGuardado.temas.forEach(temaPlanning => {
             const temaProgreso = progresoData.temas[temaPlanning.id];
             if (temaProgreso) {
-                // Páginas: incluir vueltas completadas + páginas actuales
-                const vueltas_completadas = (temaProgreso.vueltas && Array.isArray(temaProgreso.vueltas)) ? 
-                    temaProgreso.vueltas.filter(v => v.completada).length : 0;
-                const paginasTema = (vueltas_completadas * temaProgreso.paginasTotales) + temaProgreso.paginasEstudiadas;
+                const vueltaTema = temaProgreso.vueltaActual || 1;
+                let paginasTema;
                 
-                // Tests: automáticos + manuales
+                if (vueltaTema < vueltaMinimaPlanning) {
+                    paginasTema = temaProgreso.paginasEstudiadas || 0;
+                } else if (vueltaTema === vueltaMinimaPlanning) {
+                    paginasTema = temaProgreso.paginasEstudiadas || 0;
+                } else {
+                    paginasTema = temaProgreso.paginasTotales;
+                }
+                
                 const testsTema = (temaProgreso.testsAutomaticos || 0) + (temaProgreso.testsManuales || 0);
                 
                 totalPaginas += paginasTema;
@@ -1196,7 +1207,25 @@ function capturarEstadoInicialSemana() {
         temasTests
     };
 }
-
+function capturarEstadoActualSemana() {
+    let totalPaginas = 0;
+    let totalTests = 0;
+    
+    if (planningGuardado && planningGuardado.temas) {
+        planningGuardado.temas.forEach(temaPlanning => {
+            const temaProgreso = progresoData.temas[temaPlanning.id];
+            if (temaProgreso) {
+                totalPaginas += temaProgreso.paginasEstudiadas || 0;
+                totalTests += (temaProgreso.testsAutomaticos || 0) + (temaProgreso.testsManuales || 0);
+            }
+        });
+    }
+    
+    return {
+        totalPaginas,
+        totalTests
+    };
+}
 function calcularProgresoSemanaActual() {
     if (!planningTracker.semanaActiva) return { paginas: 0, tests: 0 };
     
@@ -1328,17 +1357,34 @@ function generarCheckboxesTemas() {
         }
     });
     
+    // Calcular vuelta mínima global de TODOS los temas para los checkboxes
+    const todasLasVueltas = Object.values(progresoData.temas).map(t => t.vueltaActual || 1);
+    const vueltaMinimaGlobalTotal = Math.min(...todasLasVueltas);
+    
     temasOrdenados.forEach(([temaId, temaProgreso]) => {
-        const paginasPendientes = Math.max(0, temaProgreso.paginasTotales - temaProgreso.paginasEstudiadas);
-        
         const checkboxDiv = document.createElement('div');
         checkboxDiv.className = 'checkbox-item';
+        
+        const vueltaTema = temaProgreso.vueltaActual || 1;
+        let paginasPendientes;
+        let estadoTema;
+        
+        if (vueltaTema < vueltaMinimaGlobalTotal) {
+            paginasPendientes = temaProgreso.paginasTotales - temaProgreso.paginasEstudiadas;
+            estadoTema = `${temaProgreso.paginasEstudiadas}/${temaProgreso.paginasTotales} leídas - ${paginasPendientes} pendientes en ${obtenerNombreVuelta(vueltaTema)}`;
+        } else if (vueltaTema === vueltaMinimaGlobalTotal) {
+            paginasPendientes = Math.max(0, temaProgreso.paginasTotales - temaProgreso.paginasEstudiadas);
+            estadoTema = `${temaProgreso.paginasEstudiadas}/${temaProgreso.paginasTotales} leídas - ${paginasPendientes} pendientes en ${obtenerNombreVuelta(vueltaTema)}`;
+        } else {
+            paginasPendientes = 0;
+            estadoTema = `✅ Completado en ${obtenerNombreVuelta(vueltaMinimaGlobalTotal)} (en ${obtenerNombreVuelta(vueltaTema)})`;
+        }
         
         checkboxDiv.innerHTML = `
             <input type="checkbox" id="tema_${temaId}" value="${temaId}" ${paginasPendientes > 0 ? '' : 'disabled'}>
             <label for="tema_${temaId}">
                 ${temaProgreso.nombre}
-                <span class="tema-info">(${paginasPendientes}/${temaProgreso.paginasTotales} pág. pendientes)</span>
+                <span class="tema-info">(${estadoTema})</span>
             </label>
         `;
         
@@ -1385,13 +1431,40 @@ function calcularPlanning() {
         return;
     }
     
-    // Recopilar datos de temas seleccionados
+    // CALCULAR VUELTA MÍNIMA GLOBAL de los temas seleccionados
+    let vueltaMinimaGlobal = Infinity;
+    checkboxes.forEach(checkbox => {
+        const temaId = checkbox.value;
+        const temaProgreso = progresoData.temas[temaId];
+        if (temaProgreso) {
+            const vueltaTema = temaProgreso.vueltaActual || 1;
+            if (vueltaTema < vueltaMinimaGlobal) {
+                vueltaMinimaGlobal = vueltaTema;
+            }
+        }
+    });
+    
+    console.log(`Vuelta mínima global del planning: ${vueltaMinimaGlobal}`);
+    
+    // Recopilar datos de temas seleccionados (basado en vuelta mínima global)
     checkboxes.forEach(checkbox => {
         const temaId = checkbox.value;
         const temaProgreso = progresoData.temas[temaId];
         
         if (temaProgreso) {
-            const paginasPendientes = Math.max(0, temaProgreso.paginasTotales - temaProgreso.paginasEstudiadas);
+            const vueltaTema = temaProgreso.vueltaActual || 1;
+            let paginasPendientes;
+            
+            if (vueltaTema < vueltaMinimaGlobal) {
+                // Este tema está ATRASADO respecto a la vuelta global
+                paginasPendientes = temaProgreso.paginasTotales - temaProgreso.paginasEstudiadas;
+            } else if (vueltaTema === vueltaMinimaGlobal) {
+                // Este tema está EN la vuelta global
+                paginasPendientes = Math.max(0, temaProgreso.paginasTotales - temaProgreso.paginasEstudiadas);
+            } else {
+                // Este tema está ADELANTADO, ya completó la vuelta global
+                paginasPendientes = 0;
+            }
             
             temasSeleccionados.push({
                 id: temaId,
@@ -1399,7 +1472,8 @@ function calcularPlanning() {
                 paginasTotales: temaProgreso.paginasTotales,
                 paginasEstudiadas: temaProgreso.paginasEstudiadas,
                 paginasPendientes: paginasPendientes,
-                vueltaActual: temaProgreso.vueltaActual
+                vueltaActual: temaProgreso.vueltaActual,
+                vueltaMinimaGlobal: vueltaMinimaGlobal
             });
         }
     });
@@ -1492,18 +1566,8 @@ function mostrarResultadosPlanning(resultados, temasOriginales, fechaLimite) {
         </div>
         
         <div class="temas-detalle">
-            <h5 style="margin-bottom: 15px; color: #374151;">Detalle por tema:</h5>
-            ${resultados.temasConTests.map(tema => `
-                <div class="tema-planning">
-                    <div class="tema-planning-nombre">${tema.nombre}</div>
-                    <div class="tema-planning-datos">
-                        <span>Pendientes: ${tema.paginasPendientes}/${tema.paginasTotales} pág.</span>
-                        <span>Tests recomendados: ${tema.testsRecomendados}</span>
-                        <span>Vuelta actual: ${obtenerNombreVuelta(tema.vueltaActual)}</span>
-                        <span>Días estimados: ${Math.ceil(tema.paginasPendientes / resultados.paginasPorDia)}</span>
-                    </div>
-                </div>
-            `).join('')}
+            <h5 style="margin-bottom: 15px; color: #374151;">📅 Detalle por semana:</h5>
+            ${generarDetalleSemanal(temasOriginales, resultados, fechaLimite)}
         </div>
         
         <div class="form-actions">
@@ -1610,11 +1674,22 @@ await inicializarTrackingAutomatico();
     }
 }
 
-// Función para generar semanas del planning
+// Función para generar semanas del planning CON temas asignados
 function generarSemanasPlanning(resultados, fechaLimite) {
     const semanas = [];
     const fechaInicio = new Date();
-    const paginasPorSemana = resultados.paginasPorSemana;
+    const paginasPorDia = parseFloat(resultados.paginasPorDia);
+    const paginasPorSemana = Math.ceil(paginasPorDia * 7);
+    
+    // Crear lista de temas con sus páginas pendientes
+    const temasConPaginas = resultados.temasConTests.map(tema => ({
+        nombre: tema.nombre,
+        paginasPendientes: tema.paginasPendientes,
+        paginasRestantes: tema.paginasPendientes
+    }));
+    
+    let temaActualIndex = 0;
+    let paginasDelTemaActual = temasConPaginas[0] ? temasConPaginas[0].paginasRestantes : 0;
     
     for (let i = 0; i < Math.ceil(resultados.semanasDisponibles); i++) {
         const fechaInicioSemana = new Date(fechaInicio);
@@ -1623,18 +1698,52 @@ function generarSemanasPlanning(resultados, fechaLimite) {
         const fechaFinSemana = new Date(fechaInicioSemana);
         fechaFinSemana.setDate(fechaInicioSemana.getDate() + 6);
         
-        // Para la última semana, ajustar hasta la fecha límite
         if (fechaFinSemana > fechaLimite) {
             fechaFinSemana.setTime(fechaLimite.getTime());
+        }
+        
+        // Calcular qué temas se estudiarán esta semana
+        const temasEstaSemana = [];
+        let paginasAsignadasEstaSemana = 0;
+        
+        while (paginasAsignadasEstaSemana < paginasPorSemana && temaActualIndex < temasConPaginas.length) {
+            const temaActual = temasConPaginas[temaActualIndex];
+            const paginasQueFaltan = paginasPorSemana - paginasAsignadasEstaSemana;
+            
+            if (paginasDelTemaActual <= paginasQueFaltan) {
+                // El tema completo cabe en esta semana
+                temasEstaSemana.push({
+                    nombre: temaActual.nombre,
+                    paginas: paginasDelTemaActual,
+                    completo: true
+                });
+                paginasAsignadasEstaSemana += paginasDelTemaActual;
+                
+                // Avanzar al siguiente tema
+                temaActualIndex++;
+                if (temaActualIndex < temasConPaginas.length) {
+                    paginasDelTemaActual = temasConPaginas[temaActualIndex].paginasRestantes;
+                }
+            } else {
+                // El tema NO cabe completo, se divide
+                temasEstaSemana.push({
+                    nombre: temaActual.nombre,
+                    paginas: paginasQueFaltan,
+                    completo: false
+                });
+                paginasAsignadasEstaSemana += paginasQueFaltan;
+                paginasDelTemaActual -= paginasQueFaltan;
+            }
         }
         
         semanas.push({
             numero: i + 1,
             fechaInicio: fechaInicioSemana,
             fechaFin: fechaFinSemana,
-            objetivoPaginas: Math.min(paginasPorSemana, resultados.totalPaginasPendientes - (i * paginasPorSemana)),
+            objetivoPaginas: paginasAsignadasEstaSemana,
             objetivoTests: Math.ceil(resultados.totalTestsRecomendados / resultados.semanasDisponibles),
-            estado: 'pendiente', // pendiente, cumplido, incumplido
+            temasAsignados: temasEstaSemana, // AGREGAR TEMAS ASIGNADOS
+            estado: 'pendiente',
             paginasReales: 0,
             testsReales: 0,
             fechaReporte: null
@@ -1643,7 +1752,96 @@ function generarSemanasPlanning(resultados, fechaLimite) {
     
     return semanas;
 }
-
+// Función para generar el HTML del detalle semanal
+function generarDetalleSemanal(temas, resultados, fechaLimite) {
+    const fechaInicio = new Date();
+    const paginasPorDia = parseFloat(resultados.paginasPorDia);
+    const paginasPorSemana = Math.ceil(paginasPorDia * 7);
+    
+    // Crear lista de temas con sus páginas pendientes
+    const temasConPaginas = temas.map(tema => ({
+        nombre: tema.nombre,
+        paginasPendientes: tema.paginasPendientes,
+        paginasRestantes: tema.paginasPendientes
+    }));
+    
+    let html = '';
+    let temaActualIndex = 0;
+    let paginasDelTemaActual = temasConPaginas[0].paginasRestantes;
+    
+    for (let i = 0; i < Math.ceil(resultados.semanasDisponibles); i++) {
+        const fechaInicioSemana = new Date(fechaInicio);
+        fechaInicioSemana.setDate(fechaInicio.getDate() + (i * 7));
+        
+        const fechaFinSemana = new Date(fechaInicioSemana);
+        fechaFinSemana.setDate(fechaInicioSemana.getDate() + 6);
+        
+        if (fechaFinSemana > fechaLimite) {
+            fechaFinSemana.setTime(fechaLimite.getTime());
+        }
+        
+        const fechaInicioStr = fechaInicioSemana.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+        const fechaFinStr = fechaFinSemana.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+        
+        // Calcular qué temas se estudiarán esta semana
+        const temasEstaSemana = [];
+        let paginasAsignadasEstaSemana = 0;
+        
+        while (paginasAsignadasEstaSemana < paginasPorSemana && temaActualIndex < temasConPaginas.length) {
+            const temaActual = temasConPaginas[temaActualIndex];
+            const paginasQueFaltan = paginasPorSemana - paginasAsignadasEstaSemana;
+            
+            if (paginasDelTemaActual <= paginasQueFaltan) {
+                // El tema completo cabe en esta semana
+                temasEstaSemana.push({
+                    nombre: temaActual.nombre,
+                    paginas: paginasDelTemaActual,
+                    completo: true
+                });
+                paginasAsignadasEstaSemana += paginasDelTemaActual;
+                
+                // Avanzar al siguiente tema
+                temaActualIndex++;
+                if (temaActualIndex < temasConPaginas.length) {
+                    paginasDelTemaActual = temasConPaginas[temaActualIndex].paginasRestantes;
+                }
+            } else {
+                // El tema NO cabe completo, se divide
+                temasEstaSemana.push({
+                    nombre: temaActual.nombre,
+                    paginas: paginasQueFaltan,
+                    completo: false
+                });
+                paginasAsignadasEstaSemana += paginasQueFaltan;
+                paginasDelTemaActual -= paginasQueFaltan;
+            }
+        }
+        
+        // Generar HTML para esta semana
+        const temasHTML = temasEstaSemana.map(t => 
+            `<div style="font-size: 13px; color: #374151; padding: 4px 0;">
+                ${t.completo ? '✅' : '📖'} ${t.nombre}: ${t.paginas} pág. ${t.completo ? '(completo)' : '(parcial)'}
+            </div>`
+        ).join('');
+        
+        html += `
+            <div class="semana-planning">
+                <div class="semana-planning-header">
+                    <strong>Semana ${i + 1}</strong>
+                    <span style="color: #6b7280; font-size: 13px;">${fechaInicioStr} - ${fechaFinStr}</span>
+                </div>
+                <div class="semana-planning-objetivo">
+                    <strong>Objetivo:</strong> ${paginasAsignadasEstaSemana} páginas
+                </div>
+                <div class="semana-planning-temas">
+                    ${temasHTML}
+                </div>
+            </div>
+        `;
+    }
+    
+    return html;
+}
 // Función para eliminar planning
 async function eliminarPlanning() {
     if (!planningGuardado) return;
@@ -1704,81 +1902,89 @@ function mostrarInformacionPlanning() {
     const titulo = document.getElementById('planningTitulo');
     const resumen = document.getElementById('planningResumen');
     
-    // Manejo seguro de fechas
-let fechaLimiteObj;
-if (planningGuardado.fechaLimite?.toDate) {
-    fechaLimiteObj = planningGuardado.fechaLimite.toDate();
-} else {
-    fechaLimiteObj = new Date(planningGuardado.fechaLimite);
-}
+    let fechaLimiteObj;
+    if (planningGuardado.fechaLimite?.toDate) {
+        fechaLimiteObj = planningGuardado.fechaLimite.toDate();
+    } else {
+        fechaLimiteObj = new Date(planningGuardado.fechaLimite);
+    }
 
-const fechaLimite = fechaLimiteObj.toLocaleDateString('es-ES');
-    
+    const fechaLimite = fechaLimiteObj.toLocaleDateString('es-ES');
     titulo.textContent = `Planning hasta ${fechaLimite}`;
     
-    // Calcular páginas y tests realmente hechos para mostrar información actualizada
-    let paginasYaHechas = 0;
-    let testsYaHechos = 0;
+    // Calcular progreso TOTAL dinámico en tiempo real
+    let paginasTotalesRealizadas = 0;
+    let testsTotalesRealizados = 0;
     
-    planningGuardado.semanas.forEach(sem => {
-        if (sem.estado === 'cumplido' || sem.estado === 'incumplido' || sem.estado === 'superado') {
-            paginasYaHechas += sem.paginasReales;
-            testsYaHechos += sem.testsReales;
+    planningGuardado.temas.forEach(temaPlanning => {
+        const temaProgreso = progresoData.temas[temaPlanning.id];
+        if (temaProgreso) {
+            paginasTotalesRealizadas += temaProgreso.paginasEstudiadas || 0;
+            testsTotalesRealizados += (temaProgreso.testsAutomaticos || 0) + (temaProgreso.testsManuales || 0);
         }
     });
     
-    const paginasRestantes = Math.max(0, planningGuardado.resultados.totalPaginasPendientes - paginasYaHechas);
-    const testsRestantes = Math.max(0, planningGuardado.resultados.totalTestsRecomendados - testsYaHechos);
+    const paginasRestantes = Math.max(0, planningGuardado.resultados.totalPaginasPendientes - paginasTotalesRealizadas);
+    const testsRestantes = Math.max(0, planningGuardado.resultados.totalTestsRecomendados - testsTotalesRealizados);
     
-    // Calcular nuevo ritmo diario basado en páginas restantes
-const diasRestantes = Math.ceil((fechaLimiteObj - new Date()) / (1000 * 60 * 60 * 24));
-// Usar el valor recalculado del planning si existe, sino calcular
-let nuevasPaginasPorDia;
-if (planningGuardado.resultados.paginasPorDia && planningGuardado.resultados.paginasPorDia !== "NaN") {
-    nuevasPaginasPorDia = planningGuardado.resultados.paginasPorDia;
-} else if (diasRestantes > 0 && paginasRestantes > 0) {
-    nuevasPaginasPorDia = (paginasRestantes / diasRestantes).toFixed(1);
-} else if (paginasRestantes <= 0) {
-    nuevasPaginasPorDia = '0.0';
-} else {
-    nuevasPaginasPorDia = 'Fecha límite superada';
-}
-
-console.log(`Cálculo páginas/día:
-- Fecha límite: ${fechaLimiteObj}
-- Días restantes: ${diasRestantes}
-- Páginas restantes: ${paginasRestantes}
-- Páginas/día: ${nuevasPaginasPorDia}`);
+    const diasRestantes = Math.ceil((fechaLimiteObj - new Date()) / (1000 * 60 * 60 * 24));
+    let nuevasPaginasPorDia = diasRestantes > 0 ? (paginasRestantes / diasRestantes).toFixed(1) : '0.0';
+    
+    const porcentajeCompletado = planningGuardado.resultados.totalPaginasPendientes > 0 
+        ? Math.round((paginasTotalesRealizadas / planningGuardado.resultados.totalPaginasPendientes) * 100)
+        : 0;
+    
     resumen.innerHTML = `
-    <div class="resumen-item">
-        <strong>Total páginas:</strong> ${planningGuardado.resultados.totalPaginasPendientes}
-    </div>
-    <div class="resumen-item">
-    <strong>Páginas/día necesarias:</strong> ${nuevasPaginasPorDia}
-</div>
-    <div class="resumen-item">
-        <strong>Tests totales:</strong> ${planningGuardado.resultados.totalTestsRecomendados}
-    </div>
-    <div class="resumen-item">
-        <strong>Temas:</strong> ${planningGuardado.temas.length}
-    </div>
-    <div class="resumen-item">
-        <strong>Páginas restantes:</strong> ${paginasRestantes}
-    </div>
-    <div class="resumen-item">
-        <strong>Tests restantes:</strong> ${testsRestantes}
-    </div>
-`;
+        <div class="resumen-item destacado">
+            <strong>📊 Progreso Total:</strong> ${porcentajeCompletado}%
+            <div class="barra-progreso-planning">
+                <div class="barra-fill" style="width: ${porcentajeCompletado}%"></div>
+            </div>
+        </div>
+        <div class="resumen-item">
+            <strong>📖 Páginas realizadas:</strong> ${paginasTotalesRealizadas} / ${planningGuardado.resultados.totalPaginasPendientes}
+        </div>
+        <div class="resumen-item">
+            <strong>📚 Páginas restantes:</strong> ${paginasRestantes}
+        </div>
+        <div class="resumen-item">
+            <strong>📈 Páginas/día necesarias:</strong> ${nuevasPaginasPorDia}
+        </div>
+        <div class="resumen-item">
+            <strong>🎯 Tests realizados:</strong> ${testsTotalesRealizados} / ${planningGuardado.resultados.totalTestsRecomendados}
+        </div>
+        <div class="resumen-item">
+            <strong>⏱️ Tests restantes:</strong> ${testsRestantes}
+        </div>
+        <div class="resumen-item">
+            <strong>📅 Días restantes:</strong> ${Math.max(0, diasRestantes)}
+        </div>
+        <div class="resumen-item">
+            <strong>🎓 Temas en planning:</strong> ${planningGuardado.temas.length}
+        </div>
+    `;
 }
 
+async function recalcularPlanningDesdeIncumplido() {
+    cerrarModalSeguimiento();
+    abrirModalPlanning();
+}
+
+window.recalcularPlanningDesdeIncumplido = recalcularPlanningDesdeIncumplido;
 async function mostrarSemanasPlanning() {
     const container = document.getElementById('listaSemanas');
     container.innerHTML = '';
+    
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
     
     for (const semana of planningGuardado.semanas) {
         // Convertir fechas de forma segura
         const fechaInicioObj = semana.fechaInicio?.toDate ? semana.fechaInicio.toDate() : new Date(semana.fechaInicio);
         const fechaFinObj = semana.fechaFin?.toDate ? semana.fechaFin.toDate() : new Date(semana.fechaFin);
+        
+        fechaInicioObj.setHours(0, 0, 0, 0);
+        fechaFinObj.setHours(23, 59, 59, 999);
         
         const fechaInicio = fechaInicioObj.toLocaleDateString('es-ES', {
             day: '2-digit',
@@ -1791,55 +1997,425 @@ async function mostrarSemanasPlanning() {
             year: 'numeric'
         });
         
-        let estadoClass = 'estado-pendiente';
-        let estadoTexto = 'Pendiente';
+        // Determinar si la semana está activa, pasada o futura
+        const esSemanaActiva = hoy >= fechaInicioObj && hoy <= fechaFinObj;
+        const esPasada = hoy > fechaFinObj;
+        const esFutura = hoy < fechaInicioObj;
         
-        if (semana.estado === 'cumplido') {
-            estadoClass = 'estado-cumplido';
-            estadoTexto = 'Cumplido';
-        } else if (semana.estado === 'incumplido') {
-            estadoClass = 'estado-incumplido';
-            estadoTexto = 'No cumplido';
-        } else if (semana.estado === 'superado') {
-            estadoClass = 'estado-superado';
-            estadoTexto = '⭐ Superado';
+        // Calcular progreso dinámico en tiempo real
+        let paginasReales = 0;
+        let testsReales = 0;
+        
+        // Calcular vuelta mínima global del planning actual
+        let vueltaMinimaPlanning = Infinity;
+        if (planningGuardado && planningGuardado.temas) {
+            planningGuardado.temas.forEach(temaPlanning => {
+                const temaProgreso = progresoData.temas[temaPlanning.id];
+                if (temaProgreso) {
+                    const vueltaTema = temaProgreso.vueltaActual || 1;
+                    if (vueltaTema < vueltaMinimaPlanning) {
+                        vueltaMinimaPlanning = vueltaTema;
+                    }
+                }
+            });
         }
         
-        // Obtener datos automáticos dinámicos para semanas activas
-        let paginasRealesDinamicas = semana.paginasReales || 0;
-        let testsRealesDinamicos = semana.testsReales || 0;
+        // Construir mapa de páginas leídas ACUMULADAS hasta esta semana
+        let paginasAcumuladasHastaSemanaAnterior = {};
         
-        if (semana.estado === 'pendiente' && planningTracker.semanaActiva && planningTracker.semanaActiva.numero === semana.numero) {
-            const progresoDinamico = calcularProgresoSemanaActual();
-            paginasRealesDinamicas = progresoDinamico.paginas;
-            testsRealesDinamicos = progresoDinamico.tests;
+        for (let i = 0; i < semana.numero - 1; i++) {
+            const semanaAnterior = planningGuardado.semanas[i];
+            if (semanaAnterior && semanaAnterior.temasAsignados) {
+                semanaAnterior.temasAsignados.forEach(temaAsignado => {
+                    const temaEncontrado = planningGuardado.temas.find(t => t.nombre === temaAsignado.nombre);
+                    if (temaEncontrado) {
+                        if (!paginasAcumuladasHastaSemanaAnterior[temaEncontrado.id]) {
+                            paginasAcumuladasHastaSemanaAnterior[temaEncontrado.id] = 0;
+                        }
+                        paginasAcumuladasHastaSemanaAnterior[temaEncontrado.id] += temaAsignado.paginas;
+                    }
+                });
+            }
+        }
+        
+        // Verificar qué temas de esta semana ya están completados
+        const temasCompletadosEstaSemana = [];
+        const temasRestantesEstaSemana = [];
+        let paginasObjetivoAjustado = 0;
+        let paginasLeidasEstaSemana = 0;
+        
+        if (semana.temasAsignados) {
+            semana.temasAsignados.forEach(temaAsignado => {
+                const temaEncontrado = planningGuardado.temas.find(t => t.nombre === temaAsignado.nombre);
+                if (temaEncontrado) {
+                    const temaProgreso = progresoData.temas[temaEncontrado.id];
+                    if (temaProgreso) {
+                        const vueltaTema = temaProgreso.vueltaActual || 1;
+                        const paginasActuales = temaProgreso.paginasEstudiadas || 0;
+                        const paginasTotales = temaProgreso.paginasTotales || 0;
+                        
+                        // Páginas que debería tener leídas ANTES de empezar esta semana
+                        const paginasEsperadasAnteriores = paginasAcumuladasHastaSemanaAnterior[temaEncontrado.id] || 0;
+                        
+                        // Páginas que debería tener al TERMINAR esta semana
+                        const paginasEsperadasTotal = paginasEsperadasAnteriores + temaAsignado.paginas;
+                        
+                        // Tema completado en vuelta superior
+                        if (vueltaTema > vueltaMinimaPlanning) {
+                            temasCompletadosEstaSemana.push({
+                                nombre: temaAsignado.nombre,
+                                paginasObjetivo: temaAsignado.paginas
+                            });
+                            paginasLeidasEstaSemana += temaAsignado.paginas;
+                        }
+                        // Tema completado en vuelta actual
+                        else if (vueltaTema === vueltaMinimaPlanning && paginasActuales >= paginasTotales) {
+                            temasCompletadosEstaSemana.push({
+                                nombre: temaAsignado.nombre,
+                                paginasObjetivo: temaAsignado.paginas
+                            });
+                            paginasLeidasEstaSemana += temaAsignado.paginas;
+                        }
+                        // Tema ya completado ANTES de esta semana
+                        else if (paginasActuales >= paginasEsperadasTotal) {
+                            temasCompletadosEstaSemana.push({
+                                nombre: temaAsignado.nombre,
+                                paginasObjetivo: temaAsignado.paginas
+                            });
+                            paginasLeidasEstaSemana += temaAsignado.paginas;
+                        }
+                        // Tema pendiente
+                        else {
+                            const paginasLeidasDeTema = Math.max(0, paginasActuales - paginasEsperadasAnteriores);
+                            
+                            temasRestantesEstaSemana.push({
+                                nombre: temaAsignado.nombre,
+                                id: temaEncontrado.id,
+                                paginasObjetivo: temaAsignado.paginas,
+                                paginasLeidas: paginasLeidasDeTema
+                            });
+                            
+                            paginasObjetivoAjustado += temaAsignado.paginas;
+                            paginasLeidasEstaSemana += paginasLeidasDeTema;
+                        }
+                    }
+                }
+            });
+        }
+        
+        paginasReales = paginasLeidasEstaSemana;
+        
+        // Solo trackear si la semana está "en curso"
+        const debeTrackear = semana.estado === 'pendiente' || !semana.estado || 
+                            (esSemanaActiva && semana.estado !== 'cumplido' && semana.estado !== 'incumplido');
+        
+        if (!debeTrackear) {
+            paginasReales = semana.paginasReales || 0;
+            testsReales = semana.testsReales || 0;
+        } else {
+            if (semana.datosInicioSemana) {
+                const estadoActual = capturarEstadoActualSemana();
+                testsReales = Math.max(0, estadoActual.totalTests - semana.datosInicioSemana.testsIniciales);
+            } else {
+                const estadoActual = capturarEstadoActualSemana();
+                testsReales = estadoActual.totalTests;
+            }
+        }
+        
+        // Ajustar objetivo de páginas si hay temas completados
+        const objetivoPaginasReal = paginasObjetivoAjustado > 0 ? paginasObjetivoAjustado : semana.objetivoPaginas;
+        
+        // Obtener temas de esta semana con indicador de completados
+        let temasHTML = '';
+        
+        if (semana.temasAsignados && semana.temasAsignados.length > 0) {
+            temasCompletadosEstaSemana.forEach(tema => {
+                temasHTML += `<div class="tema-semana-item" style="color: #10b981;">
+                    ✅ ${tema.nombre}: ${tema.paginasObjetivo} pág. (objetivo cumplido)
+                </div>`;
+            });
+            
+            temasRestantesEstaSemana.forEach(tema => {
+                const temaAsignado = semana.temasAsignados.find(t => t.nombre === tema.nombre);
+                if (temaAsignado) {
+                    temasHTML += `<div class="tema-semana-item">
+                        ${temaAsignado.completo ? '✅' : '📖'} ${tema.nombre}: ${tema.paginasObjetivo} pág. ${temaAsignado.completo ? '(completo)' : '(parcial)'}
+                    </div>`;
+                }
+            });
+        } else {
+            temasHTML = '<div class="tema-semana-item">Sin temas asignados</div>';
+        }
+        
+        // Determinar estado y mensaje
+        let estadoClass = '';
+        let estadoTexto = '';
+        let mensajeEstado = '';
+        
+        if (esFutura) {
+            estadoClass = 'estado-pendiente';
+            estadoTexto = '⏳ Pendiente';
+            mensajeEstado = '';
+        } else if (esSemanaActiva) {
+            const cumplePaginas = paginasReales >= objetivoPaginasReal;
+            const cumpleTests = testsReales >= semana.objetivoTests;
+            
+            if (cumplePaginas && cumpleTests) {
+                semana.estado = 'cumplido';
+                semana.paginasReales = paginasReales;
+                semana.testsReales = testsReales;
+                await guardarCambiosPlanning();
+                
+                estadoClass = 'estado-cumplido';
+                estadoTexto = '🎉 Cumplido';
+                mensajeEstado = `
+                    <div class="mensaje-exito">
+                        <p>¡Felicidades! Has cumplido tus objetivos esta semana.</p>
+                        <div class="acciones-semana-cumplida">
+                            <button onclick="ofrecerRecalculoAutomatico(${semana.numero})" class="btn-recalcular">🔄 Recalcular Planning</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                estadoClass = 'estado-en-curso';
+                estadoTexto = '📊 En curso';
+                mensajeEstado = '';
+            }
+        } else if (esPasada) {
+            const cumplePaginas = paginasReales >= objetivoPaginasReal;
+            const cumpleTests = testsReales >= semana.objetivoTests;
+            
+            if (cumplePaginas && cumpleTests) {
+                estadoClass = 'estado-cumplido';
+                estadoTexto = '✅ Cumplido';
+                mensajeEstado = '';
+            } else {
+                estadoClass = 'estado-incumplido';
+                estadoTexto = '❌ No cumplido';
+                mensajeEstado = `
+                    <div class="mensaje-error">
+                        <p>Lo siento, no has cumplido los objetivos de esta semana.</p>
+                        <div class="acciones-semana-incumplida">
+                            <button onclick="recalcularPlanningDesdeIncumplido()" class="btn-recalcular">🔄 Recalcular Planning</button>
+                            <button onclick="eliminarPlanning()" class="btn-eliminar-planning">🗑️ Eliminar Planning</button>
+                        </div>
+                    </div>
+                `;
+            }
         }
         
         const semanaDiv = document.createElement('div');
-        semanaDiv.className = `semana-item ${semana.estado === 'cumplido' ? 'estado-cumplido' : semana.estado === 'incumplido' ? 'estado-incumplido' : semana.estado === 'superado' ? 'estado-superado' : ''}`;
+        semanaDiv.className = `semana-item ${estadoClass}`;
         
         semanaDiv.innerHTML = `
             <div class="semana-header">
-                <div class="semana-titulo">Semana ${semana.numero} (${fechaInicio} - ${fechaFin})</div>
+                <div class="semana-titulo">Semana ${semana.numero}</div>
                 <div class="semana-estado ${estadoClass}">${estadoTexto}</div>
             </div>
-            <div class="semana-objetivos">
-                <div><strong>Objetivo:</strong> ${semana.objetivoPaginas} páginas</div>
-                <div><strong>Objetivo:</strong> ${semana.objetivoTests} tests</div>
-                <div><strong>Real:</strong> ${paginasRealesDinamicas} páginas ${semana.estado === 'pendiente' && planningTracker.semanaActiva?.numero === semana.numero ? '(automático)' : ''}</div>
-                <div><strong>Real:</strong> ${testsRealesDinamicos} tests ${semana.estado === 'pendiente' && planningTracker.semanaActiva?.numero === semana.numero ? '(automático)' : ''}</div>
+            <div class="semana-fechas">
+                📅 ${fechaInicio} - ${fechaFin}
             </div>
+            <div class="semana-temas">
+                <strong>📚 Temas de esta semana:</strong>
+                ${temasHTML}
+            </div>
+            <div class="semana-progreso">
+                <div class="progreso-item">
+                    <div class="progreso-label">📖 Páginas:</div>
+                    <div class="progreso-valor ${paginasReales >= objetivoPaginasReal ? 'cumplido' : ''}">
+                        ${paginasReales} / ${objetivoPaginasReal}
+                        ${temasCompletadosEstaSemana.length > 0 ? `<br><small style="font-size: 10px; color: #10b981;">${temasCompletadosEstaSemana.length} tema(s) ya cumplido(s)</small>` : ''}
+                    </div>
+                </div>
+                <div class="progreso-item">
+                    <div class="progreso-label">🎯 Tests:</div>
+                    <div class="progreso-valor ${testsReales >= semana.objetivoTests ? 'cumplido' : ''}">
+                        ${testsReales} / ${semana.objetivoTests}
+                    </div>
+                </div>
+            </div>
+            ${mensajeEstado}
         `;
         
         container.appendChild(semanaDiv);
     }
+}
+async function ofrecerRecalculoAutomatico(numeroSemana) {
+    const confirmar = confirm(
+        '¿Quieres recalcular el planning manteniendo la misma fecha límite?\n\n' +
+        'Esto redistribuirá las páginas restantes en las semanas futuras.'
+    );
     
-    // Actualizar automáticamente cada 15 segundos si hay semana activa
-    if (planningTracker.semanaActiva) {
-        setTimeout(() => mostrarSemanasPlanning(), 15000);
+    if (confirmar) {
+        await recalcularPlanningAutomatico(numeroSemana);
     }
 }
 
+async function recalcularPlanningAutomatico(numeroSemana) {
+    try {
+        // 1. Calcular vuelta mínima global actual del planning
+        let vueltaMinimaGlobal = Infinity;
+        planningGuardado.temas.forEach(temaPlanning => {
+            const temaProgreso = progresoData.temas[temaPlanning.id];
+            if (temaProgreso) {
+                const vueltaTema = temaProgreso.vueltaActual || 1;
+                if (vueltaTema < vueltaMinimaGlobal) {
+                    vueltaMinimaGlobal = vueltaTema;
+                }
+            }
+        });
+        
+        console.log(`Vuelta mínima global actual: ${vueltaMinimaGlobal}`);
+        
+        // 2. Calcular qué temas están completados en la vuelta global
+        const temasCompletados = [];
+        const temasRestantes = [];
+        
+        planningGuardado.temas.forEach(temaPlanning => {
+            const temaProgreso = progresoData.temas[temaPlanning.id];
+            if (temaProgreso) {
+                const vueltaTema = temaProgreso.vueltaActual || 1;
+                let paginasPendientes;
+                
+                if (vueltaTema < vueltaMinimaGlobal) {
+                    // Tema atrasado
+                    paginasPendientes = temaProgreso.paginasTotales - temaProgreso.paginasEstudiadas;
+                } else if (vueltaTema === vueltaMinimaGlobal) {
+                    // Tema en vuelta global
+                    paginasPendientes = Math.max(0, temaProgreso.paginasTotales - temaProgreso.paginasEstudiadas);
+                } else {
+                    // Tema adelantado = completado para esta vuelta
+                    paginasPendientes = 0;
+                }
+                
+                if (paginasPendientes === 0) {
+                    temasCompletados.push(temaPlanning.nombre);
+                } else {
+                    temasRestantes.push({
+                        id: temaPlanning.id,
+                        nombre: temaPlanning.nombre,
+                        paginasPendientes: paginasPendientes
+                    });
+                }
+            }
+        });
+        
+        // 3. Calcular totales restantes
+        const totalPaginasRestantes = temasRestantes.reduce((sum, tema) => sum + tema.paginasPendientes, 0);
+        
+        if (totalPaginasRestantes === 0) {
+            alert(`¡Felicidades! Has completado la ${obtenerNombreVuelta(vueltaMinimaGlobal)} vuelta de todos los temas. 🎉`);
+            return;
+        }
+        
+        // 4. Calcular nuevo ritmo
+        const fechaLimiteObj = planningGuardado.fechaLimite?.toDate ? 
+            planningGuardado.fechaLimite.toDate() : 
+            new Date(planningGuardado.fechaLimite);
+        
+        const hoy = new Date();
+        const diasRestantes = Math.ceil((fechaLimiteObj - hoy) / (1000 * 60 * 60 * 24));
+        const semanasRestantes = Math.ceil(diasRestantes / 7);
+        
+        const nuevasPaginasPorDia = (totalPaginasRestantes / diasRestantes).toFixed(1);
+        const paginasPorSemanaCalc = Math.ceil(totalPaginasRestantes / semanasRestantes);
+        
+        // 5. REGENERAR semanas con nueva distribución
+        const nuevasSemanas = [];
+        const temasParaDistribuir = temasRestantes.map(tema => ({
+            nombre: tema.nombre,
+            id: tema.id,
+            paginasRestantes: tema.paginasPendientes
+        }));
+        
+        let temaActualIndex = 0;
+        let paginasDelTemaActual = temasParaDistribuir[0] ? temasParaDistribuir[0].paginasRestantes : 0;
+        
+        for (let i = 0; i < semanasRestantes; i++) {
+            const fechaInicioSemana = new Date(hoy);
+            fechaInicioSemana.setDate(hoy.getDate() + (i * 7));
+            
+            const fechaFinSemana = new Date(fechaInicioSemana);
+            fechaFinSemana.setDate(fechaInicioSemana.getDate() + 6);
+            
+            if (fechaFinSemana > fechaLimiteObj) {
+                fechaFinSemana.setTime(fechaLimiteObj.getTime());
+            }
+            
+            const temasEstaSemana = [];
+            let paginasAsignadasEstaSemana = 0;
+            
+            while (paginasAsignadasEstaSemana < paginasPorSemanaCalc && temaActualIndex < temasParaDistribuir.length) {
+                const temaActual = temasParaDistribuir[temaActualIndex];
+                const paginasQueFaltan = paginasPorSemanaCalc - paginasAsignadasEstaSemana;
+                
+                if (paginasDelTemaActual <= paginasQueFaltan) {
+                    temasEstaSemana.push({
+                        nombre: temaActual.nombre,
+                        paginas: paginasDelTemaActual,
+                        completo: true
+                    });
+                    paginasAsignadasEstaSemana += paginasDelTemaActual;
+                    
+                    temaActualIndex++;
+                    if (temaActualIndex < temasParaDistribuir.length) {
+                        paginasDelTemaActual = temasParaDistribuir[temaActualIndex].paginasRestantes;
+                    }
+                } else {
+                    temasEstaSemana.push({
+                        nombre: temaActual.nombre,
+                        paginas: paginasQueFaltan,
+                        completo: false
+                    });
+                    paginasAsignadasEstaSemana += paginasQueFaltan;
+                    paginasDelTemaActual -= paginasQueFaltan;
+                }
+            }
+            
+            nuevasSemanas.push({
+                numero: i + 1,
+                fechaInicio: fechaInicioSemana,
+                fechaFin: fechaFinSemana,
+                objetivoPaginas: paginasAsignadasEstaSemana,
+                objetivoTests: Math.ceil(planningGuardado.resultados.totalTestsRecomendados / semanasRestantes),
+                temasAsignados: temasEstaSemana,
+                estado: 'pendiente',
+                paginasReales: 0,
+                testsReales: 0,
+                fechaReporte: null
+            });
+        }
+        
+        // 6. Actualizar planning con temas restantes
+        planningGuardado.temas = temasRestantes;
+        planningGuardado.semanas = nuevasSemanas;
+        planningGuardado.resultados.paginasPorDia = nuevasPaginasPorDia;
+        planningGuardado.resultados.paginasPorSemana = paginasPorSemanaCalc;
+        planningGuardado.resultados.semanasDisponibles = semanasRestantes;
+        planningGuardado.resultados.totalPaginasPendientes = totalPaginasRestantes;
+        
+        // 7. Guardar e inicializar
+        await guardarCambiosPlanning();
+        await inicializarTrackingAutomatico();
+        
+        // 8. Actualizar interfaz
+        mostrarInformacionPlanning();
+        mostrarSemanasPlanning();
+        
+        alert(`✅ Planning recalculado (${obtenerNombreVuelta(vueltaMinimaGlobal)} vuelta)\n\n` +
+              `Temas completados: ${temasCompletados.length}\n` +
+              `Temas restantes: ${temasRestantes.length}\n` +
+              `Páginas restantes: ${totalPaginasRestantes}\n` +
+              `Nuevas páginas/día: ${nuevasPaginasPorDia}\n` +
+              `Semanas restantes: ${semanasRestantes}`);
+        
+    } catch (error) {
+        console.error('Error recalculando planning:', error);
+        alert('Error al recalcular el planning');
+    }
+}
+
+window.ofrecerRecalculoAutomatico = ofrecerRecalculoAutomatico;
 // Función para reportar progreso de semana
 function abrirReporteSemana(numeroSemana) {
     const semana = planningGuardado.semanas.find(s => s.numero === numeroSemana);
@@ -1957,8 +2533,18 @@ async function recalcularPlanning(semanaNumero) {
             }
         });
         
-        // Lo que AÚN falta por hacer (objetivo original - lo ya hecho)
-        const paginasRestantes = planningGuardado.resultados.totalPaginasPendientes - paginasRealesHechas;
+        // VERIFICAR también el progreso actual de los temas del planning
+        let paginasActualesEnTemas = 0;
+        planningGuardado.temas.forEach(temaPlanning => {
+            const temaProgreso = progresoData.temas[temaPlanning.id];
+            if (temaProgreso) {
+                paginasActualesEnTemas += temaProgreso.paginasEstudiadas || 0;
+            }
+        });
+        
+        // Lo que AÚN falta por hacer (usar el mayor de los dos contadores)
+        const paginasRealesHechas_final = Math.max(paginasRealesHechas, paginasActualesEnTemas);
+        const paginasRestantes = planningGuardado.resultados.totalPaginasPendientes - paginasRealesHechas_final;
         const testsRestantes = planningGuardado.resultados.totalTestsRecomendados - testsRealesHechos;
         
         // Contar semanas futuras (pendientes)
@@ -1966,7 +2552,7 @@ async function recalcularPlanning(semanaNumero) {
         
         console.log(`RECÁLCULO:
 - Total original páginas: ${planningGuardado.resultados.totalPaginasPendientes}
-- Páginas reales hechas: ${paginasRealesHechas}
+- Páginas reales hechas: ${paginasRealesHechas_final}
 - Páginas que faltan: ${paginasRestantes}
 - Semanas futuras: ${semanasFuturas}`);
         
