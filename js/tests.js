@@ -2939,6 +2939,61 @@ async function cargarResultados() {
         
         listResultados.innerHTML = '';
 
+// PANEL DE ESTADÍSTICAS GLOBALES
+let totalTests = 0;
+let totalPreguntasContestadas = 0;
+let totalCorrectas = 0;
+let totalIncorrectas = 0;
+let sumaPorcentajes = 0;
+const preguntasUnicas = new Set();
+
+querySnapshot.forEach((doc) => {
+    const resultado = doc.data();
+    totalTests++;
+    sumaPorcentajes += resultado.porcentaje || 0;
+    totalCorrectas += resultado.correctas || 0;
+    totalIncorrectas += resultado.incorrectas || 0;
+    
+    if (resultado.detalleRespuestas) {
+        resultado.detalleRespuestas.forEach(detalle => {
+            if (detalle.pregunta && detalle.pregunta.texto) {
+                preguntasUnicas.add(detalle.pregunta.texto);
+            }
+        });
+    }
+});
+
+const notaMedia = totalTests > 0 ? Math.round(sumaPorcentajes / totalTests) : 0;
+
+const panelEstadisticas = document.createElement('div');
+panelEstadisticas.className = 'panel-estadisticas-globales';
+panelEstadisticas.innerHTML = `
+    <h3>📊 Estadísticas Generales</h3>
+    <div class="estadisticas-grid-global">
+        <div class="stat-global nota-media">
+            <div class="stat-icono">📈</div>
+            <div class="stat-valor">${notaMedia}%</div>
+            <div class="stat-label">Nota Media</div>
+        </div>
+        <div class="stat-global">
+            <div class="stat-icono">📝</div>
+            <div class="stat-valor">${preguntasUnicas.size}</div>
+            <div class="stat-label">Preguntas Únicas</div>
+        </div>
+        <div class="stat-global correctas-global">
+            <div class="stat-icono">✅</div>
+            <div class="stat-valor">${totalCorrectas}</div>
+            <div class="stat-label">Acertadas</div>
+        </div>
+        <div class="stat-global incorrectas-global">
+            <div class="stat-icono">❌</div>
+            <div class="stat-valor">${totalIncorrectas}</div>
+            <div class="stat-label">Falladas</div>
+        </div>
+    </div>
+`;
+listResultados.appendChild(panelEstadisticas);
+
 // Agregar botón eliminar todos más discreto
 const eliminarTodosBtn = document.createElement('div');
 eliminarTodosBtn.className = 'controles-resultados-discreto';
@@ -4320,4 +4375,71 @@ window.cerrarModalDetalle = function() {
             document.body.removeChild(modal);
         }
     });
+// Calcular y mostrar estadísticas globales
+async function mostrarEstadisticasGlobales(querySnapshot) {
+    let totalTests = 0;
+    let totalPreguntasContestadas = 0;
+    let totalCorrectas = 0;
+    let totalIncorrectas = 0;
+    let sumaPorcentajes = 0;
+    const preguntasUnicas = new Set();
+    
+    querySnapshot.forEach((doc) => {
+        const resultado = doc.data();
+        
+        // Contar test
+        totalTests++;
+        
+        // Sumar porcentaje
+        sumaPorcentajes += resultado.porcentaje || 0;
+        
+        // Contar preguntas, correctas e incorrectas
+        totalCorrectas += resultado.correctas || 0;
+        totalIncorrectas += resultado.incorrectas || 0;
+        
+        // Registrar preguntas únicas
+        if (resultado.detalleRespuestas) {
+            resultado.detalleRespuestas.forEach(detalle => {
+                if (detalle.pregunta && detalle.pregunta.texto) {
+                    preguntasUnicas.add(detalle.pregunta.texto);
+                }
+            });
+        }
+    });
+    
+    totalPreguntasContestadas = totalCorrectas + totalIncorrectas;
+    const notaMedia = totalTests > 0 ? Math.round(sumaPorcentajes / totalTests) : 0;
+    
+    // Crear panel de estadísticas
+    const panelEstadisticas = document.createElement('div');
+    panelEstadisticas.className = 'panel-estadisticas-globales';
+    panelEstadisticas.innerHTML = `
+        <h3>📊 Estadísticas Generales</h3>
+        <div class="estadisticas-grid-global">
+            <div class="stat-global nota-media">
+                <div class="stat-icono">📈</div>
+                <div class="stat-valor">${notaMedia}%</div>
+                <div class="stat-label">Nota Media</div>
+            </div>
+            <div class="stat-global">
+                <div class="stat-icono">📝</div>
+                <div class="stat-valor">${preguntasUnicas.size}</div>
+                <div class="stat-label">Preguntas Únicas</div>
+            </div>
+            <div class="stat-global correctas-global">
+                <div class="stat-icono">✅</div>
+                <div class="stat-valor">${totalCorrectas}</div>
+                <div class="stat-label">Acertadas</div>
+            </div>
+            <div class="stat-global incorrectas-global">
+                <div class="stat-icono">❌</div>
+                <div class="stat-valor">${totalIncorrectas}</div>
+                <div class="stat-label">Falladas</div>
+            </div>
+        </div>
+    `;
+    
+    const listResultados = document.getElementById('listaResultados');
+    listResultados.appendChild(panelEstadisticas);
+}
 };
