@@ -1339,21 +1339,94 @@ function cerrarModal(modal) {
 
 // Filtrar preguntas en tiempo real
 function filtrarPreguntas() {
-    const textoBusqueda = document.getElementById('buscadorPreguntas').value.toLowerCase();
+    const textoBusqueda = document.getElementById('buscadorPreguntas').value.trim();
+    const busquedaLower = textoBusqueda.toLowerCase();
     const todasLasPreguntas = document.querySelectorAll('.pregunta-editable');
+    const todasLasCarpetas = document.querySelectorAll('.tema-card');
+    const todosLosSubtemas = document.querySelectorAll('.subtema-container');
+    const todosLosDetails = document.querySelectorAll('details');
+    
+    if (textoBusqueda === '') {
+        // Restaurar vista normal
+        todasLasPreguntas.forEach(p => p.style.display = 'block');
+        todasLasCarpetas.forEach(c => c.style.display = 'block');
+        todosLosSubtemas.forEach(s => s.style.display = 'block');
+        todosLosDetails.forEach(d => d.open = false);
+        
+        const mensaje = document.getElementById('mensajeNoResultados');
+        if (mensaje) mensaje.remove();
+        return;
+    }
+    
+    // Ocultar inicialmente todo
+    todasLasCarpetas.forEach(carpeta => carpeta.style.display = 'none');
+    todosLosSubtemas.forEach(subtema => subtema.style.display = 'none');
+    
+    // ABRIR TODOS LOS DETAILS
+    todosLosDetails.forEach(detail => detail.open = true);
+    
+    // FILTRAR PREGUNTAS
+    let encontradas = 0;
+    const temasConResultados = new Set();
+    const subtemasConResultados = new Set();
     
     todasLasPreguntas.forEach(pregunta => {
-        const textoPregunta = pregunta.querySelector('.pregunta-texto').textContent.toLowerCase();
-        const textoOpciones = Array.from(pregunta.querySelectorAll('.opcion-texto')).map(op => op.textContent.toLowerCase()).join(' ');
+        const divTexto = pregunta.querySelector('.pregunta-texto');
         
-        if (textoPregunta.includes(textoBusqueda) || textoOpciones.includes(textoBusqueda)) {
+        if (!divTexto) {
+            pregunta.style.display = 'none';
+            return;
+        }
+        
+        const textoEnunciado = divTexto.textContent.trim();
+        const textoEnunciadoLower = textoEnunciado.toLowerCase();
+        
+        if (textoEnunciadoLower.startsWith(busquedaLower)) {
             pregunta.style.display = 'block';
+            encontradas++;
+            
+            // Marcar los contenedores padres que deben ser visibles
+            let parent = pregunta.parentElement;
+            while (parent && parent.id !== 'listaTemas') {
+                if (parent.style) parent.style.display = 'block';
+                
+                // Identificar si es un tema o subtema
+                if (parent.classList.contains('tema-card')) {
+                    temasConResultados.add(parent);
+                } else if (parent.classList.contains('subtema-container')) {
+                    subtemasConResultados.add(parent);
+                }
+                
+                parent = parent.parentElement;
+            }
         } else {
             pregunta.style.display = 'none';
         }
     });
+    
+    // Mostrar solo los temas que tienen resultados
+    temasConResultados.forEach(tema => tema.style.display = 'block');
+    
+    // Mostrar solo los subtemas que tienen resultados
+    subtemasConResultados.forEach(subtema => subtema.style.display = 'block');
+    
+    // Mensaje si no hay resultados
+    let mensaje = document.getElementById('mensajeNoResultados');
+    if (encontradas === 0) {
+        if (!mensaje) {
+            mensaje = document.createElement('div');
+            mensaje.id = 'mensajeNoResultados';
+            mensaje.style.cssText = 'padding: 20px; text-align: center; color: #dc3545; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; margin: 20px 0; font-weight: bold;';
+            mensaje.innerHTML = `❌ No se encontraron preguntas que empiecen con: "<strong>${textoBusqueda}</strong>"`;
+            document.getElementById('listaTemas').appendChild(mensaje);
+        } else {
+            mensaje.innerHTML = `❌ No se encontraron preguntas que empiecen con: "<strong>${textoBusqueda}</strong>"`;
+        }
+        mensaje.style.display = 'block';
+    } else if (mensaje) {
+        mensaje.style.display = 'none';
+    }
 }
-
 // Limpiar buscador
 function limpiarBuscador() {
     document.getElementById('buscadorPreguntas').value = '';
