@@ -1449,7 +1449,18 @@ async function detectarPreguntasDuplicadas() {
             const tema = doc.data();
             if (tema.preguntas) {
                 tema.preguntas.forEach((pregunta, index) => {
+                    // Crear una firma única: enunciado + todas las opciones ordenadas
+                    const opcionesOrdenadas = pregunta.opciones
+                        ? pregunta.opciones
+                            .map(op => op.texto.toLowerCase().trim())
+                            .sort()
+                            .join('|||')
+                        : '';
+                    
+                    const firmaCompleta = pregunta.texto.toLowerCase().trim() + '###' + opcionesOrdenadas;
+                    
                     todasLasPreguntas.push({
+                        firma: firmaCompleta,
                         texto: pregunta.texto.toLowerCase().trim(),
                         temaId: doc.id,
                         temaNombre: tema.nombre,
@@ -1461,10 +1472,10 @@ async function detectarPreguntasDuplicadas() {
             }
         });
         
-        // Encontrar duplicadas
+        // Encontrar duplicadas EXACTAS (mismo enunciado + mismas opciones)
         for (let i = 0; i < todasLasPreguntas.length; i++) {
             for (let j = i + 1; j < todasLasPreguntas.length; j++) {
-                if (todasLasPreguntas[i].texto === todasLasPreguntas[j].texto) {
+                if (todasLasPreguntas[i].firma === todasLasPreguntas[j].firma) {
                     duplicadas.push({
                         pregunta1: todasLasPreguntas[i],
                         pregunta2: todasLasPreguntas[j]
@@ -1474,7 +1485,7 @@ async function detectarPreguntasDuplicadas() {
         }
         
         if (duplicadas.length === 0) {
-            alert('No se encontraron preguntas duplicadas');
+            alert('✅ No se encontraron preguntas duplicadas (con enunciado y opciones idénticas)');
             return;
         }
         
@@ -1486,55 +1497,97 @@ async function detectarPreguntasDuplicadas() {
     }
 }
 
-// Mostrar preguntas duplicadas - VERSION LIMPIA
+// Mostrar preguntas duplicadas - VERSION COMPLETA CON OPCIONES
 function mostrarPreguntasDuplicadas(duplicadas) {
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.style.display = 'block';
     
     const modalContent = document.createElement('div');
-modalContent.className = 'modal-content';
-modalContent.style.maxWidth = '90vw';
-modalContent.style.width = '800px';
-modalContent.style.height = 'auto';
-modalContent.style.maxHeight = '85vh';
-modalContent.style.display = 'flex';
-modalContent.style.flexDirection = 'column';
-modalContent.style.margin = '2vh auto';
+    modalContent.className = 'modal-content';
+    modalContent.style.maxWidth = '90vw';
+    modalContent.style.width = '900px';
+    modalContent.style.height = 'auto';
+    modalContent.style.maxHeight = '85vh';
+    modalContent.style.display = 'flex';
+    modalContent.style.flexDirection = 'column';
+    modalContent.style.margin = '2vh auto';
     
     const titulo = document.createElement('h3');
     titulo.textContent = 'Preguntas Duplicadas Encontradas (' + duplicadas.length + ')';
+    titulo.style.marginBottom = '15px';
     modalContent.appendChild(titulo);
     
     const listaDuplicadas = document.createElement('div');
     listaDuplicadas.id = 'listaDuplicadas';
     listaDuplicadas.style.overflowY = 'auto';
-listaDuplicadas.style.flexGrow = '1';
-listaDuplicadas.style.marginBottom = '20px';
+    listaDuplicadas.style.flexGrow = '1';
+    listaDuplicadas.style.marginBottom = '20px';
     
     duplicadas.forEach((dup, index) => {
         const duplicadaItem = document.createElement('div');
         duplicadaItem.className = 'duplicada-item';
-        duplicadaItem.style.border = '1px solid #dee2e6';
-        duplicadaItem.style.margin = '10px 0';
+        duplicadaItem.style.border = '2px solid #dee2e6';
+        duplicadaItem.style.margin = '15px 0';
         duplicadaItem.style.padding = '15px';
-        duplicadaItem.style.borderRadius = '5px';
+        duplicadaItem.style.borderRadius = '8px';
+        duplicadaItem.style.background = '#fff';
+        
+        // Generar HTML de opciones para pregunta 1
+        const opciones1HTML = dup.pregunta1.preguntaCompleta.opciones
+            ? dup.pregunta1.preguntaCompleta.opciones.map(op => {
+                const esCorrecta = op.esCorrecta || op.letra === dup.pregunta1.preguntaCompleta.respuestaCorrecta;
+                return `<div style="margin: 5px 0; padding: 8px; background: ${esCorrecta ? '#d4edda' : '#f8f9fa'}; border-radius: 4px; border-left: 3px solid ${esCorrecta ? '#28a745' : '#6c757d'};">
+                    <strong>${op.letra})</strong> ${op.texto} ${esCorrecta ? '✓' : ''}
+                </div>`;
+            }).join('')
+            : '<p style="color: #6c757d;">Sin opciones</p>';
+        
+        // Generar HTML de opciones para pregunta 2
+        const opciones2HTML = dup.pregunta2.preguntaCompleta.opciones
+            ? dup.pregunta2.preguntaCompleta.opciones.map(op => {
+                const esCorrecta = op.esCorrecta || op.letra === dup.pregunta2.preguntaCompleta.respuestaCorrecta;
+                return `<div style="margin: 5px 0; padding: 8px; background: ${esCorrecta ? '#d4edda' : '#f8f9fa'}; border-radius: 4px; border-left: 3px solid ${esCorrecta ? '#28a745' : '#6c757d'};">
+                    <strong>${op.letra})</strong> ${op.texto} ${esCorrecta ? '✓' : ''}
+                </div>`;
+            }).join('')
+            : '<p style="color: #6c757d;">Sin opciones</p>';
         
         duplicadaItem.innerHTML = 
-            '<h4>Duplicado ' + (index + 1) + ':</h4>' +
-            '<div style="background: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 3px; position: relative;">' +
-                '<strong>Tema:</strong> ' + dup.pregunta1.temaNombre + '<br>' +
-                '<strong>Pregunta:</strong> ' + dup.pregunta1.preguntaCompleta.texto +
-                '<button class="btn-danger btn-sm" style="position: absolute; top: 10px; right: 10px;" onclick="eliminarEspecifica(\'' + dup.pregunta1.temaId + '\', ' + dup.pregunta1.preguntaIndex + ', ' + index + ')">' +
-                    'Eliminar' +
-                '</button>' +
+            '<h4 style="margin-top: 0; color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;">Duplicado ' + (index + 1) + ':</h4>' +
+            
+            '<div style="background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; position: relative; border: 2px solid #007bff;">' +
+                '<div style="position: absolute; top: 10px; right: 10px;">' +
+                    '<button class="btn-danger btn-sm" onclick="eliminarEspecifica(\'' + dup.pregunta1.temaId + '\', ' + dup.pregunta1.preguntaIndex + ', ' + index + ')" style="padding: 6px 12px; font-size: 12px;">' +
+                        '🗑️ Eliminar' +
+                    '</button>' +
+                '</div>' +
+                '<div style="background: #e7f3ff; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; display: inline-block; font-weight: bold; color: #0056b3;">' +
+                    '📁 ' + dup.pregunta1.temaNombre +
+                '</div>' +
+                '<div style="font-weight: bold; margin: 10px 0; font-size: 16px; color: #212529;">' +
+                    dup.pregunta1.preguntaCompleta.texto +
+                '</div>' +
+                '<div style="margin-top: 10px;">' +
+                    opciones1HTML +
+                '</div>' +
             '</div>' +
-            '<div style="background: #fff3cd; padding: 10px; margin: 5px 0; border-radius: 3px; position: relative;">' +
-                '<strong>Tema:</strong> ' + dup.pregunta2.temaNombre + '<br>' +
-                '<strong>Pregunta:</strong> ' + dup.pregunta2.preguntaCompleta.texto +
-                '<button class="btn-danger btn-sm" style="position: absolute; top: 10px; right: 10px;" onclick="eliminarEspecifica(\'' + dup.pregunta2.temaId + '\', ' + dup.pregunta2.preguntaIndex + ', ' + index + ')">' +
-                    'Eliminar' +
-                '</button>' +
+            
+            '<div style="background: #fff3cd; padding: 15px; margin: 10px 0; border-radius: 5px; position: relative; border: 2px solid #ffc107;">' +
+                '<div style="position: absolute; top: 10px; right: 10px;">' +
+                    '<button class="btn-danger btn-sm" onclick="eliminarEspecifica(\'' + dup.pregunta2.temaId + '\', ' + dup.pregunta2.preguntaIndex + ', ' + index + ')" style="padding: 6px 12px; font-size: 12px;">' +
+                        '🗑️ Eliminar' +
+                    '</button>' +
+                '</div>' +
+                '<div style="background: #fff8e1; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; display: inline-block; font-weight: bold; color: #856404;">' +
+                    '📁 ' + dup.pregunta2.temaNombre +
+                '</div>' +
+                '<div style="font-weight: bold; margin: 10px 0; font-size: 16px; color: #212529;">' +
+                    dup.pregunta2.preguntaCompleta.texto +
+                '</div>' +
+                '<div style="margin-top: 10px;">' +
+                    opciones2HTML +
+                '</div>' +
             '</div>';
         
         listaDuplicadas.appendChild(duplicadaItem);
@@ -1545,13 +1598,13 @@ listaDuplicadas.style.marginBottom = '20px';
     const modalActions = document.createElement('div');
     modalActions.className = 'modal-actions';
     modalActions.style.flexShrink = '0';
-modalActions.style.borderTop = '1px solid #dee2e6';
-modalActions.style.paddingTop = '15px';
-modalActions.style.textAlign = 'center';
+    modalActions.style.borderTop = '1px solid #dee2e6';
+    modalActions.style.paddingTop = '15px';
+    modalActions.style.textAlign = 'center';
     modalActions.innerHTML = 
-    '<button class="btn-warning" onclick="eliminarTodasAmarillas()">Eliminar Todas las Amarillas</button>' +
-    '<button class="btn-secondary" onclick="cerrarModalDuplicadas()">Cerrar</button>' +
-    '<button class="btn-primary" onclick="volverADetectar()">Volver a Detectar</button>';
+        '<button class="btn-warning" onclick="eliminarTodasAmarillas()" style="padding: 10px 20px; font-size: 14px;">🗑️ Eliminar Todas las Amarillas</button>' +
+        '<button class="btn-secondary" onclick="cerrarModalDuplicadas()" style="padding: 10px 20px; font-size: 14px;">Cerrar</button>' +
+        '<button class="btn-primary" onclick="volverADetectar()" style="padding: 10px 20px; font-size: 14px;">🔄 Volver a Detectar</button>';
     
     modalContent.appendChild(modalActions);
     modal.appendChild(modalContent);
