@@ -3004,7 +3004,7 @@ temasSnapshot.forEach((doc) => {
     <span class="fraccion-principal ${resultado.correctas >= resultado.total/2 ? 'aprobado' : 'suspenso'}">${resultado.correctas}/${resultado.total}</span>
 </div>
         <div class="resultado-acciones" onclick="event.stopPropagation()">
-            <button class="btn-eliminar-resultado" onclick="eliminarResultado('${doc.id}')" title="Eliminar resultado">
+            <button class="btn-eliminar-resultado" onclick="eliminarResultado('${id}')" title="Eliminar resultado">
                 🗑️
             </button>
         </div>
