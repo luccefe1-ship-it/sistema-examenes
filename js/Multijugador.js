@@ -28,7 +28,9 @@ let turnoActual = null;
 let unsubscribeSala = null;
 let cronometroRespuesta = null;
 let tiempoRespuestaRestante = 0;
+let preguntaCargadaParaAmbos = false;
 let temasSeleccionados = new Set();
+let cronometroDetenidoManualmente = false;  // BANDERA PARA EVITAR REINICIO
 
 // Elementos del DOM
 const pantallaInicial = document.getElementById('pantallaInicial');
@@ -205,6 +207,8 @@ async function crearSala() {
                     uid: currentUser.uid,
                     nombre: nombreAnfitrion,
                     errores: 0,
+                    aciertos: 0,
+                    preguntasRecibidas: 0,
                     listo: false
                 },
                 jugador2: null
@@ -266,6 +270,8 @@ async function unirseSala() {
                 uid: currentUser.uid,
                 nombre: nombreInvitado,
                 errores: 0,
+                aciertos: 0,
+                preguntasRecibidas: 0,
                 listo: false
             }
         });
@@ -301,23 +307,43 @@ function escucharCambiosSala() {
     const salaRef = doc(db, 'salas', claveActual);
     
     unsubscribeSala = onSnapshot(salaRef, async (doc) => {
-        if (!doc.exists()) {
-            alert('La sala fue eliminada');
-            volverAInicio();
-            return;
-        }
-        
-        const salaData = doc.data();
+    if (!doc.exists()) {
+        alert('La sala fue eliminada');
+        volverAInicio();
+        return;
+    }
+    
+    const salaData = doc.data();
+    
+    // ACTUALIZAR SALA DE ESPERA SI ESTAMOS EN ESA PANTALLA
+    if (!salaEspera.classList.contains('hidden')) {
         actualizarSalaEspera(salaData);
-        
-       if (salaData.jugadores.jugador1?.listo && salaData.jugadores.jugador2?.listo) {
-    await mostrarInterfazJuego(salaData);
-}
-        
-        if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
-            mostrarResultado(salaData);
+    }
+    
+    // INICIAR JUEGO SI AMBOS ESTÁN LISTOS
+    if (salaData.jugadores.jugador1?.listo && 
+        salaData.jugadores.jugador2?.listo && 
+        interfazJuego.classList.contains('hidden')) {
+        await mostrarInterfazJuego(salaData);
+    }
+    
+    // ACTUALIZAR TURNO SI ESTAMOS EN EL JUEGO
+    if (!interfazJuego.classList.contains('hidden')) {
+        actualizarTurno(salaData);
+        actualizarMarcadores(salaData);
+    }
+    
+        // VERIFICAR FIN DE JUEGO PARA AMBOS JUGADORES
+    if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
+        if (!window.finDeJuegoEnProceso && !interfazJuego.classList.contains('hidden')) {
+            window.finDeJuegoEnProceso = true;
+            // Pequeño delay para sincronización
+            setTimeout(() => {
+                mostrarResultado(salaData);
+            }, 500);
         }
-    });
+    }
+});
 }
 
 function actualizarSalaEspera(salaData) {
@@ -405,11 +431,11 @@ function actualizarMarcadores(salaData) {
     const jugador2 = salaData.jugadores.jugador2;
     
     if (jugadorActual === 'jugador1') {
-        document.getElementById('marcadorUsuario').textContent = `${jugador1.errores || 0}/3`;
-        document.getElementById('marcadorRival').textContent = `${jugador2.errores || 0}/3`;
+        document.getElementById('marcadorUsuario').textContent = `❌ ${jugador1.errores || 0}/3 | ✅ ${jugador1.aciertos || 0}/${jugador1.preguntasRecibidas || 0}`;
+        document.getElementById('marcadorRival').textContent = `❌ ${jugador2.errores || 0}/3 | ✅ ${jugador2.aciertos || 0}/${jugador2.preguntasRecibidas || 0}`;
     } else {
-        document.getElementById('marcadorUsuario').textContent = `${jugador2.errores || 0}/3`;
-        document.getElementById('marcadorRival').textContent = `${jugador1.errores || 0}/3`;
+        document.getElementById('marcadorUsuario').textContent = `❌ ${jugador2.errores || 0}/3 | ✅ ${jugador2.aciertos || 0}/${jugador2.preguntasRecibidas || 0}`;
+        document.getElementById('marcadorRival').textContent = `❌ ${jugador1.errores || 0}/3 | ✅ ${jugador1.aciertos || 0}/${jugador1.preguntasRecibidas || 0}`;
     }
 }
 
@@ -625,21 +651,41 @@ function actualizarTurno(salaData) {
     
     const textoTurno = document.getElementById('textoTurno');
     
+    console.log('🎮 actualizarTurno:', {
+        turno: turnoActual,
+        jugador: jugadorActual,
+        esMiTurno,
+        hayPregunta: !!salaData.juego?.preguntaActual
+    });
+    
     if (salaData.juego?.preguntaActual) {
         if (salaData.juego.respondiendo === jugadorActual) {
             textoTurno.textContent = 'TE TOCA RESPONDER';
-            mostrarPreguntaParaResponder(salaData.juego.preguntaActual);
             
-            // SI HAY RESULTADO VISIBLE, APLICAR COLORES INMEDIATAMENTE
+            // SI HAY RESULTADO VISIBLE, NO REINICIAR CRONÓMETRO
             if (salaData.juego?.resultadoVisible && salaData.juego?.respuestaSeleccionada !== undefined) {
+                cronometroDetenidoManualmente = true;
+                mostrarPreguntaParaResponder(salaData.juego.preguntaActual);
                 console.log('Aplicando colores porque hay resultado visible');
                 mostrarResultadoRespuesta(salaData.juego.respuestaSeleccionada, salaData.juego.preguntaActual.respuestaCorrecta);
+                detenerCronometroRespuesta();
+                
+                const btnContinuarExistente = document.querySelector('.btn-continuar-respuesta');
+                if (!btnContinuarExistente) {
+                    mostrarBotonContinuar();
+                }
+            } else {
+                // NO HAY RESULTADO - INICIAR NORMALMENTE
+                cronometroDetenidoManualmente = false;
+                mostrarPreguntaParaResponder(salaData.juego.preguntaActual);
             }
         } else {
             textoTurno.textContent = 'ESPERANDO RESPUESTA DEL RIVAL';
             mostrarPreguntaEsperando(salaData.juego.preguntaActual, salaData);
         }
     } else {
+        // NO HAY PREGUNTA - LIMPIAR Y MOSTRAR TURNO
+        console.log('🧹 No hay pregunta - limpiando ventana');
         if (esMiTurno) {
             textoTurno.textContent = 'TE TOCA PREGUNTAR';
             habilitarSeleccionPreguntas();
@@ -650,6 +696,7 @@ function actualizarTurno(salaData) {
         limpiarVentanaCentral();
     }
 }
+
 
 function habilitarSeleccionPreguntas() {
     const temasRival = document.querySelectorAll('#temasRival .tema-header');
@@ -685,7 +732,17 @@ function limpiarVentanaCentral() {
     
     textoPregunta.textContent = 'Selecciona una pregunta del rival para empezar';
     opcionesPregunta.innerHTML = '';
+    
+    // ELIMINAR BOTÓN CONTINUAR SI EXISTE
+    const btnContinuar = document.querySelector('.btn-continuar-respuesta');
+    if (btnContinuar) {
+        btnContinuar.remove();
+        console.log('🗑️ Botón continuar eliminado');
+    }
+    
+    cronometroDetenidoManualmente = false;  // RESETEAR BANDERA
     detenerCronometroRespuesta();
+    console.log('🧹 Ventana central limpiada - bandera reseteada');
 }
 
 async function seleccionarPregunta(pregunta) {
@@ -695,6 +752,8 @@ async function seleccionarPregunta(pregunta) {
     }
     
     try {
+        cronometroDetenidoManualmente = false;  // RESETEAR BANDERA PARA NUEVA PREGUNTA
+        
         const salaRef = doc(db, 'salas', claveActual);
         await updateDoc(salaRef, {
             'juego.preguntaActual': pregunta,
@@ -710,7 +769,7 @@ async function seleccionarPregunta(pregunta) {
 // ===============================================
 // SISTEMA DE RESPUESTAS COMPLETAMENTE NUEVO
 // ===============================================
-function mostrarPreguntaParaResponder(pregunta) {
+async function mostrarPreguntaParaResponder(pregunta) {
     const textoPregunta = document.getElementById('textoPregunta');
     const opcionesPregunta = document.getElementById('opcionesPregunta');
     
@@ -726,7 +785,11 @@ function mostrarPreguntaParaResponder(pregunta) {
         opcionesPregunta.appendChild(btn);
     });
     
+    // SIEMPRE INICIAR CRONÓMETRO AL CARGAR PREGUNTA PARA RESPONDER
+setTimeout(() => {
     iniciarCronometroRespuesta();
+    console.log('⏱️ Cronómetro iniciado para el que responde');
+}, 100);
 }
 
 function mostrarPreguntaEsperando(pregunta, salaData) {
@@ -736,10 +799,17 @@ function mostrarPreguntaEsperando(pregunta, salaData) {
     textoPregunta.textContent = pregunta.pregunta;
     opcionesPregunta.innerHTML = '';
     
-    // Mostrar cronómetro también para el que espera
-    if (!salaData.juego?.resultadoVisible) {
+    // DETENER CRONÓMETRO SI HAY RESULTADO VISIBLE
+if (salaData.juego?.resultadoVisible || salaData.juego?.cronometroDetenido) {
+    detenerCronometroRespuesta();
+    console.log('⏸️ Cronómetro detenido para el que pregunta (rival ya respondió)');
+} else {
+    // MOSTRAR CRONÓMETRO PARA EL QUE PREGUNTA TAMBIÉN
+    setTimeout(() => {
         iniciarCronometroRespuesta();
-    }
+    }, 100);
+    console.log('⏱️ Cronómetro iniciado para el que pregunta');
+}
     
     pregunta.opciones.forEach((opcion, index) => {
         const div = document.createElement('div');
@@ -800,8 +870,10 @@ function mostrarPreguntaEsperando(pregunta, salaData) {
 
 async function responderPregunta(indiceSeleccionado, pregunta) {
     try {
+        // DETENER CRONÓMETRO INMEDIATAMENTE AL RESPONDER
         detenerCronometroRespuesta();
         console.log('Respuesta seleccionada:', indiceSeleccionado);
+        console.log('⏸️ Cronómetro detenido');
         
         const esCorrecta = indiceSeleccionado === pregunta.respuestaCorrecta;
         console.log('Es correcta:', esCorrecta);
@@ -813,35 +885,32 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
         const snapshot = await getDoc(salaRef);
         const salaData = snapshot.data();
         
+        const preguntasRecibidasActuales = salaData.jugadores[jugadorActual].preguntasRecibidas || 0;
+        const aciertosActuales = salaData.jugadores[jugadorActual].aciertos || 0;
+        
         if (!esCorrecta) {
             const erroresActuales = salaData.jugadores[jugadorActual].errores || 0;
             const nuevosErrores = erroresActuales + 1;
             
             await updateDoc(salaRef, {
-                [`jugadores.${jugadorActual}.errores`]: nuevosErrores
+                [`jugadores.${jugadorActual}.errores`]: nuevosErrores,
+                [`jugadores.${jugadorActual}.preguntasRecibidas`]: preguntasRecibidasActuales + 1,
+                'juego.respuestaSeleccionada': indiceSeleccionado,
+                'juego.resultadoVisible': true,
+                'juego.cronometroDetenido': true
             });
-            
-            if (nuevosErrores >= 3) {
-                return;
-            }
+        } else {
+            await updateDoc(salaRef, {
+                [`jugadores.${jugadorActual}.aciertos`]: aciertosActuales + 1,
+                [`jugadores.${jugadorActual}.preguntasRecibidas`]: preguntasRecibidasActuales + 1,
+                'juego.respuestaSeleccionada': indiceSeleccionado,
+                'juego.resultadoVisible': true,
+                'juego.cronometroDetenido': true
+            });
         }
         
-        await updateDoc(salaRef, {
-            'juego.respuestaSeleccionada': indiceSeleccionado,
-            'juego.resultadoVisible': true
-        });
-        
-        setTimeout(async () => {
-            detenerCronometroRespuesta();
-            await updateDoc(salaRef, {
-                'juego.preguntaActual': null,
-                'juego.respondiendo': null,
-                'juego.respuestaSeleccionada': null,
-                'juego.resultadoVisible': false,
-                'juego.tiempoInicioPregunta': null,
-                turno: jugadorActual
-            });
-        }, 3000);
+        // SIEMPRE MOSTRAR BOTÓN CONTINUAR (incluso con 3 errores)
+        mostrarBotonContinuar();
         
     } catch (error) {
         console.error('Error respondiendo pregunta:', error);
@@ -850,6 +919,10 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
 
 function mostrarResultadoRespuesta(indiceSeleccionado, indiceCorrecta) {
     console.log('Aplicando colores directo en ventana central');
+    
+    // DETENER CRONÓMETRO INMEDIATAMENTE
+    detenerCronometroRespuesta();
+    console.log('⏸️ Cronómetro detenido en mostrarResultadoRespuesta');
     
     // QUITAR EL OVERLAY - trabajar directamente en la ventana central
     const opcionesPregunta = document.getElementById('opcionesPregunta');
@@ -907,7 +980,75 @@ function mostrarResultadoRespuesta(indiceSeleccionado, indiceCorrecta) {
     
     console.log('Colores aplicados directamente a los botones existentes');
 }
-
+function mostrarBotonContinuar() {
+    const opcionesPregunta = document.getElementById('opcionesPregunta');
+    
+    const btnExistente = document.querySelector('.btn-continuar-respuesta');
+    if (btnExistente) {
+        console.log('⚠️ Botón continuar ya existe');
+        return;
+    }
+    
+    const btnContinuar = document.createElement('button');
+    btnContinuar.textContent = '✅ Continuar';
+    btnContinuar.className = 'btn-continuar-respuesta';
+    btnContinuar.style.cssText = `
+        width: 100%;
+        padding: 15px;
+        margin-top: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    `;
+    
+    btnContinuar.onmouseover = () => {
+        btnContinuar.style.transform = 'scale(1.05)';
+        btnContinuar.style.boxShadow = '0 8px 20px rgba(102, 126, 234, 0.4)';
+    };
+    
+    btnContinuar.onmouseout = () => {
+        btnContinuar.style.transform = 'scale(1)';
+        btnContinuar.style.boxShadow = 'none';
+    };
+    
+    btnContinuar.onclick = async () => {
+        try {
+            console.log('🔘 Botón continuar presionado');
+            btnContinuar.remove();
+            
+            const salaRef = doc(db, 'salas', claveActual);
+            const snapshot = await getDoc(salaRef);
+            const salaData = snapshot.data();
+            
+            if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
+                console.log('🏁 Fin de juego detectado');
+                mostrarResultado(salaData);
+                return;
+            }
+            
+            cronometroDetenidoManualmente = false;
+            
+            await updateDoc(salaRef, {
+                'juego.preguntaActual': null,
+                'juego.respondiendo': null,
+                'juego.respuestaSeleccionada': null,
+                'juego.resultadoVisible': false,
+                'juego.tiempoInicioPregunta': null,
+                'juego.cronometroDetenido': false,
+                turno: jugadorActual
+            });
+        } catch (error) {
+            console.error('❌ Error al continuar:', error);
+        }
+    };
+    
+    opcionesPregunta.appendChild(btnContinuar);
+}
 // ===============================================
 // UTILIDADES Y FUNCIONES AUXILIARES
 // ===============================================
@@ -973,6 +1114,10 @@ function mostrarResultado(salaData) {
     
     const erroresUsuario = salaData.jugadores[jugadorActual].errores || 0;
     const erroresRival = salaData.jugadores[rival].errores || 0;
+    const aciertosUsuario = salaData.jugadores[jugadorActual].aciertos || 0;
+    const aciertosRival = salaData.jugadores[rival].aciertos || 0;
+    const preguntasUsuario = salaData.jugadores[jugadorActual].preguntasRecibidas || 0;
+    const preguntasRival = salaData.jugadores[rival].preguntasRecibidas || 0;
     
     const heGanado = erroresRival >= 3;
     const hePerdido = erroresUsuario >= 3;
@@ -981,8 +1126,8 @@ function mostrarResultado(salaData) {
     const marcadorFinalUsuario = document.getElementById('marcadorFinalUsuario');
     const marcadorFinalRival = document.getElementById('marcadorFinalRival');
     
-    marcadorFinalUsuario.textContent = `${erroresUsuario}/3`;
-    marcadorFinalRival.textContent = `${erroresRival}/3`;
+    marcadorFinalUsuario.textContent = `❌ ${erroresUsuario}/3 | ✅ ${aciertosUsuario}/${preguntasUsuario}`;
+    marcadorFinalRival.textContent = `❌ ${erroresRival}/3 | ✅ ${aciertosRival}/${preguntasRival}`;
     
     if (heGanado) {
         pantallaResultado.className = 'pantalla-resultado victoria';
@@ -1003,8 +1148,12 @@ async function repetirDuelo() {
             'juego.respuestaSeleccionada': null,
             'juego.resultadoVisible': false,
             'jugadores.jugador1.errores': 0,
+            'jugadores.jugador1.aciertos': 0,
+            'jugadores.jugador1.preguntasRecibidas': 0,
             'jugadores.jugador1.listo': false,
             'jugadores.jugador2.errores': 0,
+            'jugadores.jugador2.aciertos': 0,
+            'jugadores.jugador2.preguntasRecibidas': 0,
             'jugadores.jugador2.listo': false
         });
         
@@ -1168,7 +1317,13 @@ function filtrarPreguntasPorTemasSeleccionados() {
 
 console.log('Multijugador.js cargado completamente');
 
-function iniciarCronometroRespuesta() {
+async function iniciarCronometroRespuesta() {
+    // SI FUE DETENIDO MANUALMENTE, NO REINICIAR
+    if (cronometroDetenidoManualmente) {
+        console.log('⛔ Cronómetro no se reinicia porque fue detenido manualmente');
+        return;
+    }
+    
     const cronometroElement = document.getElementById('cronometroRespuesta');
     const tiempoElement = document.getElementById('tiempoRespuesta');
     
@@ -1179,7 +1334,29 @@ function iniciarCronometroRespuesta() {
         clearInterval(cronometroRespuesta);
     }
     
-    tiempoRespuestaRestante = 60;
+   // MOSTRAR EL CRONÓMETRO AL INICIAR - FORZAR VISIBILIDAD COMPLETA
+cronometroElement.style.display = 'block';
+cronometroElement.style.visibility = 'visible';
+cronometroElement.style.opacity = '1';
+cronometroElement.classList.remove('hidden');
+console.log('⏱️ Cronómetro mostrado - display:', cronometroElement.style.display);
+    
+    // SINCRONIZAR CON EL SERVIDOR
+    try {
+        const salaRef = doc(db, 'salas', claveActual);
+        const snapshot = await getDoc(salaRef);
+        const salaData = snapshot.data();
+        
+        const tiempoInicio = salaData.juego?.tiempoInicioPregunta || Date.now();
+        const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicio) / 1000);
+        tiempoRespuestaRestante = Math.max(0, 60 - tiempoTranscurrido);
+        
+        console.log(`Cronómetro sincronizado: ${tiempoRespuestaRestante}s restantes`);
+    } catch (error) {
+        console.error('Error sincronizando cronómetro:', error);
+        tiempoRespuestaRestante = 60;
+    }
+    
     cronometroElement.classList.remove('hidden', 'warning', 'danger');
     
     cronometroRespuesta = setInterval(() => {
@@ -1191,8 +1368,10 @@ function iniciarCronometroRespuesta() {
         
         tiempoElement.textContent = display;
         
-               if (tiempoRespuestaRestante <= 10) {
+        if (tiempoRespuestaRestante <= 10) {
             cronometroElement.className = 'cronometro-respuesta danger';
+        } else if (tiempoRespuestaRestante <= 20) {
+            cronometroElement.className = 'cronometro-respuesta warning';
         } else {
             cronometroElement.className = 'cronometro-respuesta';
         }
@@ -1210,10 +1389,18 @@ function detenerCronometroRespuesta() {
         cronometroRespuesta = null;
     }
     
+    cronometroDetenidoManualmente = true;  // MARCAR BANDERA
+    
     const cronometroElement = document.getElementById('cronometroRespuesta');
-    if (cronometroElement) {
-        cronometroElement.classList.add('hidden');
-    }
+if (cronometroElement) {
+    cronometroElement.classList.add('hidden');
+    cronometroElement.style.display = 'none';
+    cronometroElement.style.visibility = 'hidden';
+    cronometroElement.style.opacity = '0';
+    console.log('⏸️ Cronómetro ocultado completamente');
+}
+    
+    console.log('⏸️ Cronómetro completamente detenido y oculto');
 }
 
 async function tiempoAgotado() {
@@ -1234,17 +1421,7 @@ async function tiempoAgotado() {
         mostrarMensajeTiempoAgotado();
         
         if (nuevosErrores < 3) {
-          setTimeout(async () => {
-                detenerCronometroRespuesta();
-                await updateDoc(salaRef, {
-                    'juego.preguntaActual': null,
-                    'juego.respondiendo': null,
-                    'juego.respuestaSeleccionada': null,
-                    'juego.resultadoVisible': false,
-                    'juego.tiempoInicioPregunta': null,
-                    turno: jugadorActual
-                });
-            }, 3000);
+            mostrarBotonContinuar();
         }
         
     } catch (error) {
@@ -1443,6 +1620,34 @@ async function mostrarSelectorTemas() {
         container.innerHTML = '';
         container.className = 'temas-estructura-banco';
         
+        // AGREGAR BOTÓN MARCAR TODAS AL INICIO
+        const btnMarcarTodas = document.createElement('button');
+        btnMarcarTodas.id = 'btnMarcarTodasTemas';
+        btnMarcarTodas.textContent = '✅ Marcar Todas';
+        btnMarcarTodas.style.cssText = `
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        `;
+        btnMarcarTodas.onmouseover = () => {
+            btnMarcarTodas.style.transform = 'scale(1.02)';
+            btnMarcarTodas.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
+        };
+        btnMarcarTodas.onmouseout = () => {
+            btnMarcarTodas.style.transform = 'scale(1)';
+            btnMarcarTodas.style.boxShadow = 'none';
+        };
+        btnMarcarTodas.onclick = marcarTodasLosTemas;
+        container.appendChild(btnMarcarTodas);
+        
         // Renderizar temas principales con sus subtemas
         temasPrincipales.forEach((tema) => {
             const tieneSubtemas = subtemasPorPadre[tema.id] && subtemasPorPadre[tema.id].length > 0;
@@ -1453,7 +1658,7 @@ async function mostrarSelectorTemas() {
             temaDiv.innerHTML = `
                 <div class="tema-principal-selector">
                     <label class="tema-checkbox-container">
-                        <input type="checkbox" class="tema-checkbox-principal" id="tema-${tema.id}" data-tema="${tema.nombre}" checked>
+                        <input type="checkbox" class="tema-checkbox-principal" id="tema-${tema.id}" data-tema="${tema.nombre}">
                         <span class="tema-nombre-selector">📚 ${tema.nombre}</span>
                         <span class="tema-contador-selector">${tema.preguntasVerificadas} preguntas</span>
                     </label>
@@ -1468,7 +1673,7 @@ async function mostrarSelectorTemas() {
                         ${subtemasPorPadre[tema.id].map(subtema => `
                             <div class="subtema-selector">
                                 <label class="subtema-checkbox-container">
-                                    <input type="checkbox" class="tema-checkbox-subtema" id="subtema-${subtema.id}" data-tema="${subtema.nombre}" checked>
+                                    <input type="checkbox" class="tema-checkbox-subtema" id="subtema-${subtema.id}" data-tema="${subtema.nombre}">
                                     <span class="subtema-nombre-selector">↳ ${subtema.nombre}</span>
                                     <span class="subtema-contador-selector">${subtema.preguntasVerificadas} preguntas</span>
                                 </label>
@@ -1479,19 +1684,9 @@ async function mostrarSelectorTemas() {
             `;
             
             container.appendChild(temaDiv);
-            
-            // Añadir tema principal a seleccionados por defecto
-            temasSeleccionados.add(tema.nombre);
-            
-            // Añadir subtemas a seleccionados por defecto
-            if (tieneSubtemas) {
-                subtemasPorPadre[tema.id].forEach(subtema => {
-                    temasSeleccionados.add(subtema.nombre);
-                });
-            }
         });
         
-        // Configurar event listeners
+        // Configurar event listeners DESPUÉS de crear todos los elementos
         configurarEventListenersSelector();
         actualizarContadorTemas();
         
@@ -1499,4 +1694,32 @@ async function mostrarSelectorTemas() {
         console.error('Error cargando temas para selector:', error);
         container.innerHTML = '<p>Error cargando temas</p>';
     }
+}
+
+function marcarTodasLosTemas() {
+    const todosLosCheckboxes = document.querySelectorAll('.tema-checkbox-principal, .tema-checkbox-subtema');
+    const btnMarcarTodas = document.getElementById('btnMarcarTodasTemas');
+    
+    // Verificar si todos están marcados
+    const todosMarcados = Array.from(todosLosCheckboxes).every(cb => cb.checked);
+    
+    if (todosMarcados) {
+        // DESMARCAR TODAS
+        todosLosCheckboxes.forEach(checkbox => {
+            checkbox.checked = false;
+            const temaNombre = checkbox.dataset.tema;
+            temasSeleccionados.delete(temaNombre);
+        });
+        btnMarcarTodas.textContent = '✅ Marcar Todas';
+    } else {
+        // MARCAR TODAS
+        todosLosCheckboxes.forEach(checkbox => {
+            checkbox.checked = true;
+            const temaNombre = checkbox.dataset.tema;
+            temasSeleccionados.add(temaNombre);
+        });
+        btnMarcarTodas.textContent = '❌ Desmarcar Todas';
+    }
+    
+    actualizarTemasSeleccionados();
 }
