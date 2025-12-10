@@ -1027,32 +1027,24 @@ function mostrarBotonContinuar() {
     btnContinuar.onclick = async () => {
         try {
             console.log('🔘 Botón continuar presionado');
-            btnContinuar.remove();
             
             const salaRef = doc(db, 'salas', claveActual);
             const snapshot = await getDoc(salaRef);
             const salaData = snapshot.data();
             
             // VERIFICAR SI HAY FIN DE JUEGO
-            if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
-                console.log('🏁 Fin de juego detectado - limpiando estado del juego');
-                
-                // LIMPIAR ESTADO DEL JUEGO EN FIREBASE PARA QUE AMBOS VEAN EL RESULTADO
-                await updateDoc(salaRef, {
-                    'juego.preguntaActual': null,
-                    'juego.respondiendo': null,
-                    'juego.respuestaSeleccionada': null,
-                    'juego.resultadoVisible': false,
-                    'juego.tiempoInicioPregunta': null,
-                    'juego.cronometroDetenido': false
-                });
-                
-                // EL LISTENER escucharCambiosSala DETECTARÁ QUE NO HAY BOTÓN Y MOSTRARÁ RESULTADO
-                console.log('✅ Estado limpiado - esperando que listener muestre resultado');
+            const hayFinDeJuego = salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3;
+            
+            if (hayFinDeJuego) {
+                console.log('🏁 Fin de juego detectado - mostrando resultado INMEDIATAMENTE');
+                btnContinuar.remove();
+                mostrarResultado(salaData);
                 return;
             }
             
             // NO HAY FIN DE JUEGO - CONTINUAR NORMALMENTE
+            console.log('✅ No hay fin de juego - continuando partida');
+            btnContinuar.remove();
             cronometroDetenidoManualmente = false;
             
             await updateDoc(salaRef, {
