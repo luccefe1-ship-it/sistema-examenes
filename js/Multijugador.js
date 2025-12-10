@@ -890,12 +890,6 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
                 'juego.resultadoVisible': true,
                 'juego.cronometroDetenido': true
             });
-            
-            // SI ES EL 3ER ERROR, NO MOSTRAR BOTÓN CONTINUAR
-            if (nuevosErrores >= 3) {
-                console.log('🔴 Tercer error alcanzado - fin de juego inminente');
-                return;
-            }
         } else {
             await updateDoc(salaRef, {
                 [`jugadores.${jugadorActual}.aciertos`]: aciertosActuales + 1,
@@ -906,7 +900,7 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
             });
         }
         
-        // AGREGAR BOTÓN DE CONTINUAR SOLO SI NO ES GAME OVER
+        // SIEMPRE MOSTRAR BOTÓN CONTINUAR (incluso con 3 errores)
         mostrarBotonContinuar();
         
     } catch (error) {
