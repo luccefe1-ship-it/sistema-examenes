@@ -333,7 +333,16 @@ function escucharCambiosSala() {
         actualizarMarcadores(salaData);
     }
     
-        // NO VERIFICAR FIN DE JUEGO AQUÍ - SE MANEJA EN EL BOTÓN CONTINUAR
+        // VERIFICAR FIN DE JUEGO PARA AMBOS JUGADORES
+    if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
+        if (!window.finDeJuegoEnProceso && !interfazJuego.classList.contains('hidden')) {
+            window.finDeJuegoEnProceso = true;
+            // Pequeño delay para sincronización
+            setTimeout(() => {
+                mostrarResultado(salaData);
+            }, 500);
+        }
+    }
 });
 }
 
@@ -974,10 +983,9 @@ function mostrarResultadoRespuesta(indiceSeleccionado, indiceCorrecta) {
 function mostrarBotonContinuar() {
     const opcionesPregunta = document.getElementById('opcionesPregunta');
     
-    // VERIFICAR SI YA EXISTE EL BOTÓN PARA EVITAR DUPLICADOS
     const btnExistente = document.querySelector('.btn-continuar-respuesta');
     if (btnExistente) {
-        console.log('⚠️ Botón continuar ya existe, no se crea otro');
+        console.log('⚠️ Botón continuar ya existe');
         return;
     }
     
@@ -1008,46 +1016,38 @@ function mostrarBotonContinuar() {
         btnContinuar.style.boxShadow = 'none';
     };
     
-   btnContinuar.onclick = async () => {
-    try {
-        console.log('🔘 Botón continuar presionado');
-        
-        // ELIMINAR EL BOTÓN INMEDIATAMENTE
-        btnContinuar.remove();
-        console.log('🗑️ Botón continuar eliminado');
-        
-        // VERIFICAR SI HAY FIN DE JUEGO ANTES DE CONTINUAR
-        const salaRef = doc(db, 'salas', claveActual);
-        const snapshot = await getDoc(salaRef);
-        const salaData = snapshot.data();
-        
-        if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
-            console.log('🏁 Fin de juego detectado - mostrando resultado');
-            mostrarResultado(salaData);
-            return;
+    btnContinuar.onclick = async () => {
+        try {
+            console.log('🔘 Botón continuar presionado');
+            btnContinuar.remove();
+            
+            const salaRef = doc(db, 'salas', claveActual);
+            const snapshot = await getDoc(salaRef);
+            const salaData = snapshot.data();
+            
+            if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
+                console.log('🏁 Fin de juego detectado');
+                mostrarResultado(salaData);
+                return;
+            }
+            
+            cronometroDetenidoManualmente = false;
+            
+            await updateDoc(salaRef, {
+                'juego.preguntaActual': null,
+                'juego.respondiendo': null,
+                'juego.respuestaSeleccionada': null,
+                'juego.resultadoVisible': false,
+                'juego.tiempoInicioPregunta': null,
+                'juego.cronometroDetenido': false,
+                turno: jugadorActual
+            });
+        } catch (error) {
+            console.error('❌ Error al continuar:', error);
         }
-        
-        cronometroDetenidoManualmente = false;  // RESETEAR BANDERA LOCAL
-        console.log('🔓 Bandera cronometroDetenidoManualmente = false');
-        
-        await updateDoc(salaRef, {
-            'juego.preguntaActual': null,
-            'juego.respondiendo': null,
-            'juego.respuestaSeleccionada': null,
-            'juego.resultadoVisible': false,
-            'juego.tiempoInicioPregunta': null,
-            'juego.cronometroDetenido': false,
-            turno: jugadorActual
-        });
-        
-        console.log('✅ Firebase actualizado correctamente');
-    } catch (error) {
-        console.error('❌ Error al continuar:', error);
-    }
-};
+    };
     
     opcionesPregunta.appendChild(btnContinuar);
-    console.log('✅ Botón continuar creado');
 }
 // ===============================================
 // UTILIDADES Y FUNCIONES AUXILIARES
