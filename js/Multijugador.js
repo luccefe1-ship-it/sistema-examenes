@@ -310,13 +310,11 @@ function escucharCambiosSala() {
         const salaData = doc.data();
         actualizarSalaEspera(salaData);
         
-        if (salaData.jugadores.jugador1?.listo && salaData.jugadores.jugador2?.listo) {
-            await mostrarInterfazJuego(salaData);
-        }
+       if (salaData.jugadores.jugador1?.listo && salaData.jugadores.jugador2?.listo) {
+    await mostrarInterfazJuego(salaData);
+}
         
-        // CORRECCIÓN FINAL: Solo saltamos a la pantalla de resultados
-        // cuando el usuario ha pulsado "Continuar" y se ha marcado en BD.
-        if (salaData.juego?.juegoTerminado === true) {
+        if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
             mostrarResultado(salaData);
         }
     });
@@ -806,34 +804,44 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
         console.log('Respuesta seleccionada:', indiceSeleccionado);
         
         const esCorrecta = indiceSeleccionado === pregunta.respuestaCorrecta;
+        console.log('Es correcta:', esCorrecta);
         
-        // 1. Mostrar colores visualmente (Feedback inmediato)
+        // MOSTRAR RESULTADO INMEDIATAMENTE CON NUEVO SISTEMA
         mostrarResultadoRespuesta(indiceSeleccionado, pregunta.respuestaCorrecta);
         
         const salaRef = doc(db, 'salas', claveActual);
         const snapshot = await getDoc(salaRef);
         const salaData = snapshot.data();
         
-        let nuevosErrores = salaData.jugadores[jugadorActual].errores || 0;
-        
-        // 2. Si falló, subimos el error a la base de datos INMEDIATAMENTE
-        // para que se guarde el 3/3, pero NO cerramos la pantalla aún.
         if (!esCorrecta) {
-            nuevosErrores += 1;
+            const erroresActuales = salaData.jugadores[jugadorActual].errores || 0;
+            const nuevosErrores = erroresActuales + 1;
+            
             await updateDoc(salaRef, {
                 [`jugadores.${jugadorActual}.errores`]: nuevosErrores
             });
+            
+            if (nuevosErrores >= 3) {
+                return;
+            }
         }
         
-        // 3. Mostramos a ambos que ya se respondió (para pintar colores en el rival)
         await updateDoc(salaRef, {
             'juego.respuestaSeleccionada': indiceSeleccionado,
             'juego.resultadoVisible': true
         });
         
-        // 4. IMPRESCINDIBLE: Siempre mostramos el botón.
-        // Incluso si es el 3er error, el usuario tiene que verlo y pulsar "Continuar".
-        mostrarBotonContinuar();
+        setTimeout(async () => {
+            detenerCronometroRespuesta();
+            await updateDoc(salaRef, {
+                'juego.preguntaActual': null,
+                'juego.respondiendo': null,
+                'juego.respuestaSeleccionada': null,
+                'juego.resultadoVisible': false,
+                'juego.tiempoInicioPregunta': null,
+                turno: jugadorActual
+            });
+        }, 3000);
         
     } catch (error) {
         console.error('Error respondiendo pregunta:', error);
@@ -898,61 +906,6 @@ function mostrarResultadoRespuesta(indiceSeleccionado, indiceCorrecta) {
     });
     
     console.log('Colores aplicados directamente a los botones existentes');
-}
-function mostrarBotonContinuar() {
-    const opcionesPregunta = document.getElementById('opcionesPregunta');
-    
-    // Evitamos crear botones duplicados
-    if (document.querySelector('.btn-continuar-respuesta')) return;
-    
-    const btnContinuar = document.createElement('button');
-    btnContinuar.textContent = '✅ Continuar';
-    btnContinuar.className = 'btn-continuar-respuesta';
-    
-    // Estilos para asegurarnos que se ve bien
-    btnContinuar.style.cssText = `
-        width: 100%; padding: 15px; margin-top: 20px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white; border: none; border-radius: 8px;
-        font-size: 18px; font-weight: bold; cursor: pointer;
-    `;
-    
-    btnContinuar.onclick = async () => {
-        try {
-            // Quitamos el botón para evitar doble click
-            btnContinuar.remove();
-            
-            const salaRef = doc(db, 'salas', claveActual);
-            const snapshot = await getDoc(salaRef);
-            const salaData = snapshot.data();
-            
-            // 1. ¿Alguien tiene 3 errores? (Fin del juego)
-            if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
-                console.log('🏁 Fin de juego confirmado por botón continuar');
-                await updateDoc(salaRef, {
-                    'juego.juegoTerminado': true
-                });
-                return;
-            }
-            
-            // 2. Si NO hay 3 errores, seguimos jugando.
-            // CORRECCIÓN AQUÍ: El turno pasa a MÍ (jugadorActual) porque yo acabo de responder
-            // y ahora quiero tener el turno para preguntar.
-            await updateDoc(salaRef, {
-                'juego.preguntaActual': null,
-                'juego.respondiendo': null,
-                'juego.respuestaSeleccionada': null,
-                'juego.resultadoVisible': false,
-                'juego.juegoTerminado': false,
-                turno: jugadorActual // <--- CAMBIO IMPORTANTE: Me toca a mí
-            });
-            
-        } catch (error) {
-            console.error('Error al continuar:', error);
-        }
-    };
-    
-    opcionesPregunta.appendChild(btnContinuar);
 }
 
 // ===============================================
