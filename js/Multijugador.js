@@ -333,13 +333,7 @@ function escucharCambiosSala() {
         actualizarMarcadores(salaData);
     }
     
-    // VERIFICAR FIN DE JUEGO INMEDIATAMENTE
-    if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
-        if (!window.finDeJuegoEnProceso) {
-            window.finDeJuegoEnProceso = true;
-            mostrarResultado(salaData);
-        }
-    }
+        // NO VERIFICAR FIN DE JUEGO AQUÍ - SE MANEJA EN EL BOTÓN CONTINUAR
 });
 }
 
@@ -1028,10 +1022,20 @@ function mostrarBotonContinuar() {
         btnContinuar.remove();
         console.log('🗑️ Botón continuar eliminado');
         
+        // VERIFICAR SI HAY FIN DE JUEGO ANTES DE CONTINUAR
+        const salaRef = doc(db, 'salas', claveActual);
+        const snapshot = await getDoc(salaRef);
+        const salaData = snapshot.data();
+        
+        if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
+            console.log('🏁 Fin de juego detectado - mostrando resultado');
+            mostrarResultado(salaData);
+            return;
+        }
+        
         cronometroDetenidoManualmente = false;  // RESETEAR BANDERA LOCAL
         console.log('🔓 Bandera cronometroDetenidoManualmente = false');
         
-        const salaRef = doc(db, 'salas', claveActual);
         await updateDoc(salaRef, {
             'juego.preguntaActual': null,
             'juego.respondiendo': null,
