@@ -333,11 +333,19 @@ function escucharCambiosSala() {
         actualizarMarcadores(salaData);
     }
     
-        // VERIFICAR FIN DE JUEGO PARA AMBOS JUGADORES
+        // VERIFICAR FIN DE JUEGO - SOLO CUANDO EL BOTÓN CONTINUAR YA NO EXISTE
     if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
-        if (!window.finDeJuegoEnProceso && !interfazJuego.classList.contains('hidden')) {
+        // Verificar si el botón continuar aún está presente
+        const btnContinuarExiste = document.querySelector('.btn-continuar-respuesta');
+        
+        // SOLO mostrar resultado si:
+        // 1. El juego no está ya en proceso de finalización
+        // 2. Estamos en la pantalla de juego
+        // 3. NO hay botón continuar visible (ya fue presionado)
+        if (!window.finDeJuegoEnProceso && 
+            !interfazJuego.classList.contains('hidden') && 
+            !btnContinuarExiste) {
             window.finDeJuegoEnProceso = true;
-            // Pequeño delay para sincronización
             setTimeout(() => {
                 mostrarResultado(salaData);
             }, 500);
