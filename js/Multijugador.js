@@ -926,27 +926,25 @@ function mostrarBotonContinuar() {
             const snapshot = await getDoc(salaRef);
             const salaData = snapshot.data();
             
-            // LOGICA CRÍTICA:
-            // ¿Alguien tiene 3 errores?
+            // 1. ¿Alguien tiene 3 errores? (Fin del juego)
             if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
                 console.log('🏁 Fin de juego confirmado por botón continuar');
-                // AHORA SÍ: Avisamos a la base de datos que el juego terminó.
-                // Esto disparará "escucharCambiosSala" en ambos jugadores.
                 await updateDoc(salaRef, {
                     'juego.juegoTerminado': true
                 });
                 return;
             }
             
-            // Si NO hay 3 errores, seguimos jugando.
-            // IMPORTANTE: El turno pasa al RIVAL (porque yo acabo de responder).
+            // 2. Si NO hay 3 errores, seguimos jugando.
+            // CORRECCIÓN AQUÍ: El turno pasa a MÍ (jugadorActual) porque yo acabo de responder
+            // y ahora quiero tener el turno para preguntar.
             await updateDoc(salaRef, {
                 'juego.preguntaActual': null,
                 'juego.respondiendo': null,
                 'juego.respuestaSeleccionada': null,
                 'juego.resultadoVisible': false,
                 'juego.juegoTerminado': false,
-                turno: rival // <--- El turno pasa al otro
+                turno: jugadorActual // <--- CAMBIO IMPORTANTE: Me toca a mí
             });
             
         } catch (error) {
