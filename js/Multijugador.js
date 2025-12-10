@@ -207,6 +207,8 @@ async function crearSala() {
                     uid: currentUser.uid,
                     nombre: nombreAnfitrion,
                     errores: 0,
+                    aciertos: 0,
+                    preguntasRecibidas: 0,
                     listo: false
                 },
                 jugador2: null
@@ -268,6 +270,8 @@ async function unirseSala() {
                 uid: currentUser.uid,
                 nombre: nombreInvitado,
                 errores: 0,
+                aciertos: 0,
+                preguntasRecibidas: 0,
                 listo: false
             }
         });
@@ -329,9 +333,15 @@ function escucharCambiosSala() {
         actualizarMarcadores(salaData);
     }
     
-    // VERIFICAR FIN DE JUEGO
+    // VERIFICAR FIN DE JUEGO CON DELAY PARA VER ÚLTIMA RESPUESTA
     if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
-        mostrarResultado(salaData);
+        if (!window.finDeJuegoEnProceso) {
+            window.finDeJuegoEnProceso = true;
+            setTimeout(() => {
+                mostrarResultado(salaData);
+                window.finDeJuegoEnProceso = false;
+            }, 60000);
+        }
     }
 });
 }
@@ -421,11 +431,11 @@ function actualizarMarcadores(salaData) {
     const jugador2 = salaData.jugadores.jugador2;
     
     if (jugadorActual === 'jugador1') {
-        document.getElementById('marcadorUsuario').textContent = `${jugador1.errores || 0}/3`;
-        document.getElementById('marcadorRival').textContent = `${jugador2.errores || 0}/3`;
+        document.getElementById('marcadorUsuario').textContent = `❌ ${jugador1.errores || 0}/3 | ✅ ${jugador1.aciertos || 0}/${jugador1.preguntasRecibidas || 0}`;
+        document.getElementById('marcadorRival').textContent = `❌ ${jugador2.errores || 0}/3 | ✅ ${jugador2.aciertos || 0}/${jugador2.preguntasRecibidas || 0}`;
     } else {
-        document.getElementById('marcadorUsuario').textContent = `${jugador2.errores || 0}/3`;
-        document.getElementById('marcadorRival').textContent = `${jugador1.errores || 0}/3`;
+        document.getElementById('marcadorUsuario').textContent = `❌ ${jugador2.errores || 0}/3 | ✅ ${jugador2.aciertos || 0}/${jugador2.preguntasRecibidas || 0}`;
+        document.getElementById('marcadorRival').textContent = `❌ ${jugador1.errores || 0}/3 | ✅ ${jugador1.aciertos || 0}/${jugador1.preguntasRecibidas || 0}`;
     }
 }
 
@@ -875,17 +885,26 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
         const snapshot = await getDoc(salaRef);
         const salaData = snapshot.data();
         
+        const preguntasRecibidasActuales = salaData.jugadores[jugadorActual].preguntasRecibidas || 0;
+        const aciertosActuales = salaData.jugadores[jugadorActual].aciertos || 0;
+        
         if (!esCorrecta) {
             const erroresActuales = salaData.jugadores[jugadorActual].errores || 0;
             const nuevosErrores = erroresActuales + 1;
             
             await updateDoc(salaRef, {
-                [`jugadores.${jugadorActual}.errores`]: nuevosErrores
+                [`jugadores.${jugadorActual}.errores`]: nuevosErrores,
+                [`jugadores.${jugadorActual}.preguntasRecibidas`]: preguntasRecibidasActuales + 1
             });
             
             if (nuevosErrores >= 3) {
                 return;
             }
+        } else {
+            await updateDoc(salaRef, {
+                [`jugadores.${jugadorActual}.aciertos`]: aciertosActuales + 1,
+                [`jugadores.${jugadorActual}.preguntasRecibidas`]: preguntasRecibidasActuales + 1
+            });
         }
         
         await updateDoc(salaRef, {
@@ -1098,6 +1117,10 @@ function mostrarResultado(salaData) {
     
     const erroresUsuario = salaData.jugadores[jugadorActual].errores || 0;
     const erroresRival = salaData.jugadores[rival].errores || 0;
+    const aciertosUsuario = salaData.jugadores[jugadorActual].aciertos || 0;
+    const aciertosRival = salaData.jugadores[rival].aciertos || 0;
+    const preguntasUsuario = salaData.jugadores[jugadorActual].preguntasRecibidas || 0;
+    const preguntasRival = salaData.jugadores[rival].preguntasRecibidas || 0;
     
     const heGanado = erroresRival >= 3;
     const hePerdido = erroresUsuario >= 3;
@@ -1106,8 +1129,8 @@ function mostrarResultado(salaData) {
     const marcadorFinalUsuario = document.getElementById('marcadorFinalUsuario');
     const marcadorFinalRival = document.getElementById('marcadorFinalRival');
     
-    marcadorFinalUsuario.textContent = `${erroresUsuario}/3`;
-    marcadorFinalRival.textContent = `${erroresRival}/3`;
+    marcadorFinalUsuario.textContent = `❌ ${erroresUsuario}/3 | ✅ ${aciertosUsuario}/${preguntasUsuario}`;
+    marcadorFinalRival.textContent = `❌ ${erroresRival}/3 | ✅ ${aciertosRival}/${preguntasRival}`;
     
     if (heGanado) {
         pantallaResultado.className = 'pantalla-resultado victoria';
@@ -1128,8 +1151,12 @@ async function repetirDuelo() {
             'juego.respuestaSeleccionada': null,
             'juego.resultadoVisible': false,
             'jugadores.jugador1.errores': 0,
+            'jugadores.jugador1.aciertos': 0,
+            'jugadores.jugador1.preguntasRecibidas': 0,
             'jugadores.jugador1.listo': false,
             'jugadores.jugador2.errores': 0,
+            'jugadores.jugador2.aciertos': 0,
+            'jugadores.jugador2.preguntasRecibidas': 0,
             'jugadores.jugador2.listo': false
         });
         
