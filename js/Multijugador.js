@@ -333,16 +333,7 @@ function escucharCambiosSala() {
         actualizarMarcadores(salaData);
     }
     
-        // VERIFICAR FIN DE JUEGO PARA AMBOS JUGADORES
-    if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
-        if (!window.finDeJuegoEnProceso && !interfazJuego.classList.contains('hidden')) {
-            window.finDeJuegoEnProceso = true;
-            // Pequeño delay para sincronización
-            setTimeout(() => {
-                mostrarResultado(salaData);
-            }, 500);
-        }
-    }
+        // NO VERIFICAR FIN DE JUEGO AQUÍ - SOLO SE MANEJA EN EL BOTÓN CONTINUAR
 });
 }
 
