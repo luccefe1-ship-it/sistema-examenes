@@ -894,26 +894,28 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
             
             await updateDoc(salaRef, {
                 [`jugadores.${jugadorActual}.errores`]: nuevosErrores,
-                [`jugadores.${jugadorActual}.preguntasRecibidas`]: preguntasRecibidasActuales + 1
+                [`jugadores.${jugadorActual}.preguntasRecibidas`]: preguntasRecibidasActuales + 1,
+                'juego.respuestaSeleccionada': indiceSeleccionado,
+                'juego.resultadoVisible': true,
+                'juego.cronometroDetenido': true
             });
             
+            // SI ES EL 3ER ERROR, NO MOSTRAR BOTÓN CONTINUAR
             if (nuevosErrores >= 3) {
+                console.log('🔴 Tercer error alcanzado - fin de juego inminente');
                 return;
             }
         } else {
             await updateDoc(salaRef, {
                 [`jugadores.${jugadorActual}.aciertos`]: aciertosActuales + 1,
-                [`jugadores.${jugadorActual}.preguntasRecibidas`]: preguntasRecibidasActuales + 1
+                [`jugadores.${jugadorActual}.preguntasRecibidas`]: preguntasRecibidasActuales + 1,
+                'juego.respuestaSeleccionada': indiceSeleccionado,
+                'juego.resultadoVisible': true,
+                'juego.cronometroDetenido': true
             });
         }
         
-        await updateDoc(salaRef, {
-            'juego.respuestaSeleccionada': indiceSeleccionado,
-            'juego.resultadoVisible': true,
-            'juego.cronometroDetenido': true  // MARCAR QUE EL CRONÓMETRO DEBE ESTAR DETENIDO
-        });
-        
-        // AGREGAR BOTÓN DE CONTINUAR EN LUGAR DE TIMEOUT
+        // AGREGAR BOTÓN DE CONTINUAR SOLO SI NO ES GAME OVER
         mostrarBotonContinuar();
         
     } catch (error) {
