@@ -334,7 +334,7 @@ function escucharCambiosSala() {
     }
     
         // VERIFICAR SI EL JUEGO TERMINÓ (marcado por el botón continuar)
-    if (salaData.juego?.juegoTerminado && !window.finDeJuegoMostrado) {
+    if (salaData.juego?.juegoTerminado && !window.finDeJuegoMostrado && !interfazJuego.classList.contains('hidden')) {
         window.finDeJuegoMostrado = true;
         mostrarResultado(salaData);
     }
@@ -975,7 +975,30 @@ function mostrarResultadoRespuesta(indiceSeleccionado, indiceCorrecta) {
     
     console.log('Colores aplicados directamente a los botones existentes');
 }
-btnContinuar.onclick = async () => {
+function mostrarBotonContinuar() {
+    const opcionesPregunta = document.getElementById('opcionesPregunta');
+    
+    const btnExistente = document.querySelector('.btn-continuar-respuesta');
+    if (btnExistente) return;
+    
+    const btnContinuar = document.createElement('button');
+    btnContinuar.textContent = '✅ Continuar';
+    btnContinuar.className = 'btn-continuar-respuesta';
+    btnContinuar.style.cssText = `
+        width: 100%;
+        padding: 15px;
+        margin-top: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    `;
+    
+    btnContinuar.onclick = async () => {
         try {
             console.log('🔘 Botón continuar presionado');
             btnContinuar.remove();
@@ -984,21 +1007,15 @@ btnContinuar.onclick = async () => {
             const snapshot = await getDoc(salaRef);
             const salaData = snapshot.data();
             
-            // SIEMPRE verificar si hay fin de juego
             if (salaData.jugadores.jugador1?.errores >= 3 || salaData.jugadores.jugador2?.errores >= 3) {
-                console.log('🏁 Fin de juego - actualizando Firebase para ambos');
-                
-                // Marcar en Firebase que el juego terminó
+                console.log('🏁 Fin de juego');
                 await updateDoc(salaRef, {
                     'juego.juegoTerminado': true
                 });
-                
-                // Mostrar resultado localmente
                 mostrarResultado(salaData);
                 return;
             }
             
-            // Si NO hay fin de juego, continuar normalmente
             cronometroDetenidoManualmente = false;
             
             await updateDoc(salaRef, {
@@ -1008,12 +1025,16 @@ btnContinuar.onclick = async () => {
                 'juego.resultadoVisible': false,
                 'juego.tiempoInicioPregunta': null,
                 'juego.cronometroDetenido': false,
-                turno: jugadorActual
+                'juego.juegoTerminado': false,
+                turno: rival
             });
         } catch (error) {
             console.error('❌ Error al continuar:', error);
         }
     };
+    
+    opcionesPregunta.appendChild(btnContinuar);
+}
 // ===============================================
 // UTILIDADES Y FUNCIONES AUXILIARES
 // ===============================================
