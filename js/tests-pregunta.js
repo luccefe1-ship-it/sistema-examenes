@@ -9,6 +9,8 @@ let currentUser = null;
 let testConfig = null;
 let preguntaActual = 0;
 let respuestas = [];
+let cronometroInterval = null;
+let tiempoRestanteSegundos = 0;
 
 // Esperar a que el DOM esté cargado
 document.addEventListener('DOMContentLoaded', () => {
@@ -38,6 +40,12 @@ function cargarConfiguracion() {
     
     // Mostrar nombre del test
     document.getElementById('nombreTestPregunta').textContent = testConfig.nombreTest || 'Test';
+    
+    // Iniciar cronómetro si hay tiempo límite
+    if (testConfig.tiempoLimite && testConfig.tiempoLimite !== 'sin') {
+        const minutos = parseInt(testConfig.tiempoLimite);
+        iniciarCronometro(minutos * 60);
+    }
     
     // Cargar primera pregunta
     mostrarPregunta();
@@ -159,7 +167,58 @@ window.confirmarSalida = function() {
     cerrarModal();
     finalizarTest();
 };
+function iniciarCronometro(segundos) {
+    tiempoRestanteSegundos = segundos;
+    document.getElementById('cronometro').style.display = 'block';
+    
+    cronometroInterval = setInterval(() => {
+        tiempoRestanteSegundos--;
+        actualizarDisplayCronometro();
+        
+        if (tiempoRestanteSegundos <= 0) {
+            clearInterval(cronometroInterval);
+            finalizarTestPorTiempo();
+        }
+    }, 1000);
+    
+    actualizarDisplayCronometro();
+}
+
+function actualizarDisplayCronometro() {
+    const minutos = Math.floor(tiempoRestanteSegundos / 60);
+    const segundos = tiempoRestanteSegundos % 60;
+    const display = `${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`;
+    
+    const tiempoDisplay = document.getElementById('tiempoRestante');
+    tiempoDisplay.textContent = display;
+    
+    // Advertencia cuando quedan 5 minutos o menos
+    if (tiempoRestanteSegundos <= 300) {
+        tiempoDisplay.classList.add('warning');
+    }
+}
+
+function detenerCronometro() {
+    if (cronometroInterval) {
+        clearInterval(cronometroInterval);
+    }
+}
+
+function finalizarTestPorTiempo() {
+    alert('¡Tiempo agotado! El test se finalizará automáticamente.');
+    finalizarTest();
+}
 async function finalizarTest() {
+    // Detener cronómetro
+    detenerCronometro();
+    
+    // Calcular tiempo empleado
+    let tiempoEmpleado = 0;
+    if (testConfig.tiempoLimite && testConfig.tiempoLimite !== 'sin') {
+        const tiempoLimiteSegundos = parseInt(testConfig.tiempoLimite) * 60;
+        tiempoEmpleado = Math.floor((tiempoLimiteSegundos - tiempoRestanteSegundos) / 60);
+    }
+    
     // Calcular resultados
     const correctas = respuestas.filter(r => r.esCorrecta).length;
     const total = testConfig.preguntas.length;
@@ -200,7 +259,7 @@ async function finalizarTest() {
         sinResponder: sinResponder,
         total: total,
         porcentaje: porcentaje,
-        tiempoEmpleado: 0,
+        tiempoEmpleado: tiempoEmpleado,
         test: {
             id: 'test_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9),
             nombre: testConfig.nombreTest || 'Test sin nombre',
