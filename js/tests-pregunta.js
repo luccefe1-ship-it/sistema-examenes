@@ -49,8 +49,26 @@ function cargarConfiguracion() {
     
     // Cargar primera pregunta
     mostrarPregunta();
+    
+    // Inicializar estadísticas
+    actualizarEstadisticas();
 }
-
+function actualizarEstadisticas() {
+    const total = testConfig.preguntas.length;
+    const correctas = respuestas.filter(r => r.esCorrecta).length;
+    const incorrectas = respuestas.filter(r => !r.esCorrecta).length;
+    const sinResponder = total - respuestas.length;
+    
+    // Actualizar totales
+    document.getElementById('statTotalCorrectas').textContent = total;
+    document.getElementById('statTotalIncorrectas').textContent = total;
+    document.getElementById('statTotalSinResponder').textContent = total;
+    
+    // Actualizar contadores
+    document.getElementById('statCorrectas').textContent = correctas;
+    document.getElementById('statIncorrectas').textContent = incorrectas;
+    document.getElementById('statSinResponder').textContent = sinResponder;
+}
 function mostrarPregunta() {
     if (preguntaActual >= testConfig.preguntas.length) {
         finalizarTest();
@@ -143,6 +161,9 @@ function mostrarRespuestaPrevia(respuestaPrevia) {
     
     feedbackContainer.classList.add('mostrar');
     document.getElementById('btnSiguiente').classList.add('mostrar');
+    
+    // Actualizar estadísticas en tiempo real
+    actualizarEstadisticas();
 }
 function seleccionarRespuesta(letraSeleccionada) {
     const pregunta = testConfig.preguntas[preguntaActual];
@@ -204,6 +225,9 @@ function seleccionarRespuesta(letraSeleccionada) {
     
     feedbackContainer.classList.add('mostrar');
     document.getElementById('btnSiguiente').classList.add('mostrar');
+    
+    // Actualizar estadísticas en tiempo real
+    actualizarEstadisticas();
 }
 
 window.siguientePregunta = function() {
