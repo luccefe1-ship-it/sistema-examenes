@@ -182,34 +182,43 @@ async function finalizarTest() {
         };
     });
     
+    const porcentaje = Math.round((correctas / total) * 100);
+    
+    // Crear objeto de resultados completo
+    const resultadosCompletos = {
+        correctas: correctas,
+        incorrectas: incorrectas,
+        sinResponder: sinResponder,
+        total: total,
+        porcentaje: porcentaje,
+        tiempoEmpleado: 0,
+        test: {
+            id: testConfig.id || generarIdTest(),
+            nombre: testConfig.nombreTest,
+            tema: testConfig.temas,
+            fechaInicio: new Date()
+        },
+        detalleRespuestas: detalleRespuestas,
+        fechaCreacion: new Date(),
+        usuarioId: currentUser.uid
+    };
+    
     // Guardar en Firebase
     try {
-        await addDoc(collection(db, "resultados"), {
-            correctas: correctas,
-            incorrectas: incorrectas,
-            sinResponder: sinResponder,
-            total: total,
-            porcentaje: Math.round((correctas / total) * 100),
-            tiempoEmpleado: 0,
-            test: {
-                id: testConfig.id || generarIdTest(),
-                nombre: testConfig.nombreTest,
-                tema: testConfig.temas,
-                fechaInicio: new Date()
-            },
-            detalleRespuestas: detalleRespuestas,
-            fechaCreacion: new Date(),
-            usuarioId: currentUser.uid
-        });
+        await addDoc(collection(db, "resultados"), resultadosCompletos);
+        console.log('Resultados guardados en Firebase');
     } catch (error) {
         console.error('Error guardando resultado:', error);
     }
     
-    // Limpiar localStorage
+    // Limpiar localStorage de config
     localStorage.removeItem('testConfig');
     
-    // Redirigir a resultados
-    window.location.href = 'tests.html?section=aleatorio&mostrar=resultados';
+    // Guardar resultados temporalmente para mostrarlos inmediatamente
+    localStorage.setItem('ultimosResultados', JSON.stringify(resultadosCompletos));
+    
+    // Redirigir a la sección de resultados
+    window.location.href = 'tests.html?section=resultados&mostrar=ultimo';
 }
 
 function generarIdTest() {
