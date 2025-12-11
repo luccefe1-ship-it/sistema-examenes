@@ -2647,6 +2647,21 @@ function mostrarResultados(resultados) {
 }
 // Generar HTML de resultados
 function generarHTMLResultados(resultados) {
+    console.log('=== GENERAR HTML RESULTADOS ===');
+    console.log('Resultados recibidos:', resultados);
+    
+    // VALIDACIÓN COMPLETA
+    if (!resultados) {
+        console.error('❌ Resultados es null o undefined');
+        return '<div style="padding: 40px; text-align: center; color: #dc3545;">Error: No hay datos de resultados</div>';
+    }
+    
+    if (!resultados.test) {
+        console.error('❌ resultados.test es null o undefined');
+        console.log('Estructura completa:', JSON.stringify(resultados, null, 2));
+        return '<div style="padding: 40px; text-align: center; color: #dc3545;">Error: Datos del test incompletos</div>';
+    }
+    
     const { correctas, incorrectas, sinResponder, total, porcentaje, detalleRespuestas, tiempoEmpleado } = resultados;
     
     // Determinar mensaje según porcentaje
@@ -2666,23 +2681,26 @@ function generarHTMLResultados(resultados) {
         icono = '📚';
     }
 
-    const tiempoFormateado = formatearTiempo(tiempoEmpleado);
+    const tiempoFormateado = formatearTiempo(tiempoEmpleado || 0);
+    const fechaTest = resultados.test.fechaInicio ? 
+        new Date(resultados.test.fechaInicio.seconds * 1000).toLocaleDateString('es-ES') : 
+        new Date().toLocaleDateString('es-ES');
 
     let html = '<div class="resultado-header">';
-// Botón hacer otro test arriba
-html += '<div style="text-align: center; margin-bottom: 20px;">';
-html += '<button onclick="volverAConfigurarTest()" class="btn-empezar-test">Hacer Otro Test</button>';
-html += '</div>';
-html += '<div class="resultado-icono">' + icono + '</div>';
-// Determinar color según aciertos
-let colorPuntuacion = '';
-if (correctas > total / 2) {
-    colorPuntuacion = '#28a745'; // Verde - más de la mitad correctas
-} else if (correctas === total / 2) {
-    colorPuntuacion = '#ffc107'; // Amarillo - exactamente la mitad
-} else {
-    colorPuntuacion = '#dc3545'; // Rojo - menos de la mitad correctas
-}
+    // Botón hacer otro test arriba
+    html += '<div style="text-align: center; margin-bottom: 20px;">';
+    html += '<button onclick="volverAConfigurarTest()" class="btn-empezar-test">Hacer Otro Test</button>';
+    html += '</div>';
+    html += '<div class="resultado-icono">' + icono + '</div>';
+    // Determinar color según aciertos
+    let colorPuntuacion = '';
+    if (correctas > total / 2) {
+        colorPuntuacion = '#28a745'; // Verde - más de la mitad correctas
+    } else if (correctas === total / 2) {
+        colorPuntuacion = '#ffc107'; // Amarillo - exactamente la mitad
+    } else {
+        colorPuntuacion = '#dc3545'; // Rojo - menos de la mitad correctas
+    }
 
 html += '<div class="resultado-porcentaje" style="color: ' + colorPuntuacion + '">' + correctas + '/' + total + '</div>';
 
@@ -4344,7 +4362,7 @@ function generarHTMLResultadosDetalle(resultado) {
     html += '<div class="resultado-porcentaje" style="color: ' + colorPuntuacion + '">' + correctas + '/' + total + '</div>';
     html += '<div class="resultado-mensaje">' + mensaje + '</div>';
     html += '<div class="resultado-detalles">';
-    html += resultado.test.nombre + ' - ' + fechaTest;
+    html += (resultados.test.nombre || 'Test sin nombre') + ' - ' + fechaTest;
     html += '<br>Tiempo empleado: ' + tiempoFormateado;
     html += '</div>';
     html += '</div>';
