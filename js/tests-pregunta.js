@@ -81,24 +81,91 @@ function mostrarPregunta() {
         opcionesContainer.appendChild(opcionDiv);
     });
     
-    // Ocultar feedback y botón siguiente
+    // Verificar si hay respuesta previa para esta pregunta
+    const respuestaPrevia = respuestas.find(r => r.preguntaIndex === preguntaActual);
+    
+    if (respuestaPrevia) {
+        // Mostrar la respuesta anterior
+        mostrarRespuestaPrevia(respuestaPrevia);
+    }
+    
+    // Mostrar/ocultar botón anterior
+    const btnAnterior = document.getElementById('btnAnterior');
+    if (preguntaActual > 0) {
+        btnAnterior.classList.add('mostrar');
+    } else {
+        btnAnterior.classList.remove('mostrar');
+    }
+    
+    // Ocultar feedback y botón siguiente si no hay respuesta previa
     const feedbackContainer = document.getElementById('feedbackContainer');
-    feedbackContainer.classList.remove('mostrar', 'correcto', 'incorrecto');
-    document.getElementById('btnSiguiente').classList.remove('mostrar');
+    if (!respuestaPrevia) {
+        feedbackContainer.classList.remove('mostrar', 'correcto', 'incorrecto');
+        document.getElementById('btnSiguiente').classList.remove('mostrar');
+    }
 }
-
+function mostrarRespuestaPrevia(respuestaPrevia) {
+    const pregunta = testConfig.preguntas[preguntaActual];
+    
+    // Deshabilitar todas las opciones y mostrar estados
+    const opciones = document.querySelectorAll('.opcion-item');
+    opciones.forEach(opcion => {
+        opcion.classList.add('deshabilitada');
+        opcion.onclick = null;
+        
+        const letraOpcion = opcion.querySelector('.opcion-letra').textContent;
+        
+        // Marcar la correcta en verde
+        if (letraOpcion === pregunta.respuestaCorrecta) {
+            opcion.classList.add('correcta');
+        }
+        
+        // Marcar la seleccionada incorrecta en rojo
+        if (letraOpcion === respuestaPrevia.respuestaUsuario && !respuestaPrevia.esCorrecta) {
+            opcion.classList.add('incorrecta');
+        }
+    });
+    
+    // Mostrar feedback
+    const feedbackContainer = document.getElementById('feedbackContainer');
+    const feedbackTitulo = document.getElementById('feedbackTitulo');
+    const feedbackTexto = document.getElementById('feedbackTexto');
+    
+    if (respuestaPrevia.esCorrecta) {
+        feedbackContainer.classList.add('correcto');
+        feedbackTitulo.textContent = '✓ ¡Correcto!';
+        feedbackTexto.textContent = 'Has seleccionado la respuesta correcta.';
+    } else {
+        feedbackContainer.classList.add('incorrecto');
+        feedbackTitulo.textContent = '✗ Incorrecto';
+        feedbackTexto.textContent = `La respuesta correcta es ${pregunta.respuestaCorrecta}`;
+    }
+    
+    feedbackContainer.classList.add('mostrar');
+    document.getElementById('btnSiguiente').classList.add('mostrar');
+}
 function seleccionarRespuesta(letraSeleccionada) {
     const pregunta = testConfig.preguntas[preguntaActual];
     const esCorrecta = letraSeleccionada === pregunta.respuestaCorrecta;
     
-    // Guardar respuesta
-    respuestas.push({
+    // Verificar si ya existe una respuesta para esta pregunta
+    const indexRespuestaExistente = respuestas.findIndex(r => r.preguntaIndex === preguntaActual);
+    
+    const nuevaRespuesta = {
         preguntaIndex: preguntaActual,
         respuestaUsuario: letraSeleccionada,
         respuestaCorrecta: pregunta.respuestaCorrecta,
         esCorrecta: esCorrecta,
         pregunta: pregunta
-    });
+    };
+    
+    if (indexRespuestaExistente !== -1) {
+        // Actualizar respuesta existente
+        respuestas[indexRespuestaExistente] = nuevaRespuesta;
+    } else {
+        // Guardar nueva respuesta
+        respuestas.push(nuevaRespuesta);
+    }
     
     // Deshabilitar todas las opciones
     const opciones = document.querySelectorAll('.opcion-item');
@@ -143,7 +210,12 @@ window.siguientePregunta = function() {
     preguntaActual++;
     mostrarPregunta();
 };
-
+window.preguntaAnterior = function() {
+    if (preguntaActual > 0) {
+        preguntaActual--;
+        mostrarPregunta();
+    }
+};
 // Funciones para el modal de salida
 window.intentarSalir = function() {
     const preguntasRestantes = testConfig.preguntas.length - respuestas.length;
