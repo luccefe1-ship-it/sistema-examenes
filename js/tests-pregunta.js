@@ -1,5 +1,9 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { 
+    addDoc, 
+    collection
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let currentUser = null;
 let testConfig = null;
@@ -17,11 +21,7 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function cargarConfiguracion() {
-    console.log('=== CARGAR CONFIGURACIÓN ===');
-    
-    // Cargar configuración desde localStorage
     const configStr = localStorage.getItem('testConfig');
-    console.log('Config string:', configStr);
     
     if (!configStr) {
         alert('No hay configuración de test disponible');
@@ -30,7 +30,6 @@ function cargarConfiguracion() {
     }
     
     testConfig = JSON.parse(configStr);
-    console.log('Test config cargado:', testConfig);
     
     // Mostrar nombre del test
     document.getElementById('nombreTestPregunta').textContent = testConfig.nombreTest || 'Test';
@@ -40,17 +39,12 @@ function cargarConfiguracion() {
 }
 
 function mostrarPregunta() {
-    console.log('=== MOSTRAR PREGUNTA ===');
-    console.log('Pregunta actual:', preguntaActual);
-    console.log('Total preguntas:', testConfig.preguntas.length);
-    
     if (preguntaActual >= testConfig.preguntas.length) {
         finalizarTest();
         return;
     }
     
     const pregunta = testConfig.preguntas[preguntaActual];
-    console.log('Pregunta a mostrar:', pregunta);
     
     // Actualizar contador
     document.getElementById('contadorPregunta').textContent = 
@@ -60,47 +54,47 @@ function mostrarPregunta() {
     document.getElementById('textoPreguntaGrande').textContent = pregunta.texto;
     
     // Generar opciones
-    const opcionesContainer = document.getElementById('opcionesGrandes');
+    const opcionesContainer = document.getElementById('opcionesLista');
     opcionesContainer.innerHTML = '';
     
     pregunta.opciones.forEach(opcion => {
         const opcionDiv = document.createElement('div');
-        opcionDiv.className = 'opcion-grande';
-        opcionDiv.innerHTML = `<strong>${opcion.letra})</strong> ${opcion.texto}`;
+        opcionDiv.className = 'opcion-item';
+        opcionDiv.innerHTML = `
+            <div class="opcion-letra">${opcion.letra}</div>
+            <div class="opcion-texto">${opcion.texto}</div>
+        `;
         opcionDiv.onclick = () => seleccionarRespuesta(opcion.letra);
         opcionesContainer.appendChild(opcionDiv);
     });
     
     // Ocultar feedback y botón siguiente
-    document.getElementById('feedbackContainer').classList.remove('mostrar');
+    const feedbackContainer = document.getElementById('feedbackContainer');
+    feedbackContainer.classList.remove('mostrar', 'correcto', 'incorrecto');
     document.getElementById('btnSiguiente').classList.remove('mostrar');
 }
 
 function seleccionarRespuesta(letraSeleccionada) {
-    console.log('=== RESPUESTA SELECCIONADA ===');
-    console.log('Letra:', letraSeleccionada);
-    
     const pregunta = testConfig.preguntas[preguntaActual];
     const esCorrecta = letraSeleccionada === pregunta.respuestaCorrecta;
-    
-    console.log('Es correcta:', esCorrecta);
-    console.log('Respuesta correcta:', pregunta.respuestaCorrecta);
     
     // Guardar respuesta
     respuestas.push({
         preguntaIndex: preguntaActual,
         respuestaUsuario: letraSeleccionada,
-        esCorrecta: esCorrecta
+        respuestaCorrecta: pregunta.respuestaCorrecta,
+        esCorrecta: esCorrecta,
+        pregunta: pregunta
     });
     
     // Deshabilitar todas las opciones
-    const opciones = document.querySelectorAll('.opcion-grande');
+    const opciones = document.querySelectorAll('.opcion-item');
     opciones.forEach(opcion => {
         opcion.classList.add('deshabilitada');
         opcion.onclick = null;
         
         // Obtener la letra de esta opción
-        const letraOpcion = opcion.textContent.trim().charAt(0);
+        const letraOpcion = opcion.querySelector('.opcion-letra').textContent;
         
         // Marcar la correcta en verde
         if (letraOpcion === pregunta.respuestaCorrecta) {
@@ -116,14 +110,16 @@ function seleccionarRespuesta(letraSeleccionada) {
     // Mostrar feedback
     const feedbackContainer = document.getElementById('feedbackContainer');
     const feedbackTitulo = document.getElementById('feedbackTitulo');
-    const feedbackExplicacion = document.getElementById('feedbackExplicacion');
+    const feedbackTexto = document.getElementById('feedbackTexto');
     
     if (esCorrecta) {
+        feedbackContainer.classList.add('correcto');
         feedbackTitulo.textContent = '✓ ¡Correcto!';
-        feedbackExplicacion.textContent = 'Has seleccionado la respuesta correcta.';
+        feedbackTexto.textContent = 'Has seleccionado la respuesta correcta.';
     } else {
+        feedbackContainer.classList.add('incorrecto');
         feedbackTitulo.textContent = '✗ Incorrecto';
-        feedbackExplicacion.textContent = `La respuesta correcta es ${pregunta.respuestaCorrecta}`;
+        feedbackTexto.textContent = `La respuesta correcta es ${pregunta.respuestaCorrecta}`;
     }
     
     feedbackContainer.classList.add('mostrar');
@@ -131,30 +127,91 @@ function seleccionarRespuesta(letraSeleccionada) {
 }
 
 window.siguientePregunta = function() {
-    console.log('=== SIGUIENTE PREGUNTA ===');
     preguntaActual++;
     mostrarPregunta();
 };
 
-function finalizarTest() {
-    console.log('=== FINALIZAR TEST ===');
-    console.log('Respuestas:', respuestas);
+// Funciones para el modal de salida
+window.intentarSalir = function() {
+    const preguntasRestantes = testConfig.preguntas.length - respuestas.length;
+    const modal = document.getElementById('modalSalir');
+    const mensajeModal = document.getElementById('mensajeModal');
     
+    if (preguntasRestantes > 0) {
+        mensajeModal.textContent = `Si sales ahora, las ${preguntasRestantes} preguntas restantes se marcarán como no respondidas.`;
+    } else {
+        mensajeModal.textContent = 'Has completado todas las preguntas. ¿Quieres ver los resultados?';
+    }
+    
+    modal.classList.add('mostrar');
+};
+
+window.cerrarModal = function() {
+    document.getElementById('modalSalir').classList.remove('mostrar');
+};
+
+window.confirmarSalida = function() {
+    finalizarTest();
+};
+
+async function finalizarTest() {
     // Calcular resultados
     const correctas = respuestas.filter(r => r.esCorrecta).length;
+    const total = testConfig.preguntas.length;
     const incorrectas = respuestas.length - correctas;
+    const sinResponder = total - respuestas.length;
     
-    console.log('Correctas:', correctas);
-    console.log('Incorrectas:', incorrectas);
+    // Crear detalle de respuestas para la pantalla de resultados
+    const detalleRespuestas = testConfig.preguntas.map((pregunta, index) => {
+        const respuestaUsuario = respuestas.find(r => r.preguntaIndex === index);
+        
+        let estado = 'sin-respuesta';
+        let respuestaLetra = null;
+        
+        if (respuestaUsuario) {
+            estado = respuestaUsuario.esCorrecta ? 'correcta' : 'incorrecta';
+            respuestaLetra = respuestaUsuario.respuestaUsuario;
+        }
+        
+        return {
+            pregunta: pregunta,
+            respuestaUsuario: respuestaLetra,
+            respuestaCorrecta: pregunta.respuestaCorrecta,
+            estado: estado,
+            indice: index + 1
+        };
+    });
     
-    // Guardar resultados y redirigir
-    localStorage.setItem('testResultados', JSON.stringify({
-        correctas: correctas,
-        incorrectas: incorrectas,
-        total: testConfig.preguntas.length,
-        respuestas: respuestas
-    }));
+    // Guardar en Firebase
+    try {
+        await addDoc(collection(db, "resultados"), {
+            correctas: correctas,
+            incorrectas: incorrectas,
+            sinResponder: sinResponder,
+            total: total,
+            porcentaje: Math.round((correctas / total) * 100),
+            tiempoEmpleado: 0,
+            test: {
+                id: testConfig.id || generarIdTest(),
+                nombre: testConfig.nombreTest,
+                tema: testConfig.temas,
+                fechaInicio: new Date()
+            },
+            detalleRespuestas: detalleRespuestas,
+            fechaCreacion: new Date(),
+            usuarioId: currentUser.uid
+        });
+    } catch (error) {
+        console.error('Error guardando resultado:', error);
+    }
     
-    // Redirigir a pantalla de resultados
+    // Limpiar localStorage
+    localStorage.removeItem('testConfig');
+    
+    // Redirigir a resultados
     window.location.href = 'tests.html?section=aleatorio&mostrar=resultados';
+}
+
+function generarIdTest() {
+    return 'test_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9);
 }
