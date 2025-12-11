@@ -4362,7 +4362,7 @@ function generarHTMLResultadosDetalle(resultado) {
     html += '<div class="resultado-porcentaje" style="color: ' + colorPuntuacion + '">' + correctas + '/' + total + '</div>';
     html += '<div class="resultado-mensaje">' + mensaje + '</div>';
     html += '<div class="resultado-detalles">';
-    html += (resultados.test.nombre || 'Test sin nombre') + ' - ' + fechaTest;
+    html += (resultado.test.nombre || 'Test sin nombre') + ' - ' + fechaTest;
     html += '<br>Tiempo empleado: ' + tiempoFormateado;
     html += '</div>';
     html += '</div>';
