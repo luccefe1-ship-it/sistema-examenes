@@ -74,19 +74,22 @@ document.addEventListener('DOMContentLoaded', () => {
             await cargarDatosUsuario();
             await cargarTemas();
             
-          // Verificar si debe ir a una sección específica por URL
-const urlParams = new URLSearchParams(window.location.search);
-const sectionParam = urlParams.get('section');
-if (sectionParam === 'aleatorio') {
-    cambiarSeccion('aleatorio');
-} else {
-    // Verificar si debe ir a banco
-    const debeAbrirBanco = localStorage.getItem('openBanco') === 'true';
-    if (debeAbrirBanco) {
-        localStorage.removeItem('openBanco');
-        cambiarSeccion('banco');
-    }
-}
+            // Verificar si debe ir a una sección específica por URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const sectionParam = urlParams.get('section');
+            
+            if (sectionParam === 'resultados') {
+                cambiarSeccion('resultados');
+            } else if (sectionParam === 'aleatorio') {
+                cambiarSeccion('aleatorio');
+            } else {
+                // Verificar si debe ir a banco
+                const debeAbrirBanco = localStorage.getItem('openBanco') === 'true';
+                if (debeAbrirBanco) {
+                    localStorage.removeItem('openBanco');
+                    cambiarSeccion('banco');
+                }
+            }
             
             // Mostrar contenido ahora que ya se decidió la sección
             if (mainContent) mainContent.style.display = 'block';
@@ -2957,10 +2960,38 @@ async function cargarResultados() {
         const listResultados = document.getElementById('listaResultados');
         if (!listResultados) return;
         
+        // NUEVO: Verificar si hay resultados recientes para mostrar
+        const urlParams = new URLSearchParams(window.location.search);
+        const mostrarUltimo = urlParams.get('mostrar');
+        
+        if (mostrarUltimo === 'ultimo') {
+            const ultimosResultadosStr = localStorage.getItem('ultimosResultados');
+            if (ultimosResultadosStr) {
+                const ultimosResultados = JSON.parse(ultimosResultadosStr);
+                
+                // Mostrar resultados inmediatamente
+                const containerResultados = document.getElementById('resultadosTest');
+                if (containerResultados) {
+                    containerResultados.innerHTML = generarHTMLResultados(ultimosResultados);
+                    containerResultados.style.display = 'block';
+                    
+                    // Ocultar lista normal de resultados
+                    listResultados.style.display = 'none';
+                    
+                    // Limpiar localStorage
+                    localStorage.removeItem('ultimosResultados');
+                    
+                    // Scroll al inicio
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    return;
+                }
+            }
+        }
+        
         const q = query(
-    collection(db, "resultados"), 
-    where("usuarioId", "==", currentUser.uid)
-);
+            collection(db, "resultados"), 
+            where("usuarioId", "==", currentUser.uid)
+        );
         const querySnapshot = await getDocs(q);
         
         if (querySnapshot.empty) {
