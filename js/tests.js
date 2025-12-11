@@ -2981,6 +2981,9 @@ async function cargarResultados() {
                     // Limpiar localStorage
                     localStorage.removeItem('ultimosResultados');
                     
+                    // Limpiar URL para evitar recargas
+                    window.history.replaceState({}, '', 'tests.html?section=resultados');
+                    
                     // Scroll al inicio
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return;
@@ -3001,29 +3004,29 @@ async function cargarResultados() {
         
         listResultados.innerHTML = '';
 
-// PANEL DE ESTADÍSTICAS GLOBALES
-let totalTests = 0;
-let totalPreguntasContestadas = 0;
-let totalCorrectas = 0;
-let totalIncorrectas = 0;
-let sumaPorcentajes = 0;
-const preguntasUnicas = new Set();
+        // PANEL DE ESTADÍSTICAS GLOBALES
+        let totalTests = 0;
+        let totalPreguntasContestadas = 0;
+        let totalCorrectas = 0;
+        let totalIncorrectas = 0;
+        let sumaPorcentajes = 0;
+        const preguntasUnicas = new Set();
 
-querySnapshot.forEach((doc) => {
-    const resultado = doc.data();
-    totalTests++;
-    sumaPorcentajes += resultado.porcentaje || 0;
-    totalCorrectas += resultado.correctas || 0;
-    totalIncorrectas += resultado.incorrectas || 0;
-    
-    if (resultado.detalleRespuestas) {
-        resultado.detalleRespuestas.forEach(detalle => {
-            if (detalle.pregunta && detalle.pregunta.texto) {
-                preguntasUnicas.add(detalle.pregunta.texto);
+        querySnapshot.forEach((doc) => {
+            const resultado = doc.data();
+            totalTests++;
+            sumaPorcentajes += resultado.porcentaje || 0;
+            totalCorrectas += resultado.correctas || 0;
+            totalIncorrectas += resultado.incorrectas || 0;
+            
+            if (resultado.detalleRespuestas) {
+                resultado.detalleRespuestas.forEach(detalle => {
+                    if (detalle.pregunta && detalle.pregunta.texto) {
+                        preguntasUnicas.add(detalle.pregunta.texto);
+                    }
+                });
             }
         });
-    }
-});
 
 const notaMedia = totalTests > 0 ? Math.round(sumaPorcentajes / totalTests) : 0;
 
