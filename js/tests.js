@@ -56,7 +56,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ocultar todo el contenido hasta que se decida qué mostrar
     const mainContent = document.querySelector('.main-content');
     if (mainContent) mainContent.style.display = 'none';
+ // Selector de modo
+    let modoTest = 'completo';
+    const modeBtns = document.querySelectorAll('.mode-btn');
     
+    modeBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            modeBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            modoTest = this.dataset.mode;
+        });
+    });   
     // Verificar autenticación
     onAuthStateChanged(auth, async (user) => {
         if (user) {
@@ -2120,8 +2130,14 @@ function obtenerTemasSeleccionados() {
 
 
 // Empezar test
+// Empezar test
 async function empezarTest() {
     console.log('=== DEBUG EMPEZAR TEST ===');
+    
+    // NUEVO: Verificar modo seleccionado
+    const btnModoActivo = document.querySelector('.mode-btn.active');
+    const modoSeleccionado = btnModoActivo ? btnModoActivo.dataset.mode : 'completo';
+    console.log('Modo seleccionado:', modoSeleccionado);
     
     const temasSeleccionados = obtenerTemasSeleccionados();
     console.log('Temas seleccionados devueltos:', temasSeleccionados);
@@ -2167,7 +2183,22 @@ async function empezarTest() {
         // Obtener preguntas únicas y aleatorias
         const preguntasSeleccionadas = obtenerPreguntasUnicasAleatorias(preguntasDisponibles, numFinal);
 
-        // Crear objeto de test
+        // NUEVO: Si el modo es "pregunta", guardar config y redirigir
+        if (modoSeleccionado === 'pregunta') {
+            const configuracion = {
+                nombreTest: nombreTest,
+                temas: temasSeleccionados,
+                preguntas: preguntasSeleccionadas,
+                numPreguntas: numFinal,
+                tiempoLimite: tiempoSeleccionado
+            };
+            
+            localStorage.setItem('testConfig', JSON.stringify(configuracion));
+            window.location.href = 'tests-pregunta.html';
+            return;
+        }
+
+        // Crear objeto de test (solo para modo completo)
         testActual = {
             id: generarIdTest(),
             nombre: nombreTest,
