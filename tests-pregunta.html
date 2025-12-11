@@ -6,86 +6,167 @@
     <title>Test - Pregunta a Pregunta</title>
     <link rel="stylesheet" href="css/tests.css">
     <style>
-        body {
+        * {
             margin: 0;
             padding: 0;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        .pregunta-pantalla-completa {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px;
             box-sizing: border-box;
         }
 
-        .pregunta-header-fullscreen {
-            text-align: center;
-            margin-bottom: 30px;
+        body {
+            height: 100vh;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        .pregunta-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        /* Header con botón salir */
+        .pregunta-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .header-info {
+            color: white;
         }
 
         .pregunta-contador {
-            font-size: 1.2em;
+            font-size: 1.1em;
             opacity: 0.9;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
 
-        .pregunta-texto-grande {
-            font-size: 2em;
+        .nombre-test {
+            font-size: 1.4em;
             font-weight: bold;
-            margin: 40px 0;
-            line-height: 1.4;
         }
 
-        .opciones-grandes {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin: 40px 0;
-        }
-
-        .opcion-grande {
-            background: white;
-            color: #333;
-            padding: 30px;
-            border-radius: 15px;
-            font-size: 1.3em;
+        .btn-salir {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1em;
             cursor: pointer;
             transition: all 0.3s ease;
-            border: 3px solid transparent;
         }
 
-        .opcion-grande:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        .btn-salir:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
         }
 
-        .opcion-grande.correcta {
+        /* Contenedor principal - estilo test normal */
+        .pregunta-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .pregunta-card {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .pregunta-texto {
+            font-size: 1.5em;
+            color: #333;
+            margin-bottom: 30px;
+            line-height: 1.5;
+            font-weight: 500;
+        }
+
+        .opciones-lista {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .opcion-item {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .opcion-item:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+            transform: translateX(5px);
+        }
+
+        .opcion-letra {
+            background: #667eea;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2em;
+            flex-shrink: 0;
+        }
+
+        .opcion-texto {
+            flex: 1;
+            font-size: 1.1em;
+            color: #333;
+        }
+
+        /* Estados de respuesta */
+        .opcion-item.correcta {
+            background: #d4edda;
+            border-color: #28a745;
+        }
+
+        .opcion-item.correcta .opcion-letra {
             background: #28a745;
-            color: white;
-            border-color: #1e7e34;
         }
 
-        .opcion-grande.incorrecta {
+        .opcion-item.incorrecta {
+            background: #f8d7da;
+            border-color: #dc3545;
+        }
+
+        .opcion-item.incorrecta .opcion-letra {
             background: #dc3545;
-            color: white;
-            border-color: #bd2130;
         }
 
-        .opcion-grande.deshabilitada {
-            opacity: 0.6;
+        .opcion-item.deshabilitada {
             cursor: not-allowed;
+            opacity: 0.7;
         }
 
+        /* Feedback */
         .feedback-container {
-            background: rgba(255,255,255,0.1);
+            margin-top: 20px;
             padding: 20px;
             border-radius: 10px;
-            margin-top: 20px;
             display: none;
         }
 
@@ -93,16 +174,40 @@
             display: block;
         }
 
+        .feedback-container.correcto {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+        }
+
+        .feedback-container.incorrecto {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+        }
+
+        .feedback-titulo {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .feedback-texto {
+            font-size: 1.1em;
+        }
+
+        /* Botón siguiente */
         .btn-siguiente {
-            background: white;
-            color: #667eea;
-            padding: 15px 40px;
+            background: #667eea;
+            color: white;
             border: none;
+            padding: 15px 40px;
             border-radius: 10px;
             font-size: 1.2em;
             cursor: pointer;
             margin-top: 20px;
             display: none;
+            transition: all 0.3s ease;
         }
 
         .btn-siguiente.mostrar {
@@ -110,34 +215,158 @@
         }
 
         .btn-siguiente:hover {
-            background: #f0f0f0;
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102,126,234,0.4);
+        }
+
+        /* Modal de confirmación */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.mostrar {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-titulo {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .modal-texto {
+            font-size: 1.1em;
+            color: #666;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+
+        .modal-acciones {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+        }
+
+        .btn-modal {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        .btn-continuar {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-continuar:hover {
+            background: #5a6268;
+        }
+
+        .btn-confirmar-salir {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-confirmar-salir:hover {
+            background: #c82333;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .pregunta-card {
+                padding: 25px;
+            }
+
+            .pregunta-texto {
+                font-size: 1.2em;
+            }
+
+            .opcion-texto {
+                font-size: 1em;
+            }
+
+            .btn-salir {
+                padding: 10px 20px;
+                font-size: 0.9em;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="pregunta-pantalla-completa" id="pantallaPregunta">
-        <div class="pregunta-header-fullscreen">
-            <div class="pregunta-contador" id="contadorPregunta">Pregunta 1 de 10</div>
-            <h1 id="nombreTestPregunta">Test de Ejemplo</h1>
-        </div>
-
-        <div class="pregunta-texto-grande" id="textoPreguntaGrande">
-            Cargando pregunta...
-        </div>
-
-        <div class="opciones-grandes" id="opcionesGrandes">
-            <!-- Las opciones se generarán dinámicamente -->
-        </div>
-
-        <div class="feedback-container" id="feedbackContainer">
-            <h3 id="feedbackTitulo">✓ ¡Correcto!</h3>
-            <p id="feedbackExplicacion">Has seleccionado la respuesta correcta.</p>
-        </div>
-
-        <div style="text-align: center;">
-            <button class="btn-siguiente" id="btnSiguiente" onclick="siguientePregunta()">
-                Siguiente Pregunta →
+    <div class="pregunta-container">
+        <!-- Header con contador y botón salir -->
+        <div class="pregunta-header">
+            <div class="header-info">
+                <div class="pregunta-contador" id="contadorPregunta">Pregunta 1 de 10</div>
+                <div class="nombre-test" id="nombreTestPregunta">Test de Ejemplo</div>
+            </div>
+            <button class="btn-salir" onclick="intentarSalir()">
+                ← Salir del Test
             </button>
+        </div>
+
+        <!-- Contenido principal -->
+        <div class="pregunta-content">
+            <div class="pregunta-card">
+                <div class="pregunta-texto" id="textoPreguntaGrande">
+                    Cargando pregunta...
+                </div>
+
+                <div class="opciones-lista" id="opcionesLista">
+                    <!-- Las opciones se generarán dinámicamente -->
+                </div>
+
+                <div class="feedback-container" id="feedbackContainer">
+                    <div class="feedback-titulo" id="feedbackTitulo">✓ ¡Correcto!</div>
+                    <div class="feedback-texto" id="feedbackTexto">Has seleccionado la respuesta correcta.</div>
+                </div>
+
+                <div style="text-align: center;">
+                    <button class="btn-siguiente" id="btnSiguiente" onclick="siguientePregunta()">
+                        Siguiente Pregunta →
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmación de salida -->
+    <div class="modal-overlay" id="modalSalir">
+        <div class="modal-content">
+            <div class="modal-titulo">⚠️ ¿Salir del test?</div>
+            <div class="modal-texto" id="mensajeModal">
+                Si sales ahora, las preguntas restantes se marcarán como no respondidas.
+            </div>
+            <div class="modal-acciones">
+                <button class="btn-modal btn-continuar" onclick="cerrarModal()">
+                    Continuar Test
+                </button>
+                <button class="btn-modal btn-confirmar-salir" onclick="confirmarSalida()">
+                    Salir y Ver Resultados
+                </button>
+            </div>
         </div>
     </div>
 
