@@ -221,11 +221,6 @@ async function finalizarTest() {
     window.location.href = 'tests.html?section=resultados&mostrar=ultimo';
 }
 
-// Función auxiliar para generar ID de test
-function generarIdTest() {
-    return 'test_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9);
-}
-
 function generarIdTest() {
     return 'test_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9);
 }
