@@ -151,9 +151,9 @@ window.cerrarModal = function() {
 };
 
 window.confirmarSalida = function() {
+    cerrarModal();
     finalizarTest();
 };
-
 async function finalizarTest() {
     // Calcular resultados
     const correctas = respuestas.filter(r => r.esCorrecta).length;
