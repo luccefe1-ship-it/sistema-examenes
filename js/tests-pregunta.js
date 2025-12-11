@@ -160,6 +160,7 @@ async function finalizarTest() {
     const total = testConfig.preguntas.length;
     const incorrectas = respuestas.length - correctas;
     const sinResponder = total - respuestas.length;
+    const porcentaje = Math.round((correctas / total) * 100);
     
     // Crear detalle de respuestas para la pantalla de resultados
     const detalleRespuestas = testConfig.preguntas.map((pregunta, index) => {
@@ -174,7 +175,12 @@ async function finalizarTest() {
         }
         
         return {
-            pregunta: pregunta,
+            pregunta: {
+                texto: pregunta.texto || '',
+                opciones: pregunta.opciones || [],
+                temaNombre: pregunta.temaNombre || '',
+                temaEpigrafe: pregunta.temaEpigrafe || ''
+            },
             respuestaUsuario: respuestaLetra,
             respuestaCorrecta: pregunta.respuestaCorrecta,
             estado: estado,
@@ -182,9 +188,7 @@ async function finalizarTest() {
         };
     });
     
-    const porcentaje = Math.round((correctas / total) * 100);
-    
-    // Crear objeto de resultados completo
+    // Crear objeto de resultados completo con TODOS los campos necesarios
     const resultadosCompletos = {
         correctas: correctas,
         incorrectas: incorrectas,
@@ -193,15 +197,17 @@ async function finalizarTest() {
         porcentaje: porcentaje,
         tiempoEmpleado: 0,
         test: {
-            id: generarIdTest(),
-            nombre: testConfig.nombreTest,
-            tema: testConfig.temas,
+            id: 'test_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9),
+            nombre: testConfig.nombreTest || 'Test sin nombre',
+            tema: testConfig.temas || 'todos',
             fechaInicio: new Date()
         },
         detalleRespuestas: detalleRespuestas,
         fechaCreacion: new Date(),
         usuarioId: currentUser.uid
     };
+    
+    console.log('Resultados generados:', resultadosCompletos);
     
     // Guardar en Firebase
     try {
