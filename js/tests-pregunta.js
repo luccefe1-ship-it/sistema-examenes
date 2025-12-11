@@ -17,16 +17,20 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function cargarConfiguracion() {
-    // Cargar configuración desde localStorage
-    const config = localStorage.getItem('testConfig');
+    console.log('=== CARGAR CONFIGURACIÓN ===');
     
-    if (!config) {
+    // Cargar configuración desde localStorage
+    const configStr = localStorage.getItem('testConfig');
+    console.log('Config string:', configStr);
+    
+    if (!configStr) {
         alert('No hay configuración de test disponible');
         window.location.href = 'tests.html?section=aleatorio';
         return;
     }
     
-    testConfig = JSON.parse(config);
+    testConfig = JSON.parse(configStr);
+    console.log('Test config cargado:', testConfig);
     
     // Mostrar nombre del test
     document.getElementById('nombreTestPregunta').textContent = testConfig.nombreTest || 'Test';
@@ -36,12 +40,17 @@ function cargarConfiguracion() {
 }
 
 function mostrarPregunta() {
+    console.log('=== MOSTRAR PREGUNTA ===');
+    console.log('Pregunta actual:', preguntaActual);
+    console.log('Total preguntas:', testConfig.preguntas.length);
+    
     if (preguntaActual >= testConfig.preguntas.length) {
         finalizarTest();
         return;
     }
     
     const pregunta = testConfig.preguntas[preguntaActual];
+    console.log('Pregunta a mostrar:', pregunta);
     
     // Actualizar contador
     document.getElementById('contadorPregunta').textContent = 
@@ -68,8 +77,14 @@ function mostrarPregunta() {
 }
 
 function seleccionarRespuesta(letraSeleccionada) {
+    console.log('=== RESPUESTA SELECCIONADA ===');
+    console.log('Letra:', letraSeleccionada);
+    
     const pregunta = testConfig.preguntas[preguntaActual];
     const esCorrecta = letraSeleccionada === pregunta.respuestaCorrecta;
+    
+    console.log('Es correcta:', esCorrecta);
+    console.log('Respuesta correcta:', pregunta.respuestaCorrecta);
     
     // Guardar respuesta
     respuestas.push({
@@ -116,14 +131,21 @@ function seleccionarRespuesta(letraSeleccionada) {
 }
 
 window.siguientePregunta = function() {
+    console.log('=== SIGUIENTE PREGUNTA ===');
     preguntaActual++;
     mostrarPregunta();
 };
 
 function finalizarTest() {
+    console.log('=== FINALIZAR TEST ===');
+    console.log('Respuestas:', respuestas);
+    
     // Calcular resultados
     const correctas = respuestas.filter(r => r.esCorrecta).length;
     const incorrectas = respuestas.length - correctas;
+    
+    console.log('Correctas:', correctas);
+    console.log('Incorrectas:', incorrectas);
     
     // Guardar resultados y redirigir
     localStorage.setItem('testResultados', JSON.stringify({
