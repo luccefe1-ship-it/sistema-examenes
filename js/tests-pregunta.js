@@ -193,7 +193,7 @@ async function finalizarTest() {
         porcentaje: porcentaje,
         tiempoEmpleado: 0,
         test: {
-            id: testConfig.id || generarIdTest(),
+            id: generarIdTest(),
             nombre: testConfig.nombreTest,
             tema: testConfig.temas,
             fechaInicio: new Date()
@@ -217,8 +217,13 @@ async function finalizarTest() {
     // Guardar resultados temporalmente para mostrarlos inmediatamente
     localStorage.setItem('ultimosResultados', JSON.stringify(resultadosCompletos));
     
-    // Redirigir a la sección de resultados
+    // Redirigir a tests.html con parámetros para mostrar resultados
     window.location.href = 'tests.html?section=resultados&mostrar=ultimo';
+}
+
+// Función auxiliar para generar ID de test
+function generarIdTest() {
+    return 'test_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
 function generarIdTest() {
