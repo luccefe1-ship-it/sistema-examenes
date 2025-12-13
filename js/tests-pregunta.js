@@ -373,6 +373,37 @@ async function finalizarTest() {
     try {
         await addDoc(collection(db, "resultados"), resultadosCompletos);
         console.log('Resultados guardados en Firebase');
+        
+        // Guardar preguntas falladas para el test de repaso
+        const preguntasFalladas = detalleRespuestas.filter(detalle => 
+            detalle.estado === 'incorrecta' || detalle.estado === 'sin-respuesta'
+        );
+
+        if (preguntasFalladas.length > 0) {
+            const promesasGuardado = preguntasFalladas.map(async (detalle) => {
+                const preguntaFallada = {
+                    usuarioId: currentUser.uid,
+                    pregunta: {
+                        texto: detalle.pregunta.texto,
+                        opciones: detalle.pregunta.opciones,
+                        respuestaCorrecta: detalle.respuestaCorrecta,
+                        temaId: detalle.pregunta.temaId || '',
+                        temaNombre: detalle.pregunta.temaNombre || '',
+                        temaEpigrafe: detalle.pregunta.temaEpigrafe || ''
+                    },
+                    respuestaUsuario: detalle.respuestaUsuario,
+                    estado: detalle.estado,
+                    fechaFallo: new Date(),
+                    testId: resultadosCompletos.test.id,
+                    testNombre: resultadosCompletos.test.nombre
+                };
+
+                return addDoc(collection(db, "preguntasFalladas"), preguntaFallada);
+            });
+
+            await Promise.all(promesasGuardado);
+            console.log(`${preguntasFalladas.length} preguntas falladas guardadas para repaso desde test pregunta a pregunta`);
+        }
     } catch (error) {
         console.error('Error guardando resultado:', error);
     }
