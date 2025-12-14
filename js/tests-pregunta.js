@@ -338,6 +338,7 @@ async function finalizarTest() {
             pregunta: {
                 texto: pregunta.texto || '',
                 opciones: pregunta.opciones || [],
+                temaId: pregunta.temaId || '',
                 temaNombre: pregunta.temaNombre || '',
                 temaEpigrafe: pregunta.temaEpigrafe || ''
             },
