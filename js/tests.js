@@ -751,11 +751,13 @@ async function cargarBancoPreguntas() {
                 subtemasPorPadre[tema.temaPadreId].push({ id: doc.id, data: tema });
             } else {
                 // Es un tema principal
-                // FORZAR orden 0 para "Tema 1"
+                // ASIGNAR ORDEN BASADO EN NÚMERO EXACTO DEL TEMA
                 let ordenFinal = tema.orden;
                 if (ordenFinal === undefined || ordenFinal === null) {
-                    if (tema.nombre.toLowerCase().includes('tema 1')) {
-                        ordenFinal = 0;
+                    // Extraer número exacto del nombre
+                    const match = tema.nombre.match(/^Tema\s+(\d+)$/i);
+                    if (match) {
+                        ordenFinal = parseInt(match[1]);
                     } else {
                         ordenFinal = 999999;
                     }
