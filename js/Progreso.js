@@ -740,6 +740,13 @@ async function guardarNuevoTema() {
         return;
     }
     
+    // VERIFICAR SI YA EXISTE UN TEMA CON ESE NOMBRE
+    const temaExistente = Object.values(progresoData.temas).find(t => t.nombre === nombre);
+    if (temaExistente) {
+        alert(`Ya existe un tema llamado "${nombre}".\n\nPor favor, elige otro nombre o elimina el tema existente primero.`);
+        return;
+    }
+    
     try {
         // Generar ID único
         const nuevoId = 'tema_' + Date.now();
