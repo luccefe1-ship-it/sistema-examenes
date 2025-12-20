@@ -361,29 +361,27 @@ function renderizarTablaProgreso() {
     tablaContent.innerHTML = '';
     
     // Ordenar temas con el mismo sistema que banco de preguntas (numérico inteligente)
-    const temasOrdenados = Object.entries(progresoData.temas).sort(([idA], [idB]) => {
-        const temaA = temasDelBanco.find(t => t.id === idA);
-        const temaB = temasDelBanco.find(t => t.id === idB);
-        
-        if (!temaA || !temaB) {
-            return 0; // Si no se encuentra el tema, mantener orden actual
-        }
-        
-        const nombreA = temaA.nombre;
-        const nombreB = temaB.nombre;
-        
-        // Extraer números del nombre si existen
-        const numeroA = nombreA.match(/\d+/);
-        const numeroB = nombreB.match(/\d+/);
-        
-        if (numeroA && numeroB) {
-            // Si ambos tienen números, ordenar por número
-            return parseInt(numeroA[0]) - parseInt(numeroB[0]);
-        } else {
-            // Si no tienen números, orden alfabético normal
-            return nombreA.localeCompare(nombreB);
-        }
-    });
+const temasOrdenados = Object.entries(progresoData.temas).sort(([idA, datosA], [idB, datosB]) => {
+    // Intentar buscar en banco primero
+    const temaA = temasDelBanco.find(t => t.id === idA);
+    const temaB = temasDelBanco.find(t => t.id === idB);
+    
+    // Obtener nombre desde banco O desde los datos del tema
+    const nombreA = temaA ? temaA.nombre : datosA.nombre;
+    const nombreB = temaB ? temaB.nombre : datosB.nombre;
+    
+    // Extraer números del nombre si existen
+    const numeroA = nombreA.match(/\d+/);
+    const numeroB = nombreB.match(/\d+/);
+    
+    if (numeroA && numeroB) {
+        // Si ambos tienen números, ordenar por número
+        return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+    } else {
+        // Si no tienen números, orden alfabético normal
+        return nombreA.localeCompare(nombreB);
+    }
+});
     
     // Renderizar cada tema en el orden correcto
     temasOrdenados.forEach(([temaId, temaProgreso]) => {
