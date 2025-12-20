@@ -364,6 +364,9 @@ async function cargarTemasEnSelect() {
         const temasPrincipales = [];
         const subtemasPorPadre = {};
 
+        console.log('=== DEBUG CARGAR BANCO ===');
+        console.log('Total documentos:', querySnapshot.size);
+
         querySnapshot.forEach((doc) => {
             const tema = doc.data();
             if (tema.temaPadreId) {
@@ -811,6 +814,13 @@ temasPrincipales.forEach(tema => {
         tema.data.preguntasTotal = tema.data.preguntas?.length || 0;
     }
 });
+        console.log('=== TEMAS A RENDERIZAR ===');
+        console.log('Total temas principales:', temasPrincipales.length);
+        temasPrincipales.forEach((t, index) => {
+            console.log(`${index + 1}. ${t.data.nombre} - orden: ${t.orden}`);
+        });
+        console.log('==========================');
+
         // Renderizar temas principales con sus subtemas
         temasPrincipales.forEach(({ id, data: tema }) => {
             const temaDiv = document.createElement('div');
