@@ -751,10 +751,20 @@ async function cargarBancoPreguntas() {
                 subtemasPorPadre[tema.temaPadreId].push({ id: doc.id, data: tema });
             } else {
                 // Es un tema principal
+                // FORZAR orden 0 para "Tema 1"
+                let ordenFinal = tema.orden;
+                if (ordenFinal === undefined || ordenFinal === null) {
+                    if (tema.nombre.toLowerCase().includes('tema 1')) {
+                        ordenFinal = 0;
+                    } else {
+                        ordenFinal = 999999;
+                    }
+                }
+                
                 temasPrincipales.push({ 
                     id: doc.id, 
                     data: tema,
-                    orden: tema.orden || 0  // AGREGAR CAMPO ORDEN
+                    orden: ordenFinal
                 });
             }
         });
