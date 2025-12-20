@@ -137,7 +137,17 @@ if (crearTemaBtn) {
             cerrarModalPersonalizar();
         });
     }
+// Botones de vistas
+    document.getElementById('tablaProgresoBtn')?.addEventListener('click', () => cambiarVista('tabla'));
+    document.getElementById('objetivoDiarioBtn')?.addEventListener('click', () => cambiarVista('diario'));
+    document.getElementById('objetivoFinalBtn')?.addEventListener('click', () => cambiarVista('final'));
+    document.getElementById('programacionActualBtn')?.addEventListener('click', () => cambiarVista('programacion'));
 
+    // Objetivo Final
+    document.getElementById('guardarObjetivoFinal')?.addEventListener('click', guardarObjetivoFinal);
+    
+    // Programación
+    document.getElementById('calcularProgramacion')?.addEventListener('click', calcularProgramacion);
     // Cerrar modal al hacer click fuera
     window.addEventListener('click', (e) => {
         if (e.target.classList.contains('modal')) {
@@ -2800,3 +2810,243 @@ function generarDetallesTemas() {
 }
 // Funciones de reporte manual eliminadas - sistema automático activo
 console.log('Sistema de seguimiento automático de planning activado');
+// ========== FUNCIONES DE VISTAS ==========
+
+function cambiarVista(vista) {
+    // Ocultar todas las vistas
+    document.querySelectorAll('.vista-contenido').forEach(v => v.classList.remove('activo'));
+    document.querySelectorAll('.btn-vista').forEach(b => b.classList.remove('activo'));
+    
+    // Mostrar vista seleccionada
+    switch(vista) {
+        case 'tabla':
+            document.getElementById('vistaTablaProgreso').classList.add('activo');
+            document.getElementById('tablaProgresoBtn').classList.add('activo');
+            break;
+        case 'diario':
+            document.getElementById('vistaObjetivoDiario').classList.add('activo');
+            document.getElementById('objetivoDiarioBtn').classList.add('activo');
+            cargarObjetivoDiario();
+            break;
+        case 'final':
+            document.getElementById('vistaObjetivoFinal').classList.add('activo');
+            document.getElementById('objetivoFinalBtn').classList.add('activo');
+            cargarObjetivoFinal();
+            break;
+        case 'programacion':
+            document.getElementById('vistaProgramacionActual').classList.add('activo');
+            document.getElementById('programacionActualBtn').classList.add('activo');
+            cargarProgramacion();
+            break;
+    }
+}
+
+async function cargarObjetivoDiario() {
+    const content = document.getElementById('objetivoDiarioContent');
+    
+    // Obtener tema actual del usuario
+    const temas = Object.keys(progresoData.temas || {});
+    if (temas.length === 0) {
+        content.innerHTML = '<p>No hay temas creados. Crea temas primero.</p>';
+        return;
+    }
+    
+    let html = '<div class="form-group"><label>Selecciona el tema actual:</label><select id="temaActualSelect" class="form-input">';
+    temas.forEach(tema => {
+        html += `<option value="${tema}">${progresoData.temas[tema].nombre}</option>`;
+    });
+    html += '</select></div>';
+    
+    html += '<div id="avanceDiarioItems"></div>';
+    html += '<button id="guardarAvanceDiario" class="btn-primary">Guardar Avance</button>';
+    
+    content.innerHTML = html;
+    
+    document.getElementById('temaActualSelect').addEventListener('change', actualizarAvanceDiario);
+    document.getElementById('guardarAvanceDiario').addEventListener('click', guardarAvanceDiario);
+    
+    actualizarAvanceDiario();
+}
+
+function actualizarAvanceDiario() {
+    const temaSeleccionado = document.getElementById('temaActualSelect').value;
+    const tema = progresoData.temas[temaSeleccionado];
+    const container = document.getElementById('avanceDiarioItems');
+    
+    let html = `
+        <div class="avance-item">
+            <label>Páginas leídas de ${tema.nombre}:</label>
+            <input type="number" id="paginasLeidas" min="0" max="${tema.paginas}" value="${tema.paginasLeidas || 0}">
+            <small>de ${tema.paginas} páginas totales</small>
+        </div>
+        
+        <div class="avance-item">
+            <label>
+                <input type="checkbox" id="testMixCompleto">
+                Test Mix 50 preguntas (todos los temas anteriores)
+            </label>
+        </div>
+        
+        <div class="avance-item">
+            <label>
+                <input type="checkbox" id="testRepasoCompleto">
+                Test de repaso de ${tema.nombre}
+            </label>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+async function guardarAvanceDiario() {
+    const temaSeleccionado = document.getElementById('temaActualSelect').value;
+    const paginasLeidas = parseInt(document.getElementById('paginasLeidas').value);
+    const testMix = document.getElementById('testMixCompleto').checked;
+    const testRepaso = document.getElementById('testRepasoCompleto').checked;
+    
+    try {
+        progresoData.temas[temaSeleccionado].paginasEstudiadas = paginasLeidas;
+        
+        if (testMix) {
+            progresoData.temas[temaSeleccionado].testsManuales = (progresoData.temas[temaSeleccionado].testsManuales || 0) + 1;
+        }
+        
+        if (testRepaso) {
+            progresoData.temas[temaSeleccionado].testsManuales = (progresoData.temas[temaSeleccionado].testsManuales || 0) + 1;
+        }
+        
+        await guardarProgreso();
+        
+        alert('✅ Avance diario guardado correctamente');
+        renderizarTablaProgreso();
+    } catch (error) {
+        console.error('Error guardando avance:', error);
+        alert('❌ Error al guardar el avance');
+    }
+}
+
+async function cargarObjetivoFinal() {
+    try {
+        const objetivoDoc = await getDoc(doc(db, "objetivoFinal", currentUser.uid));
+        
+        if (objetivoDoc.exists()) {
+            const objetivo = objetivoDoc.data();
+            document.getElementById('fechaObjetivoFinal').value = objetivo.fecha;
+            document.getElementById('temasObjetivoFinal').value = objetivo.temas;
+            mostrarResumenObjetivo(objetivo);
+        }
+    } catch (error) {
+        console.error('Error cargando objetivo:', error);
+    }
+}
+
+async function guardarObjetivoFinal() {
+    const fecha = document.getElementById('fechaObjetivoFinal').value;
+    const temasTotal = parseInt(document.getElementById('temasObjetivoFinal').value);
+    
+    if (!fecha || !temasTotal) {
+        alert('❌ Completa todos los campos');
+        return;
+    }
+    
+    const objetivo = { fecha, temas: temasTotal };
+    
+    try {
+        await setDoc(doc(db, "objetivoFinal", currentUser.uid), objetivo);
+        mostrarResumenObjetivo(objetivo);
+        alert('✅ Objetivo final guardado');
+    } catch (error) {
+        console.error('Error:', error);
+        alert('❌ Error al guardar');
+    }
+}
+
+function mostrarResumenObjetivo(objetivo) {
+    const temas = Object.keys(progresoData.temas || {});
+    const temasActuales = temas.length;
+    const temasFaltantes = objetivo.temas - temasActuales;
+    
+    let totalPaginas = 0;
+    let paginasLeidas = 0;
+    
+    temas.forEach(tema => {
+        totalPaginas += progresoData.temas[tema].paginasTotales || 0;
+        paginasLeidas += progresoData.temas[tema].paginasEstudiadas || 0;
+    });
+    
+    const paginasFaltantes = totalPaginas - paginasLeidas;
+    
+    const resumen = document.getElementById('resumenObjetivoFinal');
+    resumen.innerHTML = `
+        <h4>📊 Resumen del Objetivo</h4>
+        <p><strong>Fecha límite:</strong> ${new Date(objetivo.fecha).toLocaleDateString('es-ES')}</p>
+        <p><strong>Temas objetivo:</strong> ${objetivo.temas}</p>
+        <p><strong>Temas actuales:</strong> ${temasActuales}</p>
+        <p><strong>Temas faltantes:</strong> ${temasFaltantes}</p>
+        <p><strong>Páginas totales:</strong> ${totalPaginas}</p>
+        <p><strong>Páginas leídas:</strong> ${paginasLeidas}</p>
+        <p><strong>Páginas faltantes:</strong> ${paginasFaltantes}</p>
+    `;
+}
+
+async function cargarProgramacion() {
+    const container = document.getElementById('temasSeleccionadosProg');
+    const temas = Object.keys(progresoData.temas || {});
+    
+    let html = '';
+    temas.forEach(tema => {
+        html += `
+            <div class="checkbox-item">
+                <input type="checkbox" id="prog_${tema}" value="${tema}">
+                <label for="prog_${tema}">${progresoData.temas[tema].nombre}</label>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+async function calcularProgramacion() {
+    const checkboxes = document.querySelectorAll('#temasSeleccionadosProg input[type="checkbox"]:checked');
+    const temasSeleccionados = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (temasSeleccionados.length === 0) {
+        alert('❌ Selecciona al menos un tema');
+        return;
+    }
+    
+    // Obtener objetivo final
+    const objetivoDoc = await getDoc(doc(db, "objetivoFinal", currentUser.uid));
+    
+    if (!objetivoDoc.exists()) {
+        alert('❌ Primero define tu Objetivo Final');
+        return;
+    }
+    
+    const objetivo = objetivoDoc.data();
+    
+    let totalPaginas = 0;
+    let paginasLeidas = 0;
+    
+    temasSeleccionados.forEach(tema => {
+        totalPaginas += progresoData.temas[tema].paginasTotales || 0;
+        paginasLeidas += progresoData.temas[tema].paginasEstudiadas || 0;
+    });
+    
+    const paginasFaltantes = totalPaginas - paginasLeidas;
+    const fechaObjetivo = new Date(objetivo.fecha);
+    const hoy = new Date();
+    const diasRestantes = Math.ceil((fechaObjetivo - hoy) / (1000 * 60 * 60 * 24));
+    const paginasPorDia = diasRestantes > 0 ? (paginasFaltantes / diasRestantes).toFixed(2) : 0;
+    
+    const resultado = document.getElementById('resultadoProgramacion');
+    resultado.innerHTML = `
+        <h4>📈 Resultado de la Programación</h4>
+        <p><strong>Temas seleccionados:</strong> ${temasSeleccionados.length}</p>
+        <p><strong>Páginas totales:</strong> ${totalPaginas}</p>
+        <p><strong>Páginas leídas:</strong> ${paginasLeidas}</p>
+        <p><strong>Páginas faltantes:</strong> ${paginasFaltantes}</p>
+        <p><strong>Días hasta objetivo:</strong> ${diasRestantes}</p>
+        <p><strong>Páginas por día:</strong> ${paginasPorDia}</p>
+    `;
+}
