@@ -675,9 +675,20 @@ async function diagnosticarTemasOcultos() {
                 if (confirm('Se encontró Tema 1 marcado incorrectamente como subtema. ¿Corregir ahora?')) {
                     await updateDoc(doc(db, "temas", temaProblematico.id), {
                         temaPadreId: null,
-                        esSubtema: false
+                        esSubtema: false,
+                        orden: 0
                     });
                     alert('Tema 1 corregido. Recargando banco de preguntas...');
+                    cargarBancoPreguntas();
+                }
+            } else if (tema.orden === undefined || tema.orden === null) {
+                console.log('⚠️ PROBLEMA: Tema 1 no tiene campo orden');
+                
+                if (confirm('Tema 1 no tiene campo "orden". ¿Agregarlo para que aparezca primero?')) {
+                    await updateDoc(doc(db, "temas", temaProblematico.id), {
+                        orden: 0
+                    });
+                    alert('Campo orden agregado. Recargando banco de preguntas...');
                     cargarBancoPreguntas();
                 }
             } else {
