@@ -640,7 +640,60 @@ async function cargarTemas() {
         console.error('Error cargando temas:', error);
     }
 }
+// Función de diagnóstico para temas ocultos
+async function diagnosticarTemasOcultos() {
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        console.log('=== DIAGNÓSTICO DE TEMAS ===');
+        console.log('Total de temas encontrados:', querySnapshot.size);
+        
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            console.log('\nTema:', tema.nombre);
+            console.log('  - ID:', doc.id);
+            console.log('  - temaPadreId:', tema.temaPadreId || 'ninguno');
+            console.log('  - esSubtema:', tema.esSubtema || false);
+            console.log('  - Preguntas:', tema.preguntas?.length || 0);
+        });
+        
+        // Corregir Tema 1 si existe
+        const temaProblematico = querySnapshot.docs.find(doc => {
+            const tema = doc.data();
+            return tema.nombre === 'Tema 1' || tema.nombre.includes('Tema 1');
+        });
+        
+        if (temaProblematico) {
+            console.log('\n⚠️ Tema 1 encontrado con ID:', temaProblematico.id);
+            const tema = temaProblematico.data();
+            
+            // Verificar si tiene problemas
+            if (tema.temaPadreId || tema.esSubtema) {
+                console.log('❌ PROBLEMA: Tema 1 está marcado como subtema');
+                
+                if (confirm('Se encontró Tema 1 marcado incorrectamente como subtema. ¿Corregir ahora?')) {
+                    await updateDoc(doc(db, "temas", temaProblematico.id), {
+                        temaPadreId: null,
+                        esSubtema: false
+                    });
+                    alert('Tema 1 corregido. Recargando banco de preguntas...');
+                    cargarBancoPreguntas();
+                }
+            } else {
+                console.log('✅ Tema 1 está correctamente configurado');
+            }
+        } else {
+            console.log('\n❌ Tema 1 NO encontrado en la base de datos');
+        }
+        
+    } catch (error) {
+        console.error('Error en diagnóstico:', error);
+    }
+}
 
+// Hacer función accesible globalmente
+window.diagnosticarTemasOcultos = diagnosticarTemasOcultos;
 // Cargar banco de preguntas
 async function cargarBancoPreguntas() {
     try {
