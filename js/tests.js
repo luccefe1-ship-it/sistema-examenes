@@ -756,20 +756,26 @@ async function cargarBancoPreguntas() {
             }
         });
 
-// ORDENAR TEMAS CON ORDEN NUMÉRICO INTELIGENTE
+// ORDENAR TEMAS: PRIMERO POR CAMPO ORDEN, LUEGO POR NOMBRE
 temasPrincipales.sort((a, b) => {
+    // 1. Si ambos tienen campo orden, ordenar por ese campo
+    const ordenA = a.orden !== undefined ? a.orden : 999999;
+    const ordenB = b.orden !== undefined ? b.orden : 999999;
+    
+    if (ordenA !== ordenB) {
+        return ordenA - ordenB;
+    }
+    
+    // 2. Si tienen el mismo orden (o ninguno tiene), ordenar por número en el nombre
     const nombreA = a.data.nombre;
     const nombreB = b.data.nombre;
     
-    // Extraer números del nombre si existen
     const numeroA = nombreA.match(/\d+/);
     const numeroB = nombreB.match(/\d+/);
     
     if (numeroA && numeroB) {
-        // Si ambos tienen números, ordenar por número
         return parseInt(numeroA[0]) - parseInt(numeroB[0]);
     } else {
-        // Si no tienen números, orden alfabético normal
         return nombreA.localeCompare(nombreB);
     }
 });
