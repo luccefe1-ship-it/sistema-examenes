@@ -695,18 +695,17 @@ window.eliminarTema = async function(temaId) {
         const confirmar = confirm(`¿Eliminar el tema "${tema.nombre}"?\n\nEsta acción eliminará todo el progreso de este tema y no se puede deshacer.`);
         
         if (confirmar) {
-            // Eliminar tema
+            // Eliminar tema de la memoria local
             delete progresoData.temas[temaId];
             
-            console.log(`Tema ${tema.nombre} eliminado`);
+            console.log(`Tema ${tema.nombre} eliminado de memoria`);
             
-            // Guardar en Firebase
+            // Guardar cambios en Firebase
             await guardarProgreso();
             
-            // Recargar datos de Firebase para asegurar sincronización
-            await cargarDatosProgreso();
+            console.log('Cambios guardados en Firebase');
             
-            // Actualizar interfaz
+            // Re-renderizar interfaz SIN recargar desde Firebase
             renderizarTablaProgreso();
             
             alert(`Tema "${tema.nombre}" eliminado correctamente`);
