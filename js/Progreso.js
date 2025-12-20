@@ -700,8 +700,13 @@ window.eliminarTema = async function(temaId) {
             
             console.log(`Tema ${tema.nombre} eliminado`);
             
-            // Guardar y actualizar
+            // Guardar en Firebase
             await guardarProgreso();
+            
+            // Recargar datos de Firebase para asegurar sincronización
+            await cargarDatosProgreso();
+            
+            // Actualizar interfaz
             renderizarTablaProgreso();
             
             alert(`Tema "${tema.nombre}" eliminado correctamente`);
