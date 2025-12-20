@@ -107,6 +107,11 @@ const resetearTodosBtn = document.getElementById('resetearTodosBtn');
 if (resetearTodosBtn) {
     resetearTodosBtn.addEventListener('click', resetearTodosTemas);
 }
+// Botón Crear Tema
+const crearTemaBtn = document.getElementById('crearTemaBtn');
+if (crearTemaBtn) {
+    crearTemaBtn.addEventListener('click', abrirModalCrearTema);
+}
 // Botón Crear Planning
     const crearPlanningBtn = document.getElementById('crearPlanningBtn');
     if (crearPlanningBtn) {
@@ -445,6 +450,9 @@ function crearFilaTema(temaId, temaProgreso) {
             <div class="col-acciones">
                 <button class="btn-accion" onclick="reiniciarTema('${temaId}')">🔄</button>
             </div>
+            <div class="col-eliminar">
+                <button class="btn-eliminar-tema" onclick="eliminarTema('${temaId}')">🗑️</button>
+            </div>
         </div>
     `;
 }
@@ -662,24 +670,109 @@ window.reiniciarTema = async function(temaId) {
             console.log(`Tema ${tema.nombre} reiniciado`);
             
             // Guardar y actualizar
-await guardarProgreso();
-renderizarTablaProgreso();
+            await guardarProgreso();
+            renderizarTablaProgreso();
 
-// Actualizar tracking automático si hay semana activa
-actualizarTrackingAutomatico();
+            // Actualizar tracking automático si hay semana activa
+            actualizarTrackingAutomatico();
         }
         
     } catch (error) {
         console.error('Error reiniciando tema:', error);
         alert('Error al reiniciar tema');
     }
-// Actualizar seguimiento si está abierto
-if (document.getElementById('modalSeguimientoPlanning').style.display === 'block') {
-    mostrarInformacionPlanning();
-    mostrarSemanasPlanning();
-}
+    
+    // Actualizar seguimiento si está abierto
+    if (document.getElementById('modalSeguimientoPlanning').style.display === 'block') {
+        mostrarInformacionPlanning();
+        mostrarSemanasPlanning();
+    }
 };
 
+window.eliminarTema = async function(temaId) {
+    try {
+        if (!progresoData.temas[temaId]) return;
+        
+        const tema = progresoData.temas[temaId];
+        const confirmar = confirm(`¿Eliminar el tema "${tema.nombre}"?\n\nEsta acción eliminará todo el progreso de este tema y no se puede deshacer.`);
+        
+        if (confirmar) {
+            // Eliminar tema
+            delete progresoData.temas[temaId];
+            
+            console.log(`Tema ${tema.nombre} eliminado`);
+            
+            // Guardar y actualizar
+            await guardarProgreso();
+            renderizarTablaProgreso();
+            
+            alert(`Tema "${tema.nombre}" eliminado correctamente`);
+        }
+        
+    } catch (error) {
+        console.error('Error eliminando tema:', error);
+        alert('Error al eliminar tema');
+    }
+};
+// Función para abrir modal crear tema
+function abrirModalCrearTema() {
+    document.getElementById('nombreNuevoTema').value = '';
+    document.getElementById('paginasNuevoTema').value = '30';
+    
+    document.getElementById('guardarNuevoTema').onclick = guardarNuevoTema;
+    document.getElementById('cancelarNuevoTema').onclick = cerrarModalCrearTema;
+    
+    document.getElementById('modalCrearTema').style.display = 'flex';
+}
+
+function cerrarModalCrearTema() {
+    document.getElementById('modalCrearTema').style.display = 'none';
+}
+
+async function guardarNuevoTema() {
+    const nombre = document.getElementById('nombreNuevoTema').value.trim();
+    const paginas = parseInt(document.getElementById('paginasNuevoTema').value) || 30;
+    
+    if (!nombre) {
+        alert('Por favor, ingresa un nombre para el tema');
+        return;
+    }
+    
+    try {
+        // Generar ID único
+        const nuevoId = 'tema_' + Date.now();
+        
+        // Crear nuevo tema en progreso
+        progresoData.temas[nuevoId] = {
+            nombre: nombre,
+            paginasEstudiadas: 0,
+            paginasTotales: paginas,
+            vueltaActual: 1,
+            vueltas: [
+                { numero: 1, completada: false, fechaInicio: new Date() }
+            ],
+            testsAutomaticos: 0,
+            testsManuales: 0,
+            fechaCreacion: new Date(),
+            ultimaActualizacion: new Date()
+        };
+        
+        // Guardar en Firebase
+        await guardarProgreso();
+        
+        // Actualizar interfaz
+        renderizarTablaProgreso();
+        
+        // Cerrar modal
+        cerrarModalCrearTema();
+        
+        alert(`Tema "${nombre}" creado exitosamente`);
+        
+    } catch (error) {
+        console.error('Error creando tema:', error);
+        alert('Error al crear el tema');
+    }
+}
 // Funciones del modal
 function abrirModalPersonalizar() {
     console.log('Abriendo modal personalizar...');
