@@ -152,8 +152,8 @@ async function inicializarProgreso() {
         // 2. Cargar o crear datos de progreso
         await cargarDatosProgreso();
         
-        // 3. Sincronizar progreso con temas del banco
-        await sincronizarProgresoConBanco();
+        // 3. Sistema independiente - NO sincronizar automáticamente
+// Los temas se gestionan solo desde "Personalizar Temas"
         
         // 4. Renderizar interfaz
         renderizarTablaProgreso();
@@ -687,43 +687,39 @@ function abrirModalPersonalizar() {
     const listaContainer = document.getElementById('listaTemasPersonalizar');
     listaContainer.innerHTML = '';
     
-    // Ordenar temas igual que en la tabla principal
-    const temasOrdenados = Object.entries(progresoData.temas).sort(([idA], [idB]) => {
-        const temaA = temasDelBanco.find(t => t.id === idA);
-        const temaB = temasDelBanco.find(t => t.id === idB);
+    // Mostrar TODOS los temas del banco con checkbox para activar/desactivar
+    temasDelBanco.forEach(tema => {
+        const estaActivo = progresoData.temas[tema.id] !== undefined;
+        const paginasTotales = estaActivo ? progresoData.temas[tema.id].paginasTotales : 30;
         
-        if (!temaA || !temaB) {
-            return 0;
-        }
-        
-        const nombreA = temaA.nombre;
-        const nombreB = temaB.nombre;
-        
-        const numeroA = nombreA.match(/\d+/);
-        const numeroB = nombreB.match(/\d+/);
-        
-        if (numeroA && numeroB) {
-            return parseInt(numeroA[0]) - parseInt(numeroB[0]);
-        } else {
-            return nombreA.localeCompare(nombreB);
-        }
-    });
-    
-    // Cargar cada tema con su configuración actual
-    temasOrdenados.forEach(([temaId, temaProgreso]) => {
         const itemHTML = `
             <div class="tema-personalizar-item">
-                <div class="tema-personalizar-nombre">${temaProgreso.nombre}</div>
+                <input type="checkbox" 
+                       class="tema-checkbox" 
+                       data-tema-id="${tema.id}"
+                       data-tema-nombre="${tema.nombre}"
+                       ${estaActivo ? 'checked' : ''}>
+                <div class="tema-personalizar-nombre">${tema.nombre}</div>
                 <label style="font-size: 12px; color: #6b7280;">Páginas:</label>
                 <input type="number" 
                        class="tema-personalizar-paginas" 
-                       value="${temaProgreso.paginasTotales}" 
+                       value="${paginasTotales}" 
                        min="1" 
                        max="999"
-                       data-tema-id="${temaId}">
+                       data-tema-id="${tema.id}"
+                       ${!estaActivo ? 'disabled' : ''}>
             </div>
         `;
         listaContainer.innerHTML += itemHTML;
+    });
+    
+    // Event listeners para checkboxes
+    document.querySelectorAll('.tema-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const temaId = this.dataset.temaId;
+            const inputPaginas = document.querySelector(`input.tema-personalizar-paginas[data-tema-id="${temaId}"]`);
+            inputPaginas.disabled = !this.checked;
+        });
     });
     
     document.getElementById('modalPersonalizarTemas').style.display = 'flex';
@@ -736,23 +732,49 @@ async function guardarPersonalizacion() {
     console.log('Guardando personalización...');
     
     try {
-        // Obtener todos los inputs de páginas
-        const inputs = document.querySelectorAll('.tema-personalizar-paginas');
+        const checkboxes = document.querySelectorAll('.tema-checkbox');
         
-        inputs.forEach(input => {
-            const temaId = input.dataset.temaId;
-            const nuevasPaginas = parseInt(input.value) || 30;
+        checkboxes.forEach(checkbox => {
+            const temaId = checkbox.dataset.temaId;
+            const temaNombre = checkbox.dataset.temaNombre;
+            const estaChecked = checkbox.checked;
+            const inputPaginas = document.querySelector(`input.tema-personalizar-paginas[data-tema-id="${temaId}"]`);
+            const nuevasPaginas = parseInt(inputPaginas.value) || 30;
             
-            if (progresoData.temas[temaId]) {
-                const paginasAnteriores = progresoData.temas[temaId].paginasTotales;
-                progresoData.temas[temaId].paginasTotales = nuevasPaginas;
-                
-                // Si las páginas estudiadas superan el nuevo total, ajustar
-                if (progresoData.temas[temaId].paginasEstudiadas > nuevasPaginas) {
-                    progresoData.temas[temaId].paginasEstudiadas = nuevasPaginas;
+            if (estaChecked) {
+                // Añadir o actualizar tema
+                if (!progresoData.temas[temaId]) {
+                    // Crear nuevo tema
+                    progresoData.temas[temaId] = {
+                        nombre: temaNombre,
+                        paginasEstudiadas: 0,
+                        paginasTotales: nuevasPaginas,
+                        vueltaActual: 1,
+                        vueltas: [
+                            { numero: 1, completada: false, fechaInicio: new Date() }
+                        ],
+                        testsAutomaticos: 0,
+                        testsManuales: 0,
+                        fechaCreacion: new Date(),
+                        ultimaActualizacion: new Date()
+                    };
+                    console.log(`Tema ${temaNombre} añadido`);
+                } else {
+                    // Actualizar páginas totales
+                    progresoData.temas[temaId].paginasTotales = nuevasPaginas;
+                    
+                    // Si las páginas estudiadas superan el nuevo total, ajustar
+                    if (progresoData.temas[temaId].paginasEstudiadas > nuevasPaginas) {
+                        progresoData.temas[temaId].paginasEstudiadas = nuevasPaginas;
+                    }
+                    console.log(`Tema ${temaNombre} actualizado: ${nuevasPaginas} páginas`);
                 }
-                
-                console.log(`Tema ${temaId}: ${paginasAnteriores} → ${nuevasPaginas} páginas`);
+            } else {
+                // Eliminar tema si existe
+                if (progresoData.temas[temaId]) {
+                    delete progresoData.temas[temaId];
+                    console.log(`Tema ${temaNombre} eliminado`);
+                }
             }
         });
         
