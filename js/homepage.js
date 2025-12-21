@@ -757,9 +757,15 @@ async function cargarWidgetSemanaActual() {
 // Cargar widget de planning
 async function cargarWidgetPlanning() {
     try {
+        const widgetPlanning = document.getElementById('widgetPlanning');
+        if (!widgetPlanning) {
+            console.error('No se encontró el elemento widgetPlanning');
+            return;
+        }
+        
         const planningDoc = await getDoc(doc(db, "planningSimple", currentUser.uid));
         
-        document.getElementById('widgetPlanning').style.display = 'block';
+        widgetPlanning.style.display = 'block';
         
         if (planningDoc.exists()) {
             // Mostrar vista con planning
@@ -772,6 +778,13 @@ async function cargarWidgetPlanning() {
         }
     } catch (error) {
         console.error('Error cargando widget planning:', error);
+        // Mostrar widget aunque haya error
+        const widgetPlanning = document.getElementById('widgetPlanning');
+        if (widgetPlanning) {
+            widgetPlanning.style.display = 'block';
+            document.getElementById('vistaSinPlanning').style.display = 'block';
+            document.getElementById('vistaConPlanning').style.display = 'none';
+        }
     }
 }
 // Hacer función accesible globalmente
