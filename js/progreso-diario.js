@@ -221,4 +221,101 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
         console.error('Error guardando progreso:', error);
         alert('Error al guardar el progreso');
     }
+    // Eliminar último registro
+window.eliminarUltimoRegistro = async function() {
+    if (!confirm('¿Eliminar el último registro guardado?')) return;
+    
+    try {
+        if (!progresoData.registros || progresoData.registros.length === 0) {
+            alert('No hay registros para eliminar');
+            return;
+        }
+        
+        // Obtener último registro
+        const ultimoRegistro = progresoData.registros[progresoData.registros.length - 1];
+        
+        // Revertir cambios en el tema
+        const tema = progresoData.temas[ultimoRegistro.temaId];
+        if (tema) {
+            tema.paginasLeidas = Math.max(0, tema.paginasLeidas - ultimoRegistro.paginasLeidas);
+            tema.testsRealizados = Math.max(0, tema.testsRealizados - ultimoRegistro.testsRealizados);
+        }
+        
+        // Eliminar último registro
+        progresoData.registros.pop();
+        
+        // Guardar en Firebase
+        await setDoc(doc(db, "progresoSimple", currentUser.uid), progresoData);
+        
+        alert('✅ Último registro eliminado');
+        
+        // Actualizar interfaz
+        actualizarResumenGeneral();
+        renderizarProgresoTemas();
+        
+    } catch (error) {
+        console.error('Error eliminando registro:', error);
+        alert('Error al eliminar el registro');
+    }
+}
+
+// Eliminar todo el progreso (mantener planning)
+window.eliminarTodoProgreso = async function() {
+    if (!confirm('⚠️ ¿Borrar TODO el progreso? Se mantendrá el planning configurado.')) return;
+    if (!confirm('Esta acción NO se puede deshacer. ¿Continuar?')) return;
+    
+    try {
+        // Resetear progreso
+        const progresoInicial = {
+            usuarioId: currentUser.uid,
+            temas: {},
+            registros: [],
+            fechaCreacion: new Date()
+        };
+        
+        planningData.temas.forEach(tema => {
+            progresoInicial.temas[tema.id] = {
+                nombre: tema.nombre,
+                paginasTotales: tema.paginas,
+                paginasLeidas: 0,
+                testsRealizados: 0
+            };
+        });
+        
+        await setDoc(doc(db, "progresoSimple", currentUser.uid), progresoInicial);
+        
+        alert('✅ Progreso eliminado correctamente');
+        window.location.reload();
+        
+    } catch (error) {
+        console.error('Error eliminando progreso:', error);
+        alert('Error al eliminar el progreso');
+    }
+}
+
+// Eliminar planning completo
+window.eliminarPlanning = async function() {
+    if (!confirm('⚠️ ¿Eliminar el planning COMPLETO? Perderás toda la configuración y progreso.')) return;
+    if (!confirm('Esta acción NO se puede deshacer. ¿Continuar?')) return;
+    
+    try {
+        // Eliminar planning y progreso
+        await setDoc(doc(db, "planningSimple", currentUser.uid), {
+            eliminado: true,
+            fechaEliminacion: new Date()
+        });
+        
+        await setDoc(doc(db, "progresoSimple", currentUser.uid), {
+            eliminado: true,
+            fechaEliminacion: new Date()
+        });
+        
+        alert('✅ Planning eliminado. Serás redirigido a la página principal.');
+        window.location.href = 'homepage.html';
+        
+    } catch (error) {
+        console.error('Error eliminando planning:', error);
+        alert('Error al eliminar el planning');
+    }
+}
 });
