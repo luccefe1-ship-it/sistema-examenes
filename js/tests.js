@@ -364,9 +364,6 @@ async function cargarTemasEnSelect() {
         const temasPrincipales = [];
         const subtemasPorPadre = {};
 
-        console.log('=== DEBUG CARGAR BANCO ===');
-        console.log('Total documentos:', querySnapshot.size);
-
         querySnapshot.forEach((doc) => {
             const tema = doc.data();
             if (tema.temaPadreId) {
@@ -649,27 +646,66 @@ async function cargarBancoPreguntas() {
     try {
         const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
         const querySnapshot = await getDocs(q);
+        
+        listaTemas.innerHTML = '';
+        
+        if (querySnapshot.empty) {
+            listaTemas.innerHTML = '<p>No hay temas creados aún. Ve a "Subir Preguntas" para crear tu primer tema.</p>';
+            return;
+        }
 
-// ORDENAR TEMAS: PRIMERO POR CAMPO ORDEN, LUEGO POR NOMBRE
+        // Controles generales
+        const controlesDiv = document.createElement('div');
+        controlesDiv.className = 'controles-generales';
+        controlesDiv.innerHTML = `
+            <input type="text" id="buscadorPreguntas" placeholder="Buscar preguntas..." />
+            <button id="detectarDuplicadasBtn" class="btn-warning">🔍 Detectar Duplicadas</button>
+            <button class="btn-danger" onclick="eliminarTodosTemas()">🗑️ Eliminar Todos los Temas</button>
+        `;
+        listaTemas.appendChild(controlesDiv);
+
+        // Configurar eventos del buscador
+        setTimeout(() => {
+            document.getElementById('buscadorPreguntas').addEventListener('input', filtrarPreguntas);
+            document.getElementById('detectarDuplicadasBtn').addEventListener('click', detectarPreguntasDuplicadas);
+        }, 100);
+        
+        // Separar temas principales y subtemas
+        const temasPrincipales = [];
+        const subtemasPorPadre = {};
+
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            if (tema.temaPadreId) {
+                // Es un subtema
+                if (!subtemasPorPadre[tema.temaPadreId]) {
+                    subtemasPorPadre[tema.temaPadreId] = [];
+                }
+                subtemasPorPadre[tema.temaPadreId].push({ id: doc.id, data: tema });
+            } else {
+                // Es un tema principal
+                temasPrincipales.push({ 
+                    id: doc.id, 
+                    data: tema,
+                    orden: tema.orden || 0  // AGREGAR CAMPO ORDEN
+                });
+            }
+        });
+
+// ORDENAR TEMAS CON ORDEN NUMÉRICO INTELIGENTE
 temasPrincipales.sort((a, b) => {
-    // 1. Si ambos tienen campo orden, ordenar por ese campo
-    const ordenA = a.orden !== undefined ? a.orden : 999999;
-    const ordenB = b.orden !== undefined ? b.orden : 999999;
-    
-    if (ordenA !== ordenB) {
-        return ordenA - ordenB;
-    }
-    
-    // 2. Si tienen el mismo orden (o ninguno tiene), ordenar por número en el nombre
     const nombreA = a.data.nombre;
     const nombreB = b.data.nombre;
     
+    // Extraer números del nombre si existen
     const numeroA = nombreA.match(/\d+/);
     const numeroB = nombreB.match(/\d+/);
     
     if (numeroA && numeroB) {
+        // Si ambos tienen números, ordenar por número
         return parseInt(numeroA[0]) - parseInt(numeroB[0]);
     } else {
+        // Si no tienen números, orden alfabético normal
         return nombreA.localeCompare(nombreB);
     }
 });
@@ -705,13 +741,6 @@ temasPrincipales.forEach(tema => {
         tema.data.preguntasTotal = tema.data.preguntas?.length || 0;
     }
 });
-        console.log('=== TEMAS A RENDERIZAR ===');
-        console.log('Total temas principales:', temasPrincipales.length);
-        temasPrincipales.forEach((t, index) => {
-            console.log(`${index + 1}. ${t.data.nombre} - orden: ${t.orden}`);
-        });
-        console.log('==========================');
-
         // Renderizar temas principales con sus subtemas
         temasPrincipales.forEach(({ id, data: tema }) => {
             const temaDiv = document.createElement('div');
