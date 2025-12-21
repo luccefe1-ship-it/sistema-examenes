@@ -1,58 +1,181 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crear Planning de Estudio</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/planning-wizard.css">
-</head>
-<body>
-    <nav class="navbar">
-        <div class="nav-content">
-            <h1>Plataforma Exámenes de Justicia</h1>
-            <div class="nav-actions">
-                <span id="userName">Cargando...</span>
-                <button id="backBtn" onclick="window.location.href='homepage.html'">← Volver</button>
-                <button id="logoutBtn">Cerrar Sesión</button>
-            </div>
-        </div>
-    </nav>
+import { auth, db } from './firebase-config.js';
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    <div class="wizard-container">
-        <!-- PASO 1: Número de temas -->
-        <div id="paso1" class="wizard-paso activo">
-            <div class="wizard-contenido">
-                <h2>📚 Paso 1: ¿Cuántos temas tiene tu oposición?</h2>
-                <p>Indica el número total de temas que necesitas estudiar</p>
-                <input type="number" id="numTemas" min="1" placeholder="Ej: 50" />
-                <button onclick="siguientePaso(1)" class="btn-continuar">Continuar →</button>
-            </div>
-        </div>
+let currentUser = null;
+let datosPlanning = {
+    numTemas: 0,
+    fechaObjetivo: null,
+    temas: []
+};
 
-        <!-- PASO 2: Fecha objetivo -->
-        <div id="paso2" class="wizard-paso">
-            <div class="wizard-contenido">
-                <h2>🎯 Paso 2: ¿Cuál es tu fecha objetivo?</h2>
-                <p>Fecha en la que quieres tener todo el temario estudiado</p>
-                <input type="date" id="fechaObjetivo" />
-                <button onclick="siguientePaso(2)" class="btn-continuar">Continuar →</button>
-                <button onclick="anteriorPaso(2)" class="btn-atras">← Atrás</button>
-            </div>
-        </div>
+// Verificar autenticación
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        currentUser = user;
+        try {
+            const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+            if (userDoc.exists()) {
+                document.getElementById('userName').textContent = userDoc.data().nombre;
+            }
+        } catch (error) {
+            console.error('Error cargando usuario:', error);
+        }
+    } else {
+        window.location.href = 'index.html';
+    }
+});
 
-        <!-- PASO 3: Configurar temas -->
-        <div id="paso3" class="wizard-paso">
-            <div class="wizard-contenido">
-                <h2>📖 Paso 3: Configura cada tema</h2>
-                <p>Indica el nombre y número de páginas de cada tema</p>
-                <div id="listaTemas" class="lista-temas"></div>
-                <button onclick="finalizarPlanning()" class="btn-finalizar">✅ Finalizar y Guardar</button>
-                <button onclick="anteriorPaso(3)" class="btn-atras">← Atrás</button>
-            </div>
-        </div>
-    </div>
+// Logout
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.href = 'index.html';
+});
 
-    <script type="module" src="js/planning-wizard.js"></script>
-</body>
-</html>
+// Navegar entre pasos
+window.siguientePaso = function(pasoActual) {
+    if (!validarPaso(pasoActual)) return;
+    
+    guardarDatosPaso(pasoActual);
+    
+    // Si es el paso 2, generar la lista de temas
+    if (pasoActual === 2) {
+        generarListaTemas();
+    }
+    
+    // Ocultar paso actual y mostrar siguiente
+    document.getElementById(`paso${pasoActual}`).classList.remove('activo');
+    document.getElementById(`paso${pasoActual + 1}`).classList.add('activo');
+}
+
+window.anteriorPaso = function(pasoActual) {
+    document.getElementById(`paso${pasoActual}`).classList.remove('activo');
+    document.getElementById(`paso${pasoActual - 1}`).classList.add('activo');
+}
+
+// Validar cada paso
+function validarPaso(paso) {
+    switch(paso) {
+        case 1:
+            const numTemas = parseInt(document.getElementById('numTemas').value);
+            if (!numTemas || numTemas < 1) {
+                alert('Por favor, indica el número de temas');
+                return false;
+            }
+            return true;
+            
+        case 2:
+            const fecha = document.getElementById('fechaObjetivo').value;
+            if (!fecha) {
+                alert('Por favor, selecciona una fecha objetivo');
+                return false;
+            }
+            const fechaObj = new Date(fecha);
+            const hoy = new Date();
+            if (fechaObj <= hoy) {
+                alert('La fecha objetivo debe ser futura');
+                return false;
+            }
+            return true;
+            
+        default:
+            return true;
+    }
+}
+
+// Guardar datos de cada paso
+function guardarDatosPaso(paso) {
+    switch(paso) {
+        case 1:
+            datosPlanning.numTemas = parseInt(document.getElementById('numTemas').value);
+            break;
+            
+        case 2:
+            datosPlanning.fechaObjetivo = document.getElementById('fechaObjetivo').value;
+            break;
+    }
+}
+
+// Generar lista de temas en paso 3
+function generarListaTemas() {
+    const container = document.getElementById('listaTemas');
+    container.innerHTML = '';
+    
+    for (let i = 0; i < datosPlanning.numTemas; i++) {
+        const div = document.createElement('div');
+        div.className = 'tema-input-grupo';
+        div.innerHTML = `
+            <input type="text" class="tema-nombre" placeholder="Nombre del tema ${i + 1}" />
+            <input type="number" class="tema-paginas" min="1" placeholder="Páginas" />
+        `;
+        container.appendChild(div);
+    }
+}
+
+// Finalizar y guardar planning
+window.finalizarPlanning = async function() {
+    // Validar que todos los temas estén completos
+    const temas = [];
+    const inputs = document.querySelectorAll('.tema-input-grupo');
+    
+    for (let input of inputs) {
+        const nombre = input.querySelector('.tema-nombre').value.trim();
+        const paginas = parseInt(input.querySelector('.tema-paginas').value);
+        
+        if (!nombre) {
+            alert('Por favor, completa el nombre de todos los temas');
+            return;
+        }
+        if (!paginas || paginas < 1) {
+            alert('Por favor, indica el número de páginas de todos los temas');
+            return;
+        }
+        
+        temas.push({ 
+            nombre, 
+            paginas,
+            id: `tema_${Date.now()}_${Math.random()}`
+        });
+    }
+    
+    datosPlanning.temas = temas;
+    
+    try {
+        // Calcular páginas totales
+        const paginasTotales = temas.reduce((sum, t) => sum + t.paginas, 0);
+        
+        // Guardar en Firebase
+        await setDoc(doc(db, "planningSimple", currentUser.uid), {
+            ...datosPlanning,
+            paginasTotales,
+            fechaCreacion: new Date(),
+            usuarioId: currentUser.uid
+        });
+        
+        // Inicializar progreso
+        const progresoInicial = {
+            usuarioId: currentUser.uid,
+            temas: {},
+            registros: [],
+            fechaCreacion: new Date()
+        };
+        
+        datosPlanning.temas.forEach(tema => {
+            progresoInicial.temas[tema.id] = {
+                nombre: tema.nombre,
+                paginasTotales: tema.paginas,
+                paginasLeidas: 0,
+                testsRealizados: 0
+            };
+        });
+        
+        await setDoc(doc(db, "progresoSimple", currentUser.uid), progresoInicial);
+        
+        alert('✅ Planning creado correctamente');
+        window.location.href = 'homepage.html';
+        
+    } catch (error) {
+        console.error('Error guardando planning:', error);
+        alert('Error al guardar el planning');
+    }
+}
