@@ -101,29 +101,36 @@ function generarListaTemas() {
         div.className = 'tema-input-grupo';
         div.innerHTML = `
             <input type="text" class="tema-nombre" value="Tema ${i + 1}" readonly style="background: #f3f4f6; cursor: not-allowed;" />
-            <input type="number" class="tema-paginas" min="1" placeholder="Páginas" />
+            <input type="number" class="tema-paginas" min="1" placeholder="Hojas" />
         `;
         container.appendChild(div);
     }
 }
 
 window.finalizarPlanning = async function() {
+    const testsDiarios = parseInt(document.getElementById('testsDiarios').value);
+    
+    if (testsDiarios === null || testsDiarios < 0) {
+        alert('Por favor, indica los tests diarios (0 si no quieres hacer tests)');
+        return;
+    }
+    
     const temas = [];
     const inputs = document.querySelectorAll('.tema-input-grupo');
     
     let index = 0;
     for (let input of inputs) {
         const nombre = input.querySelector('.tema-nombre').value.trim();
-        const paginas = parseInt(input.querySelector('.tema-paginas').value);
+        const hojas = parseInt(input.querySelector('.tema-paginas').value);
         
-        if (!paginas || paginas < 1) {
-            alert('Por favor, indica el número de páginas de todos los temas');
+        if (!hojas || hojas < 1) {
+            alert('Por favor, indica el número de hojas de todos los temas');
             return;
         }
         
         temas.push({ 
             nombre, 
-            paginas,
+            hojas,
             id: `tema_${currentUser.uid}_${index}_${Date.now()}`
         });
         
@@ -133,13 +140,23 @@ window.finalizarPlanning = async function() {
     datosPlanning.temas = temas;
     
     try {
-        const paginasTotales = temas.reduce((sum, t) => sum + t.paginas, 0);
+        const hojasTotales = temas.reduce((sum, t) => sum + t.hojas, 0);
+        
+        // Calcular días hasta fecha objetivo
+        const fechaObj = new Date(datosPlanning.fechaObjetivo);
+        const hoy = new Date();
+        const diasDisponibles = Math.max(1, Math.ceil((fechaObj - hoy) / (1000 * 60 * 60 * 24)));
+        
+        // Calcular tests totales necesarios (1 test cada 2 días como mínimo)
+        const testsRecomendados = Math.ceil(diasDisponibles * testsDiarios);
         
         await setDoc(doc(db, "planningSimple", currentUser.uid), {
             numTemas: datosPlanning.numTemas,
             fechaObjetivo: datosPlanning.fechaObjetivo,
             temas: temas,
-            paginasTotales,
+            hojasTotales,
+            testsDiarios,
+            testsRecomendados,
             fechaCreacion: new Date(),
             usuarioId: currentUser.uid
         });
@@ -154,8 +171,8 @@ window.finalizarPlanning = async function() {
         temas.forEach(tema => {
             progresoInicial.temas[tema.id] = {
                 nombre: tema.nombre,
-                paginasTotales: tema.paginas,
-                paginasLeidas: 0,
+                hojasTotales: tema.hojas,
+                hojasLeidas: 0,
                 testsRealizados: 0
             };
         });
