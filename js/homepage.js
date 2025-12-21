@@ -166,6 +166,9 @@ onAuthStateChanged(auth, async (user) => {
         actualizarSaludoDinamico();
         iniciarCambioFrasesPeriodico();
         
+        // Cargar widget de planning
+        await cargarWidgetPlanning();
+        
         // Cargar widget de semana actual
         cargarWidgetSemanaActual();
         
@@ -772,6 +775,26 @@ async function cargarWidgetSemanaActual() {
     } catch (error) {
         console.error('Error cargando widget semana actual:', error);
         document.getElementById('widgetSemanaActual').style.display = 'none';
+    }
+}
+// Cargar widget de planning
+async function cargarWidgetPlanning() {
+    try {
+        const planningDoc = await getDoc(doc(db, "planningSimple", currentUser.uid));
+        
+        document.getElementById('widgetPlanning').style.display = 'block';
+        
+        if (planningDoc.exists()) {
+            // Mostrar vista con planning
+            document.getElementById('vistaSinPlanning').style.display = 'none';
+            document.getElementById('vistaConPlanning').style.display = 'block';
+        } else {
+            // Mostrar vista sin planning
+            document.getElementById('vistaSinPlanning').style.display = 'block';
+            document.getElementById('vistaConPlanning').style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error cargando widget planning:', error);
     }
 }
 // Hacer función accesible globalmente
