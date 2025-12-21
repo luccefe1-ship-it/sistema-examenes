@@ -1448,6 +1448,70 @@ function limpiarBuscador() {
     });
 }
 
+// DIAGNÃ"STICO: Listar todos los temas en Firebase
+window.diagnosticarTemas = async function() {
+    try {
+        console.log('=== DIAGNÃ"STICO DE TEMAS ===');
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        console.log(`Total de temas encontrados: ${querySnapshot.size}`);
+        
+        const temasPrincipales = [];
+        const subtemas = [];
+        const temasProblematicos = [];
+        
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            const info = {
+                id: doc.id,
+                nombre: tema.nombre,
+                numPreguntas: tema.preguntas?.length || 0,
+                esSubtema: tema.esSubtema || false,
+                temaPadreId: tema.temaPadreId || 'ninguno',
+                usuarioId: tema.usuarioId
+            };
+            
+            console.log('---');
+            console.log(`ID: ${info.id}`);
+            console.log(`Nombre: ${info.nombre}`);
+            console.log(`Preguntas: ${info.numPreguntas}`);
+            console.log(`Es subtema: ${info.esSubtema}`);
+            console.log(`Padre ID: ${info.temaPadreId}`);
+            console.log(`Usuario ID: ${info.usuarioId}`);
+            
+            // Buscar el tema que contiene "CE de 1978"
+            if (tema.nombre.includes('CE de 1978') || tema.nombre.includes('I.La CE')) {
+                console.log('âš ï¸ TEMA PROBLEMÃ�TICO ENCONTRADO!');
+                temasProblematicos.push(info);
+            }
+            
+            if (tema.temaPadreId) {
+                subtemas.push(info);
+            } else {
+                temasPrincipales.push(info);
+            }
+        });
+        
+        console.log('=== RESUMEN ===');
+        console.log(`Temas principales: ${temasPrincipales.length}`);
+        console.log(`Subtemas: ${subtemas.length}`);
+        console.log(`Temas problemÃ¡ticos (CE 1978): ${temasProblematicos.length}`);
+        
+        if (temasProblematicos.length > 0) {
+            alert(`Se encontraron ${temasProblematicos.length} temas con "CE de 1978". Revisa la consola del navegador (F12) para ver los detalles.`);
+        } else {
+            alert('No se encontraron temas con "CE de 1978" en Firebase. El tema puede haber sido eliminado.');
+        }
+        
+        return { temasPrincipales, subtemas, temasProblematicos };
+        
+    } catch (error) {
+        console.error('Error en diagnÃ³stico:', error);
+        alert('Error en diagnÃ³stico: ' + error.message);
+    }
+};
+
 // Detectar preguntas duplicadas
 async function detectarPreguntasDuplicadas() {
     try {
