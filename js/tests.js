@@ -1327,12 +1327,26 @@ window.vaciarTema = async function(temaId) {
     }
 };
 window.eliminarTema = async function(temaId) {
-    if (confirm('¿Estás seguro de que quieres eliminar este tema? Esta acción no se puede deshacer.')) {
+    if (confirm('¿Estás seguro de que quieres eliminar este tema? Se eliminarán también todos sus subtemas.')) {
         try {
+            // Eliminar subtemas primero
+            const q = query(
+                collection(db, "temas"), 
+                where("usuarioId", "==", currentUser.uid),
+                where("temaPadreId", "==", temaId)
+            );
+            const subtemasSnapshot = await getDocs(q);
+            
+            for (const subtemaDoc of subtemasSnapshot.docs) {
+                await deleteDoc(doc(db, "temas", subtemaDoc.id));
+            }
+            
+            // Eliminar tema principal
             await deleteDoc(doc(db, "temas", temaId));
-            alert('Tema eliminado exitosamente');
+            
+            alert('Tema y subtemas eliminados exitosamente');
             cargarBancoPreguntas();
-            cargarTemas(); // Actualizar selects
+            cargarTemas();
         } catch (error) {
             console.error('Error eliminando tema:', error);
             alert('Error al eliminar el tema');
@@ -1448,7 +1462,60 @@ function limpiarBuscador() {
     });
 }
 
-// DIAGNÃ"STICO: Listar todos los temas en Firebase
+// ELIMINAR SUBTEMAS HUÃ‰RFANOS
+window.eliminarSubtemasHuerfanos = async function() {
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        // Recopilar IDs de temas principales
+        const idsTemasPrincipales = new Set();
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            if (!tema.temaPadreId) {
+                idsTemasPrincipales.add(doc.id);
+            }
+        });
+        
+        // Encontrar subtemas huÃ©rfanos
+        const subtemasHuerfanos = [];
+        querySnapshot.forEach((doc) => {
+            const tema = doc.data();
+            if (tema.temaPadreId && !idsTemasPrincipales.has(tema.temaPadreId)) {
+                subtemasHuerfanos.push({
+                    id: doc.id,
+                    nombre: tema.nombre,
+                    padreId: tema.temaPadreId,
+                    preguntas: tema.preguntas?.length || 0
+                });
+            }
+        });
+        
+        if (subtemasHuerfanos.length === 0) {
+            alert('No se encontraron subtemas huÃ©rfanos');
+            return;
+        }
+        
+        const mensaje = `Se encontraron ${subtemasHuerfanos.length} subtemas huÃ©rfanos:\n\n` +
+            subtemasHuerfanos.map(s => `- ${s.nombre} (${s.preguntas} preguntas)`).join('\n') +
+            '\n\nÂ¿Eliminarlos todos?';
+        
+        if (!confirm(mensaje)) return;
+        
+        // Eliminar subtemas huÃ©rfanos
+        for (const subtema of subtemasHuerfanos) {
+            await deleteDoc(doc(db, "temas", subtema.id));
+        }
+        
+        alert(`Se eliminaron ${subtemasHuerfanos.length} subtemas huÃ©rfanos`);
+        cargarBancoPreguntas();
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al eliminar subtemas huÃ©rfanos');
+    }
+};
+
 window.diagnosticarTemas = async function() {
     try {
         console.log('=== DIAGNÃ"STICO DE TEMAS ===');
