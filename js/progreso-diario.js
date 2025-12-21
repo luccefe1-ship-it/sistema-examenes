@@ -53,7 +53,7 @@ async function cargarDatos() {
         }
         
         // Renderizar interfaz
-        cargarTemasSe lect();
+        cargarTemasSelect();
         actualizarResumenGeneral();
         renderizarProgresoTemas();
         
@@ -93,11 +93,38 @@ function actualizarResumenGeneral() {
     const paginasRestantes = Math.max(0, paginasTotales - paginasLeidas);
     const porcentaje = paginasTotales > 0 ? Math.round((paginasLeidas / paginasTotales) * 100) : 0;
     
+    // Calcular días restantes hasta fecha objetivo
+    const fechaObjetivo = new Date(planningData.fechaObjetivo);
+    const hoy = new Date();
+    const diasRestantes = Math.max(0, Math.ceil((fechaObjetivo - hoy) / (1000 * 60 * 60 * 24)));
+    
+    // Calcular ritmo necesario
+    let mensajeRitmo = '';
+    if (paginasRestantes > 0 && diasRestantes > 0) {
+        const paginasPorDia = (paginasRestantes / diasRestantes).toFixed(1);
+        mensajeRitmo = `📊 Debes leer ${paginasPorDia} páginas/día para llegar a tu objetivo`;
+    } else if (paginasRestantes === 0) {
+        mensajeRitmo = '🎉 ¡Has completado todo el temario!';
+    } else if (diasRestantes === 0) {
+        mensajeRitmo = '⚠️ La fecha objetivo ya pasó';
+    }
+    
     document.getElementById('paginasTotales').textContent = paginasLeidas;
     document.getElementById('paginasRestantes').textContent = paginasRestantes;
     document.getElementById('testsTotales').textContent = testsRealizados;
     document.getElementById('porcentajeCompleto').textContent = `${porcentaje}%`;
     document.getElementById('barraProgresoGeneral').style.width = `${porcentaje}%`;
+    
+    // Mostrar mensaje de ritmo
+    const resumenGeneral = document.querySelector('.resumen-general');
+    let alertaRitmo = document.getElementById('alertaRitmo');
+    if (!alertaRitmo) {
+        alertaRitmo = document.createElement('div');
+        alertaRitmo.id = 'alertaRitmo';
+        alertaRitmo.style.cssText = 'margin-top: 20px; padding: 15px; background: #f0f9ff; border-left: 4px solid #667eea; border-radius: 8px; font-size: 16px; font-weight: 600; color: #333;';
+        resumenGeneral.appendChild(alertaRitmo);
+    }
+    alertaRitmo.textContent = mensajeRitmo;
 }
 
 // Renderizar progreso por temas
