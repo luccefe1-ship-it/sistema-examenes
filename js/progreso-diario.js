@@ -76,41 +76,47 @@ function cargarTemasSelect() {
 }
 
 // Actualizar resumen general
+// Actualizar resumen general
 function actualizarResumenGeneral() {
-    let paginasLeidas = 0;
-    let paginasTotales = 0;
+    let hojasLeidas = 0;
+    let hojasTotales = 0;
     let testsRealizados = 0;
     
     planningData.temas.forEach(tema => {
         const progreso = progresoData.temas[tema.id];
         if (progreso) {
-            paginasLeidas += progreso.paginasLeidas || 0;
+            hojasLeidas += progreso.hojasLeidas || 0;
             testsRealizados += progreso.testsRealizados || 0;
         }
-        paginasTotales += tema.paginas;
+        hojasTotales += tema.hojas;
     });
     
-    const paginasRestantes = Math.max(0, paginasTotales - paginasLeidas);
-    const porcentaje = paginasTotales > 0 ? Math.round((paginasLeidas / paginasTotales) * 100) : 0;
+    const hojasRestantes = Math.max(0, hojasTotales - hojasLeidas);
+    const porcentaje = hojasTotales > 0 ? Math.round((hojasLeidas / hojasTotales) * 100) : 0;
     
     // Calcular días restantes hasta fecha objetivo
     const fechaObjetivo = new Date(planningData.fechaObjetivo);
     const hoy = new Date();
     const diasRestantes = Math.max(0, Math.ceil((fechaObjetivo - hoy) / (1000 * 60 * 60 * 24)));
     
+    // Calcular tests restantes
+    const testsRecomendados = planningData.testsRecomendados || 0;
+    const testsRestantes = Math.max(0, testsRecomendados - testsRealizados);
+    
     // Calcular ritmo necesario
     let mensajeRitmo = '';
-    if (paginasRestantes > 0 && diasRestantes > 0) {
-        const paginasPorDia = (paginasRestantes / diasRestantes).toFixed(1);
-        mensajeRitmo = `📊 Debes leer ${paginasPorDia} páginas/día para llegar a tu objetivo`;
-    } else if (paginasRestantes === 0) {
-        mensajeRitmo = '🎉 ¡Has completado todo el temario!';
+    if (hojasRestantes > 0 && diasRestantes > 0) {
+        const hojasPorDia = (hojasRestantes / diasRestantes).toFixed(1);
+        const testsPorDia = diasRestantes > 0 ? (testsRestantes / diasRestantes).toFixed(1) : 0;
+        mensajeRitmo = `📊 Debes leer ${hojasPorDia} hojas/día y hacer ${testsPorDia} tests/día para llegar a tu objetivo`;
+    } else if (hojasRestantes === 0 && testsRestantes === 0) {
+        mensajeRitmo = '🎉 ¡Has completado todo el temario y los tests!';
     } else if (diasRestantes === 0) {
         mensajeRitmo = '⚠️ La fecha objetivo ya pasó';
     }
     
-    document.getElementById('paginasTotales').textContent = paginasLeidas;
-    document.getElementById('paginasRestantes').textContent = paginasRestantes;
+    document.getElementById('paginasTotales').textContent = hojasLeidas;
+    document.getElementById('paginasRestantes').textContent = hojasRestantes;
     document.getElementById('testsTotales').textContent = testsRealizados;
     document.getElementById('porcentajeCompleto').textContent = `${porcentaje}%`;
     document.getElementById('barraProgresoGeneral').style.width = `${porcentaje}%`;
@@ -128,29 +134,28 @@ function actualizarResumenGeneral() {
 }
 
 // Renderizar progreso por temas
+// Renderizar progreso por temas
 function renderizarProgresoTemas() {
     const container = document.getElementById('listaTemas');
     container.innerHTML = '';
     
     planningData.temas.forEach(tema => {
         const progreso = progresoData.temas[tema.id] || {
-            paginasLeidas: 0,
-            testsRealizados: 0,
-            activo: false
+            hojasLeidas: 0,
+            testsRealizados: 0
         };
         
-        const porcentaje = tema.paginas > 0 ? Math.round((progreso.paginasLeidas / tema.paginas) * 100) : 0;
+        const porcentaje = tema.hojas > 0 ? Math.round((progreso.hojasLeidas / tema.hojas) * 100) : 0;
         
         const div = document.createElement('div');
         div.className = 'tema-item';
         div.innerHTML = `
             <div class="tema-header">
                 <div class="tema-nombre">${tema.nombre}</div>
-                ${progreso.activo ? '<span class="tema-activo">Activo</span>' : ''}
             </div>
             <div class="tema-stats">
                 <div class="tema-stat">
-                    📄 Páginas: <strong>${progreso.paginasLeidas || 0} / ${tema.paginas}</strong>
+                    📄 Hojas: <strong>${progreso.hojasLeidas || 0} / ${tema.hojas}</strong>
                 </div>
                 <div class="tema-stat">
                     ✅ Tests: <strong>${progreso.testsRealizados || 0}</strong>
@@ -169,7 +174,7 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
     e.preventDefault();
     
     const temaId = document.getElementById('temaActual').value;
-    const paginasHoy = parseInt(document.getElementById('paginasHoy').value) || 0;
+    const hojasHoy = parseInt(document.getElementById('paginasHoy').value) || 0;
     const testsHoy = parseInt(document.getElementById('testsHoy').value) || 0;
     
     if (!temaId) {
@@ -183,14 +188,13 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
             const tema = planningData.temas.find(t => t.id === temaId);
             progresoData.temas[temaId] = {
                 nombre: tema.nombre,
-                paginasTotales: tema.paginas,
-                paginasLeidas: 0,
-                testsRealizados: 0,
-                activo: planningData.temasActivos.includes(tema.nombre)
+                hojasTotales: tema.hojas,
+                hojasLeidas: 0,
+                testsRealizados: 0
             };
         }
         
-        progresoData.temas[temaId].paginasLeidas += paginasHoy;
+        progresoData.temas[temaId].hojasLeidas += hojasHoy;
         progresoData.temas[temaId].testsRealizados += testsHoy;
         
         // Añadir registro
@@ -201,7 +205,7 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
         progresoData.registros.push({
             fecha: new Date(),
             temaId: temaId,
-            paginasLeidas: paginasHoy,
+            hojasLeidas: hojasHoy,
             testsRealizados: testsHoy
         });
         
