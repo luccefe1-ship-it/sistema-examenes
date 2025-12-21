@@ -38,12 +38,10 @@ window.siguientePaso = function(pasoActual) {
     
     guardarDatosPaso(pasoActual);
     
-    // Si es el paso 2, generar la lista de temas
     if (pasoActual === 2) {
         generarListaTemas();
     }
     
-    // Ocultar paso actual y mostrar siguiente
     document.getElementById(`paso${pasoActual}`).classList.remove('activo');
     document.getElementById(`paso${pasoActual + 1}`).classList.add('activo');
 }
@@ -53,7 +51,6 @@ window.anteriorPaso = function(pasoActual) {
     document.getElementById(`paso${pasoActual - 1}`).classList.add('activo');
 }
 
-// Validar cada paso
 function validarPaso(paso) {
     switch(paso) {
         case 1:
@@ -83,7 +80,6 @@ function validarPaso(paso) {
     }
 }
 
-// Guardar datos de cada paso
 function guardarDatosPaso(paso) {
     switch(paso) {
         case 1:
@@ -96,7 +92,6 @@ function guardarDatosPaso(paso) {
     }
 }
 
-// Generar lista de temas en paso 3
 function generarListaTemas() {
     const container = document.getElementById('listaTemas');
     container.innerHTML = '';
@@ -105,27 +100,22 @@ function generarListaTemas() {
         const div = document.createElement('div');
         div.className = 'tema-input-grupo';
         div.innerHTML = `
-            <input type="text" class="tema-nombre" placeholder="Nombre del tema ${i + 1}" />
+            <input type="text" class="tema-nombre" value="Tema ${i + 1}" readonly style="background: #f3f4f6; cursor: not-allowed;" />
             <input type="number" class="tema-paginas" min="1" placeholder="Páginas" />
         `;
         container.appendChild(div);
     }
 }
 
-// Finalizar y guardar planning
 window.finalizarPlanning = async function() {
-    // Validar que todos los temas estén completos
     const temas = [];
     const inputs = document.querySelectorAll('.tema-input-grupo');
     
+    let index = 0;
     for (let input of inputs) {
         const nombre = input.querySelector('.tema-nombre').value.trim();
         const paginas = parseInt(input.querySelector('.tema-paginas').value);
         
-        if (!nombre) {
-            alert('Por favor, completa el nombre de todos los temas');
-            return;
-        }
         if (!paginas || paginas < 1) {
             alert('Por favor, indica el número de páginas de todos los temas');
             return;
@@ -134,25 +124,26 @@ window.finalizarPlanning = async function() {
         temas.push({ 
             nombre, 
             paginas,
-            id: `tema_${Date.now()}_${Math.random()}`
+            id: `tema_${currentUser.uid}_${index}_${Date.now()}`
         });
+        
+        index++;
     }
     
     datosPlanning.temas = temas;
     
     try {
-        // Calcular páginas totales
         const paginasTotales = temas.reduce((sum, t) => sum + t.paginas, 0);
         
-        // Guardar en Firebase
         await setDoc(doc(db, "planningSimple", currentUser.uid), {
-            ...datosPlanning,
+            numTemas: datosPlanning.numTemas,
+            fechaObjetivo: datosPlanning.fechaObjetivo,
+            temas: temas,
             paginasTotales,
             fechaCreacion: new Date(),
             usuarioId: currentUser.uid
         });
         
-        // Inicializar progreso
         const progresoInicial = {
             usuarioId: currentUser.uid,
             temas: {},
@@ -160,7 +151,7 @@ window.finalizarPlanning = async function() {
             fechaCreacion: new Date()
         };
         
-        datosPlanning.temas.forEach(tema => {
+        temas.forEach(tema => {
             progresoInicial.temas[tema.id] = {
                 nombre: tema.nombre,
                 paginasTotales: tema.paginas,
@@ -176,6 +167,6 @@ window.finalizarPlanning = async function() {
         
     } catch (error) {
         console.error('Error guardando planning:', error);
-        alert('Error al guardar el planning');
+        alert('Error al guardar el planning: ' + error.message);
     }
 }
