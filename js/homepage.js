@@ -353,31 +353,8 @@ async function mostrarObjetivosSemana(semana) {
 }
 
 function mostrarPropuestaPlanning() {
-    console.log('Ejecutando mostrarPropuestaPlanning...');
-    const contenedor = document.getElementById('objetivosSemana');
-    const titulo = document.getElementById('objetivosTitulo');
-    const contenido = document.getElementById('objetivosContenido');
-    
-    console.log('Elementos encontrados:', { contenedor, titulo, contenido });
-    
-    if (!contenedor || !titulo || !contenido) {
-        console.log('Error: No se encontraron los elementos necesarios');
-        return;
-    }
-
-    titulo.textContent = '📅 ¡Organiza tu estudio!';
-    contenido.innerHTML = `
-        <div class="objetivos-mensaje">
-            Crea un planning de estudio para establecer objetivos semanales y hacer seguimiento de tu progreso
-        </div>
-        <div class="objetivos-propuesta">
-            <button class="btn-crear-planning" onclick="window.location.href='Progreso.html'">
-                Crear Planning de Estudio
-            </button>
-        </div>
-    `;
-    
-    contenedor.style.display = 'block';
+    // Ya no se usa - el widget de planning maneja esto
+    return;
 }
 
 // Actualizar saludo cada minuto por si cambia la hora
