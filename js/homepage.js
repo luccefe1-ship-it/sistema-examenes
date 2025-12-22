@@ -767,7 +767,7 @@ async function cargarWidgetPlanning() {
         
         widgetPlanning.style.display = 'block';
         
-        if (planningDoc.exists()) {
+        if (planningDoc.exists() && !planningDoc.data().eliminado) {
             // Mostrar vista con planning
             document.getElementById('vistaSinPlanning').style.display = 'none';
             document.getElementById('vistaConPlanning').style.display = 'block';
