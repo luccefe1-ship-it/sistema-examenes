@@ -151,7 +151,8 @@ function renderizarProgresoTemas() {
         div.className = 'tema-item';
         div.innerHTML = `
             <div class="tema-header">
-                <div class="tema-nombre">${tema.nombre}</div>
+                <div class="tema-nombre" id="nombre-${tema.id}">${tema.nombre}</div>
+                <button onclick="editarNombreTema('${tema.id}')" class="btn-editar-tema">✏️</button>
             </div>
             <div class="tema-stats">
                 <div class="tema-stat">
@@ -321,6 +322,43 @@ window.eliminarPlanning = async function() {
         
     } catch (error) {
         console.error('Error eliminando planning:', error);
-      alert('Error al eliminar el planning');
+        alert('Error al eliminar el planning');
+    }
+}
+
+// Editar nombre de tema
+window.editarNombreTema = async function(temaId) {
+    const nombreDiv = document.getElementById(`nombre-${temaId}`);
+    const nombreActual = nombreDiv.textContent;
+    
+    const nuevoNombre = prompt('Nuevo nombre del tema:', nombreActual);
+    
+    if (!nuevoNombre || nuevoNombre === nombreActual) return;
+    
+    try {
+        // Actualizar en planningData
+        const tema = planningData.temas.find(t => t.id === temaId);
+        if (tema) {
+            tema.nombre = nuevoNombre;
+        }
+        
+        // Actualizar en progresoData
+        if (progresoData.temas[temaId]) {
+            progresoData.temas[temaId].nombre = nuevoNombre;
+        }
+        
+        // Guardar en Firebase
+        await setDoc(doc(db, "planningSimple", currentUser.uid), planningData);
+        await setDoc(doc(db, "progresoSimple", currentUser.uid), progresoData);
+        
+        // Actualizar interfaz
+        cargarTemasSelect();
+        renderizarProgresoTemas();
+        
+        alert('✅ Nombre actualizado');
+        
+    } catch (error) {
+        console.error('Error actualizando nombre:', error);
+        alert('Error al actualizar el nombre');
     }
 }
