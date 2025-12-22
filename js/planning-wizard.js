@@ -107,30 +107,18 @@ function generarListaTemas() {
     }
 }
 
-window.finalizarPlanning = async function() {
-    const testsDiarios = parseInt(document.getElementById('testsDiarios').value);
-    
-    if (testsDiarios === null || testsDiarios < 0) {
-        alert('Por favor, indica los tests diarios (0 si no quieres hacer tests)');
-        return;
-    }
-    
+// Omitir configuración de hojas
+window.omitirHojas = function() {
     const temas = [];
     const inputs = document.querySelectorAll('.tema-input-grupo');
     
     let index = 0;
     for (let input of inputs) {
         const nombre = input.querySelector('.tema-nombre').value.trim();
-        const hojas = parseInt(input.querySelector('.tema-paginas').value);
-        
-        if (!hojas || hojas < 1) {
-            alert('Por favor, indica el número de hojas de todos los temas');
-            return;
-        }
         
         temas.push({ 
             nombre, 
-            hojas,
+            hojas: 0,
             id: `tema_${currentUser.uid}_${index}_${Date.now()}`
         });
         
@@ -139,8 +127,42 @@ window.finalizarPlanning = async function() {
     
     datosPlanning.temas = temas;
     
+    document.getElementById('paso3').classList.remove('activo');
+    document.getElementById('paso4').classList.add('activo');
+}
+
+window.finalizarPlanning = async function() {
+    const testsDiarios = parseInt(document.getElementById('testsDiarios').value);
+    
+    if (testsDiarios === null || testsDiarios < 0) {
+        alert('Por favor, indica los tests diarios (0 si no quieres hacer tests)');
+        return;
+    }
+    
+    // Si no hay temas ya guardados (no vino de omitir)
+    if (datosPlanning.temas.length === 0) {
+        const temas = [];
+        const inputs = document.querySelectorAll('.tema-input-grupo');
+        
+        let index = 0;
+        for (let input of inputs) {
+            const nombre = input.querySelector('.tema-nombre').value.trim();
+            const hojas = parseInt(input.querySelector('.tema-paginas').value) || 0;
+            
+            temas.push({ 
+                nombre, 
+                hojas,
+                id: `tema_${currentUser.uid}_${index}_${Date.now()}`
+            });
+            
+            index++;
+        }
+        
+        datosPlanning.temas = temas;
+    }
+    
     try {
-        const hojasTotales = temas.reduce((sum, t) => sum + t.hojas, 0);
+        const hojasTotales = datosPlanning.temas.reduce((sum, t) => sum + t.hojas, 0);
         
         // Calcular días hasta fecha objetivo
         const fechaObj = new Date(datosPlanning.fechaObjetivo);
@@ -153,7 +175,7 @@ window.finalizarPlanning = async function() {
         await setDoc(doc(db, "planningSimple", currentUser.uid), {
             numTemas: datosPlanning.numTemas,
             fechaObjetivo: datosPlanning.fechaObjetivo,
-            temas: temas,
+            temas: datosPlanning.temas,
             hojasTotales,
             testsDiarios,
             testsRecomendados,
@@ -168,7 +190,7 @@ window.finalizarPlanning = async function() {
             fechaCreacion: new Date()
         };
         
-        temas.forEach(tema => {
+        datosPlanning.temas.forEach(tema => {
             progresoInicial.temas[tema.id] = {
                 nombre: tema.nombre,
                 hojasTotales: tema.hojas,
