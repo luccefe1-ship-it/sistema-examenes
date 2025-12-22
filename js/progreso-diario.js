@@ -156,6 +156,25 @@ function actualizarResumenGeneral() {
         resumenGeneral.appendChild(alertaRitmo);
     }
     alertaRitmo.textContent = mensajeRitmo;
+    
+    // Verificar temas sin hojas asignadas
+    const temasSinHojas = planningData.temas.filter(t => !t.hojas || t.hojas === 0);
+    let alertaTemasSinHojas = document.getElementById('alertaTemasSinHojas');
+    
+    if (temasSinHojas.length > 0) {
+        if (!alertaTemasSinHojas) {
+            alertaTemasSinHojas = document.createElement('div');
+            alertaTemasSinHojas.id = 'alertaTemasSinHojas';
+            alertaTemasSinHojas.style.cssText = 'margin-top: 15px; padding: 15px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; font-size: 14px; color: #92400e;';
+            resumenGeneral.appendChild(alertaTemasSinHojas);
+        }
+        alertaTemasSinHojas.innerHTML = `⚠️ <strong>Nota:</strong> Los datos mostrados son parciales. Hay ${temasSinHojas.length} tema(s) sin número de hojas asignado. Para obtener estadísticas precisas de tu progreso total, asigna el número de hojas a los temas restantes editándolos en la sección "Progreso por temas".`;
+        alertaTemasSinHojas.style.display = 'block';
+    } else {
+        if (alertaTemasSinHojas) {
+            alertaTemasSinHojas.style.display = 'none';
+        }
+    }
 }
 
 // Renderizar progreso por temas
