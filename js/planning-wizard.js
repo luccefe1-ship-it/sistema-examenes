@@ -107,29 +107,6 @@ function generarListaTemas() {
     }
 }
 
-// Omitir configuración de hojas
-window.omitirHojas = function() {
-    const temas = [];
-    const inputs = document.querySelectorAll('.tema-input-grupo');
-    
-    let index = 0;
-    for (let input of inputs) {
-        const nombre = input.querySelector('.tema-nombre').value.trim();
-        
-        temas.push({ 
-            nombre, 
-            hojas: 0,
-            id: `tema_${currentUser.uid}_${index}_${Date.now()}`
-        });
-        
-        index++;
-    }
-    
-    datosPlanning.temas = temas;
-    
-    document.getElementById('paso3').classList.remove('activo');
-    document.getElementById('paso4').classList.add('activo');
-}
 
 window.finalizarPlanning = async function() {
     const testsDiarios = parseInt(document.getElementById('testsDiarios').value);
