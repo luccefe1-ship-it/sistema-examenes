@@ -225,7 +225,9 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
         console.error('Error guardando progreso:', error);
         alert('Error al guardar el progreso');
     }
-    // Eliminar último registro
+});
+
+// Eliminar último registro
 window.eliminarUltimoRegistro = async function() {
     if (!confirm('¿Eliminar el último registro guardado?')) return;
     
@@ -319,7 +321,6 @@ window.eliminarPlanning = async function() {
         
     } catch (error) {
         console.error('Error eliminando planning:', error);
-        alert('Error al eliminar el planning');
+      alert('Error al eliminar el planning');
     }
 }
-});
