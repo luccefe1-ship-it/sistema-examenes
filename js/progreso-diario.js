@@ -56,6 +56,7 @@ async function cargarDatos() {
         cargarTemasSelect();
         actualizarResumenGeneral();
         renderizarProgresoTemas();
+        actualizarLimiteHojas();
         
     } catch (error) {
         console.error('Error cargando datos:', error);
@@ -73,6 +74,29 @@ function cargarTemasSelect() {
         option.textContent = tema.nombre;
         select.appendChild(option);
     });
+    
+    // Agregar evento para actualizar límite de hojas
+    select.addEventListener('change', actualizarLimiteHojas);
+}
+
+// Actualizar límite de hojas según tema seleccionado
+function actualizarLimiteHojas() {
+    const temaId = document.getElementById('temaActual').value;
+    const inputHojas = document.getElementById('paginasHoy');
+    
+    if (!temaId) {
+        inputHojas.max = '';
+        return;
+    }
+    
+    const tema = planningData.temas.find(t => t.id === temaId);
+    if (!tema) return;
+    
+    const progreso = progresoData.temas[temaId] || { hojasLeidas: 0 };
+    const hojasRestantes = Math.max(0, tema.hojas - (progreso.hojasLeidas || 0));
+    
+    inputHojas.max = hojasRestantes;
+    inputHojas.placeholder = `Máximo: ${hojasRestantes}`;
 }
 
 // Actualizar resumen general
@@ -186,15 +210,30 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
     }
     
     try {
+        // Obtener datos del tema
+        const tema = planningData.temas.find(t => t.id === temaId);
+        if (!tema) {
+            alert('Error: tema no encontrado');
+            return;
+        }
+        
         // Actualizar progreso del tema
         if (!progresoData.temas[temaId]) {
-            const tema = planningData.temas.find(t => t.id === temaId);
             progresoData.temas[temaId] = {
                 nombre: tema.nombre,
                 hojasTotales: tema.hojas,
                 hojasLeidas: 0,
                 testsRealizados: 0
             };
+        }
+        
+        // Validar que no exceda el total de hojas del tema
+        const hojasActuales = progresoData.temas[temaId].hojasLeidas || 0;
+        const hojasRestantes = Math.max(0, tema.hojas - hojasActuales);
+        
+        if (hojasHoy > hojasRestantes) {
+            alert(`⚠️ Este tema solo tiene ${hojasRestantes} hojas restantes.\nHojas totales: ${tema.hojas}\nYa leídas: ${hojasActuales}`);
+            return;
         }
         
         progresoData.temas[temaId].hojasLeidas += hojasHoy;
