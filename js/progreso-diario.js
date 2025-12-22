@@ -117,7 +117,8 @@ function actualizarResumenGeneral() {
     
     document.getElementById('paginasTotales').textContent = hojasLeidas;
     document.getElementById('paginasRestantes').textContent = hojasRestantes;
-    document.getElementById('testsTotales').textContent = testsRealizados;
+    document.getElementById('testsTotales').textContent = `${testsRealizados}/${testsRecomendados}`;
+    document.getElementById('diasRestantes').textContent = diasRestantes;
     document.getElementById('porcentajeCompleto').textContent = `${porcentaje}%`;
     document.getElementById('barraProgresoGeneral').style.width = `${porcentaje}%`;
     
@@ -156,7 +157,8 @@ function renderizarProgresoTemas() {
             </div>
             <div class="tema-stats">
                 <div class="tema-stat">
-                    📄 Hojas: <strong>${progreso.hojasLeidas || 0} / ${tema.hojas}</strong>
+                    📄 Hojas: <strong>${progreso.hojasLeidas || 0} / <span id="hojas-${tema.id}">${tema.hojas}</span></strong>
+                    <button onclick="editarHojasTema('${tema.id}')" class="btn-editar-hojas">✏️</button>
                 </div>
                 <div class="tema-stat">
                     ✅ Tests: <strong>${progreso.testsRealizados || 0}</strong>
@@ -362,3 +364,50 @@ window.editarNombreTema = async function(temaId) {
         alert('Error al actualizar el nombre');
     }
 }
+
+// Editar hojas de tema
+window.editarHojasTema = async function(temaId) {
+    const tema = planningData.temas.find(t => t.id === temaId);
+    if (!tema) return;
+    
+    const hojasActuales = tema.hojas;
+    const nuevasHojas = prompt(`Número de hojas para ${tema.nombre}:`, hojasActuales);
+    
+    if (nuevasHojas === null || nuevasHojas === '') return;
+    
+    const nuevasHojasNum = parseInt(nuevasHojas);
+    
+    if (isNaN(nuevasHojasNum) || nuevasHojasNum < 0) {
+        alert('Número de hojas inválido');
+        return;
+    }
+    
+    try {
+        // Actualizar en planningData
+        tema.hojas = nuevasHojasNum;
+        
+        // Recalcular hojas totales
+        const hojasTotales = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
+        planningData.hojasTotales = hojasTotales;
+        
+        // Actualizar en progresoData
+        if (progresoData.temas[temaId]) {
+            progresoData.temas[temaId].hojasTotales = nuevasHojasNum;
+        }
+        
+        // Guardar en Firebase
+        await setDoc(doc(db, "planningSimple", currentUser.uid), planningData);
+        await setDoc(doc(db, "progresoSimple", currentUser.uid), progresoData);
+        
+        // Actualizar interfaz
+        actualizarResumenGeneral();
+        renderizarProgresoTemas();
+        
+        alert('✅ Hojas actualizadas');
+        
+    } catch (error) {
+        console.error('Error actualizando hojas:', error);
+        alert('Error al actualizar las hojas');
+    }
+}
+
