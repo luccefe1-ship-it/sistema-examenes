@@ -203,7 +203,9 @@ function generarGraficaHojas() {
     const ctx = document.getElementById('graficaHojas');
     if (!ctx) return;
     
+    const hojasTotales = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
     const datos = calcularDatosGrafica('hojas');
+    const realAcumulado = datos.real.filter(v => v !== null).pop() || 0;
     
     new Chart(ctx, {
         type: 'line',
@@ -234,9 +236,34 @@ function generarGraficaHojas() {
             responsive: true,
             maintainAspectRatio: true,
             plugins: {
+                title: {
+                    display: true,
+                    text: `Objetivo: ${hojasTotales} hojas | Real: ${realAcumulado} hojas`,
+                    align: 'end',
+                    font: { size: 13, weight: 'bold' },
+                    color: '#333'
+                },
                 legend: {
                     display: true,
-                    position: 'top'
+                    position: 'bottom',
+                    labels: {
+                        generateLabels: function(chart) {
+                            return [
+                                {
+                                    text: 'Objetivo: Progreso lineal ideal',
+                                    fillStyle: '#3b82f6',
+                                    strokeStyle: '#3b82f6',
+                                    lineWidth: 1
+                                },
+                                {
+                                    text: 'Real: Tu progreso acumulado',
+                                    fillStyle: '#ef4444',
+                                    strokeStyle: '#ef4444',
+                                    lineWidth: 1
+                                }
+                            ];
+                        }
+                    }
                 }
             },
             scales: {
@@ -267,8 +294,7 @@ function generarGraficaTests() {
     
     const testsTotales = planningData.testsRecomendados || 0;
     const datos = calcularDatosGrafica('tests');
-    
-    const hojasTotales = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
+    const realAcumulado = datos.real.filter(v => v !== null).pop() || 0;
     
     new Chart(ctx, {
         type: 'line',
@@ -289,7 +315,7 @@ function generarGraficaTests() {
                     data: datos.real,
                     borderColor: '#ef4444',
                     backgroundColor: 'transparent',
-                    borderWidth: 1.5,
+                    borderWidth: 0.8,
                     tension: 0.3,
                     pointRadius: 2
                 }
@@ -301,10 +327,10 @@ function generarGraficaTests() {
             plugins: {
                 title: {
                     display: true,
-                    text: `Objetivo: ${testsTotales} tests`,
+                    text: `Objetivo: ${testsTotales} tests | Real: ${realAcumulado} tests`,
                     align: 'end',
-                    font: { size: 14, weight: 'bold' },
-                    color: '#3b82f6'
+                    font: { size: 13, weight: 'bold' },
+                    color: '#333'
                 },
                 legend: {
                     display: true,
