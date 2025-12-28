@@ -300,17 +300,17 @@ function calcularDatosGrafica(tipo) {
         new Date(planningData.fechaCreacion.seconds * 1000) : new Date();
     fechaInicio.setHours(0, 0, 0, 0);
     
+    const fechaObjetivo = new Date(planningData.fechaObjetivo);
+    fechaObjetivo.setHours(0, 0, 0, 0);
+    
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     
-    const fechaObjetivo = new Date(planningData.fechaObjetivo);
     const diasTotales = Math.ceil((fechaObjetivo - fechaInicio) / (1000 * 60 * 60 * 24));
     
     const labels = [];
     const objetivo = [];
     const real = [];
-    
-    let acumuladoReal = 0;
     
     // Calcular totales
     const hojasTotales = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
@@ -319,35 +319,45 @@ function calcularDatosGrafica(tipo) {
     const total = tipo === 'hojas' ? hojasTotales : testsTotales;
     const incrementoDiario = total / diasTotales;
     
-    // Generar datos día por día
-    for (let i = 0; i <= Math.ceil((hoy - fechaInicio) / (1000 * 60 * 60 * 24)); i++) {
+    let acumuladoReal = 0;
+    
+    // Generar datos desde inicio hasta fecha objetivo
+    for (let i = 0; i <= diasTotales; i++) {
         const fecha = new Date(fechaInicio);
         fecha.setDate(fecha.getDate() + i);
+        fecha.setHours(0, 0, 0, 0);
         
-        // Label
-        labels.push(fecha.getDate() + '/' + (fecha.getMonth() + 1));
+        // Label (cada 2-3 días para no saturar)
+        if (i === 0 || i === diasTotales || i % 3 === 0) {
+            labels.push(fecha.getDate() + '/' + (fecha.getMonth() + 1));
+        } else {
+            labels.push('');
+        }
         
         // Objetivo lineal
         objetivo.push(Math.round(incrementoDiario * i));
         
-        // Real acumulado
-        const registrosDia = (progresoData.registros || []).filter(reg => {
-            const regFecha = new Date(reg.fecha.seconds * 1000);
-            regFecha.setHours(0, 0, 0, 0);
-            const comparaFecha = new Date(fecha);
-            comparaFecha.setHours(0, 0, 0, 0);
-            return regFecha.getTime() === comparaFecha.getTime();
-        });
-        
-        registrosDia.forEach(reg => {
-            if (tipo === 'hojas') {
-                acumuladoReal += reg.hojasLeidas || 0;
-            } else {
-                acumuladoReal += reg.testsRealizados || 0;
-            }
-        });
-        
-        real.push(acumuladoReal);
+        // Real acumulado (solo hasta hoy)
+        if (fecha <= hoy) {
+            const registrosDia = (progresoData.registros || []).filter(reg => {
+                const regFecha = new Date(reg.fecha.seconds * 1000);
+                regFecha.setHours(0, 0, 0, 0);
+                return regFecha.getTime() === fecha.getTime();
+            });
+            
+            registrosDia.forEach(reg => {
+                if (tipo === 'hojas') {
+                    acumuladoReal += reg.hojasLeidas || 0;
+                } else {
+                    acumuladoReal += reg.testsRealizados || 0;
+                }
+            });
+            
+            real.push(acumuladoReal);
+        } else {
+            // Días futuros: null para no mostrar línea
+            real.push(null);
+        }
     }
     
     return { labels, objetivo, real };
