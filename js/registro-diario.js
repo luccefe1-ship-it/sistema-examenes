@@ -6,6 +6,9 @@ let currentUser = null;
 let planningData = null;
 let progresoData = null;
 
+// Debug: hacer accesibles en consola
+window.debugData = { currentUser, planningData, progresoData };
+
 // Verificar autenticación
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -51,6 +54,9 @@ async function cargarDatos() {
         } else {
             progresoData = { temas: {}, registros: [] };
         }
+        
+        // Debug: actualizar datos accesibles
+        window.debugData = { currentUser, planningData, progresoData };
         
         generarRegistroDiario();
         
