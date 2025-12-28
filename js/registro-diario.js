@@ -95,13 +95,15 @@ function generarRegistroDiario() {
 
 // Calcular datos de un día específico
 function calcularDatosDia(fecha) {
-    const fechaStr = fecha.toISOString().split('T')[0];
+    // Normalizar fecha a medianoche local
+    const fechaLocal = new Date(fecha);
+    fechaLocal.setHours(0, 0, 0, 0);
     
     // Filtrar registros de este día
     const registrosDia = (progresoData.registros || []).filter(reg => {
         const regFecha = new Date(reg.fecha.seconds * 1000);
-        const regFechaStr = regFecha.toISOString().split('T')[0];
-        return regFechaStr === fechaStr;
+        regFecha.setHours(0, 0, 0, 0);
+        return regFecha.getTime() === fechaLocal.getTime();
     });
     
     // Sumar hojas y tests del día
