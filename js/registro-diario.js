@@ -187,4 +187,164 @@ function renderizarDia(fecha, datos) {
     `;
     
     container.appendChild(div);
+    // Generar gráficas
+function generarGraficas() {
+    generarGraficaHojas();
+    generarGraficaTests();
+}
+
+// Gráfica de hojas
+function generarGraficaHojas() {
+    const ctx = document.getElementById('graficaHojas');
+    if (!ctx) return;
+    
+    const datos = calcularDatosGrafica('hojas');
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: datos.labels,
+            datasets: [
+                {
+                    label: 'Objetivo',
+                    data: datos.objetivo,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0
+                },
+                {
+                    label: 'Real',
+                    data: datos.real,
+                    borderColor: '#ef4444',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0.3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// Gráfica de tests
+function generarGraficaTests() {
+    const ctx = document.getElementById('graficaTests');
+    if (!ctx) return;
+    
+    const datos = calcularDatosGrafica('tests');
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: datos.labels,
+            datasets: [
+                {
+                    label: 'Objetivo',
+                    data: datos.objetivo,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0
+                },
+                {
+                    label: 'Real',
+                    data: datos.real,
+                    borderColor: '#ef4444',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0.3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// Calcular datos para gráfica
+function calcularDatosGrafica(tipo) {
+    const fechaInicio = planningData.fechaCreacion ? 
+        new Date(planningData.fechaCreacion.seconds * 1000) : new Date();
+    fechaInicio.setHours(0, 0, 0, 0);
+    
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    
+    const fechaObjetivo = new Date(planningData.fechaObjetivo);
+    const diasTotales = Math.ceil((fechaObjetivo - fechaInicio) / (1000 * 60 * 60 * 24));
+    
+    const labels = [];
+    const objetivo = [];
+    const real = [];
+    
+    let acumuladoReal = 0;
+    
+    // Calcular totales
+    const hojasTotales = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
+    const testsTotales = planningData.testsRecomendados || 0;
+    
+    const total = tipo === 'hojas' ? hojasTotales : testsTotales;
+    const incrementoDiario = total / diasTotales;
+    
+    // Generar datos día por día
+    for (let i = 0; i <= Math.ceil((hoy - fechaInicio) / (1000 * 60 * 60 * 24)); i++) {
+        const fecha = new Date(fechaInicio);
+        fecha.setDate(fecha.getDate() + i);
+        
+        // Label
+        labels.push(fecha.getDate() + '/' + (fecha.getMonth() + 1));
+        
+        // Objetivo lineal
+        objetivo.push(Math.round(incrementoDiario * i));
+        
+        // Real acumulado
+        const registrosDia = (progresoData.registros || []).filter(reg => {
+            const regFecha = new Date(reg.fecha.seconds * 1000);
+            regFecha.setHours(0, 0, 0, 0);
+            const comparaFecha = new Date(fecha);
+            comparaFecha.setHours(0, 0, 0, 0);
+            return regFecha.getTime() === comparaFecha.getTime();
+        });
+        
+        registrosDia.forEach(reg => {
+            if (tipo === 'hojas') {
+                acumuladoReal += reg.hojasLeidas || 0;
+            } else {
+                acumuladoReal += reg.testsRealizados || 0;
+            }
+        });
+        
+        real.push(acumuladoReal);
+    }
+    
+    return { labels, objetivo, real };
+}
 }
