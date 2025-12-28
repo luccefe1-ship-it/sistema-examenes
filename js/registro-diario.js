@@ -190,7 +190,9 @@ function renderizarDia(fecha, datos) {
     `;
     
     container.appendChild(div);
-    // Generar gráficas
+}
+
+// Generar gráficas
 function generarGraficas() {
     generarGraficaHojas();
     generarGraficaTests();
@@ -349,5 +351,4 @@ function calcularDatosGrafica(tipo) {
     }
     
     return { labels, objetivo, real };
-}
 }
