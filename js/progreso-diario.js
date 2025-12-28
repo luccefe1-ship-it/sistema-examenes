@@ -367,15 +367,11 @@ window.eliminarPlanning = async function() {
     
     try {
         // Eliminar planning y progreso
-        await setDoc(doc(db, "planningSimple", currentUser.uid), {
-            eliminado: true,
-            fechaEliminacion: new Date()
-        });
+        const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
         
-        await setDoc(doc(db, "progresoSimple", currentUser.uid), {
-            eliminado: true,
-            fechaEliminacion: new Date()
-        });
+        // Eliminar completamente planning y progreso de Firebase
+        await deleteDoc(doc(db, "planningSimple", currentUser.uid));
+        await deleteDoc(doc(db, "progresoSimple", currentUser.uid));
         
         alert('✅ Planning eliminado. Serás redirigido a la página principal.');
         window.location.href = 'homepage.html';
