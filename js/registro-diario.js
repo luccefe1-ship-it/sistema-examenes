@@ -68,7 +68,11 @@ function generarRegistroDiario() {
     const fechaInicio = planningData.fechaCreacion ? 
         new Date(planningData.fechaCreacion.seconds * 1000) : new Date();
     
+    // Normalizar fechas a medianoche para comparación correcta
+    fechaInicio.setHours(0, 0, 0, 0);
+    
     const hoy = new Date();
+    hoy.setHours(23, 59, 59, 999);
     
     // Generar todos los días desde inicio hasta hoy
     const dias = [];
