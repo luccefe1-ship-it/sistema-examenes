@@ -91,6 +91,9 @@ function generarRegistroDiario() {
         const diaData = calcularDatosDia(fecha);
         renderizarDia(fecha, diaData);
     });
+    
+    // Generar gráficas
+    generarGraficas();
 }
 
 // Calcular datos de un día específico
