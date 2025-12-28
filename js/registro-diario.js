@@ -272,21 +272,23 @@ function generarGraficaTests() {
         data: {
             labels: datos.labels,
             datasets: [
-                {
+               {
                     label: 'Objetivo',
                     data: datos.objetivo,
                     borderColor: '#3b82f6',
                     backgroundColor: 'transparent',
-                    borderWidth: 2,
-                    tension: 0
+                    borderWidth: 1,
+                    tension: 0,
+                    pointRadius: 0
                 },
                 {
                     label: 'Real',
                     data: datos.real,
                     borderColor: '#ef4444',
                     backgroundColor: 'transparent',
-                    borderWidth: 2,
-                    tension: 0.3
+                    borderWidth: 1.5,
+                    tension: 0.3,
+                    pointRadius: 2
                 }
             ]
         },
