@@ -92,8 +92,8 @@ function generarRegistroDiario() {
         renderizarDia(fecha, diaData);
     });
     
-    // Generar gráficas
-    generarGraficas();
+    // Generar gráficas (con timeout para asegurar que el DOM esté listo)
+    setTimeout(() => generarGraficas(), 100);
 }
 
 // Calcular datos de un día específico
