@@ -224,7 +224,7 @@ function generarGraficaHojas() {
                     data: datos.real,
                     borderColor: '#ef4444',
                     backgroundColor: 'transparent',
-                    borderWidth: 1,
+                    borderWidth: 0.8,
                     tension: 0.3,
                     pointRadius: 2
                 }
@@ -265,6 +265,7 @@ function generarGraficaTests() {
     const ctx = document.getElementById('graficaTests');
     if (!ctx) return;
     
+    const testsTotales = planningData.testsRecomendados || 0;
     const datos = calcularDatosGrafica('tests');
     
     const hojasTotales = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
@@ -300,7 +301,7 @@ function generarGraficaTests() {
             plugins: {
                 title: {
                     display: true,
-                    text: `Objetivo: ${hojasTotales} hojas`,
+                    text: `Objetivo: ${testsTotales} tests`,
                     align: 'end',
                     font: { size: 14, weight: 'bold' },
                     color: '#3b82f6'
