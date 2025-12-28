@@ -215,16 +215,18 @@ function generarGraficaHojas() {
                     data: datos.objetivo,
                     borderColor: '#3b82f6',
                     backgroundColor: 'transparent',
-                    borderWidth: 2,
-                    tension: 0
+                    borderWidth: 1,
+                    tension: 0,
+                    pointRadius: 0
                 },
                 {
                     label: 'Real',
                     data: datos.real,
                     borderColor: '#ef4444',
                     backgroundColor: 'transparent',
-                    borderWidth: 2,
-                    tension: 0.3
+                    borderWidth: 1.5,
+                    tension: 0.3,
+                    pointRadius: 2
                 }
             ]
         },
@@ -238,8 +240,20 @@ function generarGraficaHojas() {
                 }
             },
             scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Fecha',
+                        font: { size: 12, weight: 'bold' }
+                    }
+                },
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Hojas acumuladas',
+                        font: { size: 12, weight: 'bold' }
+                    }
                 }
             }
         }
