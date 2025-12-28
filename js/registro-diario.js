@@ -224,7 +224,7 @@ function generarGraficaHojas() {
                     data: datos.real,
                     borderColor: '#ef4444',
                     backgroundColor: 'transparent',
-                    borderWidth: 1.5,
+                    borderWidth: 1,
                     tension: 0.3,
                     pointRadius: 2
                 }
@@ -267,6 +267,8 @@ function generarGraficaTests() {
     
     const datos = calcularDatosGrafica('tests');
     
+    const hojasTotales = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
+    
     new Chart(ctx, {
         type: 'line',
         data: {
@@ -296,9 +298,34 @@ function generarGraficaTests() {
             responsive: true,
             maintainAspectRatio: true,
             plugins: {
+                title: {
+                    display: true,
+                    text: `Objetivo: ${hojasTotales} hojas`,
+                    align: 'end',
+                    font: { size: 14, weight: 'bold' },
+                    color: '#3b82f6'
+                },
                 legend: {
                     display: true,
-                    position: 'top'
+                    position: 'bottom',
+                    labels: {
+                        generateLabels: function(chart) {
+                            return [
+                                {
+                                    text: 'Objetivo: Progreso lineal ideal',
+                                    fillStyle: '#3b82f6',
+                                    strokeStyle: '#3b82f6',
+                                    lineWidth: 1
+                                },
+                                {
+                                    text: 'Real: Tu progreso acumulado',
+                                    fillStyle: '#ef4444',
+                                    strokeStyle: '#ef4444',
+                                    lineWidth: 1
+                                }
+                            ];
+                        }
+                    }
                 }
             },
             scales: {
