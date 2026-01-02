@@ -66,7 +66,7 @@ async function cargarDatos() {
 
 // Obtener tests realizados hoy
 function obtenerTestsDeHoy() {
-    if (!progresoData || !progresoData.registros) return { cantidad: 0, temas: [], esMix: false };
+    if (!progresoData || !progresoData.registros) return { testsUnicos: [], testsMix: 0 };
     
     const hoy = new Date();
     const hoyStr = hoy.toDateString();
@@ -76,37 +76,31 @@ function obtenerTestsDeHoy() {
         return fechaRegistro.toDateString() === hoyStr && registro.testsRealizados > 0;
     });
     
-    let totalTests = 0;
-    let temasUnicos = new Set();
-    let nombresTemas = [];
+    let testsUnicos = []; // Array de objetos {temaId, nombre}
+    let testsMix = 0;
     
     registrosHoy.forEach(registro => {
-        totalTests += registro.testsRealizados;
-        
-        if (registro.temaId === 'mix' && registro.temasMix) {
-            // Test Mix
-            registro.temasMix.forEach(tId => temasUnicos.add(tId));
-        } else if (registro.temaId && registro.temaId !== 'mix') {
-            temasUnicos.add(registro.temaId);
+        if (registro.temaId === 'mix') {
+            testsMix += registro.testsRealizados;
+        } else if (registro.temaId) {
+            // Test de tema único
+            const existente = testsUnicos.find(t => t.temaId === registro.temaId);
+            if (existente) {
+                existente.cantidad += registro.testsRealizados;
+            } else {
+                const tema = planningData?.temas?.find(t => t.id === registro.temaId);
+                testsUnicos.push({
+                    temaId: registro.temaId,
+                    nombre: tema ? tema.nombre : registro.temaId,
+                    cantidad: registro.testsRealizados
+                });
+            }
         }
     });
     
-    // Obtener nombres de temas
-    if (planningData && planningData.temas) {
-        temasUnicos.forEach(temaId => {
-            const tema = planningData.temas.find(t => t.id === temaId);
-            if (tema) {
-                nombresTemas.push(tema.nombre);
-            }
-        });
-    }
-    
-    return {
-        cantidad: totalTests,
-        temas: nombresTemas,
-        esMix: nombresTemas.length > 1
-    };
+    return { testsUnicos, testsMix };
 }
+
 // Mostrar mensaje de tests realizados hoy
 function mostrarTestsDeHoy() {
     const testsHoy = obtenerTestsDeHoy();
@@ -114,18 +108,28 @@ function mostrarTestsDeHoy() {
     
     if (!container) return;
     
-    if (testsHoy.cantidad === 0) {
+    const totalTests = testsHoy.testsUnicos.reduce((sum, t) => sum + t.cantidad, 0) + testsHoy.testsMix;
+    
+    if (totalTests === 0) {
         container.style.display = 'none';
         return;
     }
     
-    let mensaje = `📊 Hoy has hecho ${testsHoy.cantidad} test${testsHoy.cantidad > 1 ? 's' : ''}`;
+    let partes = [];
     
-    if (testsHoy.esMix) {
-        mensaje += ' Mix';
-    } else if (testsHoy.temas.length === 1) {
-        mensaje += ` del ${testsHoy.temas[0]}`;
+    // Agregar tests de temas únicos
+    testsHoy.testsUnicos.forEach(test => {
+        const testStr = test.cantidad === 1 ? 'test' : 'tests';
+        partes.push(`${test.cantidad} ${testStr} del ${test.nombre}`);
+    });
+    
+    // Agregar tests mix
+    if (testsHoy.testsMix > 0) {
+        const testStr = testsHoy.testsMix === 1 ? 'test' : 'tests';
+        partes.push(`${testsHoy.testsMix} ${testStr} Mix`);
     }
+    
+    const mensaje = `📊 Hoy has hecho ${partes.join(' y ')}`;
     
     container.textContent = mensaje;
     container.style.display = 'block';
