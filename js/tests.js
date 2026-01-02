@@ -2668,6 +2668,8 @@ async function finalizarTest() {
         if (temasUtilizados.length > 0) {
             console.log('Registrando test directamente...');
             await registrarTestDirectamenteEnTests(temasUtilizados);
+            // NUEVO: Registrar también en progresoSimple para progreso diario
+            await registrarTestEnProgresoSimple(temasUtilizados);
         } else {
             console.log('No hay temas válidos para registrar');
         }
@@ -4252,6 +4254,77 @@ function limpiarInterfazTestCompleta() {
 }
 // Función para registrar test directamente si Progreso.js no está cargado
 // Función mejorada para registrar test directamente con mejor manejo de datos
+// Nueva función para registrar en progresoSimple (sistema de progreso diario)
+async function registrarTestEnProgresoSimple(temasUtilizados) {
+    try {
+        console.log('=== REGISTRANDO TEST EN PROGRESO SIMPLE ===');
+        console.log('Temas a registrar:', temasUtilizados);
+        
+        // Obtener documento de progresoSimple
+        const progresoRef = doc(db, "progresoSimple", currentUser.uid);
+        let progresoDoc = await getDoc(progresoRef);
+        
+        if (!progresoDoc.exists()) {
+            console.log('No existe progresoSimple, no se puede registrar');
+            return;
+        }
+        
+        let progresoData = progresoDoc.data();
+        
+        // Asegurar estructura
+        if (!progresoData.temas) progresoData.temas = {};
+        if (!progresoData.registros) progresoData.registros = [];
+        
+        // Determinar si es Mix o tema único
+        const esMix = temasUtilizados.length > 1;
+        const fechaHoy = new Date();
+        
+        if (esMix) {
+            // Test Mix: registrar 1 test para cada tema
+            for (const temaId of temasUtilizados) {
+                if (progresoData.temas[temaId]) {
+                    progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
+                }
+            }
+            
+            // Añadir registro con primer tema como referencia pero marcado como Mix
+            progresoData.registros.push({
+                fecha: fechaHoy,
+                temaId: 'mix',
+                hojasLeidas: 0,
+                testsRealizados: 1,
+                temasMix: temasUtilizados
+            });
+            
+        } else {
+            // Test de un solo tema
+            const temaId = temasUtilizados[0];
+            
+            if (progresoData.temas[temaId]) {
+                progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
+            }
+            
+            // Añadir registro
+            progresoData.registros.push({
+                fecha: fechaHoy,
+                temaId: temaId,
+                hojasLeidas: 0,
+                testsRealizados: 1
+            });
+        }
+        
+        // Guardar en Firebase
+        await setDoc(progresoRef, progresoData);
+        
+        console.log('✅ Test registrado en progresoSimple');
+        console.log('Datos guardados:', progresoData.temas);
+        console.log('=====================================');
+        
+    } catch (error) {
+        console.error('❌ Error registrando test en progresoSimple:', error);
+    }
+}
+
 async function registrarTestDirectamenteEnTests(temasUtilizados) {
     try {
         console.log('=== REGISTRANDO TEST DIRECTAMENTE ===');
