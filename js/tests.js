@@ -4266,6 +4266,43 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         console.log('Temas únicos después de filtrar:', temasUnicos);
         console.log('Cantidad final:', temasUnicos.length);
         
+        // NUEVA LÓGICA: Detectar si todos los temas tienen el mismo padre
+        let todosDelMismoPadre = false;
+        let temaPadre = null;
+        
+        if (temasUnicos.length > 1) {
+            console.log('Verificando si todos los temas tienen el mismo padre...');
+            
+            // Obtener información de padre para cada tema
+            const infoTemas = await Promise.all(
+                temasUnicos.map(async (temaId) => {
+                    const temaDoc = await getDoc(doc(db, "temas", temaId));
+                    if (temaDoc.exists()) {
+                        const temaData = temaDoc.data();
+                        return {
+                            id: temaId,
+                            padre: temaData.temaPadreId || null
+                        };
+                    }
+                    return { id: temaId, padre: null };
+                })
+            );
+            
+            console.log('Información de temas:', infoTemas);
+            
+            // Verificar si todos tienen el mismo padre
+            const padres = infoTemas.map(t => t.padre).filter(p => p !== null);
+            if (padres.length === temasUnicos.length && padres.length > 0) {
+                const primerPadre = padres[0];
+                todosDelMismoPadre = padres.every(p => p === primerPadre);
+                
+                if (todosDelMismoPadre) {
+                    temaPadre = primerPadre;
+                    console.log('✅ Todos los temas comparten el mismo padre:', temaPadre);
+                }
+            }
+        }
+        
         // Obtener documento de progresoSimple
         const progresoRef = doc(db, "progresoSimple", currentUser.uid);
         let progresoDoc = await getDoc(progresoRef);
@@ -4281,34 +4318,35 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         if (!progresoData.temas) progresoData.temas = {};
         if (!progresoData.registros) progresoData.registros = [];
         
-        // Determinar si es Mix o tema único - USAR temasUnicos en lugar de temasUtilizados
-        const esMix = temasUnicos.length > 1;
+        // Determinar si es Mix CONSIDERANDO el padre compartido
+        const esMix = temasUnicos.length > 1 && !todosDelMismoPadre;
         const fechaHoy = new Date();
         
         console.log('ES MIX?:', esMix);
+        console.log('Todos del mismo padre?:', todosDelMismoPadre);
         
         if (esMix) {
-    // Test Mix: registrar 1 test para cada tema
-    for (const temaId of temasUnicos) {
-        // CREAR tema si no existe
-        if (!progresoData.temas[temaId]) {
-            const temaDoc = await getDoc(doc(db, "temas", temaId));
-            if (temaDoc.exists()) {
-                const temaData = temaDoc.data();
-                progresoData.temas[temaId] = {
-                    nombre: temaData.nombre,
-                    hojasTotales: temaData.hojas || 0,
-                    hojasLeidas: 0,
-                    testsRealizados: 0
-                };
+            // Test Mix: registrar 1 test para cada tema
+            for (const temaId of temasUnicos) {
+                // CREAR tema si no existe
+                if (!progresoData.temas[temaId]) {
+                    const temaDoc = await getDoc(doc(db, "temas", temaId));
+                    if (temaDoc.exists()) {
+                        const temaData = temaDoc.data();
+                        progresoData.temas[temaId] = {
+                            nombre: temaData.nombre,
+                            hojasTotales: temaData.hojas || 0,
+                            hojasLeidas: 0,
+                            testsRealizados: 0
+                        };
+                    }
+                }
+                
+                // Incrementar contador
+                if (progresoData.temas[temaId]) {
+                    progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
+                }
             }
-        }
-        
-        // Incrementar contador
-        if (progresoData.temas[temaId]) {
-            progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
-        }
-    }
             
             // Añadir registro con primer tema como referencia pero marcado como Mix
             progresoData.registros.push({
@@ -4320,27 +4358,29 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
             });
             
         } else {
-    // Test de un solo tema
-    const temaId = temasUnicos[0];
-    
-    // CREAR tema si no existe
-    if (!progresoData.temas[temaId]) {
-        const temaDoc = await getDoc(doc(db, "temas", temaId));
-        if (temaDoc.exists()) {
-            const temaData = temaDoc.data();
-            progresoData.temas[temaId] = {
-                nombre: temaData.nombre,
-                hojasTotales: temaData.hojas || 0,
-                hojasLeidas: 0,
-                testsRealizados: 0
-            };
-        }
-    }
-    
-    // Incrementar contador
-    if (progresoData.temas[temaId]) {
-        progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
-    }
+            // Test de un solo tema (o tema padre con subtemas)
+            const temaId = todosDelMismoPadre ? temaPadre : temasUnicos[0];
+            
+            console.log('Registrando como tema único:', temaId);
+            
+            // CREAR tema si no existe
+            if (!progresoData.temas[temaId]) {
+                const temaDoc = await getDoc(doc(db, "temas", temaId));
+                if (temaDoc.exists()) {
+                    const temaData = temaDoc.data();
+                    progresoData.temas[temaId] = {
+                        nombre: temaData.nombre,
+                        hojasTotales: temaData.hojas || 0,
+                        hojasLeidas: 0,
+                        testsRealizados: 0
+                    };
+                }
+            }
+            
+            // Incrementar contador
+            if (progresoData.temas[temaId]) {
+                progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
+            }
             
             // Añadir registro
             progresoData.registros.push({
@@ -4768,6 +4808,7 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     listResultados.appendChild(panelEstadisticas);
 }
 };
+
 
 
 
