@@ -57,10 +57,78 @@ async function cargarDatos() {
         actualizarResumenGeneral();
         renderizarProgresoTemas();
         actualizarLimiteHojas();
+        mostrarTestsDeHoy();
         
     } catch (error) {
         console.error('Error cargando datos:', error);
     }
+}
+
+// Obtener tests realizados hoy
+function obtenerTestsDeHoy() {
+    if (!progresoData || !progresoData.registros) return { cantidad: 0, temas: [], esMix: false };
+    
+    const hoy = new Date();
+    const hoyStr = hoy.toDateString();
+    
+    const registrosHoy = progresoData.registros.filter(registro => {
+        const fechaRegistro = registro.fecha.toDate ? registro.fecha.toDate() : new Date(registro.fecha);
+        return fechaRegistro.toDateString() === hoyStr && registro.testsRealizados > 0;
+    });
+    
+    let totalTests = 0;
+    let temasUnicos = new Set();
+    let nombresTemas = [];
+    
+    registrosHoy.forEach(registro => {
+        totalTests += registro.testsRealizados;
+        
+        if (registro.temaId === 'mix' && registro.temasMix) {
+            // Test Mix
+            registro.temasMix.forEach(tId => temasUnicos.add(tId));
+        } else if (registro.temaId && registro.temaId !== 'mix') {
+            temasUnicos.add(registro.temaId);
+        }
+    });
+    
+    // Obtener nombres de temas
+    if (planningData && planningData.temas) {
+        temasUnicos.forEach(temaId => {
+            const tema = planningData.temas.find(t => t.id === temaId);
+            if (tema) {
+                nombresTemas.push(tema.nombre);
+            }
+        });
+    }
+    
+    return {
+        cantidad: totalTests,
+        temas: nombresTemas,
+        esMix: nombresTemas.length > 1
+    };
+}
+// Mostrar mensaje de tests realizados hoy
+function mostrarTestsDeHoy() {
+    const testsHoy = obtenerTestsDeHoy();
+    const container = document.getElementById('mensajeTestsHoy');
+    
+    if (!container) return;
+    
+    if (testsHoy.cantidad === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    let mensaje = `📊 Hoy has hecho ${testsHoy.cantidad} test${testsHoy.cantidad > 1 ? 's' : ''}`;
+    
+    if (testsHoy.esMix) {
+        mensaje += ' Mix';
+    } else if (testsHoy.temas.length === 1) {
+        mensaje += ` del ${testsHoy.temas[0]}`;
+    }
+    
+    container.textContent = mensaje;
+    container.style.display = 'block';
 }
 
 // Cargar temas en el select
