@@ -2624,17 +2624,25 @@ async function finalizarTest() {
             });
             temasUtilizados = Array.from(temasUnicos);
         } else if (Array.isArray(testActual.tema)) {
-            console.log('Caso: array de temas específicos - EXTRAYENDO temaIdProgreso');
-            // CORRECCIÓN: Extraer de las preguntas usando temaIdProgreso en lugar de usar testActual.tema directamente
-            const temasUnicos = new Set();
-            testActual.preguntas.forEach(pregunta => {
-                const temaProgreso = pregunta.temaIdProgreso || pregunta.temaId;
-                console.log(`PREGUNTA: ${pregunta.texto.substring(0, 30)}... -> TEMA PROGRESO: ${temaProgreso}`);
-                if (temaProgreso) {
-                    temasUnicos.add(temaProgreso);
-                }
-            });
-            temasUtilizados = Array.from(temasUnicos);
+            console.log('Caso: array de temas específicos');
+            console.log('Temas originalmente seleccionados:', testActual.tema);
+            
+            // Si seleccionaste un solo tema, usar ese tema directamente
+            if (testActual.tema.length === 1) {
+                console.log('-> Un solo tema seleccionado, usando directamente');
+                temasUtilizados = [testActual.tema[0]];
+            } else {
+                console.log('-> Múltiples temas seleccionados, extrayendo de preguntas');
+                // Múltiples temas: extraer de las preguntas
+                const temasUnicos = new Set();
+                testActual.preguntas.forEach(pregunta => {
+                    const temaProgreso = pregunta.temaIdProgreso || pregunta.temaId;
+                    if (temaProgreso) {
+                        temasUnicos.add(temaProgreso);
+                    }
+                });
+                temasUtilizados = Array.from(temasUnicos);
+            }
         } else if (typeof testActual.tema === 'string' && testActual.tema !== 'repaso') {
             console.log('Caso: tema string individual');
             // Si fue un tema específico (pero no repaso)
@@ -4752,5 +4760,6 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     listResultados.appendChild(panelEstadisticas);
 }
 };
+
 
 
