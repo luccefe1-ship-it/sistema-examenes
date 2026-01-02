@@ -4258,7 +4258,13 @@ function limpiarInterfazTestCompleta() {
 async function registrarTestEnProgresoSimple(temasUtilizados) {
     try {
         console.log('=== REGISTRANDO TEST EN PROGRESO SIMPLE ===');
-        console.log('Temas a registrar:', temasUtilizados);
+        console.log('Temas recibidos:', temasUtilizados);
+        console.log('Cantidad de temas:', temasUtilizados.length);
+        
+        // FILTRAR duplicados por si acaso
+        const temasUnicos = [...new Set(temasUtilizados)];
+        console.log('Temas únicos después de filtrar:', temasUnicos);
+        console.log('Cantidad final:', temasUnicos.length);
         
         // Obtener documento de progresoSimple
         const progresoRef = doc(db, "progresoSimple", currentUser.uid);
@@ -4275,13 +4281,15 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         if (!progresoData.temas) progresoData.temas = {};
         if (!progresoData.registros) progresoData.registros = [];
         
-        // Determinar si es Mix o tema único
-        const esMix = temasUtilizados.length > 1;
+        // Determinar si es Mix o tema único - USAR temasUnicos en lugar de temasUtilizados
+        const esMix = temasUnicos.length > 1;
         const fechaHoy = new Date();
+        
+        console.log('ES MIX?:', esMix);
         
         if (esMix) {
     // Test Mix: registrar 1 test para cada tema
-    for (const temaId of temasUtilizados) {
+    for (const temaId of temasUnicos) {
         // CREAR tema si no existe
         if (!progresoData.temas[temaId]) {
             const temaDoc = await getDoc(doc(db, "temas", temaId));
@@ -4308,12 +4316,12 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
                 temaId: 'mix',
                 hojasLeidas: 0,
                 testsRealizados: 1,
-                temasMix: temasUtilizados
+                temasMix: temasUnicos
             });
             
         } else {
     // Test de un solo tema
-    const temaId = temasUtilizados[0];
+    const temaId = temasUnicos[0];
     
     // CREAR tema si no existe
     if (!progresoData.temas[temaId]) {
@@ -4760,6 +4768,7 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     listResultados.appendChild(panelEstadisticas);
 }
 };
+
 
 
 
