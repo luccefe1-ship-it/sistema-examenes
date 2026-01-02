@@ -2,7 +2,10 @@ import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
     addDoc, 
-    collection
+    collection,
+    doc,
+    getDoc,
+    setDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let currentUser = null;
@@ -300,6 +303,68 @@ function detenerCronometro() {
     }
 }
 
+// Función para registrar en progresoSimple
+async function registrarTestEnProgresoSimple(temasUtilizados) {
+    try {
+        console.log('=== REGISTRANDO TEST EN PROGRESO SIMPLE (PREGUNTA A PREGUNTA) ===');
+        console.log('Temas a registrar:', temasUtilizados);
+        
+        const progresoRef = doc(db, "progresoSimple", currentUser.uid);
+        let progresoDoc = await getDoc(progresoRef);
+        
+        if (!progresoDoc.exists()) {
+            console.log('No existe progresoSimple, no se puede registrar');
+            return;
+        }
+        
+        let progresoData = progresoDoc.data();
+        
+        if (!progresoData.temas) progresoData.temas = {};
+        if (!progresoData.registros) progresoData.registros = [];
+        
+        const esMix = temasUtilizados.length > 1;
+        const fechaHoy = new Date();
+        
+        if (esMix) {
+            for (const temaId of temasUtilizados) {
+                if (progresoData.temas[temaId]) {
+                    progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
+                }
+            }
+            
+            progresoData.registros.push({
+                fecha: fechaHoy,
+                temaId: 'mix',
+                hojasLeidas: 0,
+                testsRealizados: 1,
+                temasMix: temasUtilizados
+            });
+            
+        } else {
+            const temaId = temasUtilizados[0];
+            
+            if (progresoData.temas[temaId]) {
+                progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
+            }
+            
+            progresoData.registros.push({
+                fecha: fechaHoy,
+                temaId: temaId,
+                hojasLeidas: 0,
+                testsRealizados: 1
+            });
+        }
+        
+        await setDoc(progresoRef, progresoData);
+        
+        console.log('✅ Test registrado en progresoSimple');
+        console.log('=====================================');
+        
+    } catch (error) {
+        console.error('❌ Error registrando test en progresoSimple:', error);
+    }
+}
+
 function finalizarTestPorTiempo() {
     alert('¡Tiempo agotado! El test se finalizará automáticamente.');
     finalizarTest();
@@ -405,6 +470,13 @@ async function finalizarTest() {
             await Promise.all(promesasGuardado);
             console.log(`${preguntasFalladas.length} preguntas falladas guardadas para repaso desde test pregunta a pregunta`);
         }
+        
+        // NUEVO: Registrar test en progresoSimple
+        const temasUtilizados = [...new Set(testConfig.preguntas.map(p => p.temaId || p.temaIdProgreso).filter(Boolean))];
+        if (temasUtilizados.length > 0) {
+            await registrarTestEnProgresoSimple(temasUtilizados);
+        }
+        
     } catch (error) {
         console.error('Error guardando resultado:', error);
     }
