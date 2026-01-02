@@ -472,7 +472,13 @@ async function finalizarTest() {
         }
         
         // NUEVO: Registrar test en progresoSimple
+        console.log('=== DEBUG TEMAS EN TEST ===');
+        console.log('testConfig.temas:', testConfig.temas);
+        console.log('Primera pregunta:', testConfig.preguntas[0]);
+        
         const temasUtilizados = [...new Set(testConfig.preguntas.map(p => p.temaId || p.temaIdProgreso).filter(Boolean))];
+        console.log('temasUtilizados extraídos:', temasUtilizados);
+        
         if (temasUtilizados.length > 0) {
             await registrarTestEnProgresoSimple(temasUtilizados);
         }
