@@ -2381,12 +2381,8 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                 
                 tema.preguntas.forEach((pregunta, index) => {
                     if (pregunta.verificada) {
-                        // Determinar el tema para progreso
+                        // Determinar el tema para progreso - USAR EL TEMA ACTUAL, NO EL PADRE
                         let temaIdParaProgreso = doc.id;
-                        if (tema.temaPadreId) {
-                            temaIdParaProgreso = tema.temaPadreId;
-                            console.log(`EPÍGRAFE: ${tema.nombre} -> TEMA PADRE: ${tema.temaPadreId}`);
-                        }
 
                         preguntasVerificadas.push({
                             ...pregunta,
@@ -2420,12 +2416,8 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                         let preguntasVerificadasTema = 0;
                         tema.preguntas.forEach((pregunta, index) => {
                             if (pregunta.verificada) {
-                                // Determinar el tema para progreso
+                                // Determinar el tema para progreso - USAR EL TEMA ACTUAL, NO EL PADRE
                                 let temaIdParaProgreso = temaId;
-                                if (tema.temaPadreId) {
-                                    temaIdParaProgreso = tema.temaPadreId;
-                                    console.log(`EPÍGRAFE: ${tema.nombre} -> TEMA PADRE: ${tema.temaPadreId}`);
-                                }
 
                                 preguntasVerificadas.push({
                                     ...pregunta,
@@ -4730,3 +4722,4 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     listResultados.appendChild(panelEstadisticas);
 }
 };
+
