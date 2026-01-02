@@ -4272,12 +4272,27 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         const fechaHoy = new Date();
         
         if (esMix) {
-            // Test Mix: registrar 1 test para cada tema
-            for (const temaId of temasUtilizados) {
-                if (progresoData.temas[temaId]) {
-                    progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
-                }
+    // Test Mix: registrar 1 test para cada tema
+    for (const temaId of temasUtilizados) {
+        // CREAR tema si no existe
+        if (!progresoData.temas[temaId]) {
+            const temaDoc = await getDoc(doc(db, "temas", temaId));
+            if (temaDoc.exists()) {
+                const temaData = temaDoc.data();
+                progresoData.temas[temaId] = {
+                    nombre: temaData.nombre,
+                    hojasTotales: temaData.hojas || 0,
+                    hojasLeidas: 0,
+                    testsRealizados: 0
+                };
             }
+        }
+        
+        // Incrementar contador
+        if (progresoData.temas[temaId]) {
+            progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
+        }
+    }
             
             // Añadir registro con primer tema como referencia pero marcado como Mix
             progresoData.registros.push({
@@ -4289,12 +4304,27 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
             });
             
         } else {
-            // Test de un solo tema
-            const temaId = temasUtilizados[0];
-            
-            if (progresoData.temas[temaId]) {
-                progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
-            }
+    // Test de un solo tema
+    const temaId = temasUtilizados[0];
+    
+    // CREAR tema si no existe
+    if (!progresoData.temas[temaId]) {
+        const temaDoc = await getDoc(doc(db, "temas", temaId));
+        if (temaDoc.exists()) {
+            const temaData = temaDoc.data();
+            progresoData.temas[temaId] = {
+                nombre: temaData.nombre,
+                hojasTotales: temaData.hojas || 0,
+                hojasLeidas: 0,
+                testsRealizados: 0
+            };
+        }
+    }
+    
+    // Incrementar contador
+    if (progresoData.temas[temaId]) {
+        progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
+    }
             
             // Añadir registro
             progresoData.registros.push({
@@ -4722,4 +4752,5 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     listResultados.appendChild(panelEstadisticas);
 }
 };
+
 
