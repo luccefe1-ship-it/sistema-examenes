@@ -132,18 +132,28 @@ async function mostrarTestsDeHoy() {
     
     if (!container) return;
     
-    if (testsHoy.cantidad === 0) {
+    const totalTests = testsHoy.testsUnicos.reduce((sum, t) => sum + t.cantidad, 0) + testsHoy.testsMix;
+    
+    if (totalTests === 0) {
         container.style.display = 'none';
         return;
     }
     
-    let mensaje = `📊 Hoy has hecho ${testsHoy.cantidad} test${testsHoy.cantidad > 1 ? 's' : ''}`;
+    let partes = [];
     
-    if (testsHoy.esMix) {
-        mensaje += ' Mix';
-    } else if (testsHoy.temas.length === 1) {
-        mensaje += ` del ${testsHoy.temas[0]}`;
+    // Agregar tests de temas únicos
+    testsHoy.testsUnicos.forEach(test => {
+        const testStr = test.cantidad === 1 ? 'test' : 'tests';
+        partes.push(`${test.cantidad} ${testStr} del ${test.nombre}`);
+    });
+    
+    // Agregar tests mix
+    if (testsHoy.testsMix > 0) {
+        const testStr = testsHoy.testsMix === 1 ? 'test' : 'tests';
+        partes.push(`${testsHoy.testsMix} ${testStr} Mix`);
     }
+    
+    const mensaje = `📊 Hoy has hecho ${partes.join(' y ')}`;
     
     container.textContent = mensaje;
     container.style.display = 'block';
