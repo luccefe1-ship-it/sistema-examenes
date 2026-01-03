@@ -209,17 +209,12 @@ function actualizarResumenGeneral() {
     let hojasTotales = 0;
     let testsRealizados = 0;
     
-    // Contar tests de TODOS los temas en progresoData (no solo los de planningData)
-    if (progresoData.temas) {
-        for (const temaId in progresoData.temas) {
-            testsRealizados += progresoData.temas[temaId].testsRealizados || 0;
-        }
-    }
-    
+    // Contar SOLO tests de temas que están en planningData
     planningData.temas.forEach(tema => {
         const progreso = progresoData.temas[tema.id];
         if (progreso) {
             hojasLeidas += progreso.hojasLeidas || 0;
+            testsRealizados += progreso.testsRealizados || 0;
         }
         hojasTotales += tema.hojas;
     });
