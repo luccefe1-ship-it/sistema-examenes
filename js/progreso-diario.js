@@ -202,22 +202,15 @@ function actualizarLimiteHojas() {
     inputHojas.placeholder = `Máximo: ${hojasRestantes}`;
 }
 
-// Actualizar resumen general
+
 function actualizarResumenGeneral() {
     let hojasLeidas = 0;
     let hojasTotales = 0;
     let testsRealizados = 0;
     
-    // Recalcular tests desde registros para evitar duplicados
-    const temasEnPlanning = new Set(planningData.temas.map(t => t.id));
-    
+    // Contar tests desde registros (cada registro = 1 test)
     if (progresoData.registros) {
-        progresoData.registros.forEach(registro => {
-            // Solo contar si es un tema del planning o es Mix
-            if (registro.temaId === 'mix' || temasEnPlanning.has(registro.temaId)) {
-                testsRealizados += registro.testsRealizados || 0;
-            }
-        });
+        testsRealizados = progresoData.registros.filter(r => r.testsRealizados > 0).length;
     }
     
     planningData.temas.forEach(tema => {
