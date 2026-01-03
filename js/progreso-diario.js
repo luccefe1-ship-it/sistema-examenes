@@ -66,7 +66,7 @@ async function cargarDatos() {
 
 // Obtener tests realizados hoy
 async function obtenerTestsDeHoy() {
-    if (!progresoData || !progresoData.registros) return { cantidad: 0, temas: [], esMix: false };
+    if (!progresoData || !progresoData.registros) return { testsUnicos: [], testsMix: 0 };
     
     const hoy = new Date();
     const hoyStr = hoy.toDateString();
@@ -76,20 +76,53 @@ async function obtenerTestsDeHoy() {
         return fechaRegistro.toDateString() === hoyStr && registro.testsRealizados > 0;
     });
     
-    let totalTests = 0;
-    let temasUnicos = new Set();
-    let nombresTemas = [];
+    // Agrupar por temaId
+    const testsPorTema = {};
+    let testsMix = 0;
     
     registrosHoy.forEach(registro => {
-        totalTests += registro.testsRealizados;
-        
-        if (registro.temaId === 'mix' && registro.temasMix) {
-            // Test Mix
-            registro.temasMix.forEach(tId => temasUnicos.add(tId));
-        } else if (registro.temaId && registro.temaId !== 'mix') {
-            temasUnicos.add(registro.temaId);
+        if (registro.temaId === 'mix') {
+            testsMix += registro.testsRealizados;
+        } else if (registro.temaId) {
+            if (!testsPorTema[registro.temaId]) {
+                testsPorTema[registro.temaId] = 0;
+            }
+            testsPorTema[registro.temaId] += registro.testsRealizados;
         }
     });
+    
+    // Convertir a array con nombres
+    const testsUnicos = [];
+    for (const temaId in testsPorTema) {
+        let nombre = null;
+        
+        // Buscar nombre en planningData
+        if (planningData && planningData.temas) {
+            const tema = planningData.temas.find(t => t.id === temaId);
+            if (tema) {
+                nombre = tema.nombre;
+            }
+        }
+        
+        // Si no está en planningData, buscar en progresoData
+        if (!nombre && progresoData && progresoData.temas && progresoData.temas[temaId]) {
+            nombre = progresoData.temas[temaId].nombre;
+        }
+        
+        if (nombre) {
+            testsUnicos.push({
+                temaId: temaId,
+                nombre: nombre,
+                cantidad: testsPorTema[temaId]
+            });
+        }
+    }
+    
+    return {
+        testsUnicos: testsUnicos,
+        testsMix: testsMix
+    };
+}
     
     // Obtener nombres de temas - CORRECCIÓN: buscar también en progresoData.temas
     if (temasUnicos.size > 0) {
