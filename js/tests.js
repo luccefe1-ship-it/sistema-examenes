@@ -4300,36 +4300,6 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         let todosDelMismoPadre = false;
         let temaPadre = null;
         
-        if (!progresoDoc.exists()) {
-            console.log('No existe progresoSimple, no se puede registrar');
-            return;
-        }
-        
-        let progresoData = progresoDoc.data();
-        
-        // Asegurar estructura
-        if (!progresoData.temas) progresoData.temas = {};
-        if (!progresoData.registros) progresoData.registros = [];
-        
-        // BUSCAR MAPEO: ¿Algún tema del planning tiene vinculado este tema del banco?
-        let temasPlanningVinculados = new Set();
-        
-        for (const temaIdBanco of temasUnicos) {
-            for (const [temaIdPlanning, dataTema] of Object.entries(progresoData.temas)) {
-                if (dataTema.temasBancoIds && dataTema.temasBancoIds.includes(temaIdBanco)) {
-                    temasPlanningVinculados.add(temaIdPlanning);
-                    console.log(`✓ Tema del banco ${temaIdBanco} está vinculado a ${temaIdPlanning}`);
-                }
-            }
-        }
-        
-        const temasVinculadosArray = Array.from(temasPlanningVinculados);
-        console.log('Temas del planning vinculados:', temasVinculadosArray);
-        
-        // NUEVA LÓGICA: Detectar si todos los temas tienen el mismo padre
-        let todosDelMismoPadre = false;
-        let temaPadre = null;
-        
         if (temasUnicos.length > 1) {
             console.log('Verificando si todos los temas tienen el mismo padre...');
             
@@ -4855,6 +4825,7 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     listResultados.appendChild(panelEstadisticas);
 }
 };
+
 
 
 
