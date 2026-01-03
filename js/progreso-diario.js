@@ -611,3 +611,13 @@ window.recalcularContadores = async function() {
         alert('Error recalculando contadores');
     }
 };
+// Función de debug accesible desde consola
+window.debugRegistros = function() {
+    console.log('=== DIAGNÓSTICO REGISTROS ===');
+    console.log('Total registros:', progresoData.registros.length);
+    progresoData.registros.forEach((r, i) => {
+        const fecha = r.fecha.toDate ? r.fecha.toDate().toDateString() : new Date(r.fecha).toDateString();
+        console.log(`Registro ${i}:`, 'Fecha:', fecha, 'TemaID:', r.temaId, 'Tests:', r.testsRealizados, 'Hojas:', r.hojasLeidas);
+    });
+    console.log('============================');
+};
