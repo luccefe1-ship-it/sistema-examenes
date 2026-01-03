@@ -209,11 +209,17 @@ function actualizarResumenGeneral() {
     let hojasTotales = 0;
     let testsRealizados = 0;
     
+    // Calcular tests totales desde los registros (incluye todos los tests, estén o no en planningData)
+    if (progresoData.registros && progresoData.registros.length > 0) {
+        testsRealizados = progresoData.registros.reduce((total, registro) => {
+            return total + (registro.testsRealizados || 0);
+        }, 0);
+    }
+    
     planningData.temas.forEach(tema => {
         const progreso = progresoData.temas[tema.id];
         if (progreso) {
             hojasLeidas += progreso.hojasLeidas || 0;
-            testsRealizados += progreso.testsRealizados || 0;
         }
         hojasTotales += tema.hojas;
     });
