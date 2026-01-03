@@ -572,4 +572,42 @@ window.editarHojasTema = async function(temaId) {
         alert('Error al actualizar las hojas');
     }
 }
-
+// Recalcular contadores desde registros
+window.recalcularContadores = async function() {
+    if (!confirm('Esto recalculará todos los contadores desde los registros. ¿Continuar?')) return;
+    
+    try {
+        // Resetear todos los contadores a 0
+        for (const temaId in progresoData.temas) {
+            progresoData.temas[temaId].testsRealizados = 0;
+            progresoData.temas[temaId].hojasLeidas = 0;
+        }
+        
+        // Recalcular desde registros
+        progresoData.registros.forEach(registro => {
+            if (registro.temaId && registro.temaId !== 'mix') {
+                if (!progresoData.temas[registro.temaId]) {
+                    progresoData.temas[registro.temaId] = {
+                        hojasLeidas: 0,
+                        testsRealizados: 0
+                    };
+                }
+                
+                progresoData.temas[registro.temaId].hojasLeidas += registro.hojasLeidas || 0;
+                progresoData.temas[registro.temaId].testsRealizados += registro.testsRealizados || 0;
+            }
+        });
+        
+        // Guardar en Firebase
+        await setDoc(doc(db, "progresoSimple", currentUser.uid), progresoData);
+        
+        alert('✅ Contadores recalculados');
+        actualizarResumenGeneral();
+        renderizarProgresoTemas();
+        await mostrarTestsDeHoy();
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error recalculando contadores');
+    }
+};
