@@ -619,5 +619,22 @@ window.debugRegistros = function() {
         const fecha = r.fecha.toDate ? r.fecha.toDate().toDateString() : new Date(r.fecha).toDateString();
         console.log(`Registro ${i}:`, 'Fecha:', fecha, 'TemaID:', r.temaId, 'Tests:', r.testsRealizados, 'Hojas:', r.hojasLeidas);
     });
+// Borrar todos los registros
+window.borrarTodosRegistros = async function() {
+    if (!confirm('¿Borrar TODOS los registros? Esto pondrá todos los contadores en 0.')) return;
+    
+    progresoData.registros = [];
+    
+    // Resetear contadores
+    for (const temaId in progresoData.temas) {
+        progresoData.temas[temaId].testsRealizados = 0;
+        progresoData.temas[temaId].hojasLeidas = 0;
+    }
+    
+    await setDoc(doc(db, "progresoSimple", currentUser.uid), progresoData);
+    
+    alert('✅ Todos los registros borrados');
+    location.reload();
+};
     console.log('============================');
 };
