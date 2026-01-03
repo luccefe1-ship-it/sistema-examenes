@@ -4326,29 +4326,8 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         console.log('Todos del mismo padre?:', todosDelMismoPadre);
         
         if (esMix) {
-            // Test Mix: registrar 1 test para cada tema
-            for (const temaId of temasUnicos) {
-                // CREAR tema si no existe
-                if (!progresoData.temas[temaId]) {
-                    const temaDoc = await getDoc(doc(db, "temas", temaId));
-                    if (temaDoc.exists()) {
-                        const temaData = temaDoc.data();
-                        progresoData.temas[temaId] = {
-                            nombre: temaData.nombre,
-                            hojasTotales: temaData.hojas || 0,
-                            hojasLeidas: 0,
-                            testsRealizados: 0
-                        };
-                    }
-                }
-                
-                // Incrementar contador
-                if (progresoData.temas[temaId]) {
-                    progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
-                }
-            }
-            
-            // Añadir registro con primer tema como referencia pero marcado como Mix
+            // Test Mix: NO incrementar contadores de temas, solo crear registro
+            // Añadir registro Mix
             progresoData.registros.push({
                 fecha: fechaHoy,
                 temaId: 'mix',
@@ -4808,6 +4787,7 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     listResultados.appendChild(panelEstadisticas);
 }
 };
+
 
 
 
