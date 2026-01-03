@@ -153,7 +153,14 @@ async function mostrarTestsDeHoy() {
         partes.push(`${testsHoy.testsMix} ${testStr} Mix`);
     }
     
-    const mensaje = `📊 Hoy has hecho ${partes.join(' y ')}`;
+    let mensaje = '📊 Hoy has hecho ';
+    if (partes.length === 1) {
+        mensaje += partes[0];
+    } else if (partes.length === 2) {
+        mensaje += partes.join(' y ');
+    } else {
+        mensaje += partes.slice(0, -1).join(', ') + ' y ' + partes[partes.length - 1];
+    }
     
     container.textContent = mensaje;
     container.style.display = 'block';
