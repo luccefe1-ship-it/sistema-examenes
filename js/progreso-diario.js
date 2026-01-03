@@ -203,18 +203,27 @@ function actualizarLimiteHojas() {
 }
 
 // Actualizar resumen general
-// Actualizar resumen general
 function actualizarResumenGeneral() {
     let hojasLeidas = 0;
     let hojasTotales = 0;
     let testsRealizados = 0;
     
-    // Contar SOLO tests de temas que están en planningData
+    // Recalcular tests desde registros para evitar duplicados
+    const temasEnPlanning = new Set(planningData.temas.map(t => t.id));
+    
+    if (progresoData.registros) {
+        progresoData.registros.forEach(registro => {
+            // Solo contar si es un tema del planning o es Mix
+            if (registro.temaId === 'mix' || temasEnPlanning.has(registro.temaId)) {
+                testsRealizados += registro.testsRealizados || 0;
+            }
+        });
+    }
+    
     planningData.temas.forEach(tema => {
         const progreso = progresoData.temas[tema.id];
         if (progreso) {
             hojasLeidas += progreso.hojasLeidas || 0;
-            testsRealizados += progreso.testsRealizados || 0;
         }
         hojasTotales += tema.hojas;
     });
