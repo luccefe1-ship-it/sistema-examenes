@@ -1,9 +1,8 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let currentUser = null;
-let temasBanco = []; // Temas del banco de preguntas
 let datosPlanning = {
     numTemas: 0,
     fechaObjetivo: null,
@@ -19,10 +18,6 @@ onAuthStateChanged(auth, async (user) => {
             if (userDoc.exists()) {
                 document.getElementById('userName').textContent = userDoc.data().nombre;
             }
-            
-            // Cargar temas del banco
-            await cargarTemasBanco();
-            
         } catch (error) {
             console.error('Error cargando usuario:', error);
         }
@@ -30,30 +25,6 @@ onAuthStateChanged(auth, async (user) => {
         window.location.href = 'index.html';
     }
 });
-
-// Cargar temas del banco de preguntas
-async function cargarTemasBanco() {
-    try {
-        const temasSnapshot = await getDocs(collection(db, "temas"));
-        temasBanco = [];
-        
-        temasSnapshot.forEach(doc => {
-            temasBanco.push({
-                id: doc.id,
-                nombre: doc.data().nombre,
-                numPreguntas: doc.data().numPreguntas || 0
-            });
-        });
-        
-        // Ordenar por nombre
-        temasBanco.sort((a, b) => a.nombre.localeCompare(b.nombre));
-        
-        console.log('Temas del banco cargados:', temasBanco.length);
-        
-    } catch (error) {
-        console.error('Error cargando temas del banco:', error);
-    }
-}
 
 // Logout
 document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -128,25 +99,9 @@ function generarListaTemas() {
     for (let i = 0; i < datosPlanning.numTemas; i++) {
         const div = document.createElement('div');
         div.className = 'tema-input-grupo';
-        
-        // Crear selector de temas del banco
-        let opcionesTemas = '<option value="">Ninguno (sin vincular)</option>';
-        temasBanco.forEach(tema => {
-            opcionesTemas += `<option value="${tema.id}">${tema.nombre} (${tema.numPreguntas} preguntas)</option>`;
-        });
-        
         div.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-                <input type="text" class="tema-nombre" value="Tema ${i + 1}" readonly style="background: #f3f4f6; cursor: not-allowed;" />
-                <input type="number" class="tema-paginas" min="1" placeholder="Hojas" />
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <label style="font-size: 12px; color: #666;">Vincular con tema(s) del banco de preguntas:</label>
-                    <select class="tema-banco-select" multiple style="height: 100px; padding: 8px;">
-                        ${opcionesTemas}
-                    </select>
-                    <small style="color: #888; font-size: 11px;">Mantén Ctrl/Cmd para seleccionar varios temas</small>
-                </div>
-            </div>
+            <input type="text" class="tema-nombre" value="Tema ${i + 1}" readonly style="background: #f3f4f6; cursor: not-allowed;" />
+            <input type="number" class="tema-paginas" min="1" placeholder="Hojas" />
         `;
         container.appendChild(div);
     }
@@ -171,17 +126,10 @@ window.finalizarPlanning = async function() {
             const nombre = input.querySelector('.tema-nombre').value.trim();
             const hojas = parseInt(input.querySelector('.tema-paginas').value) || 0;
             
-            // Obtener temas del banco seleccionados
-            const select = input.querySelector('.tema-banco-select');
-            const temasBancoIds = Array.from(select.selectedOptions)
-                .map(option => option.value)
-                .filter(value => value !== '');
-            
             temas.push({ 
                 nombre, 
                 hojas,
-                id: `tema_${currentUser.uid}_${index}_${Date.now()}`,
-                temasBancoIds: temasBancoIds // IDs de temas del banco vinculados
+                id: `tema_${currentUser.uid}_${index}_${Date.now()}`
             });
             
             index++;
@@ -198,7 +146,7 @@ window.finalizarPlanning = async function() {
         const hoy = new Date();
         const diasDisponibles = Math.max(1, Math.ceil((fechaObj - hoy) / (1000 * 60 * 60 * 24)));
         
-        // Calcular tests totales necesarios
+        // Calcular tests totales necesarios (1 test cada 2 días como mínimo)
         const testsRecomendados = Math.ceil(diasDisponibles * testsDiarios);
         
         await setDoc(doc(db, "planningSimple", currentUser.uid), {
@@ -224,8 +172,7 @@ window.finalizarPlanning = async function() {
                 nombre: tema.nombre,
                 hojasTotales: tema.hojas,
                 hojasLeidas: 0,
-                testsRealizados: 0,
-                temasBancoIds: tema.temasBancoIds || [] // Guardar mapeo
+                testsRealizados: 0
             };
         });
         
