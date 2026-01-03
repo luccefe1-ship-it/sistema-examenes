@@ -208,9 +208,11 @@ function actualizarResumenGeneral() {
     let hojasTotales = 0;
     let testsRealizados = 0;
     
-    // Contar tests desde registros (cada registro = 1 test)
+    // Sumar TODOS los tests desde TODOS los registros
     if (progresoData.registros) {
-        testsRealizados = progresoData.registros.filter(r => r.testsRealizados > 0).length;
+        testsRealizados = progresoData.registros.reduce((total, registro) => {
+            return total + (registro.testsRealizados || 0);
+        }, 0);
     }
     
     planningData.temas.forEach(tema => {
