@@ -406,18 +406,24 @@ window.eliminarUltimoRegistro = async function() {
             return;
         }
         
-        // Obtener último registro
-        const ultimoRegistro = progresoData.registros[progresoData.registros.length - 1];
-        
-        // Revertir cambios en el tema
-        const tema = progresoData.temas[ultimoRegistro.temaId];
-        if (tema) {
-            tema.paginasLeidas = Math.max(0, tema.paginasLeidas - ultimoRegistro.paginasLeidas);
-            tema.testsRealizados = Math.max(0, tema.testsRealizados - ultimoRegistro.testsRealizados);
-        }
-        
         // Eliminar último registro
         progresoData.registros.pop();
+        
+        // RECALCULAR todos los contadores desde registros
+        for (const temaId in progresoData.temas) {
+            progresoData.temas[temaId].testsRealizados = 0;
+            progresoData.temas[temaId].hojasLeidas = 0;
+        }
+        
+        progresoData.registros.forEach(registro => {
+            if (registro.temaId && registro.temaId !== 'mix') {
+                if (!progresoData.temas[registro.temaId]) {
+                    progresoData.temas[registro.temaId] = { hojasLeidas: 0, testsRealizados: 0 };
+                }
+                progresoData.temas[registro.temaId].hojasLeidas += registro.hojasLeidas || 0;
+                progresoData.temas[registro.temaId].testsRealizados += registro.testsRealizados || 0;
+            }
+        });
         
         // Guardar en Firebase
         await setDoc(doc(db, "progresoSimple", currentUser.uid), progresoData);
@@ -427,6 +433,7 @@ window.eliminarUltimoRegistro = async function() {
         // Actualizar interfaz
         actualizarResumenGeneral();
         renderizarProgresoTemas();
+        await mostrarTestsDeHoy();
         
     } catch (error) {
         console.error('Error eliminando registro:', error);
