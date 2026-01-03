@@ -4266,6 +4266,36 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         console.log('Temas únicos después de filtrar:', temasUnicos);
         console.log('Cantidad final:', temasUnicos.length);
         
+        // Obtener documento de progresoSimple
+        const progresoRef = doc(db, "progresoSimple", currentUser.uid);
+        let progresoDoc = await getDoc(progresoRef);
+        
+        if (!progresoDoc.exists()) {
+            console.log('No existe progresoSimple, no se puede registrar');
+            return;
+        }
+        
+        let progresoData = progresoDoc.data();
+        
+        // Asegurar estructura
+        if (!progresoData.temas) progresoData.temas = {};
+        if (!progresoData.registros) progresoData.registros = [];
+        
+        // BUSCAR MAPEO: ¿Algún tema del planning tiene vinculado este tema del banco?
+        let temasPlanningVinculados = new Set();
+        
+        for (const temaIdBanco of temasUnicos) {
+            for (const [temaIdPlanning, dataTema] of Object.entries(progresoData.temas)) {
+                if (dataTema.temasBancoIds && dataTema.temasBancoIds.includes(temaIdBanco)) {
+                    temasPlanningVinculados.add(temaIdPlanning);
+                    console.log(`✓ Tema del banco ${temaIdBanco} está vinculado a ${temaIdPlanning}`);
+                }
+            }
+        }
+        
+        const temasVinculadosArray = Array.from(temasPlanningVinculados);
+        console.log('Temas del planning vinculados:', temasVinculadosArray);
+        
         // NUEVA LÓGICA: Detectar si todos los temas tienen el mismo padre
         let todosDelMismoPadre = false;
         let temaPadre = null;
@@ -4303,71 +4333,92 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
             }
         }
         
-        // Obtener documento de progresoSimple
-        const progresoRef = doc(db, "progresoSimple", currentUser.uid);
-        let progresoDoc = await getDoc(progresoRef);
-        
-        if (!progresoDoc.exists()) {
-            console.log('No existe progresoSimple, no se puede registrar');
-            return;
-        }
-        
-        let progresoData = progresoDoc.data();
-        
-        // Asegurar estructura
-        if (!progresoData.temas) progresoData.temas = {};
-        if (!progresoData.registros) progresoData.registros = [];
-        
-        // Determinar si es Mix CONSIDERANDO el padre compartido
-        const esMix = temasUnicos.length > 1 && !todosDelMismoPadre;
         const fechaHoy = new Date();
         
-        console.log('ES MIX?:', esMix);
-        console.log('Todos del mismo padre?:', todosDelMismoPadre);
-        
-        if (esMix) {
-            // Test Mix: NO incrementar contadores de temas, solo crear registro
-            // Añadir registro Mix
-            progresoData.registros.push({
-                fecha: fechaHoy,
-                temaId: 'mix',
-                hojasLeidas: 0,
-                testsRealizados: 1,
-                temasMix: temasUnicos
-            });
+        // DECISIÓN: Si hay mapeo a temas del planning
+        if (temasVinculadosArray.length > 0) {
+            // Registrar en los temas del planning vinculados
+            if (temasVinculadosArray.length === 1) {
+                // Un solo tema del planning vinculado
+                const temaIdPlanning = temasVinculadosArray[0];
+                console.log(`Registrando en tema del planning: ${temaIdPlanning}`);
+                
+                if (progresoData.temas[temaIdPlanning]) {
+                    progresoData.temas[temaIdPlanning].testsRealizados = 
+                        (progresoData.temas[temaIdPlanning].testsRealizados || 0) + 1;
+                }
+                
+                progresoData.registros.push({
+                    fecha: fechaHoy,
+                    temaId: temaIdPlanning,
+                    hojasLeidas: 0,
+                    testsRealizados: 1
+                });
+                
+            } else {
+                // Múltiples temas del planning vinculados → registrar como Mix
+                console.log('Registrando como Mix (múltiples temas del planning vinculados)');
+                
+                progresoData.registros.push({
+                    fecha: fechaHoy,
+                    temaId: 'mix',
+                    hojasLeidas: 0,
+                    testsRealizados: 1,
+                    temasMix: temasVinculadosArray
+                });
+            }
             
         } else {
-            // Test de un solo tema (o tema padre con subtemas)
-            const temaId = todosDelMismoPadre ? temaPadre : temasUnicos[0];
+            // SIN MAPEO: usar lógica anterior
+            const esMix = temasUnicos.length > 1 && !todosDelMismoPadre;
             
-            console.log('Registrando como tema único:', temaId);
+            console.log('ES MIX?:', esMix);
+            console.log('Todos del mismo padre?:', todosDelMismoPadre);
             
-            // CREAR tema si no existe
-            if (!progresoData.temas[temaId]) {
-                const temaDoc = await getDoc(doc(db, "temas", temaId));
-                if (temaDoc.exists()) {
-                    const temaData = temaDoc.data();
-                    progresoData.temas[temaId] = {
-                        nombre: temaData.nombre,
-                        hojasTotales: temaData.hojas || 0,
-                        hojasLeidas: 0,
-                        testsRealizados: 0
-                    };
+            if (esMix) {
+                // Test Mix: NO incrementar contadores de temas, solo crear registro
+                // Añadir registro Mix
+                progresoData.registros.push({
+                    fecha: fechaHoy,
+                    temaId: 'mix',
+                    hojasLeidas: 0,
+                    testsRealizados: 1,
+                    temasMix: temasUnicos
+                });
+                
+            } else {
+                // Test de un solo tema (o tema padre con subtemas)
+                const temaId = todosDelMismoPadre ? temaPadre : temasUnicos[0];
+                
+                console.log('Registrando como tema único:', temaId);
+                
+                // CREAR tema si no existe
+                if (!progresoData.temas[temaId]) {
+                    const temaDoc = await getDoc(doc(db, "temas", temaId));
+                    if (temaDoc.exists()) {
+                        const temaData = temaDoc.data();
+                        progresoData.temas[temaId] = {
+                            nombre: temaData.nombre,
+                            hojasTotales: temaData.hojas || 0,
+                            hojasLeidas: 0,
+                            testsRealizados: 0
+                        };
+                    }
                 }
+                
+                // Incrementar contador
+                if (progresoData.temas[temaId]) {
+                    progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
+                }
+                
+                // Añadir registro
+                progresoData.registros.push({
+                    fecha: fechaHoy,
+                    temaId: temaId,
+                    hojasLeidas: 0,
+                    testsRealizados: 1
+                });
             }
-            
-            // Incrementar contador
-            if (progresoData.temas[temaId]) {
-                progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
-            }
-            
-            // Añadir registro
-            progresoData.registros.push({
-                fecha: fechaHoy,
-                temaId: temaId,
-                hojasLeidas: 0,
-                testsRealizados: 1
-            });
         }
         
         // Guardar en Firebase
@@ -4787,6 +4838,7 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     listResultados.appendChild(panelEstadisticas);
 }
 };
+
 
 
 
