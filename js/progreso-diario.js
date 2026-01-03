@@ -124,33 +124,6 @@ async function obtenerTestsDeHoy() {
     };
 }
     
-    // Obtener nombres de temas - CORRECCIÓN: buscar también en progresoData.temas
-    if (temasUnicos.size > 0) {
-        for (const temaId of temasUnicos) {
-            // Primero intentar en planningData
-            let nombreEncontrado = false;
-            
-            if (planningData && planningData.temas) {
-                const tema = planningData.temas.find(t => t.id === temaId);
-                if (tema) {
-                    nombresTemas.push(tema.nombre);
-                    nombreEncontrado = true;
-                }
-            }
-            
-            // Si no está en planningData, buscar en progresoData.temas
-            if (!nombreEncontrado && progresoData && progresoData.temas && progresoData.temas[temaId]) {
-                nombresTemas.push(progresoData.temas[temaId].nombre);
-            }
-        }
-    }
-    
-    return {
-        cantidad: totalTests,
-        temas: nombresTemas,
-        esMix: nombresTemas.length > 1
-    };
-}
 
 // Mostrar mensaje de tests realizados hoy
 async function mostrarTestsDeHoy() {
