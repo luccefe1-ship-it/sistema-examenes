@@ -20,6 +20,9 @@ let preguntasProcesadas = [];
 let temasAbiertos = new Set(); // Para recordar qué temas están expandidos
 let preguntasImportadas = [];
 
+// Exponer para diagnóstico
+window.testActual = null;
+
 // Elementos del DOM
 const userNameSpan = document.getElementById('userName');
 const logoutBtn = document.getElementById('logoutBtn');
@@ -2344,6 +2347,7 @@ async function empezarTest() {
             esRepaso: false
         };
 
+        window.testActual = testActual;  // AÑADIR ESTA LÍNEA
         respuestasUsuario = {};
 
         // Mostrar interfaz del test
