@@ -4355,18 +4355,12 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         
         console.log('Info temas con vinculación planning:', infoTemas);
         
-        // Detectar si todos son del mismo padre
-        let todosDelMismoPadre = false;
-        let temaPadre = null;
-        
-        if (infoTemas.length > 1) {
-            const padres = infoTemas.map(t => t.padre).filter(p => p !== null);
-            if (padres.length === infoTemas.length) {
-                const primerPadre = padres[0];
-                todosDelMismoPadre = padres.every(p => p === primerPadre);
-                if (todosDelMismoPadre) temaPadre = primerPadre;
-            }
-        }
+        // NUEVA LÓGICA: Detectar si todos son subtemas del mismo padre
+const padres = infoTemas.map(t => t.padre).filter(p => p !== null);
+const todosDelMismoPadre = padres.length === infoTemas.length && 
+                            padres.length > 0 &&
+                            padres.every(p => p === padres[0]);
+const temaPadre = todosDelMismoPadre ? padres[0] : null;
         
         // Obtener progresoSimple
         const progresoRef = doc(db, "progresoSimple", currentUser.uid);
