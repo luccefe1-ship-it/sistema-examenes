@@ -322,41 +322,86 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         if (!progresoData.temas) progresoData.temas = {};
         if (!progresoData.registros) progresoData.registros = [];
         
-        const esMix = temasUtilizados.length > 1;
+        const temasUnicos = [...new Set(temasUtilizados)];
+        
+        // NUEVA LÓGICA: Obtener info de temas del banco
+        const infoTemasCompleta = await Promise.all(
+            temasUnicos.map(async (temaIdBanco) => {
+                const temaDoc = await getDoc(doc(db, "temas", temaIdBanco));
+                if (!temaDoc.exists()) return null;
+                
+                const temaData = temaDoc.data();
+                return {
+                    idBanco: temaIdBanco,
+                    nombreBanco: temaData.nombre,
+                    padre: temaData.temaPadreId || null
+                };
+            })
+        );
+        
+        const infoTemas = infoTemasCompleta.filter(t => t !== null);
+        
+        // Detectar si todos son subtemas del mismo padre
+        const padres = infoTemas.map(t => t.padre).filter(p => p !== null);
+        const todosDelMismoPadre = padres.length === infoTemas.length && 
+                                    padres.length > 0 &&
+                                    padres.every(p => p === padres[0]);
+        const temaPadre = todosDelMismoPadre ? padres[0] : null;
+        
+        const esMix = infoTemas.length > 1 && !todosDelMismoPadre;
         const fechaHoy = new Date();
         
         if (esMix) {
-            for (const temaId of temasUtilizados) {
-                if (progresoData.temas[temaId]) {
-                    progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
-                }
-            }
-            
+            // Test Mix
             progresoData.registros.push({
                 fecha: fechaHoy,
                 temaId: 'mix',
                 hojasLeidas: 0,
                 testsRealizados: 1,
-                temasMix: temasUtilizados
+                temasMix: temasUnicos
             });
-            
         } else {
-            const temaId = temasUtilizados[0];
+            // Test de un solo tema o subtemas del mismo padre
+            let temaIdFinal;
             
-            if (progresoData.temas[temaId]) {
-                progresoData.temas[temaId].testsRealizados = (progresoData.temas[temaId].testsRealizados || 0) + 1;
+            if (todosDelMismoPadre && temaPadre) {
+                // Usar el tema padre
+                temaIdFinal = temaPadre;
+            } else {
+                // Usar el único tema seleccionado
+                temaIdFinal = temasUnicos[0];
             }
             
+            // Crear tema en progreso si no existe
+            if (!progresoData.temas[temaIdFinal]) {
+                const temaDoc = await getDoc(doc(db, "temas", temaIdFinal));
+                if (temaDoc.exists()) {
+                    const temaData = temaDoc.data();
+                    progresoData.temas[temaIdFinal] = {
+                        nombre: temaData.nombre,
+                        hojasTotales: 0,
+                        hojasLeidas: 0,
+                        testsRealizados: 0
+                    };
+                }
+            }
+            
+            // Incrementar contador
+            if (progresoData.temas[temaIdFinal]) {
+                progresoData.temas[temaIdFinal].testsRealizados = 
+                    (progresoData.temas[temaIdFinal].testsRealizados || 0) + 1;
+            }
+            
+            // Añadir registro
             progresoData.registros.push({
                 fecha: fechaHoy,
-                temaId: temaId,
+                temaId: temaIdFinal,
                 hojasLeidas: 0,
                 testsRealizados: 1
             });
         }
         
         await setDoc(progresoRef, progresoData);
-        
         console.log('✅ Test registrado en progresoSimple');
         console.log('=====================================');
         
