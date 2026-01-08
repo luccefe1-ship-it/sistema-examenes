@@ -521,7 +521,7 @@ async function finalizarTest() {
         console.log('testConfig.temas:', testConfig.temas);
         console.log('Primera pregunta:', testConfig.preguntas[0]);
         
-        const temasUtilizados = [...new Set(testConfig.preguntas.map(p => p.temaId || p.temaIdProgreso).filter(Boolean))];
+        const temasUtilizados = [...new Set(testConfig.preguntas.map(p => p.temaIdProgreso || p.temaId).filter(Boolean))];
         console.log('temasUtilizados extraídos:', temasUtilizados);
         
         if (temasUtilizados.length > 0) {
