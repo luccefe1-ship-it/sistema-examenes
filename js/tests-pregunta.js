@@ -302,44 +302,79 @@ function detenerCronometro() {
         clearInterval(cronometroInterval);
     }
 }
+// Función para normalizar nombres de temas
+function normalizarNombreTema(nombre) {
+    return nombre
+        .toLowerCase()
+        .trim()
+        .replace(/tema\s*/i, 'tema ')
+        .replace(/\s+/g, ' ')
+        .replace(/\buno\b/i, '1')
+        .replace(/\bdos\b/i, '2')
+        .replace(/\btres\b/i, '3')
+        .replace(/\bcuatro\b/i, '4')
+        .replace(/\bcinco\b/i, '5')
+        .replace(/\bseis\b/i, '6')
+        .replace(/\bsiete\b/i, '7')
+        .replace(/\bocho\b/i, '8')
+        .replace(/\bnueve\b/i, '9')
+        .replace(/\bdiez\b/i, '10');
+}
 
+// Función para buscar tema en planning por nombre
+async function buscarTemaEnPlanningPorNombre(nombreBanco) {
+    try {
+        const planningDoc = await getDoc(doc(db, "planningSimple", currentUser.uid));
+        if (!planningDoc.exists()) return null;
+        
+        const planningData = planningDoc.data();
+        if (!planningData.temas || planningData.temas.length === 0) return null;
+        
+        const nombreNormalizado = normalizarNombreTema(nombreBanco);
+        
+        const temaEncontrado = planningData.temas.find(tema => {
+            const nombrePlanningNormalizado = normalizarNombreTema(tema.nombre);
+            return nombrePlanningNormalizado === nombreNormalizado;
+        });
+        
+        return temaEncontrado;
+    } catch (error) {
+        console.error('Error buscando tema en planning:', error);
+        return null;
+    }
+}
 // Función para registrar en progresoSimple
 async function registrarTestEnProgresoSimple(temasUtilizados) {
     try {
         console.log('=== REGISTRANDO TEST EN PROGRESO SIMPLE (PREGUNTA A PREGUNTA) ===');
-        console.log('Temas a registrar:', temasUtilizados);
-        
-        const progresoRef = doc(db, "progresoSimple", currentUser.uid);
-        let progresoDoc = await getDoc(progresoRef);
-        
-        if (!progresoDoc.exists()) {
-            console.log('No existe progresoSimple, no se puede registrar');
-            return;
-        }
-        
-        let progresoData = progresoDoc.data();
-        
-        if (!progresoData.temas) progresoData.temas = {};
-        if (!progresoData.registros) progresoData.registros = [];
+        console.log('Temas recibidos:', temasUtilizados);
         
         const temasUnicos = [...new Set(temasUtilizados)];
         
-        // NUEVA LÓGICA: Obtener info de temas del banco
+        // Obtener nombres de temas del banco y buscar coincidencias en planning
         const infoTemasCompleta = await Promise.all(
             temasUnicos.map(async (temaIdBanco) => {
                 const temaDoc = await getDoc(doc(db, "temas", temaIdBanco));
                 if (!temaDoc.exists()) return null;
                 
                 const temaData = temaDoc.data();
+                const nombreBanco = temaData.nombre;
+                
+                // Buscar tema equivalente en planning
+                const temaPlanning = await buscarTemaEnPlanningPorNombre(nombreBanco);
+                
                 return {
                     idBanco: temaIdBanco,
-                    nombreBanco: temaData.nombre,
-                    padre: temaData.temaPadreId || null
+                    nombreBanco: nombreBanco,
+                    padre: temaData.temaPadreId || null,
+                    temaPlanning: temaPlanning
                 };
             })
         );
         
         const infoTemas = infoTemasCompleta.filter(t => t !== null);
+        
+        console.log('Info temas con vinculación planning:', infoTemas);
         
         // Detectar si todos son subtemas del mismo padre
         const padres = infoTemas.map(t => t.padre).filter(p => p !== null);
@@ -347,6 +382,19 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
                                     padres.length > 0 &&
                                     padres.every(p => p === padres[0]);
         const temaPadre = todosDelMismoPadre ? padres[0] : null;
+        
+        // Obtener progresoSimple
+        const progresoRef = doc(db, "progresoSimple", currentUser.uid);
+        let progresoDoc = await getDoc(progresoRef);
+        
+        if (!progresoDoc.exists()) {
+            console.log('No existe progresoSimple');
+            return;
+        }
+        
+        let progresoData = progresoDoc.data();
+        if (!progresoData.temas) progresoData.temas = {};
+        if (!progresoData.registros) progresoData.registros = [];
         
         const esMix = infoTemas.length > 1 && !todosDelMismoPadre;
         const fechaHoy = new Date();
@@ -361,36 +409,55 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
                 temasMix: temasUnicos
             });
         } else {
-            // Test de un solo tema o subtemas del mismo padre
-            let temaIdFinal;
+            // Test de un solo tema
+            let temaInfo = infoTemas[0];
             
+            // Si hay padre compartido, buscar info del padre
             if (todosDelMismoPadre && temaPadre) {
-                // Usar el tema padre
-                temaIdFinal = temaPadre;
-            } else {
-                // Usar el único tema seleccionado
-                temaIdFinal = temasUnicos[0];
-            }
-            
-            // Crear tema en progreso si no existe
-            if (!progresoData.temas[temaIdFinal]) {
-                const temaDoc = await getDoc(doc(db, "temas", temaIdFinal));
-                if (temaDoc.exists()) {
-                    const temaData = temaDoc.data();
-                    progresoData.temas[temaIdFinal] = {
-                        nombre: temaData.nombre,
-                        hojasTotales: 0,
-                        hojasLeidas: 0,
-                        testsRealizados: 0
+                const padreDoc = await getDoc(doc(db, "temas", temaPadre));
+                if (padreDoc.exists()) {
+                    const nombrePadre = padreDoc.data().nombre;
+                    const temaPlanningPadre = await buscarTemaEnPlanningPorNombre(nombrePadre);
+                    
+                    temaInfo = {
+                        idBanco: temaPadre,
+                        nombreBanco: nombrePadre,
+                        temaPlanning: temaPlanningPadre
                     };
                 }
             }
             
-            // Incrementar contador
-            if (progresoData.temas[temaIdFinal]) {
-                progresoData.temas[temaIdFinal].testsRealizados = 
-                    (progresoData.temas[temaIdFinal].testsRealizados || 0) + 1;
+            // Determinar ID a usar: planning si existe, sino banco
+            let temaIdFinal;
+            let nombreFinal;
+            let hojasTotales = 0;
+            
+            if (temaInfo.temaPlanning) {
+                // Usar ID del planning
+                temaIdFinal = temaInfo.temaPlanning.id;
+                nombreFinal = temaInfo.temaPlanning.nombre;
+                hojasTotales = temaInfo.temaPlanning.hojas || 0;
+                console.log('✅ Vinculado con planning:', nombreFinal);
+            } else {
+                // Usar ID del banco (tema no está en planning)
+                temaIdFinal = temaInfo.idBanco;
+                nombreFinal = temaInfo.nombreBanco;
+                console.log('⚠️ Tema no encontrado en planning, usando ID banco');
             }
+            
+            // Crear tema en progreso si no existe
+            if (!progresoData.temas[temaIdFinal]) {
+                progresoData.temas[temaIdFinal] = {
+                    nombre: nombreFinal,
+                    hojasTotales: hojasTotales,
+                    hojasLeidas: 0,
+                    testsRealizados: 0
+                };
+            }
+            
+            // Incrementar contador
+            progresoData.temas[temaIdFinal].testsRealizados = 
+                (progresoData.temas[temaIdFinal].testsRealizados || 0) + 1;
             
             // Añadir registro
             progresoData.registros.push({
@@ -403,10 +470,9 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         
         await setDoc(progresoRef, progresoData);
         console.log('✅ Test registrado en progresoSimple');
-        console.log('=====================================');
         
     } catch (error) {
-        console.error('❌ Error registrando test en progresoSimple:', error);
+        console.error('❌ Error registrando test:', error);
     }
 }
 
