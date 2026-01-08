@@ -645,4 +645,67 @@ window.borrarTodosRegistros = async function() {
     
     alert('✅ Todos los registros borrados');
     location.reload();
+    // Función de consolidación (llamar desde consola: window.consolidarTemasProgreso())
+window.consolidarTemasProgreso = async function() {
+    try {
+        const progresoRef = doc(db, "progresoSimple", currentUser.uid);
+        const progresoDoc = await getDoc(progresoRef);
+        
+        if (!progresoDoc.exists()) {
+            console.log('No existe progresoSimple');
+            return;
+        }
+        
+        let data = progresoDoc.data();
+        
+        console.log('📊 ANTES:', Object.keys(data.temas || {}).length, 'temas');
+        Object.entries(data.temas || {}).forEach(([id, tema]) => {
+            console.log(`  ${tema.nombre}: ${tema.testsRealizados} tests`);
+        });
+        
+        // Consolidar registros por fecha+tema
+        const registrosMap = new Map();
+        (data.registros || []).forEach(reg => {
+            const fecha = reg.fecha.toDate ? reg.fecha.toDate().toDateString() : new Date(reg.fecha).toDateString();
+            const clave = `${fecha}_${reg.temaId}`;
+            
+            if (!registrosMap.has(clave)) {
+                registrosMap.set(clave, { ...reg, testsRealizados: 0, hojasLeidas: 0 });
+            }
+            
+            registrosMap.get(clave).testsRealizados += (reg.testsRealizados || 0);
+            registrosMap.get(clave).hojasLeidas += (reg.hojasLeidas || 0);
+        });
+        
+        data.registros = Array.from(registrosMap.values());
+        
+        // Recalcular contadores desde registros
+        const temasCopy = {};
+        Object.keys(data.temas).forEach(temaId => {
+            temasCopy[temaId] = { ...data.temas[temaId], testsRealizados: 0, hojasLeidas: 0 };
+        });
+        
+        data.registros.forEach(reg => {
+            if (reg.temaId !== 'mix' && temasCopy[reg.temaId]) {
+                temasCopy[reg.temaId].testsRealizados += (reg.testsRealizados || 0);
+                temasCopy[reg.temaId].hojasLeidas += (reg.hojasLeidas || 0);
+            }
+        });
+        
+        data.temas = temasCopy;
+        
+        await setDoc(progresoRef, data);
+        
+        console.log('\n📊 DESPUÉS:', Object.keys(data.temas).length, 'temas');
+        Object.entries(data.temas).forEach(([id, tema]) => {
+            console.log(`  ${tema.nombre}: ${tema.testsRealizados} tests`);
+        });
+        
+        alert('✅ Consolidación completada. Recarga la página.');
+        
+    } catch (error) {
+        console.error('❌ Error:', error);
+        alert('Error: ' + error.message);
+    }
+};
 };
