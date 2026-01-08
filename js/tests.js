@@ -2405,10 +2405,13 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                 
                 tema.preguntas.forEach((pregunta, index) => {
                     if (pregunta.verificada) {
-                        // Determinar el tema para progreso - USAR EL TEMA ACTUAL, NO EL PADRE
-                        let temaIdParaProgreso = doc.id;
+                        // Determinar tema para progreso - usar padre si existe
+                    let temaIdParaProgreso = doc.id;
+                    if (tema.temaPadreId) {
+                        temaIdParaProgreso = tema.temaPadreId;
+                    }
 
-                        preguntasVerificadas.push({
+                    preguntasVerificadas.push({
                             ...pregunta,
                             temaId: doc.id,
                             temaIdProgreso: temaIdParaProgreso,
@@ -2440,10 +2443,13 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                         let preguntasVerificadasTema = 0;
                         tema.preguntas.forEach((pregunta, index) => {
                             if (pregunta.verificada) {
-                                // Determinar el tema para progreso - USAR EL TEMA ACTUAL, NO EL PADRE
-                                let temaIdParaProgreso = temaId;
+                                // Determinar tema para progreso - usar padre si existe
+                            let temaIdParaProgreso = temaId;
+                            if (tema.temaPadreId) {
+                                temaIdParaProgreso = tema.temaPadreId;
+                            }
 
-                                preguntasVerificadas.push({
+                            preguntasVerificadas.push({
                                     ...pregunta,
                                     temaId: temaId,
                                     temaIdProgreso: temaIdParaProgreso,
