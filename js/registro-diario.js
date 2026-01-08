@@ -185,7 +185,7 @@ function renderizarDia(fecha, datos) {
         </div>
         <div class="dia-datos">
             <div>📄 Hojas leídas: <strong>${datos.hojasLeidas}</strong> / ${datos.objetivoHojas}</div>
-            <div>✅ Tests realizados: <strong>${datos.testsRealizados}</strong> / ${datos.objetivoTests}</div>
+            <div>✅ Tests realizados: <strong>${datos.testsRealizados}</strong></div>
         </div>
     `;
     
