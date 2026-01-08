@@ -22,7 +22,27 @@ let preguntasImportadas = [];
 
 // Exponer para diagnóstico
 window.testActual = null;
+window.testActual = null;
 
+// Función de diagnóstico global
+window.diagnosticarTema5 = async function() {
+    console.log('=== DIAGNÓSTICO TEMA 5 ===');
+    
+    const tema5Query = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+    const snapshot = await getDocs(tema5Query);
+    
+    snapshot.forEach((doc) => {
+        const tema = doc.data();
+        if (tema.nombre.includes('5') || tema.nombre.includes('Tema 5')) {
+            console.log('---');
+            console.log('ID:', doc.id);
+            console.log('Nombre:', tema.nombre);
+            console.log('Es subtema:', !!tema.temaPadreId);
+            console.log('Padre ID:', tema.temaPadreId || 'ninguno');
+            console.log('Preguntas:', tema.preguntas?.length || 0);
+        }
+    });
+};
 // Elementos del DOM
 const userNameSpan = document.getElementById('userName');
 const logoutBtn = document.getElementById('logoutBtn');
