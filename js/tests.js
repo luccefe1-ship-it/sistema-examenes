@@ -3535,8 +3535,18 @@ listResultados.appendChild(eliminarTodosBtn);
         
         resultados.forEach(({ id, data: resultado }) => {
     
-    const fecha = resultado.fechaCreacion.toDate().toLocaleDateString('es-ES');
-            const hora = resultado.fechaCreacion.toDate().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+    // Manejar tanto Timestamps de Firebase como strings de fecha del caché
+    let fechaObj;
+    if (resultado.fechaCreacion?.toDate) {
+        fechaObj = resultado.fechaCreacion.toDate();
+    } else if (resultado.fechaCreacion) {
+        fechaObj = new Date(resultado.fechaCreacion);
+    } else {
+        fechaObj = new Date();
+    }
+    
+    const fecha = fechaObj.toLocaleDateString('es-ES');
+    const hora = fechaObj.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
             
             const resultadoDiv = document.createElement('div');
             resultadoDiv.className = 'resultado-historial';
