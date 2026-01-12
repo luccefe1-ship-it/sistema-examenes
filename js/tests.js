@@ -3395,17 +3395,35 @@ async function cargarResultados() {
             );
             querySnapshot = await getDocs(q);
             
-            // 🆕 GUARDAR EN sessionStorage
+            // 🆕 GUARDAR SOLO DATOS RESUMIDOS EN sessionStorage (sin detalleRespuestas)
             const datosParaGuardar = [];
             querySnapshot.forEach(doc => {
+                const data = doc.data();
                 datosParaGuardar.push({
                     id: doc.id,
-                    data: doc.data()
+                    data: {
+                        correctas: data.correctas,
+                        incorrectas: data.incorrectas,
+                        sinResponder: data.sinResponder,
+                        total: data.total,
+                        porcentaje: data.porcentaje,
+                        fechaCreacion: data.fechaCreacion,
+                        test: data.test
+                        // NO incluir detalleRespuestas (muy grande)
+                    }
                 });
             });
             
-            sessionStorage.setItem('cacheResultados', JSON.stringify(datosParaGuardar));
-            sessionStorage.setItem('cacheResultadosTimestamp', Date.now().toString());
+            try {
+                sessionStorage.setItem('cacheResultados', JSON.stringify(datosParaGuardar));
+                sessionStorage.setItem('cacheResultadosTimestamp', Date.now().toString());
+                console.log('✅ Caché guardado exitosamente');
+            } catch (e) {
+                console.log('⚠️ No se pudo guardar caché (muy grande):', e);
+                // Si falla, limpiar sessionStorage y continuar sin caché
+                sessionStorage.removeItem('cacheResultados');
+                sessionStorage.removeItem('cacheResultadosTimestamp');
+            }
             
             cacheResultados = querySnapshot;
             cacheResultadosTimestamp = Date.now();
