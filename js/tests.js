@@ -19,7 +19,10 @@ let temaSeleccionado = null;
 let preguntasProcesadas = [];
 let temasAbiertos = new Set(); // Para recordar qué temas están expandidos
 let preguntasImportadas = [];
-
+// Cache para temas cargados
+let cacheTemas = null;
+let cacheTimestamp = null;
+const CACHE_DURACION = 5 * 60 * 1000; // 5 minutos
 // Exponer para diagnóstico
 window.testActual = null;
 window.testActual = null;
@@ -363,10 +366,13 @@ async function crearTema() {
 
         alert('Tema creado exitosamente');
 
-        // Recargar banco de preguntas si está activo
-        if (document.getElementById('banco-section').classList.contains('active')) {
-            cargarBancoPreguntas();
-        }
+// Invalidar caché
+cacheTemas = null;
+
+// Recargar banco de preguntas si está activo
+if (document.getElementById('banco-section').classList.contains('active')) {
+    cargarBancoPreguntas();
+}
 
     } catch (error) {
         console.error('Error creando tema:', error);
@@ -621,9 +627,12 @@ async function asignarPreguntasATema() {
         });
 
         alert(`${preguntasProcesadas.length} preguntas asignadas al tema "${temaSeleccionado.nombre}"`);
-        
-        // Limpiar formulario
-        textoPreguntas.value = '';
+
+// Invalidar caché
+cacheTemas = null;
+
+// Limpiar formulario
+textoPreguntas.value = '';
         preguntasProcesadas = [];
         preguntasProcesadasDiv.style.display = 'none';
         actualizarTemaSeleccionado();
@@ -667,8 +676,19 @@ async function cargarTemas() {
 // Cargar banco de preguntas
 async function cargarBancoPreguntas() {
     try {
-        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
-        const querySnapshot = await getDocs(q);
+        let querySnapshot;
+        
+        // Usar caché si está fresco
+        if (cacheTemas && cacheTimestamp && (Date.now() - cacheTimestamp < CACHE_DURACION)) {
+            console.log('✅ Usando caché de temas');
+            querySnapshot = cacheTemas;
+        } else {
+            console.log('🔄 Recargando temas desde Firebase');
+            const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+            querySnapshot = await getDocs(q);
+            cacheTemas = querySnapshot;
+            cacheTimestamp = Date.now();
+        }
         
         listaTemas.innerHTML = '';
         
@@ -810,13 +830,13 @@ temasPrincipales.forEach(tema => {
     const tieneSubtemas = subtemasPorPadre[id] && subtemasPorPadre[id].length > 0;
     
     if (preguntasPropias > 0) {
-        // Tema con preguntas propias
+        // Tema con preguntas propias - NO CARGAR HTML hasta abrir
         return `
             <div class="preguntas-tema">
-                <details ontoggle="manejarToggleTema(event, '${id}')">
+                <details ontoggle="cargarPreguntasLazy(event, '${id}')">
                     <summary>Ver y editar preguntas (${preguntasPropias})</summary>
-                    <div class="lista-preguntas" id="preguntas-${id}">
-                        ${tema.preguntas.map((pregunta, index) => crearPreguntaEditable(pregunta, index, id)).join('')}
+                    <div class="lista-preguntas" id="preguntas-${id}" data-cargado="false">
+                        <div style="text-align:center;padding:20px;">⏳ Cargando preguntas...</div>
                     </div>
                 </details>
             </div>
@@ -1077,9 +1097,12 @@ window.toggleVerificacion = async function(temaId, preguntaIndex) {
         preguntas[preguntaIndex].verificada = !preguntas[preguntaIndex].verificada;
         
         await updateDoc(temaRef, { preguntas });
-        
-        // Actualizar solo el contenido de las preguntas sin recargar todo
-        await actualizarContenidoPreguntas(temaId);
+
+// Invalidar caché
+cacheTemas = null;
+
+// Actualizar solo el contenido de las preguntas sin recargar todo
+await actualizarContenidoPreguntas(temaId);
         
     } catch (error) {
         console.error('Error al cambiar verificación:', error);
@@ -1189,9 +1212,12 @@ window.guardarEdicionPregunta = async function(temaId, preguntaIndex) {
         };
         
         await updateDoc(temaRef, { preguntas });
-        
-        // Actualizar solo el contenido de las preguntas sin recargar todo
-        await actualizarContenidoPreguntas(temaId);
+
+// Invalidar caché
+cacheTemas = null;
+
+// Actualizar solo el contenido de las preguntas sin recargar todo
+await actualizarContenidoPreguntas(temaId);
         
     } catch (error) {
         console.error('Error guardando pregunta:', error);
@@ -1222,10 +1248,12 @@ window.cambiarRespuestaCorrecta = async function(temaId, preguntaIndex, nuevaLet
         preguntas[preguntaIndex].respuestaCorrecta = nuevaLetra;
         
         await updateDoc(temaRef, { preguntas });
-        
-        // Actualizar solo el contenido de las preguntas sin recargar todo
-        await actualizarContenidoPreguntas(temaId);
-        
+
+// Invalidar caché
+cacheTemas = null;
+
+// Actualizar solo el contenido de las preguntas sin recargar todo
+await actualizarContenidoPreguntas(temaId);
     } catch (error) {
         console.error('Error cambiando respuesta correcta:', error);
         alert('Error al actualizar la respuesta');
@@ -1243,10 +1271,13 @@ window.eliminarPregunta = async function(temaId, preguntaIndex) {
             
             preguntas.splice(preguntaIndex, 1);
             
-            await updateDoc(temaRef, { preguntas });
-            
-            // Actualizar solo el contenido de las preguntas sin recargar todo
-            await actualizarContenidoPreguntas(temaId);
+           await updateDoc(temaRef, { preguntas });
+
+// Invalidar caché
+cacheTemas = null;
+
+// Actualizar solo el contenido de las preguntas sin recargar todo
+await actualizarContenidoPreguntas(temaId);
             
             // Si no quedan preguntas, recargar para actualizar el contador
             if (preguntas.length === 0) {
@@ -1275,9 +1306,12 @@ window.eliminarTodosTemas = async function() {
             });
             
             await Promise.all(promises);
-            
-            alert('Todos los temas han sido eliminados');
-            cargarBancoPreguntas();
+
+// Invalidar caché
+cacheTemas = null;
+
+alert('Todos los temas han sido eliminados');
+cargarBancoPreguntas();
             cargarTemas();
             
         } catch (error) {
@@ -1367,9 +1401,12 @@ window.eliminarTema = async function(temaId) {
             // Eliminar tema principal
             await deleteDoc(doc(db, "temas", temaId));
             
-            alert('Tema y subtemas eliminados exitosamente');
-            cargarBancoPreguntas();
-            cargarTemas();
+            // Invalidar caché
+cacheTemas = null;
+
+alert('Tema y subtemas eliminados exitosamente');
+cargarBancoPreguntas();
+cargarTemas();
         } catch (error) {
             console.error('Error eliminando tema:', error);
             alert('Error al eliminar el tema');
@@ -2476,13 +2513,18 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
         console.log('Caso: array de temas específicos');
         console.log('IDs de temas a procesar:', temasSeleccionados);
         
-        // CORRECCIÓN: Procesar cada tema del array
-        for (const temaId of temasSeleccionados) {
-            console.log(`\n--- Procesando tema ID: ${temaId} ---`);
-            
-            try {
-                const temaDoc = await getDoc(doc(db, "temas", temaId));
-                if (temaDoc.exists()) {
+        // OPTIMIZADO: Procesar todos los temas en paralelo
+const promesasTemas = temasSeleccionados.map(temaId => 
+    getDoc(doc(db, "temas", temaId))
+);
+
+const documentos = await Promise.all(promesasTemas);
+
+documentos.forEach((temaDoc, idx) => {
+    const temaId = temasSeleccionados[idx];
+    console.log(`\n--- Procesando tema ID: ${temaId} ---`);
+    
+    if (temaDoc.exists()) {
                     const tema = temaDoc.data();
                     console.log(`✅ Tema encontrado: ${tema.nombre}`);
                     
@@ -2519,10 +2561,7 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                 } else {
                     console.log(`  ❌ TEMA NO ENCONTRADO: ${temaId}`);
                 }
-            } catch (error) {
-                console.error(`Error procesando tema ${temaId}:`, error);
-            }
-        }
+});
     } else {
         console.log('❌ Caso no válido - temasSeleccionados:', temasSeleccionados);
     }
@@ -4914,5 +4953,31 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     const listResultados = document.getElementById('listaResultados');
     listResultados.appendChild(panelEstadisticas);
 }
+// Cargar preguntas solo cuando se abre el desplegable
+window.cargarPreguntasLazy = async function(event, temaId) {
+    const container = document.getElementById(`preguntas-${temaId}`);
+    if (!container || container.dataset.cargado === 'true') return;
+    
+    if (event.target.open) {
+        try {
+            const temaDoc = await getDoc(doc(db, "temas", temaId));
+            if (temaDoc.exists()) {
+                const tema = temaDoc.data();
+                if (tema.preguntas) {
+                    container.innerHTML = tema.preguntas.map((pregunta, index) => 
+                        crearPreguntaEditable(pregunta, index, temaId)
+                    ).join('');
+                    container.dataset.cargado = 'true';
+                    temasAbiertos.add(temaId);
+                }
+            }
+        } catch (error) {
+            console.error('Error cargando preguntas lazy:', error);
+            container.innerHTML = '<p style="color:red;">Error cargando preguntas</p>';
+        }
+    } else {
+        temasAbiertos.delete(temaId);
+    }
+};
 };
 
