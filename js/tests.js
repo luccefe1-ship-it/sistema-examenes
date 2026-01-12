@@ -390,6 +390,8 @@ async function crearTema() {
 
 // Invalidar caché
 cacheTemas = null;
+sessionStorage.removeItem('cacheTemas');
+sessionStorage.removeItem('cacheTemasTimestamp');
 
 // Recargar banco de preguntas si está activo
 if (document.getElementById('banco-section').classList.contains('active')) {
@@ -652,6 +654,8 @@ async function asignarPreguntasATema() {
 
 // Invalidar caché
 cacheTemas = null;
+sessionStorage.removeItem('cacheTemas');
+sessionStorage.removeItem('cacheTemasTimestamp');
 
 // Limpiar formulario
 textoPreguntas.value = '';
@@ -697,7 +701,6 @@ async function cargarTemas() {
 
 // Cargar banco de preguntas
 async function cargarBancoPreguntas() {
-    // ✅ EVITAR MÚLTIPLES CARGAS SIMULTÁNEAS
     if (cargandoBanco) {
         console.log('⏸️ Ya cargando banco, omitiendo...');
         return;
@@ -707,14 +710,58 @@ async function cargarBancoPreguntas() {
         cargandoBanco = true;
         let querySnapshot;
         
-        // Usar caché si está fresco
-        if (cacheTemas && cacheTimestamp && (Date.now() - cacheTimestamp < CACHE_DURACION)) {
-            console.log('✅ Usando caché de temas');
-            querySnapshot = cacheTemas;
-        } else {
+        // 🆕 INTENTAR RECUPERAR CACHÉ DE sessionStorage
+        const cacheGuardado = sessionStorage.getItem('cacheTemas');
+        const timestampGuardado = sessionStorage.getItem('cacheTemasTimestamp');
+        
+        if (cacheGuardado && timestampGuardado) {
+            const tiempoTranscurrido = Date.now() - parseInt(timestampGuardado);
+            
+            if (tiempoTranscurrido < CACHE_DURACION) {
+                console.log('✅ Recuperando caché desde sessionStorage');
+                const datosCache = JSON.parse(cacheGuardado);
+                
+                // Reconstruir QuerySnapshot simulado
+                querySnapshot = {
+                    empty: datosCache.length === 0,
+                    size: datosCache.length,
+                    forEach: function(callback) {
+                        datosCache.forEach(item => {
+                            callback({
+                                id: item.id,
+                                data: () => item.data
+                            });
+                        });
+                    }
+                };
+                
+                cacheTemas = querySnapshot;
+                cacheTimestamp = parseInt(timestampGuardado);
+            } else {
+                console.log('⏰ Caché expirado, recargando...');
+                sessionStorage.removeItem('cacheTemas');
+                sessionStorage.removeItem('cacheTemasTimestamp');
+            }
+        }
+        
+        // Si no hay caché válido, cargar desde Firebase
+        if (!querySnapshot) {
             console.log('🔄 Recargando temas desde Firebase');
             const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
             querySnapshot = await getDocs(q);
+            
+            // 🆕 GUARDAR EN sessionStorage
+            const datosParaGuardar = [];
+            querySnapshot.forEach(doc => {
+                datosParaGuardar.push({
+                    id: doc.id,
+                    data: doc.data()
+                });
+            });
+            
+            sessionStorage.setItem('cacheTemas', JSON.stringify(datosParaGuardar));
+            sessionStorage.setItem('cacheTemasTimestamp', Date.now().toString());
+            
             cacheTemas = querySnapshot;
             cacheTimestamp = Date.now();
         }
@@ -1328,6 +1375,8 @@ window.eliminarTodosTemas = async function() {
 
 // Invalidar caché
 cacheTemas = null;
+sessionStorage.removeItem('cacheTemas');
+sessionStorage.removeItem('cacheTemasTimestamp');
 
 alert('Todos los temas han sido eliminados');
 cargarBancoPreguntas();
@@ -1422,6 +1471,8 @@ window.eliminarTema = async function(temaId) {
             
             // Invalidar caché
 cacheTemas = null;
+sessionStorage.removeItem('cacheTemas');
+sessionStorage.removeItem('cacheTemasTimestamp');
 
 alert('Tema y subtemas eliminados exitosamente');
 cargarBancoPreguntas();
@@ -3145,6 +3196,8 @@ async function guardarResultado(resultados) {
         
         // Invalidar caché de resultados
         cacheResultados = null;
+sessionStorage.removeItem('cacheResultados');
+sessionStorage.removeItem('cacheResultadosTimestamp');
 
         // Guardar preguntas falladas para el test de repaso (SOLO si NO es un test de repaso)
         if (!testActual.esRepaso) {
@@ -3287,7 +3340,6 @@ window.volverAConfigurarTest = function() {
 };
 // Cargar historial de resultados
 async function cargarResultados() {
-    // ✅ EVITAR MÚLTIPLES CARGAS SIMULTÁNEAS
     if (cargandoResultados) {
         console.log('⏸️ Ya cargando resultados, omitiendo...');
         return;
@@ -3301,51 +3353,60 @@ async function cargarResultados() {
             return;
         }
         
-        // NUEVO: Verificar si hay resultados recientes para mostrar
-        const urlParams = new URLSearchParams(window.location.search);
-        const mostrarUltimo = urlParams.get('mostrar');
+        let querySnapshot;
         
-        if (mostrarUltimo === 'ultimo') {
-            const ultimosResultadosStr = localStorage.getItem('ultimosResultados');
-            if (ultimosResultadosStr) {
-                const ultimosResultados = JSON.parse(ultimosResultadosStr);
+        // 🆕 RECUPERAR CACHÉ DE sessionStorage
+        const cacheGuardado = sessionStorage.getItem('cacheResultados');
+        const timestampGuardado = sessionStorage.getItem('cacheResultadosTimestamp');
+        
+        if (cacheGuardado && timestampGuardado) {
+            const tiempoTranscurrido = Date.now() - parseInt(timestampGuardado);
+            
+            if (tiempoTranscurrido < CACHE_DURACION) {
+                console.log('✅ Recuperando caché resultados desde sessionStorage');
+                const datosCache = JSON.parse(cacheGuardado);
                 
-                // Mostrar resultados inmediatamente
-                const containerResultados = document.getElementById('resultadosTest');
-                if (containerResultados) {
-                    containerResultados.innerHTML = generarHTMLResultados(ultimosResultados);
-                    containerResultados.style.display = 'block';
-                    
-                    // Ocultar lista normal de resultados
-                    listResultados.style.display = 'none';
-                    
-                    // Limpiar localStorage
-                    localStorage.removeItem('ultimosResultados');
-                    
-                    // Limpiar URL para evitar recargas
-                    window.history.replaceState({}, '', 'tests.html?section=resultados');
-                    
-                    // Scroll al inicio
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return;
-                }
+                querySnapshot = {
+                    empty: datosCache.length === 0,
+                    size: datosCache.length,
+                    forEach: function(callback) {
+                        datosCache.forEach(item => {
+                            callback({
+                                id: item.id,
+                                data: () => item.data
+                            });
+                        });
+                    }
+                };
+                
+                cacheResultados = querySnapshot;
+                cacheResultadosTimestamp = parseInt(timestampGuardado);
+            } else {
+                sessionStorage.removeItem('cacheResultados');
+                sessionStorage.removeItem('cacheResultadosTimestamp');
             }
         }
         
-        let querySnapshot;
-        
-        // ✅ USAR CACHÉ para resultados
-        if (cacheResultados && cacheResultadosTimestamp && 
-            (Date.now() - cacheResultadosTimestamp < CACHE_DURACION)) {
-            console.log('✅ Usando caché de resultados');
-            querySnapshot = cacheResultados;
-        } else {
+        if (!querySnapshot) {
             console.log('🔄 Recargando resultados desde Firebase');
             const q = query(
                 collection(db, "resultados"), 
                 where("usuarioId", "==", currentUser.uid)
             );
             querySnapshot = await getDocs(q);
+            
+            // 🆕 GUARDAR EN sessionStorage
+            const datosParaGuardar = [];
+            querySnapshot.forEach(doc => {
+                datosParaGuardar.push({
+                    id: doc.id,
+                    data: doc.data()
+                });
+            });
+            
+            sessionStorage.setItem('cacheResultados', JSON.stringify(datosParaGuardar));
+            sessionStorage.setItem('cacheResultadosTimestamp', Date.now().toString());
+            
             cacheResultados = querySnapshot;
             cacheResultadosTimestamp = Date.now();
         }
@@ -3500,6 +3561,8 @@ window.eliminarResultado = async function(resultadoId) {
             
             // Invalidar caché
             cacheResultados = null;
+sessionStorage.removeItem('cacheResultados');
+sessionStorage.removeItem('cacheResultadosTimestamp');
             
             // Recargar la lista de resultados
             cargarResultados();
@@ -3528,6 +3591,8 @@ window.eliminarTodosResultados = async function() {
             
             // Invalidar caché
             cacheResultados = null;
+sessionStorage.removeItem('cacheResultados');
+sessionStorage.removeItem('cacheResultadosTimestamp');
             
             alert('Todos los resultados han sido eliminados');
             cargarResultados();
