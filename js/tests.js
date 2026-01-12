@@ -3500,26 +3500,12 @@ eliminarTodosBtn.innerHTML = `
     </button>
 `;
 listResultados.appendChild(eliminarTodosBtn);
-// Cargar todos los temas del usuario para poder mostrar nombres
-const temasQuery = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
-const temasSnapshot = await getDocs(temasQuery);
-const temasMap = new Map();
-
-temasSnapshot.forEach((doc) => {
-    const tema = doc.data();
-    temasMap.set(doc.id, tema.nombre);
-});
         
         
        // Convertir a array y ordenar por fecha descendente
         const resultados = [];
         querySnapshot.forEach((doc) => {
             const resultado = doc.data();
-            
-            if (!esTemaValido(resultado.test.tema, temasMap)) {
-                return;
-            }
-            
             resultados.push({ id: doc.id, data: resultado });
         });
         
@@ -3540,7 +3526,7 @@ temasSnapshot.forEach((doc) => {
             resultadoDiv.innerHTML = `
     <div class="resultado-item" onclick="mostrarDetalleResultado('${id}')" style="cursor: pointer;">
        <div class="resultado-info">
-    <h4>${obtenerTextoTemas(resultado.test.tema, temasMap)}</h4>
+    <h4>${obtenerTextoTemasSimple(resultado.test.tema)}</h4>
     <p class="nombre-test">${resultado.test.nombre}</p>
     <p class="fecha-resultado">${fecha} - ${hora}</p>
 </div>
@@ -5154,5 +5140,19 @@ window.cargarPreguntasLazy = async function(event, temaId) {
         temasAbiertos.delete(temaId);
     }
 };
+// Versión simplificada sin necesidad de cargar temas
+function obtenerTextoTemasSimple(tema) {
+    if (tema === 'todos') {
+        return 'Todos los temas';
+    } else if (tema === 'repaso') {
+        return 'Test de repaso';
+    } else if (Array.isArray(tema)) {
+        return tema.length > 1 ? `${tema.length} temas seleccionados` : 'Tema específico';
+    } else if (typeof tema === 'string') {
+        return 'Tema específico';
+    } else {
+        return 'Test';
+    }
+}
 };
 
