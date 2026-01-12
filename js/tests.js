@@ -4388,6 +4388,22 @@ function esTemaValido(tema, temasMap) {
     }
     return false;
 }
+
+// Versión simplificada sin necesidad de cargar temas
+function obtenerTextoTemasSimple(tema) {
+    if (tema === 'todos') {
+        return 'Todos los temas';
+    } else if (tema === 'repaso') {
+        return 'Test de repaso';
+    } else if (Array.isArray(tema)) {
+        return tema.length > 1 ? `${tema.length} temas seleccionados` : 'Tema específico';
+    } else if (typeof tema === 'string') {
+        return 'Tema específico';
+    } else {
+        return 'Test';
+    }
+}
+
 // Función para importar preguntas directamente a un tema específico
 window.importarATema = function(temaId) {
     // Crear input file temporal
