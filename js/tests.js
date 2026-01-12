@@ -1664,7 +1664,7 @@ async function detectarPreguntasDuplicadas() {
     }
 }
 
-// Mostrar preguntas duplicadas - VERSION COMPLETA CON OPCIONES
+// Mostrar preguntas duplicadas - VERSION CON CHECKBOXES
 function mostrarPreguntasDuplicadas(duplicadas) {
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -1723,13 +1723,11 @@ function mostrarPreguntasDuplicadas(duplicadas) {
         duplicadaItem.innerHTML = 
             '<h4 style="margin-top: 0; color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;">Duplicado ' + (index + 1) + ':</h4>' +
             
-            '<div style="background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; position: relative; border: 2px solid #007bff;">' +
-                '<div style="position: absolute; top: 10px; right: 10px;">' +
-                    '<button class="btn-danger btn-sm" onclick="eliminarEspecifica(\'' + dup.pregunta1.temaId + '\', ' + dup.pregunta1.preguntaIndex + ', ' + index + ')" style="padding: 6px 12px; font-size: 12px;">' +
-                        '🗑️ Eliminar' +
-                    '</button>' +
+            '<div style="background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; position: relative; border: 2px solid #6c757d;">' +
+                '<div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 10px; align-items: center;">' +
+                    '<input type="checkbox" class="checkbox-pregunta" data-tema-id="' + dup.pregunta1.temaId + '" data-pregunta-index="' + dup.pregunta1.preguntaIndex + '" style="width: 20px; height: 20px; cursor: pointer;">' +
                 '</div>' +
-                '<div style="background: #e7f3ff; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; display: inline-block; font-weight: bold; color: #0056b3;">' +
+                '<div style="background: #e9ecef; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; display: inline-block; font-weight: bold; color: #495057;">' +
                     '📁 ' + dup.pregunta1.temaNombre +
                 '</div>' +
                 '<div style="font-weight: bold; margin: 10px 0; font-size: 16px; color: #212529;">' +
@@ -1740,13 +1738,11 @@ function mostrarPreguntasDuplicadas(duplicadas) {
                 '</div>' +
             '</div>' +
             
-            '<div style="background: #fff3cd; padding: 15px; margin: 10px 0; border-radius: 5px; position: relative; border: 2px solid #ffc107;">' +
-                '<div style="position: absolute; top: 10px; right: 10px;">' +
-                    '<button class="btn-danger btn-sm" onclick="eliminarEspecifica(\'' + dup.pregunta2.temaId + '\', ' + dup.pregunta2.preguntaIndex + ', ' + index + ')" style="padding: 6px 12px; font-size: 12px;">' +
-                        '🗑️ Eliminar' +
-                    '</button>' +
+            '<div style="background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; position: relative; border: 2px solid #6c757d;">' +
+                '<div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 10px; align-items: center;">' +
+                    '<input type="checkbox" class="checkbox-pregunta" data-tema-id="' + dup.pregunta2.temaId + '" data-pregunta-index="' + dup.pregunta2.preguntaIndex + '" style="width: 20px; height: 20px; cursor: pointer;">' +
                 '</div>' +
-                '<div style="background: #fff8e1; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; display: inline-block; font-weight: bold; color: #856404;">' +
+                '<div style="background: #e9ecef; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; display: inline-block; font-weight: bold; color: #495057;">' +
                     '📁 ' + dup.pregunta2.temaNombre +
                 '</div>' +
                 '<div style="font-weight: bold; margin: 10px 0; font-size: 16px; color: #212529;">' +
@@ -1769,9 +1765,11 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     modalActions.style.paddingTop = '15px';
     modalActions.style.textAlign = 'center';
     modalActions.innerHTML = 
-        '<button class="btn-warning" onclick="eliminarTodasAmarillas()" style="padding: 10px 20px; font-size: 14px;">🗑️ Eliminar Todas las Amarillas</button>' +
-        '<button class="btn-secondary" onclick="cerrarModalDuplicadas()" style="padding: 10px 20px; font-size: 14px;">Cerrar</button>' +
-        '<button class="btn-primary" onclick="volverADetectar()" style="padding: 10px 20px; font-size: 14px;">🔄 Volver a Detectar</button>';
+        '<button class="btn-info" onclick="seleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☑️ Seleccionar Todas</button>' +
+        '<button class="btn-info" onclick="deseleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☐ Deseleccionar Todas</button>' +
+        '<button class="btn-danger" onclick="eliminarSeleccionadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">🗑️ Eliminar Seleccionadas</button>' +
+        '<button class="btn-secondary" onclick="cerrarModalDuplicadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">Cerrar</button>' +
+        '<button class="btn-primary" onclick="volverADetectar()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">🔄 Volver a Detectar</button>';
     
     modalContent.appendChild(modalActions);
     modal.appendChild(modalContent);
@@ -1815,24 +1813,40 @@ window.cerrarModalDuplicadas = function() {
     }
 };
 
-// Eliminar todas las preguntas que están en amarillo
-window.eliminarTodasAmarillas = async function() {
-    if (!window.duplicadasData) return;
+// Seleccionar todas las preguntas
+window.seleccionarTodas = function() {
+    document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = true);
+};
+
+// Deseleccionar todas las preguntas
+window.deseleccionarTodas = function() {
+    document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = false);
+};
+
+// Eliminar preguntas seleccionadas
+window.eliminarSeleccionadas = async function() {
+    const checkboxes = document.querySelectorAll('.checkbox-pregunta:checked');
     
-    const confirmacion = confirm('¿Eliminar todas las preguntas que están en amarillo? Esta acción no se puede deshacer.');
+    if (checkboxes.length === 0) {
+        alert('No hay preguntas seleccionadas');
+        return;
+    }
+    
+    const confirmacion = confirm(`¿Eliminar ${checkboxes.length} pregunta(s) seleccionada(s)? Esta acción no se puede deshacer.`);
     if (!confirmacion) return;
     
     try {
         // Agrupar eliminaciones por tema
         const eliminacionesPorTema = {};
         
-        window.duplicadasData.forEach(dup => {
-            const preguntaAEliminar = dup.pregunta2; // Siempre la amarilla
+        checkboxes.forEach(checkbox => {
+            const temaId = checkbox.dataset.temaId;
+            const preguntaIndex = parseInt(checkbox.dataset.preguntaIndex);
             
-            if (!eliminacionesPorTema[preguntaAEliminar.temaId]) {
-                eliminacionesPorTema[preguntaAEliminar.temaId] = [];
+            if (!eliminacionesPorTema[temaId]) {
+                eliminacionesPorTema[temaId] = [];
             }
-            eliminacionesPorTema[preguntaAEliminar.temaId].push(preguntaAEliminar.preguntaIndex);
+            eliminacionesPorTema[temaId].push(preguntaIndex);
         });
         
         let totalEliminadas = 0;
@@ -1858,13 +1872,13 @@ window.eliminarTodasAmarillas = async function() {
             await updateDoc(temaRef, { preguntas });
         }
         
-        alert('Se eliminaron ' + totalEliminadas + ' preguntas duplicadas (las amarillas).');
+        alert(`Se eliminaron ${totalEliminadas} pregunta(s) seleccionada(s).`);
         cerrarModalDuplicadas();
         cargarBancoPreguntas();
         
     } catch (error) {
         console.error('Error:', error);
-        alert('Error al eliminar las preguntas duplicadas');
+        alert('Error al eliminar las preguntas seleccionadas');
     }
 };
 
@@ -4866,10 +4880,3 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     listResultados.appendChild(panelEstadisticas);
 }
 };
-
-
-
-
-
-
-
