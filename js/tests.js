@@ -2676,6 +2676,14 @@ function actualizarDisplayCronometro() {
 async function finalizarTest() {
     console.log('=== DEBUG FINALIZAR TEST ===');
     console.log('testActual completo:', testActual);
+    
+    if (!testActual) {
+        console.error('❌ testActual es null');
+        alert('Error: no hay test activo');
+        volverAConfigurarTest();
+        return;
+    }
+    
     console.log('testActual.tema:', testActual.tema);
     console.log('tipo de testActual.tema:', typeof testActual.tema);
     console.log('Array.isArray(testActual.tema):', Array.isArray(testActual.tema));
@@ -2687,6 +2695,15 @@ async function finalizarTest() {
     
     // Calcular resultados
     const resultados = calcularResultados();
+    
+    if (!resultados) {
+        console.error('❌ Error calculando resultados');
+        alert('Error al calcular resultados del test');
+        volverAConfigurarTest();
+        return;
+    }
+    
+    console.log('Resultados calculados:', resultados);
     
     // Guardar resultado en Firebase
     try {
@@ -2776,6 +2793,14 @@ async function finalizarTest() {
 
 // Calcular resultados
 function calcularResultados() {
+    console.log('=== CALCULAR RESULTADOS ===');
+    console.log('testActual:', testActual);
+    
+    if (!testActual || !testActual.preguntas) {
+        console.error('❌ testActual inválido');
+        return null;
+    }
+    
     let correctas = 0;
     let incorrectas = 0;
     let sinResponder = 0;
@@ -2825,11 +2850,22 @@ function calcularResultados() {
 
 // Mostrar resultados
 function mostrarResultados(resultados) {
-    // Ocultar COMPLETAMENTE test en ejecución
-    const testEjecucion = document.getElementById('testEnEjecucion');
-    if (testEjecucion) {
-        testEjecucion.style.display = 'none';
+    console.log('=== MOSTRAR RESULTADOS ===');
+    console.log('Resultados recibidos:', resultados);
+    
+    if (!resultados || !resultados.test) {
+        console.error('❌ Resultados inválidos');
+        alert('Error mostrando resultados');
+        volverAConfigurarTest();
+        return;
     }
+    
+    try {
+        // Ocultar COMPLETAMENTE test en ejecución
+        const testEjecucion = document.getElementById('testEnEjecucion');
+        if (testEjecucion) {
+            testEjecucion.style.display = 'none';
+        }
     
     // Ocultar COMPLETAMENTE test de repaso
     const containerRepaso = document.getElementById('testRepasoContainer');
@@ -2863,12 +2899,18 @@ function mostrarResultados(resultados) {
     container.innerHTML = generarHTMLResultados(resultados);
     
     // Scroll suave al inicio después de un breve delay
-    setTimeout(() => {
-        window.scrollTo({ 
-            top: 0, 
-            behavior: 'smooth' 
-        });
-    }, 300);
+        setTimeout(() => {
+            window.scrollTo({ 
+                top: 0, 
+                behavior: 'smooth' 
+            });
+        }, 300);
+        
+    } catch (error) {
+        console.error('❌ Error en mostrarResultados:', error);
+        alert('Error mostrando resultados: ' + error.message);
+        volverAConfigurarTest();
+    }
 }
 // Generar HTML de resultados
 function generarHTMLResultados(resultados) {
@@ -2878,13 +2920,18 @@ function generarHTMLResultados(resultados) {
     // VALIDACIÓN COMPLETA
     if (!resultados) {
         console.error('❌ Resultados es null o undefined');
-        return '<div style="padding: 40px; text-align: center; color: #dc3545;">Error: No hay datos de resultados</div>';
+        return '<div style="padding: 40px; text-align: center; color: #dc3545;"><h3>⚠️ Error: No hay datos de resultados</h3><p>Por favor, vuelve a intentar el test.</p><button onclick="volverAConfigurarTest()" class="btn-empezar-test">Volver</button></div>';
     }
     
     if (!resultados.test) {
         console.error('❌ resultados.test es null o undefined');
         console.log('Estructura completa:', JSON.stringify(resultados, null, 2));
-        return '<div style="padding: 40px; text-align: center; color: #dc3545;">Error: Datos del test incompletos</div>';
+        return '<div style="padding: 40px; text-align: center; color: #dc3545;"><h3>⚠️ Error: Datos del test incompletos</h3><p>Faltan datos del test.</p><button onclick="volverAConfigurarTest()" class="btn-empezar-test">Volver</button></div>';
+    }
+    
+    if (!resultados.test.nombre) {
+        console.error('❌ resultados.test.nombre es null');
+        console.log('resultados.test:', resultados.test);
     }
     
     const { correctas, incorrectas, sinResponder, total, porcentaje, detalleRespuestas, tiempoEmpleado } = resultados;
