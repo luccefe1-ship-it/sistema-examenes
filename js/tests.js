@@ -23,6 +23,8 @@ let preguntasImportadas = [];
 let cacheTemas = null;
 let cacheTimestamp = null;
 const CACHE_DURACION = 5 * 60 * 1000; // 5 minutos
+let cacheResultados = null;
+let cacheResultadosTimestamp = null;
 // Exponer para diagnóstico
 window.testActual = null;
 window.testActual = null;
@@ -3055,6 +3057,9 @@ async function guardarResultado(resultados) {
 
         // Guardar resultado principal
         await addDoc(collection(db, "resultados"), datosLimpios);
+        
+        // Invalidar caché de resultados
+        cacheResultados = null;
 
         // Guardar preguntas falladas para el test de repaso (SOLO si NO es un test de repaso)
         if (!testActual.esRepaso) {
@@ -3232,11 +3237,23 @@ async function cargarResultados() {
             }
         }
         
-        const q = query(
-            collection(db, "resultados"), 
-            where("usuarioId", "==", currentUser.uid)
-        );
-        const querySnapshot = await getDocs(q);
+        let querySnapshot;
+        
+        // ✅ USAR CACHÉ para resultados
+        if (cacheResultados && cacheResultadosTimestamp && 
+            (Date.now() - cacheResultadosTimestamp < CACHE_DURACION)) {
+            console.log('✅ Usando caché de resultados');
+            querySnapshot = cacheResultados;
+        } else {
+            console.log('🔄 Recargando resultados desde Firebase');
+            const q = query(
+                collection(db, "resultados"), 
+                where("usuarioId", "==", currentUser.uid)
+            );
+            querySnapshot = await getDocs(q);
+            cacheResultados = querySnapshot;
+            cacheResultadosTimestamp = Date.now();
+        }
         
         if (querySnapshot.empty) {
             listResultados.innerHTML = '<p>No has realizado ningún test aún.</p>';
@@ -3384,6 +3401,9 @@ window.eliminarResultado = async function(resultadoId) {
         try {
             await deleteDoc(doc(db, "resultados", resultadoId));
             
+            // Invalidar caché
+            cacheResultados = null;
+            
             // Recargar la lista de resultados
             cargarResultados();
             
@@ -3408,6 +3428,9 @@ window.eliminarTodosResultados = async function() {
             });
             
             await Promise.all(promises);
+            
+            // Invalidar caché
+            cacheResultados = null;
             
             alert('Todos los resultados han sido eliminados');
             cargarResultados();
