@@ -1098,9 +1098,6 @@ window.toggleVerificacion = async function(temaId, preguntaIndex) {
         
         await updateDoc(temaRef, { preguntas });
 
-// Invalidar caché
-cacheTemas = null;
-
 // Actualizar solo el contenido de las preguntas sin recargar todo
 await actualizarContenidoPreguntas(temaId);
         
@@ -1213,9 +1210,6 @@ window.guardarEdicionPregunta = async function(temaId, preguntaIndex) {
         
         await updateDoc(temaRef, { preguntas });
 
-// Invalidar caché
-cacheTemas = null;
-
 // Actualizar solo el contenido de las preguntas sin recargar todo
 await actualizarContenidoPreguntas(temaId);
         
@@ -1249,9 +1243,6 @@ window.cambiarRespuestaCorrecta = async function(temaId, preguntaIndex, nuevaLet
         
         await updateDoc(temaRef, { preguntas });
 
-// Invalidar caché
-cacheTemas = null;
-
 // Actualizar solo el contenido de las preguntas sin recargar todo
 await actualizarContenidoPreguntas(temaId);
     } catch (error) {
@@ -1272,9 +1263,6 @@ window.eliminarPregunta = async function(temaId, preguntaIndex) {
             preguntas.splice(preguntaIndex, 1);
             
            await updateDoc(temaRef, { preguntas });
-
-// Invalidar caché
-cacheTemas = null;
 
 // Actualizar solo el contenido de las preguntas sin recargar todo
 await actualizarContenidoPreguntas(temaId);
@@ -2109,12 +2097,23 @@ function manejarClickTiempo() {
     }
 }
 
-// Cargar temas para test con dropdown y subtemas
-// FUNCIÓN CORREGIDA: cargarTemasParaTest
+// Cargar temas para test con dropdown y subtemas - CON CACHÉ
 async function cargarTemasParaTest() {
     try {
-        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
-        const querySnapshot = await getDocs(q);
+        let querySnapshot;
+        
+        // ✅ USAR CACHÉ (igual que cargarBancoPreguntas)
+        if (cacheTemas && cacheTimestamp && (Date.now() - cacheTimestamp < CACHE_DURACION)) {
+            console.log('✅ Usando caché de temas en Test Aleatorio');
+            querySnapshot = cacheTemas;
+        } else {
+            console.log('🔄 Recargando temas desde Firebase en Test Aleatorio');
+            const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+            querySnapshot = await getDocs(q);
+            cacheTemas = querySnapshot;
+            cacheTimestamp = Date.now();
+        }
+        
         const listaContainer = document.getElementById('listaTemasDropdown');
         
         if (!listaContainer) return;
@@ -2156,7 +2155,7 @@ async function cargarTemasParaTest() {
             }
         });
 
-        // NUEVA SECCIÓN: Sumar preguntas de subtemas a los temas principales
+        // Sumar preguntas de subtemas a los temas principales
         temasPrincipales.forEach(tema => {
             if (subtemasPorPadre[tema.id]) {
                 const preguntasSubtemas = subtemasPorPadre[tema.id].reduce((total, subtema) => {
@@ -2172,20 +2171,17 @@ async function cargarTemasParaTest() {
             preguntasTodosTemas.textContent = `${totalPreguntasVerificadas} preguntas`;
         }
 
-        // Ordenar temas con ordenamiento numérico inteligente (igual que banco)
+        // Ordenar temas con ordenamiento numérico inteligente
         temasPrincipales.sort((a, b) => {
             const nombreA = a.nombre;
             const nombreB = b.nombre;
             
-            // Extraer números del nombre si existen
             const numeroA = nombreA.match(/\d+/);
             const numeroB = nombreB.match(/\d+/);
             
             if (numeroA && numeroB) {
-                // Si ambos tienen números, ordenar por número
                 return parseInt(numeroA[0]) - parseInt(numeroB[0]);
             } else {
-                // Si no tienen números, orden alfabético normal
                 return nombreA.localeCompare(nombreB);
             }
         });
@@ -2197,7 +2193,6 @@ async function cargarTemasParaTest() {
             
             const tieneSubtemas = subtemasPorPadre[tema.id] && subtemasPorPadre[tema.id].length > 0;
             
-            // ESTRUCTURA HTML CORREGIDA - SIN ESTILOS INLINE
             temaDiv.innerHTML = `
                 <div class="tema-principal-row">
                     <label class="tema-label">
@@ -2241,43 +2236,20 @@ async function cargarTemasParaTest() {
         // Actualizar contador inicial
         actualizarPreguntasDisponibles();
         
-        // Debug DOM después de cargar
-        setTimeout(() => {
-            console.log('=== DEBUG DOM DESPUÉS DE CARGAR ===');
-            const todosCheckbox = document.getElementById('todosLosTemas');
-            const temasCheckboxes = document.querySelectorAll('.tema-checkbox');
-            const labels = document.querySelectorAll('.tema-label, .subtema-label');
-            
-            console.log('Todos los temas checkbox:', todosCheckbox);
-            console.log('Temas checkboxes encontrados:', temasCheckboxes.length);
-            console.log('Labels encontrados:', labels.length);
-            
-            temasCheckboxes.forEach((cb, i) => {
-                console.log(`Checkbox ${i}:`, cb.value, 'clickeable:', cb.style.pointerEvents !== 'none');
-            });
-            
-            labels.forEach((label, i) => {
-                console.log(`Label ${i}:`, label.innerHTML.substring(0, 100));
-            });
-            console.log('=====================================');
-        }, 500);
-        
     } catch (error) {
         console.error('Error cargando temas para test:', error);
     }
     
-    // Al final de cargarTemasParaTest(), FORZAR configuración
+    // Configurar eventos post-carga
     setTimeout(() => {
         console.log('Ejecutando configuración post-carga...');
         forzarEventListeners();
         
-        // Marcar primer botón de cantidad como activo
         const primerCantidad = document.querySelector('.btn-cantidad');
         if (primerCantidad) {
             primerCantidad.click();
         }
         
-        // Marcar último botón de tiempo como activo (Sin tiempo)
         const ultimoTiempo = document.querySelector('.btn-tiempo[data-tiempo="sin"]');
         if (ultimoTiempo) {
             ultimoTiempo.click();
