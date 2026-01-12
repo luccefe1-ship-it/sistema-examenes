@@ -3511,10 +3511,27 @@ listResultados.appendChild(eliminarTodosBtn);
         
         // Ordenar por fecha de creación descendente (más reciente primero)
         resultados.sort((a, b) => {
-            const fechaA = a.data.fechaCreacion?.toDate?.() || new Date(a.data.fechaCreacion || 0);
-            const fechaB = b.data.fechaCreacion?.toDate?.() || new Date(b.data.fechaCreacion || 0);
-            return fechaB - fechaA;
-        });
+    // Manejar tanto Timestamps de Firebase como strings de fecha del caché
+    let fechaA, fechaB;
+    
+    if (a.data.fechaCreacion?.toDate) {
+        fechaA = a.data.fechaCreacion.toDate();
+    } else if (a.data.fechaCreacion) {
+        fechaA = new Date(a.data.fechaCreacion);
+    } else {
+        fechaA = new Date(0);
+    }
+    
+    if (b.data.fechaCreacion?.toDate) {
+        fechaB = b.data.fechaCreacion.toDate();
+    } else if (b.data.fechaCreacion) {
+        fechaB = new Date(b.data.fechaCreacion);
+    } else {
+        fechaB = new Date(0);
+    }
+    
+    return fechaB - fechaA;
+});
         
         resultados.forEach(({ id, data: resultado }) => {
     
