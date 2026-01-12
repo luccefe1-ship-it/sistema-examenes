@@ -25,6 +25,11 @@ let cacheTimestamp = null;
 const CACHE_DURACION = 5 * 60 * 1000; // 5 minutos
 let cacheResultados = null;
 let cacheResultadosTimestamp = null;
+
+// Flags para evitar múltiples cargas simultáneas
+let cargandoBanco = false;
+let cargandoResultados = false;
+let cargandoTemasTest = false;
 // Exponer para diagnóstico
 window.testActual = null;
 window.testActual = null;
@@ -284,23 +289,38 @@ function cambiarSeccion(seccionId) {
         seccionActiva.classList.add('active');
     }
 
-    // Cargar datos específicos de la sección
+    // Cargar datos específicos de la sección (solo si no están cargando)
     if (seccionId === 'banco') {
-        cargarBancoPreguntas();
-    }
-else if (seccionId === 'aleatorio') {
-    setTimeout(() => {
-        // Limpiar completamente la interfaz de test antes de inicializar
-        limpiarInterfazTestCompleta();
-        inicializarTestAleatorio();
+        // Solo cargar si no está cargando y no hay caché válido
+        const necesitaCargar = !cargandoBanco && 
+                              (!cacheTemas || !cacheTimestamp || 
+                               (Date.now() - cacheTimestamp >= CACHE_DURACION));
         
-        // Forzar event listeners
-        forzarEventListeners();
-    }, 100);
-}
-else if (seccionId === 'resultados') {
-    cargarResultados();
-}
+        if (necesitaCargar) {
+            cargarBancoPreguntas();
+        } else {
+            console.log('✅ Banco ya cargado o en caché');
+        }
+    }
+    else if (seccionId === 'aleatorio') {
+        setTimeout(() => {
+            limpiarInterfazTestCompleta();
+            inicializarTestAleatorio();
+            forzarEventListeners();
+        }, 100);
+    }
+    else if (seccionId === 'resultados') {
+        // Solo cargar si no está cargando y no hay caché válido
+        const necesitaCargar = !cargandoResultados && 
+                              (!cacheResultados || !cacheResultadosTimestamp || 
+                               (Date.now() - cacheResultadosTimestamp >= CACHE_DURACION));
+        
+        if (necesitaCargar) {
+            cargarResultados();
+        } else {
+            console.log('✅ Resultados ya cargados o en caché');
+        }
+    }
     // Mostrar contenido nuevamente
     setTimeout(() => {
         if (mainContent) mainContent.style.opacity = '1';
@@ -677,7 +697,14 @@ async function cargarTemas() {
 
 // Cargar banco de preguntas
 async function cargarBancoPreguntas() {
+    // ✅ EVITAR MÚLTIPLES CARGAS SIMULTÁNEAS
+    if (cargandoBanco) {
+        console.log('⏸️ Ya cargando banco, omitiendo...');
+        return;
+    }
+    
     try {
+        cargandoBanco = true;
         let querySnapshot;
         
         // Usar caché si está fresco
@@ -861,6 +888,8 @@ temasPrincipales.forEach(tema => {
     } catch (error) {
         console.error('Error cargando banco de preguntas:', error);
         listaTemas.innerHTML = '<p>Error al cargar los temas.</p>';
+    } finally {
+        cargandoBanco = false;
     }
 }
 
@@ -2101,7 +2130,14 @@ function manejarClickTiempo() {
 
 // Cargar temas para test con dropdown y subtemas - CON CACHÉ
 async function cargarTemasParaTest() {
+    // ✅ EVITAR MÚLTIPLES CARGAS SIMULTÁNEAS
+    if (cargandoTemasTest) {
+        console.log('⏸️ Ya cargando temas test, omitiendo...');
+        return;
+    }
+    
     try {
+        cargandoTemasTest = true;
         let querySnapshot;
         
         // ✅ USAR CACHÉ (igual que cargarBancoPreguntas)
@@ -2240,6 +2276,8 @@ async function cargarTemasParaTest() {
         
     } catch (error) {
         console.error('Error cargando temas para test:', error);
+    } finally {
+        cargandoTemasTest = false;
     }
     
     // Configurar eventos post-carga
@@ -3249,9 +3287,19 @@ window.volverAConfigurarTest = function() {
 };
 // Cargar historial de resultados
 async function cargarResultados() {
+    // ✅ EVITAR MÚLTIPLES CARGAS SIMULTÁNEAS
+    if (cargandoResultados) {
+        console.log('⏸️ Ya cargando resultados, omitiendo...');
+        return;
+    }
+    
     try {
+        cargandoResultados = true;
         const listResultados = document.getElementById('listaResultados');
-        if (!listResultados) return;
+        if (!listResultados) {
+            cargandoResultados = false;
+            return;
+        }
         
         // NUEVO: Verificar si hay resultados recientes para mostrar
         const urlParams = new URLSearchParams(window.location.search);
@@ -3440,6 +3488,8 @@ temasSnapshot.forEach((doc) => {
         
     } catch (error) {
         console.error('Error cargando resultados:', error);
+    } finally {
+        cargandoResultados = false;
     }
 }
 // Eliminar resultado específico
