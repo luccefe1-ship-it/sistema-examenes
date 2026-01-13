@@ -5090,7 +5090,9 @@ window.cerrarModalDetalle = function() {
             document.body.removeChild(modal);
         }
     });
-// Calcular y mostrar estadísticas globales
+};
+
+// Calcular y mostrar estadÃ­sticas globales
 async function mostrarEstadisticasGlobales(querySnapshot) {
     let totalTests = 0;
     let totalPreguntasContestadas = 0;
@@ -5197,5 +5199,5 @@ function obtenerTextoTemasSimple(tema) {
         return 'Test';
     }
 }
-};
+
 
