@@ -2014,6 +2014,11 @@ window.eliminarSeleccionadas = async function() {
             await updateDoc(temaRef, { preguntas });
         }
         
+        // Invalidar caché para forzar recarga desde Firebase
+        cacheTemas = null;
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+        
         alert(`Se eliminaron ${totalEliminadas} pregunta(s) seleccionada(s).`);
         cerrarModalDuplicadas();
         cargarBancoPreguntas();
