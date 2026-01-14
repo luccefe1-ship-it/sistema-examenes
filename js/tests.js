@@ -4519,6 +4519,12 @@ async function importarPreguntasDirectoATema(preguntasConvertidas, temaId) {
         
         alert(`${preguntasConvertidas.length} preguntas importadas exitosamente al tema "${nombreTema}"`);
         
+        // Invalidar caché antes de recargar
+        cacheTemas = null;
+        cacheTimestamp = null;
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+        
         // Recargar banco si está activo
         if (document.getElementById('banco-section').classList.contains('active')) {
             cargarBancoPreguntas();
