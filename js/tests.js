@@ -1176,8 +1176,13 @@ window.toggleVerificacion = async function(temaId, preguntaIndex) {
         
         await updateDoc(temaRef, { preguntas });
 
-// Actualizar solo el contenido de las preguntas sin recargar todo
-await actualizarContenidoPreguntas(temaId);
+        // Invalidar caché para que al refrescar cargue datos actualizados
+        cacheTemas = null;
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+
+        // Actualizar solo el contenido de las preguntas sin recargar todo
+        await actualizarContenidoPreguntas(temaId);
         
     } catch (error) {
         console.error('Error al cambiar verificación:', error);
