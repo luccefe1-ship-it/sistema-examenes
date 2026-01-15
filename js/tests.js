@@ -1785,7 +1785,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     const modalContent = document.createElement('div');
     modalContent.className = 'modal-content';
     modalContent.style.maxWidth = '90vw';
-    modalContent.style.width = '900px';
+    modalContent.style.width = '1000px';
     modalContent.style.height = 'auto';
     modalContent.style.maxHeight = '85vh';
     modalContent.style.display = 'flex';
@@ -1943,9 +1943,18 @@ window.cerrarModalDuplicadas = function() {
     }
 };
 
-// Seleccionar todas las preguntas
+// Seleccionar UNA pregunta de cada par de duplicados
 window.seleccionarTodas = function() {
-    document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = true);
+    const items = document.querySelectorAll('.duplicada-item');
+    items.forEach(item => {
+        const checkboxes = item.querySelectorAll('.checkbox-pregunta');
+        // Deseleccionar todo primero
+        checkboxes.forEach(cb => cb.checked = false);
+        // Seleccionar solo la segunda de cada par (para conservar la primera)
+        if (checkboxes.length >= 2) {
+            checkboxes[1].checked = true;
+        }
+    });
 };
 
 // Deseleccionar todas las preguntas
