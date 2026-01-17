@@ -388,14 +388,12 @@ async function crearTema() {
 
         alert('Tema creado exitosamente');
 
-// Invalidar caché
-cacheTemas = null;
-sessionStorage.removeItem('cacheTemas');
-sessionStorage.removeItem('cacheTemasTimestamp');
+// Marcar caché como sucio
+sessionStorage.setItem('cacheSucio', 'true');
 
-// Recargar banco de preguntas si está activo
+// Agregar tema al DOM sin recargar todo
 if (document.getElementById('banco-section').classList.contains('active')) {
-    cargarBancoPreguntas();
+    agregarTemaAlDOM(docRef.id, temaData);
 }
 
     } catch (error) {
@@ -710,6 +708,16 @@ async function cargarBancoPreguntas() {
         cargandoBanco = true;
         let querySnapshot;
         
+        // Verificar si el caché está sucio (hubo cambios)
+        const cacheSucio = sessionStorage.getItem('cacheSucio') === 'true';
+        if (cacheSucio) {
+            sessionStorage.removeItem('cacheSucio');
+            sessionStorage.removeItem('cacheTemas');
+            sessionStorage.removeItem('cacheTemasTimestamp');
+            cacheTemas = null;
+            cacheTimestamp = null;
+        }
+        
         // 🆕 INTENTAR RECUPERAR CACHÉ DE sessionStorage
         const cacheGuardado = sessionStorage.getItem('cacheTemas');
         const timestampGuardado = sessionStorage.getItem('cacheTemasTimestamp');
@@ -939,7 +947,44 @@ temasPrincipales.forEach(tema => {
         cargandoBanco = false;
     }
 }
-
+// Agregar tema al DOM sin recargar todo
+function agregarTemaAlDOM(temaId, temaData) {
+    const listaTemas = document.getElementById('listaTemas');
+    if (!listaTemas) return;
+    
+    const fechaCreacion = new Date().toLocaleDateString();
+    
+    const temaDiv = document.createElement('div');
+    temaDiv.className = 'tema-card';
+    temaDiv.draggable = true;
+    temaDiv.dataset.temaId = temaId;
+    
+    temaDiv.innerHTML = `
+        <div class="tema-header">
+            <div class="tema-info">
+                <div class="tema-nombre">📚 ${temaData.nombre}</div>
+                <div class="tema-stats">0 preguntas • Creado: ${fechaCreacion}</div>
+            </div>
+            <div class="tema-acciones">
+                <button class="btn-secondary" onclick="crearSubtema('${temaId}')">📂 Crear Subtema</button>
+                <button class="btn-importar" onclick="importarATema('${temaId}')">📥 Importar</button>
+                <button class="btn-exportar" onclick="exportarTema('${temaId}')">📤 Exportar</button>
+                <button class="btn-warning" onclick="vaciarTema('${temaId}')">🧹 Vaciar Tema</button>
+                <button class="btn-secondary" onclick="editarTema('${temaId}')">✏️ Editar</button>
+                <button class="btn-danger" onclick="eliminarTema('${temaId}')">🗑️ Eliminar</button>
+            </div>
+        </div>
+        ${temaData.descripcion ? `<div class="tema-descripcion">${temaData.descripcion}</div>` : ''}
+    `;
+    
+    // Insertar después de los controles generales
+    const controlesGenerales = listaTemas.querySelector('.controles-generales');
+    if (controlesGenerales && controlesGenerales.nextSibling) {
+        listaTemas.insertBefore(temaDiv, controlesGenerales.nextSibling);
+    } else {
+        listaTemas.appendChild(temaDiv);
+    }
+}
 // Manejar toggle de tema (abrir/cerrar)
 window.manejarToggleTema = function(event, temaId) {
     if (event.target.open) {
@@ -1176,13 +1221,19 @@ window.toggleVerificacion = async function(temaId, preguntaIndex) {
         
         await updateDoc(temaRef, { preguntas });
 
-        // Invalidar caché para que al refrescar cargue datos actualizados
-        cacheTemas = null;
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
-
-        // Actualizar solo el contenido de las preguntas sin recargar todo
-        await actualizarContenidoPreguntas(temaId);
+        // Actualizar SOLO el botón de verificación sin recargar nada
+        const preguntaDiv = document.querySelector(`[data-pregunta-index="${preguntaIndex}"]`);
+        if (preguntaDiv && preguntaDiv.closest(`#preguntas-${temaId}`)) {
+            const btnVerify = preguntaDiv.querySelector('.btn-verify');
+            if (btnVerify) {
+                btnVerify.classList.toggle('verified');
+                btnVerify.innerHTML = preguntas[preguntaIndex].verificada ? '⭐' : '☆';
+            }
+            preguntaDiv.classList.toggle('pregunta-verificada', preguntas[preguntaIndex].verificada);
+        }
+        
+        // Marcar caché como sucio (se actualizará en próxima carga completa)
+        sessionStorage.setItem('cacheSucio', 'true');
         
     } catch (error) {
         console.error('Error al cambiar verificación:', error);
@@ -1325,9 +1376,10 @@ window.cambiarRespuestaCorrecta = async function(temaId, preguntaIndex, nuevaLet
         preguntas[preguntaIndex].respuestaCorrecta = nuevaLetra;
         
         await updateDoc(temaRef, { preguntas });
-
-// Actualizar solo el contenido de las preguntas sin recargar todo
-await actualizarContenidoPreguntas(temaId);
+        
+        // NO recargar - el radio button ya está actualizado visualmente
+        sessionStorage.setItem('cacheSucio', 'true');
+        
     } catch (error) {
         console.error('Error cambiando respuesta correcta:', error);
         alert('Error al actualizar la respuesta');
@@ -1345,15 +1397,46 @@ window.eliminarPregunta = async function(temaId, preguntaIndex) {
             
             preguntas.splice(preguntaIndex, 1);
             
-           await updateDoc(temaRef, { preguntas });
+            await updateDoc(temaRef, { preguntas });
 
-// Actualizar solo el contenido de las preguntas sin recargar todo
-await actualizarContenidoPreguntas(temaId);
-            
-            // Si no quedan preguntas, recargar para actualizar el contador
-            if (preguntas.length === 0) {
-                cargarBancoPreguntas();
+            // Eliminar SOLO el elemento DOM de la pregunta
+            const preguntaDiv = document.querySelector(`#preguntas-${temaId} [data-pregunta-index="${preguntaIndex}"]`);
+            if (preguntaDiv) {
+                preguntaDiv.remove();
             }
+            
+            // Reindexar las preguntas restantes en el DOM
+            const preguntasRestantes = document.querySelectorAll(`#preguntas-${temaId} .pregunta-editable`);
+            preguntasRestantes.forEach((div, newIndex) => {
+                div.dataset.preguntaIndex = newIndex;
+                // Actualizar onclick de los botones
+                const btnEdit = div.querySelector('.btn-edit');
+                const btnDelete = div.querySelector('.btn-delete');
+                const btnVerify = div.querySelector('.btn-verify');
+                if (btnEdit) btnEdit.setAttribute('onclick', `editarPregunta('${temaId}', ${newIndex})`);
+                if (btnDelete) btnDelete.setAttribute('onclick', `eliminarPregunta('${temaId}', ${newIndex})`);
+                if (btnVerify) btnVerify.setAttribute('onclick', `toggleVerificacion('${temaId}', ${newIndex})`);
+            });
+            
+            // Actualizar contador en el summary
+            const details = document.querySelector(`#preguntas-${temaId}`)?.closest('details');
+            if (details) {
+                const summary = details.querySelector('summary');
+                if (summary) {
+                    summary.textContent = `Ver y editar preguntas (${preguntas.length})`;
+                }
+            }
+            
+            // Actualizar contador en el header del tema
+            const temaCard = document.querySelector(`[data-tema-id="${temaId}"]`);
+            if (temaCard) {
+                const statsDiv = temaCard.querySelector('.tema-stats');
+                if (statsDiv) {
+                    statsDiv.textContent = statsDiv.textContent.replace(/\d+ preguntas/, `${preguntas.length} preguntas`);
+                }
+            }
+            
+            sessionStorage.setItem('cacheSucio', 'true');
             
         } catch (error) {
             console.error('Error eliminando pregunta:', error);
