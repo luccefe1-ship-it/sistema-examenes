@@ -19,7 +19,7 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase Authentication
 export const auth = getAuth(app);
 
-// Initialize Firestore SIN persistencia (evita errores WebChannel)
+// Initialize Firestore SIN persistencia (evita errores WebChannel 404)
 export const db = initializeFirestore(app, {
   localCache: memoryLocalCache()
 });
