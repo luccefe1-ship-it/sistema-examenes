@@ -1293,8 +1293,13 @@ window.guardarEdicionPregunta = async function(temaId, preguntaIndex) {
         
         await updateDoc(temaRef, { preguntas });
 
-// Actualizar solo el contenido de las preguntas sin recargar todo
-await actualizarContenidoPreguntas(temaId);
+        // Invalidar caché
+        cacheTemas = null;
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+
+        // Actualizar solo el contenido de las preguntas sin recargar todo
+        await actualizarContenidoPreguntas(temaId);
         
     } catch (error) {
         console.error('Error guardando pregunta:', error);
@@ -1326,8 +1331,13 @@ window.cambiarRespuestaCorrecta = async function(temaId, preguntaIndex, nuevaLet
         
         await updateDoc(temaRef, { preguntas });
 
-// Actualizar solo el contenido de las preguntas sin recargar todo
-await actualizarContenidoPreguntas(temaId);
+        // Invalidar caché
+        cacheTemas = null;
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+
+        // Actualizar solo el contenido de las preguntas sin recargar todo
+        await actualizarContenidoPreguntas(temaId);
     } catch (error) {
         console.error('Error cambiando respuesta correcta:', error);
         alert('Error al actualizar la respuesta');
@@ -1347,8 +1357,13 @@ window.eliminarPregunta = async function(temaId, preguntaIndex) {
             
            await updateDoc(temaRef, { preguntas });
 
-// Actualizar solo el contenido de las preguntas sin recargar todo
-await actualizarContenidoPreguntas(temaId);
+            // Invalidar caché
+            cacheTemas = null;
+            sessionStorage.removeItem('cacheTemas');
+            sessionStorage.removeItem('cacheTemasTimestamp');
+
+            // Actualizar solo el contenido de las preguntas sin recargar todo
+            await actualizarContenidoPreguntas(temaId);
             
             // Si no quedan preguntas, recargar para actualizar el contador
             if (preguntas.length === 0) {
@@ -1414,8 +1429,14 @@ window.editarTema = async function(temaId) {
                 fechaModificacion: new Date()
             });
             
+            // Invalidar caché
+            cacheTemas = null;
+            sessionStorage.removeItem('cacheTemas');
+            sessionStorage.removeItem('cacheTemasTimestamp');
+            
             // Recargar la lista de temas
             await cargarBancoPreguntas();
+            await cargarTemas();
             alert('Tema actualizado correctamente');
         }
         
@@ -1446,6 +1467,11 @@ window.vaciarTema = async function(temaId) {
                 preguntas: [],
                 ultimaActualizacion: new Date()
             });
+            
+            // Invalidar caché
+            cacheTemas = null;
+            sessionStorage.removeItem('cacheTemas');
+            sessionStorage.removeItem('cacheTemasTimestamp');
             
             alert(`Se eliminaron ${numPreguntas} preguntas del tema "${temaData.nombre}"`);
             cargarBancoPreguntas();
@@ -5210,5 +5236,3 @@ function obtenerTextoTemasSimple(tema) {
         return 'Test';
     }
 }
-
-
