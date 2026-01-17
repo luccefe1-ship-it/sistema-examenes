@@ -19,7 +19,9 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase Authentication
 export const auth = getAuth(app);
 
-// Initialize Firestore SIN persistencia (evita errores WebChannel 404)
+// Initialize Firestore SIN persistencia y con Long Polling para evitar errores 404 y lentitud
 export const db = initializeFirestore(app, {
-  localCache: memoryLocalCache()
+  localCache: memoryLocalCache(),
+  experimentalForceLongPolling: true
 });
+
