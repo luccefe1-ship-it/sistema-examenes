@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user) {
             currentUser = user;
             await cargarDatosUsuario();
-            await cargarTemas();
+            // Eliminamos cargarTemas() de aquí; cada sección cargará sus datos solo cuando sea necesario
             
             // Verificar si debe ir a una sección específica por URL
             const urlParams = new URLSearchParams(window.location.search);
