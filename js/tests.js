@@ -1221,15 +1221,25 @@ window.toggleVerificacion = async function(temaId, preguntaIndex) {
         
         await updateDoc(temaRef, { preguntas });
 
-        // Actualizar SOLO el botón de verificación sin recargar nada
-        const preguntaDiv = document.querySelector(`[data-pregunta-index="${preguntaIndex}"]`);
-        if (preguntaDiv && preguntaDiv.closest(`#preguntas-${temaId}`)) {
-            const btnVerify = preguntaDiv.querySelector('.btn-verify');
-            if (btnVerify) {
-                btnVerify.classList.toggle('verified');
-                btnVerify.innerHTML = preguntas[preguntaIndex].verificada ? '⭐' : '☆';
+        // Actualizar el botón de verificación buscando específicamente en el tema correcto
+        const preguntasContainer = document.getElementById(`preguntas-${temaId}`);
+        if (preguntasContainer) {
+            const todasLasPreguntas = preguntasContainer.querySelectorAll('.pregunta-item');
+            const preguntaDiv = todasLasPreguntas[preguntaIndex];
+            
+            if (preguntaDiv) {
+                const btnVerify = preguntaDiv.querySelector('.btn-verify');
+                if (btnVerify) {
+                    if (preguntas[preguntaIndex].verificada) {
+                        btnVerify.classList.add('verified');
+                        btnVerify.innerHTML = '⭐';
+                    } else {
+                        btnVerify.classList.remove('verified');
+                        btnVerify.innerHTML = '☆';
+                    }
+                }
+                preguntaDiv.classList.toggle('pregunta-verificada', preguntas[preguntaIndex].verificada);
             }
-            preguntaDiv.classList.toggle('pregunta-verificada', preguntas[preguntaIndex].verificada);
         }
         
         // Marcar caché como sucio (se actualizará en próxima carga completa)
