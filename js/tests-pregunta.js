@@ -50,27 +50,65 @@ function cargarConfiguracion() {
         iniciarCronometro(minutos * 60);
     }
     
+    // Generar dots de progreso
+    generarProgressDots();
+    
     // Cargar primera pregunta
     mostrarPregunta();
     
     // Inicializar estadísticas
     actualizarEstadisticas();
 }
+
+function generarProgressDots() {
+    const container = document.getElementById('progressDots');
+    if (!container || !testConfig) return;
+    
+    container.innerHTML = '';
+    const total = testConfig.preguntas.length;
+    
+    for (let i = 0; i < total; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'progress-dot';
+        dot.dataset.index = i;
+        container.appendChild(dot);
+    }
+}
+
+function actualizarProgressDots() {
+    const dots = document.querySelectorAll('.progress-dot');
+    
+    dots.forEach((dot, index) => {
+        dot.classList.remove('actual', 'correcta', 'incorrecta');
+        
+        if (index === preguntaActual) {
+            dot.classList.add('actual');
+        }
+        
+        const respuesta = respuestas.find(r => r.preguntaIndex === index);
+        if (respuesta) {
+            dot.classList.add(respuesta.esCorrecta ? 'correcta' : 'incorrecta');
+        }
+    });
+}
 function actualizarEstadisticas() {
     const total = testConfig.preguntas.length;
     const correctas = respuestas.filter(r => r.esCorrecta).length;
     const incorrectas = respuestas.filter(r => !r.esCorrecta).length;
-    const sinResponder = total - respuestas.length;
-    
-    // Actualizar totales
-    document.getElementById('statTotalCorrectas').textContent = total;
-    document.getElementById('statTotalIncorrectas').textContent = total;
-    document.getElementById('statTotalSinResponder').textContent = total;
     
     // Actualizar contadores
     document.getElementById('statCorrectas').textContent = correctas;
     document.getElementById('statIncorrectas').textContent = incorrectas;
-    document.getElementById('statSinResponder').textContent = sinResponder;
+    
+    // Actualizar barra de progreso
+    const progressBar = document.getElementById('progressBar');
+    if (progressBar) {
+        const porcentaje = ((preguntaActual + 1) / total) * 100;
+        progressBar.style.width = `${porcentaje}%`;
+    }
+    
+    // Actualizar dots
+    actualizarProgressDots();
 }
 function mostrarPregunta() {
     if (preguntaActual >= testConfig.preguntas.length) {
@@ -81,8 +119,9 @@ function mostrarPregunta() {
     const pregunta = testConfig.preguntas[preguntaActual];
     
     // Actualizar contador
-    document.getElementById('contadorPregunta').textContent = 
-        `Pregunta ${preguntaActual + 1} de ${testConfig.preguntas.length}`;
+    const total = testConfig.preguntas.length;
+    const contadorEl = document.getElementById('contadorPregunta');
+    contadorEl.innerHTML = `Pregunta <span>${preguntaActual + 1}</span> de <span>${total}</span>`;
     
     // Mostrar texto de la pregunta
     document.getElementById('textoPreguntaGrande').textContent = pregunta.texto;
@@ -110,12 +149,10 @@ function mostrarPregunta() {
         mostrarRespuestaPrevia(respuestaPrevia);
     }
     
-    // Mostrar/ocultar botón anterior
+    // Manejar botón anterior
     const btnAnterior = document.getElementById('btnAnterior');
-    if (preguntaActual > 0) {
-        btnAnterior.classList.add('mostrar');
-    } else {
-        btnAnterior.classList.remove('mostrar');
+    if (btnAnterior) {
+        btnAnterior.disabled = preguntaActual === 0;
     }
     
     // Ocultar feedback y botón siguiente si no hay respuesta previa
@@ -152,18 +189,28 @@ function mostrarRespuestaPrevia(respuestaPrevia) {
     const feedbackTitulo = document.getElementById('feedbackTitulo');
     const feedbackTexto = document.getElementById('feedbackTexto');
     
+    feedbackContainer.classList.remove('correcto', 'incorrecto');
+    
     if (respuestaPrevia.esCorrecta) {
         feedbackContainer.classList.add('correcto');
-        feedbackTitulo.textContent = '✓ ¡Correcto!';
+        feedbackTitulo.textContent = '✅ ¡Correcto!';
         feedbackTexto.textContent = 'Has seleccionado la respuesta correcta.';
     } else {
         feedbackContainer.classList.add('incorrecto');
-        feedbackTitulo.textContent = '✗ Incorrecto';
-        feedbackTexto.textContent = `La respuesta correcta es ${pregunta.respuestaCorrecta}`;
+        feedbackTitulo.textContent = '❌ Incorrecto';
+        feedbackTexto.innerHTML = `La respuesta correcta es <span class="respuesta-correcta">${pregunta.respuestaCorrecta}</span>`;
     }
     
     feedbackContainer.classList.add('mostrar');
-    document.getElementById('btnSiguiente').classList.add('mostrar');
+    
+    // Botón siguiente con texto apropiado
+    const btnSiguiente = document.getElementById('btnSiguiente');
+    if (preguntaActual === testConfig.preguntas.length - 1) {
+        btnSiguiente.textContent = '🏁 Finalizar';
+    } else {
+        btnSiguiente.textContent = 'Siguiente →';
+    }
+    btnSiguiente.classList.add('mostrar');
     
     // Actualizar estadísticas en tiempo real
     actualizarEstadisticas();
@@ -216,18 +263,28 @@ function seleccionarRespuesta(letraSeleccionada) {
     const feedbackTitulo = document.getElementById('feedbackTitulo');
     const feedbackTexto = document.getElementById('feedbackTexto');
     
+    feedbackContainer.classList.remove('correcto', 'incorrecto');
+    
     if (esCorrecta) {
         feedbackContainer.classList.add('correcto');
-        feedbackTitulo.textContent = '✓ ¡Correcto!';
+        feedbackTitulo.textContent = '✅ ¡Correcto!';
         feedbackTexto.textContent = 'Has seleccionado la respuesta correcta.';
     } else {
         feedbackContainer.classList.add('incorrecto');
-        feedbackTitulo.textContent = '✗ Incorrecto';
-        feedbackTexto.textContent = `La respuesta correcta es ${pregunta.respuestaCorrecta}`;
+        feedbackTitulo.textContent = '❌ Incorrecto';
+        feedbackTexto.innerHTML = `La respuesta correcta es <span class="respuesta-correcta">${pregunta.respuestaCorrecta}</span>`;
     }
     
     feedbackContainer.classList.add('mostrar');
-    document.getElementById('btnSiguiente').classList.add('mostrar');
+    
+    // Botón siguiente con texto apropiado
+    const btnSiguiente = document.getElementById('btnSiguiente');
+    if (preguntaActual === testConfig.preguntas.length - 1) {
+        btnSiguiente.textContent = '🏁 Finalizar';
+    } else {
+        btnSiguiente.textContent = 'Siguiente →';
+    }
+    btnSiguiente.classList.add('mostrar');
     
     // Actualizar estadísticas en tiempo real
     actualizarEstadisticas();
