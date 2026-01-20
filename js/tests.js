@@ -3628,6 +3628,8 @@ listResultados.appendChild(eliminarTodosBtn);
     
     if (a.data.fechaCreacion?.toDate) {
         fechaA = a.data.fechaCreacion.toDate();
+    } else if (a.data.fechaCreacion?.seconds) {
+        fechaA = new Date(a.data.fechaCreacion.seconds * 1000);
     } else if (a.data.fechaCreacion) {
         fechaA = new Date(a.data.fechaCreacion);
     } else {
@@ -3636,6 +3638,8 @@ listResultados.appendChild(eliminarTodosBtn);
     
     if (b.data.fechaCreacion?.toDate) {
         fechaB = b.data.fechaCreacion.toDate();
+    } else if (b.data.fechaCreacion?.seconds) {
+        fechaB = new Date(b.data.fechaCreacion.seconds * 1000);
     } else if (b.data.fechaCreacion) {
         fechaB = new Date(b.data.fechaCreacion);
     } else {
@@ -3651,6 +3655,9 @@ listResultados.appendChild(eliminarTodosBtn);
     let fechaObj;
     if (resultado.fechaCreacion?.toDate) {
         fechaObj = resultado.fechaCreacion.toDate();
+    } else if (resultado.fechaCreacion?.seconds) {
+        // Timestamp serializado desde sessionStorage
+        fechaObj = new Date(resultado.fechaCreacion.seconds * 1000);
     } else if (resultado.fechaCreacion) {
         fechaObj = new Date(resultado.fechaCreacion);
     } else {
