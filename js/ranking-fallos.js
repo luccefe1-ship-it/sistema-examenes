@@ -137,24 +137,8 @@ function renderRankingItem(item, posicion) {
         `;
     }).join('');
 
-    const fechasHTML = item.fallos.map(fallo => {
-        const fecha = fallo.fecha;
-        const dia = String(fecha.getDate()).padStart(2, '0');
-        const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-        const año = fecha.getFullYear();
-        return `${dia}/${mes}/${año}`;
-    }).join(' • ');
-
-    // Extraer nombre del tema padre (antes del primer punto)
-    let temaMostrar = 'Sin tema asignado';
-    if (pregunta.temaNombre) {
-        const partes = pregunta.temaNombre.split('.');
-        if (partes.length > 1) {
-            temaMostrar = partes[0].trim();
-        } else {
-            temaMostrar = pregunta.temaNombre;
-        }
-    }
+    // Buscar tema principal
+    let temaMostrar = pregunta.temaPadre || pregunta.temaPrincipal || pregunta.temaGeneral || 'Sin tema asignado';
 
     return `
         <div class="ranking-item">
@@ -189,13 +173,6 @@ function renderRankingItem(item, posicion) {
                         <div class="tema-info">
                             <div class="tema-nombre">${temaMostrar}</div>
                         </div>
-                    </div>
-                </div>
-                
-                <div class="detalle-seccion">
-                    <div class="detalle-titulo">Fechas en las que fallaste (${item.count})</div>
-                    <div class="fechas-fallos">
-                        ${fechasHTML}
                     </div>
                 </div>
             </div>
