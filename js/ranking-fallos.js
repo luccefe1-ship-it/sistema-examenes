@@ -169,7 +169,7 @@ function renderRankingItem(item, posicion) {
                     <div class="detalle-tema">
                         <span class="tema-icono">📚</span>
                         <div class="tema-info">
-                            <div class="tema-nombre">${pregunta.temaPadreNombre || pregunta.temaNombre || 'Sin tema asignado'}</div>
+                            <div class="tema-nombre">${pregunta.temaNombre ? pregunta.temaNombre.split('.')[0].trim() : 'Sin tema asignado'}</div>
                         </div>
                     </div>
                 </div>
@@ -178,12 +178,23 @@ function renderRankingItem(item, posicion) {
                     <div class="detalle-titulo">Fechas en las que fallaste (${item.count})</div>
                     <div class="fechas-fallos">
                         ${item.fallos.map(fallo => {
-                            const fecha = fallo.fecha instanceof Date ? fallo.fecha : new Date(fallo.fecha);
-                            return fecha.toLocaleDateString('es-ES', { 
-                                day: '2-digit', 
-                                month: '2-digit', 
-                                year: 'numeric'
-                            });
+                            try {
+                                let fecha;
+                                if (fallo.fecha instanceof Date) {
+                                    fecha = fallo.fecha;
+                                } else if (fallo.fecha?.seconds) {
+                                    fecha = new Date(fallo.fecha.seconds * 1000);
+                                } else {
+                                    fecha = new Date(fallo.fecha);
+                                }
+                                
+                                const dia = String(fecha.getDate()).padStart(2, '0');
+                                const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+                                const año = fecha.getFullYear();
+                                return `${dia}/${mes}/${año}`;
+                            } catch (e) {
+                                return 'Fecha no disponible';
+                            }
                         }).join(' • ')}
                     </div>
                 </div>
