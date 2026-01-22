@@ -3607,6 +3607,9 @@ listResultados.appendChild(panelEstadisticas);
 const eliminarTodosBtn = document.createElement('div');
 eliminarTodosBtn.className = 'controles-resultados-discreto';
 eliminarTodosBtn.innerHTML = `
+    <button class="btn-ranking-fallos" onclick="window.location.href='ranking-fallos.html'">
+        🏆 Ranking de Fallos
+    </button>
     <button class="btn-eliminar-discreto" onclick="eliminarTodosResultados()" title="Eliminar todos los resultados">
         🗑️ Limpiar historial
     </button>
