@@ -20,7 +20,6 @@ async function cargarRanking() {
     const rankingList = document.getElementById('rankingList');
 
     try {
-        // Leer de la colección "resultados" en lugar de "preguntasFalladas"
         const q = query(
             collection(db, "resultados"),
             where("usuarioId", "==", currentUser.uid)
@@ -37,22 +36,25 @@ async function cargarRanking() {
         const preguntasAgrupadas = {};
         let totalFallos = 0;
 
-        // Iterar por cada test guardado
         snapshot.forEach(doc => {
             const resultado = doc.data();
             const detalleRespuestas = resultado.detalleRespuestas || [];
             const nombreTest = resultado.nombreTest || 'Test';
-            const fechaTest = resultado.fecha?.toDate ? resultado.fecha.toDate() : new Date(resultado.fecha);
+            
+            let fechaTest;
+            if (resultado.fecha?.toDate) {
+                fechaTest = resultado.fecha.toDate();
+            } else if (resultado.fecha?.seconds) {
+                fechaTest = new Date(resultado.fecha.seconds * 1000);
+            } else {
+                fechaTest = new Date(resultado.fecha);
+            }
 
-            // Iterar por cada pregunta del test
             detalleRespuestas.forEach(detalle => {
-                const estado = detalle.estado;
-                
-                // Solo contar incorrectas (igual que en Estadísticas Generales)
-                if (estado !== 'incorrecta') {
+                if (detalle.estado !== 'incorrecta') {
                     return;
                 }
-
+                
                 const pregunta = detalle.pregunta;
                 const textoKey = pregunta.texto;
                 totalFallos++;
@@ -71,15 +73,9 @@ async function cargarRanking() {
                     fecha: fechaTest,
                     testNombre: nombreTest
                 });
-                
-                // Actualizar tema si no existe
-                if (!preguntasAgrupadas[textoKey].pregunta.temaPadre && pregunta.temaPadre) {
-                    preguntasAgrupadas[textoKey].pregunta.temaPadre = pregunta.temaPadre;
-                }
             });
         });
 
-        // Ordenar de más falladas a menos
         const rankingArray = Object.values(preguntasAgrupadas)
             .sort((a, b) => b.count - a.count);
 
@@ -111,7 +107,6 @@ async function cargarRanking() {
 
 function renderRankingItem(item, posicion) {
     const pregunta = item.pregunta;
-    
     const ultimaRespuesta = item.fallos[item.fallos.length - 1];
     const respuestaUsuario = ultimaRespuesta.respuestaUsuario;
 
@@ -142,6 +137,25 @@ function renderRankingItem(item, posicion) {
         `;
     }).join('');
 
+    const fechasHTML = item.fallos.map(fallo => {
+        const fecha = fallo.fecha;
+        const dia = String(fecha.getDate()).padStart(2, '0');
+        const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+        const año = fecha.getFullYear();
+        return `${dia}/${mes}/${año}`;
+    }).join(' • ');
+
+    // Extraer nombre del tema padre (antes del primer punto)
+    let temaMostrar = 'Sin tema asignado';
+    if (pregunta.temaNombre) {
+        const partes = pregunta.temaNombre.split('.');
+        if (partes.length > 1) {
+            temaMostrar = partes[0].trim();
+        } else {
+            temaMostrar = pregunta.temaNombre;
+        }
+    }
+
     return `
         <div class="ranking-item">
             <div class="ranking-header">
@@ -149,8 +163,7 @@ function renderRankingItem(item, posicion) {
                 <div class="ranking-info">
                     <div class="ranking-enunciado">${pregunta.texto}</div>
                     <div class="ranking-meta">
-                        <span>📚 ${pregunta.temaNombre || 'Sin tema'}</span>
-                        ${pregunta.temaEpigrafe ? `<span>📄 ${pregunta.temaEpigrafe}</span>` : ''}
+                        <span>📚 ${pregunta.temaEpigrafe || pregunta.temaNombre || 'Sin tema'}</span>
                     </div>
                 </div>
                 <div class="ranking-fallos">${item.count} ${item.count === 1 ? 'fallo' : 'fallos'}</div>
@@ -174,7 +187,7 @@ function renderRankingItem(item, posicion) {
                     <div class="detalle-tema">
                         <span class="tema-icono">📚</span>
                         <div class="tema-info">
-                            <div class="tema-nombre">${pregunta.temaPadre || pregunta.temaNombre || 'Sin tema asignado'}</div>
+                            <div class="tema-nombre">${temaMostrar}</div>
                         </div>
                     </div>
                 </div>
@@ -182,16 +195,9 @@ function renderRankingItem(item, posicion) {
                 <div class="detalle-seccion">
                     <div class="detalle-titulo">Fechas en las que fallaste (${item.count})</div>
                     <div class="fechas-fallos">
-                        ${item.fallos.map(fallo => {
-                            const f = fallo.fecha;
-                            const dia = String(f.getDate()).padStart(2, '0');
-                            const mes = String(f.getMonth() + 1).padStart(2, '0');
-                            const año = f.getFullYear();
-                            return `${dia}/${mes}/${año}`;
-                        }).join(' • ')}
+                        ${fechasHTML}
                     </div>
                 </div>
-                
             </div>
         </div>
     `;
