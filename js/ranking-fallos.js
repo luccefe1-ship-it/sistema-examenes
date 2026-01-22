@@ -20,9 +20,10 @@ async function cargarRanking() {
     const rankingList = document.getElementById('rankingList');
 
     try {
-        // Primero cargar todos los temas para hacer el mapeo
+        // Cargar todos los temas
         const temasSnapshot = await getDocs(collection(db, "temas"));
         const mapaTemasCompleto = {};
+        const mapaPorNombre = {};
         const temasById = {};
         
         temasSnapshot.forEach(doc => {
@@ -32,6 +33,7 @@ async function cargarRanking() {
             // Si es tema padre, guardarlo
             if (!tema.temaPadreId) {
                 mapaTemasCompleto[doc.id] = tema.nombre;
+                mapaPorNombre[tema.nombre.toLowerCase()] = tema.nombre;
             }
         });
         
@@ -40,6 +42,10 @@ async function cargarRanking() {
             const tema = { id: doc.id, ...doc.data() };
             if (tema.temaPadreId && temasById[tema.temaPadreId]) {
                 mapaTemasCompleto[doc.id] = temasById[tema.temaPadreId].nombre;
+                // También mapear por nombre del subtema
+                if (tema.nombre) {
+                    mapaPorNombre[tema.nombre.toLowerCase()] = temasById[tema.temaPadreId].nombre;
+                }
             }
         });
         
@@ -83,8 +89,27 @@ async function cargarRanking() {
                 totalFallos++;
 
                 if (!preguntasAgrupadas[textoKey]) {
-                    // Obtener nombre del tema padre usando el mapa
-                    const nombreTemaPadre = mapaTemasCompleto[pregunta.temaId] || 'Sin tema asignado';
+                    // Intentar obtener nombre del tema padre
+                    let nombreTemaPadre = 'Sin tema asignado';
+                    
+                    // Opción 1: Por temaId
+                    if (pregunta.temaId && mapaTemasCompleto[pregunta.temaId]) {
+                        nombreTemaPadre = mapaTemasCompleto[pregunta.temaId];
+                    }
+                    // Opción 2: Por temaNombre
+                    else if (pregunta.temaNombre) {
+                        const nombreLower = pregunta.temaNombre.toLowerCase();
+                        if (mapaPorNombre[nombreLower]) {
+                            nombreTemaPadre = mapaPorNombre[nombreLower];
+                        }
+                    }
+                    // Opción 3: Por temaEpigrafe
+                    else if (pregunta.temaEpigrafe) {
+                        const epiLower = pregunta.temaEpigrafe.toLowerCase();
+                        if (mapaPorNombre[epiLower]) {
+                            nombreTemaPadre = mapaPorNombre[epiLower];
+                        }
+                    }
                     
                     preguntasAgrupadas[textoKey] = {
                         pregunta: { ...pregunta, temaPadreReal: nombreTemaPadre },
