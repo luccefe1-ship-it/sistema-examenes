@@ -48,8 +48,8 @@ async function cargarRanking() {
             detalleRespuestas.forEach(detalle => {
                 const estado = detalle.estado;
                 
-                // Solo contar incorrectas y sin-respuesta
-                if (estado !== 'incorrecta' && estado !== 'sin-respuesta') {
+                // Solo contar incorrectas (igual que en Estadísticas Generales)
+                if (estado !== 'incorrecta') {
                     return;
                 }
 
