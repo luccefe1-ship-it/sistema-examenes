@@ -1,19 +1,6 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-const firebaseConfig = {
-    apiKey: "AIzaSyCL7LbPGCPbdY9JGErCfT5Z-TrzTnSj6sU",
-    authDomain: "oposicion-b5860.firebaseapp.com",
-    projectId: "oposicion-b5860",
-    storageBucket: "oposicion-b5860.appspot.com",
-    messagingSenderId: "651854467033",
-    appId: "1:651854467033:web:abcdef123456"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+import { auth, db } from './firebase-config.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let currentUser = null;
 
@@ -33,7 +20,6 @@ async function cargarRanking() {
     const rankingList = document.getElementById('rankingList');
 
     try {
-        // Obtener SOLO las preguntas con estado 'incorrecta' (no 'sin-respuesta')
         const q = query(
             collection(db, "preguntasFalladas"),
             where("usuarioId", "==", currentUser.uid),
@@ -48,7 +34,6 @@ async function cargarRanking() {
             return;
         }
 
-        // Agrupar preguntas por texto del enunciado
         const preguntasAgrupadas = {};
         let totalFallos = 0;
 
@@ -73,21 +58,17 @@ async function cargarRanking() {
             });
         });
 
-        // Convertir a array y ordenar por número de fallos (mayor a menor)
         const rankingArray = Object.values(preguntasAgrupadas)
             .sort((a, b) => b.count - a.count);
 
-        // Actualizar estadísticas
         document.getElementById('totalPreguntas').textContent = rankingArray.length;
         document.getElementById('totalFallos').textContent = totalFallos;
 
-        // Renderizar ranking
         loading.style.display = 'none';
         rankingList.innerHTML = rankingArray.map((item, index) => 
             renderRankingItem(item, index + 1)
         ).join('');
 
-        // Añadir listeners para expandir/colapsar
         document.querySelectorAll('.ranking-header').forEach(header => {
             header.addEventListener('click', () => {
                 header.closest('.ranking-item').classList.toggle('expanded');
@@ -96,48 +77,44 @@ async function cargarRanking() {
 
     } catch (error) {
         console.error('Error cargando ranking:', error);
-        loading.innerHTML = '<p style="color: #ff6b6b;">Error al cargar el ranking</p>';
+        loading.innerHTML = '<p style="color: #ff6b6b;">Error al cargar el ranking: ' + error.message + '</p>';
     }
 }
 
 function renderRankingItem(item, posicion) {
     const pregunta = item.pregunta;
-    const letras = ['A', 'B', 'C', 'D', 'E', 'F'];
+    const letras = ['A', 'B', 'C', 'D'];
     
-    // Obtener la última respuesta dada para mostrar
     const ultimaRespuesta = item.fallos[item.fallos.length - 1];
-    const respuestaUsuarioIndex = ultimaRespuesta.respuestaUsuario;
+    const respuestaUsuario = ultimaRespuesta.respuestaUsuario;
 
-    // Clase para la posición
     let posicionClass = 'posicion-normal';
     if (posicion === 1) posicionClass = 'posicion-1';
     else if (posicion === 2) posicionClass = 'posicion-2';
     else if (posicion === 3) posicionClass = 'posicion-3';
 
-    // Renderizar opciones
-    const opcionesHTML = pregunta.opciones.map((opcion, idx) => {
+    const opcionesHTML = pregunta.opciones.map((opcion) => {
         let claseOpcion = '';
         let badge = '';
         
-        if (idx === pregunta.respuestaCorrecta) {
+        if (opcion.esCorrecta || opcion.letra === pregunta.respuestaCorrecta) {
             claseOpcion = 'correcta';
             badge = '<span class="opcion-badge badge-correcta">✓ Correcta</span>';
         }
-        if (idx === respuestaUsuarioIndex && idx !== pregunta.respuestaCorrecta) {
+        if (opcion.letra === respuestaUsuario && !opcion.esCorrecta && opcion.letra !== pregunta.respuestaCorrecta) {
             claseOpcion = 'usuario-incorrecta';
             badge = '<span class="opcion-badge badge-tu-respuesta">✗ Tu respuesta</span>';
         }
 
         return `
             <div class="opcion-item ${claseOpcion}">
-                <span class="opcion-letra">${letras[idx]}</span>
-                <span class="opcion-texto">${opcion}</span>
+                <span class="opcion-letra">${opcion.letra}</span>
+                <span class="opcion-texto">${opcion.texto}</span>
                 ${badge}
             </div>
         `;
     }).join('');
 
-    // Historial de respuestas
     const historialHTML = item.fallos.map(fallo => {
         const fecha = fallo.fecha instanceof Date ? fallo.fecha : new Date(fallo.fecha);
         const fechaStr = fecha.toLocaleDateString('es-ES', { 
@@ -151,7 +128,7 @@ function renderRankingItem(item, posicion) {
             <div class="respuesta-historial">
                 <span class="respuesta-fecha">${fechaStr}</span>
                 <span>→</span>
-                <span class="respuesta-dada">Respondiste: ${letras[fallo.respuestaUsuario] || '?'}</span>
+                <span class="respuesta-dada">Respondiste: ${fallo.respuestaUsuario || '?'}</span>
             </div>
         `;
     }).join('');
