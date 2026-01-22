@@ -169,7 +169,7 @@ function renderRankingItem(item, posicion) {
                     <div class="detalle-tema">
                         <span class="tema-icono">📚</span>
                         <div class="tema-info">
-                            <div class="tema-nombre">${pregunta.temaNombre ? pregunta.temaNombre.split('.')[0].trim() : 'Sin tema asignado'}</div>
+                            <div class="tema-nombre">${pregunta.temaPadre || 'Sin tema asignado'}</div>
                         </div>
                     </div>
                 </div>
@@ -177,25 +177,7 @@ function renderRankingItem(item, posicion) {
                 <div class="detalle-seccion">
                     <div class="detalle-titulo">Fechas en las que fallaste (${item.count})</div>
                     <div class="fechas-fallos">
-                        ${item.fallos.map(fallo => {
-                            try {
-                                let fecha;
-                                if (fallo.fecha instanceof Date) {
-                                    fecha = fallo.fecha;
-                                } else if (fallo.fecha?.seconds) {
-                                    fecha = new Date(fallo.fecha.seconds * 1000);
-                                } else {
-                                    fecha = new Date(fallo.fecha);
-                                }
-                                
-                                const dia = String(fecha.getDate()).padStart(2, '0');
-                                const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-                                const año = fecha.getFullYear();
-                                return `${dia}/${mes}/${año}`;
-                            } catch (e) {
-                                return 'Fecha no disponible';
-                            }
-                        }).join(' • ')}
+                        ${item.fallos.map(fallo => fallo.fecha.toLocaleDateString('es-ES')).join(' • ')}
                     </div>
                 </div>
                 
