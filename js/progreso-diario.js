@@ -247,7 +247,7 @@ function actualizarResumenGeneral() {
         mensajeRitmo = '⚠️ La fecha objetivo ya pasó';
     }
     
-    document.getElementById('paginasTotales').textContent = hojasLeidas;
+    document.getElementById('paginasTotales').textContent = `${hojasLeidas}/${hojasTotales}`;
     document.getElementById('paginasRestantes').textContent = hojasRestantes;
     document.getElementById('testsTotales').textContent = `${testsRealizados}/${testsRecomendados}`;
     
