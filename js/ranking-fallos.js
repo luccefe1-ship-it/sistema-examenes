@@ -20,8 +20,9 @@ async function cargarRanking() {
     const rankingList = document.getElementById('rankingList');
 
     try {
+        // Leer de la colección "resultados" en lugar de "preguntasFalladas"
         const q = query(
-            collection(db, "preguntasFalladas"),
+            collection(db, "resultados"),
             where("usuarioId", "==", currentUser.uid)
         );
 
@@ -36,33 +37,44 @@ async function cargarRanking() {
         const preguntasAgrupadas = {};
         let totalFallos = 0;
 
+        // Iterar por cada test guardado
         snapshot.forEach(doc => {
-            const data = doc.data();
-            
-            // Solo contar las que fueron respondidas incorrectamente, no las sin responder
-            if (data.estado === 'sin-respuesta') {
-                return;
-            }
-            
-            const textoKey = data.pregunta.texto;
-            totalFallos++;
+            const resultado = doc.data();
+            const detalleRespuestas = resultado.detalleRespuestas || [];
+            const nombreTest = resultado.nombreTest || 'Test';
+            const fechaTest = resultado.fecha?.toDate ? resultado.fecha.toDate() : new Date(resultado.fecha);
 
-            if (!preguntasAgrupadas[textoKey]) {
-                preguntasAgrupadas[textoKey] = {
-                    pregunta: data.pregunta,
-                    fallos: [],
-                    count: 0
-                };
-            }
+            // Iterar por cada pregunta del test
+            detalleRespuestas.forEach(detalle => {
+                const estado = detalle.estado;
+                
+                // Solo contar incorrectas y sin-respuesta
+                if (estado !== 'incorrecta' && estado !== 'sin-respuesta') {
+                    return;
+                }
 
-            preguntasAgrupadas[textoKey].count++;
-            preguntasAgrupadas[textoKey].fallos.push({
-                respuestaUsuario: data.respuestaUsuario,
-                fecha: data.fechaFallo?.toDate ? data.fechaFallo.toDate() : new Date(data.fechaFallo),
-                testNombre: data.testNombre || 'Test'
+                const pregunta = detalle.pregunta;
+                const textoKey = pregunta.texto;
+                totalFallos++;
+
+                if (!preguntasAgrupadas[textoKey]) {
+                    preguntasAgrupadas[textoKey] = {
+                        pregunta: pregunta,
+                        fallos: [],
+                        count: 0
+                    };
+                }
+
+                preguntasAgrupadas[textoKey].count++;
+                preguntasAgrupadas[textoKey].fallos.push({
+                    respuestaUsuario: detalle.respuestaUsuario || '?',
+                    fecha: fechaTest,
+                    testNombre: nombreTest
+                });
             });
         });
 
+        // Ordenar de más falladas a menos
         const rankingArray = Object.values(preguntasAgrupadas)
             .sort((a, b) => b.count - a.count);
 
@@ -70,6 +82,12 @@ async function cargarRanking() {
         document.getElementById('totalFallos').textContent = totalFallos;
 
         loading.style.display = 'none';
+
+        if (rankingArray.length === 0) {
+            emptyState.style.display = 'block';
+            return;
+        }
+
         rankingList.innerHTML = rankingArray.map((item, index) => 
             renderRankingItem(item, index + 1)
         ).join('');
@@ -88,7 +106,6 @@ async function cargarRanking() {
 
 function renderRankingItem(item, posicion) {
     const pregunta = item.pregunta;
-    const letras = ['A', 'B', 'C', 'D'];
     
     const ultimaRespuesta = item.fallos[item.fallos.length - 1];
     const respuestaUsuario = ultimaRespuesta.respuestaUsuario;
@@ -133,7 +150,8 @@ function renderRankingItem(item, posicion) {
             <div class="respuesta-historial">
                 <span class="respuesta-fecha">${fechaStr}</span>
                 <span>→</span>
-                <span class="respuesta-dada">Respondiste: ${fallo.respuestaUsuario || '?'}</span>
+                <span class="respuesta-dada">Respondiste: ${fallo.respuestaUsuario}</span>
+                <span class="respuesta-test">(${fallo.testNombre})</span>
             </div>
         `;
     }).join('');
