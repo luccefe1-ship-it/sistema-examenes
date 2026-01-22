@@ -137,25 +137,6 @@ function renderRankingItem(item, posicion) {
         `;
     }).join('');
 
-    const historialHTML = item.fallos.map(fallo => {
-        const fecha = fallo.fecha instanceof Date ? fallo.fecha : new Date(fallo.fecha);
-        const fechaStr = fecha.toLocaleDateString('es-ES', { 
-            day: '2-digit', 
-            month: '2-digit', 
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-        return `
-            <div class="respuesta-historial">
-                <span class="respuesta-fecha">${fechaStr}</span>
-                <span>→</span>
-                <span class="respuesta-dada">Respondiste: ${fallo.respuestaUsuario}</span>
-                <span class="respuesta-test">(${fallo.testNombre})</span>
-            </div>
-        `;
-    }).join('');
-
     return `
         <div class="ranking-item">
             <div class="ranking-header">
@@ -194,12 +175,6 @@ function renderRankingItem(item, posicion) {
                     </div>
                 </div>
                 
-                <div class="detalle-seccion">
-                    <div class="detalle-titulo">Historial de fallos (${item.count})</div>
-                    <div class="respuestas-dadas">
-                        ${historialHTML}
-                    </div>
-                </div>
             </div>
         </div>
     `;
