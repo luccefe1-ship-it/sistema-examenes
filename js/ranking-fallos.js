@@ -20,6 +20,29 @@ async function cargarRanking() {
     const rankingList = document.getElementById('rankingList');
 
     try {
+        // Primero cargar todos los temas para hacer el mapeo
+        const temasSnapshot = await getDocs(collection(db, "temas"));
+        const mapaTemasCompleto = {};
+        const temasById = {};
+        
+        temasSnapshot.forEach(doc => {
+            const tema = { id: doc.id, ...doc.data() };
+            temasById[doc.id] = tema;
+            
+            // Si es tema padre, guardarlo
+            if (!tema.temaPadreId) {
+                mapaTemasCompleto[doc.id] = tema.nombre;
+            }
+        });
+        
+        // Segundo pase: mapear subtemas a sus padres
+        temasSnapshot.forEach(doc => {
+            const tema = { id: doc.id, ...doc.data() };
+            if (tema.temaPadreId && temasById[tema.temaPadreId]) {
+                mapaTemasCompleto[doc.id] = temasById[tema.temaPadreId].nombre;
+            }
+        });
+        
         const q = query(
             collection(db, "resultados"),
             where("usuarioId", "==", currentUser.uid)
@@ -60,8 +83,11 @@ async function cargarRanking() {
                 totalFallos++;
 
                 if (!preguntasAgrupadas[textoKey]) {
+                    // Obtener nombre del tema padre usando el mapa
+                    const nombreTemaPadre = mapaTemasCompleto[pregunta.temaId] || 'Sin tema asignado';
+                    
                     preguntasAgrupadas[textoKey] = {
-                        pregunta: pregunta,
+                        pregunta: { ...pregunta, temaPadreReal: nombreTemaPadre },
                         fallos: [],
                         count: 0
                     };
@@ -137,8 +163,8 @@ function renderRankingItem(item, posicion) {
         `;
     }).join('');
 
-    // Buscar tema principal
-    let temaMostrar = pregunta.temaPadre || pregunta.temaPrincipal || pregunta.temaGeneral || 'Sin tema asignado';
+    // Usar el tema padre real que obtuvimos de Firebase
+    let temaMostrar = pregunta.temaPadreReal || 'Sin tema asignado';
 
     return `
         <div class="ranking-item">
