@@ -71,6 +71,11 @@ async function cargarRanking() {
                     fecha: fechaTest,
                     testNombre: nombreTest
                 });
+                
+                // Actualizar tema si no existe
+                if (!preguntasAgrupadas[textoKey].pregunta.temaPadre && pregunta.temaPadre) {
+                    preguntasAgrupadas[textoKey].pregunta.temaPadre = pregunta.temaPadre;
+                }
             });
         });
 
@@ -169,7 +174,7 @@ function renderRankingItem(item, posicion) {
                     <div class="detalle-tema">
                         <span class="tema-icono">📚</span>
                         <div class="tema-info">
-                            <div class="tema-nombre">${pregunta.temaPadre || 'Sin tema asignado'}</div>
+                            <div class="tema-nombre">${pregunta.temaPadre || pregunta.temaNombre || 'Sin tema asignado'}</div>
                         </div>
                     </div>
                 </div>
@@ -177,7 +182,13 @@ function renderRankingItem(item, posicion) {
                 <div class="detalle-seccion">
                     <div class="detalle-titulo">Fechas en las que fallaste (${item.count})</div>
                     <div class="fechas-fallos">
-                        ${item.fallos.map(fallo => fallo.fecha.toLocaleDateString('es-ES')).join(' • ')}
+                        ${item.fallos.map(fallo => {
+                            const f = fallo.fecha;
+                            const dia = String(f.getDate()).padStart(2, '0');
+                            const mes = String(f.getMonth() + 1).padStart(2, '0');
+                            const año = f.getFullYear();
+                            return `${dia}/${mes}/${año}`;
+                        }).join(' • ')}
                     </div>
                 </div>
                 
