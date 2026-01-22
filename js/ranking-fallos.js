@@ -22,8 +22,7 @@ async function cargarRanking() {
     try {
         const q = query(
             collection(db, "preguntasFalladas"),
-            where("usuarioId", "==", currentUser.uid),
-            where("estado", "==", "incorrecta")
+            where("usuarioId", "==", currentUser.uid)
         );
 
         const snapshot = await getDocs(q);
@@ -39,6 +38,12 @@ async function cargarRanking() {
 
         snapshot.forEach(doc => {
             const data = doc.data();
+            
+            // Solo contar las que fueron respondidas incorrectamente, no las sin responder
+            if (data.estado === 'sin-respuesta') {
+                return;
+            }
+            
             const textoKey = data.pregunta.texto;
             totalFallos++;
 
