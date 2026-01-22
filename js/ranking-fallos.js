@@ -169,9 +169,22 @@ function renderRankingItem(item, posicion) {
                     <div class="detalle-tema">
                         <span class="tema-icono">📚</span>
                         <div class="tema-info">
-                            <div class="tema-nombre">${pregunta.temaNombre || 'Sin tema asignado'}</div>
-                            ${pregunta.temaEpigrafe ? `<div class="tema-epigrafe">${pregunta.temaEpigrafe}</div>` : ''}
+                            <div class="tema-nombre">${pregunta.temaPadreNombre || pregunta.temaNombre || 'Sin tema asignado'}</div>
                         </div>
+                    </div>
+                </div>
+                
+                <div class="detalle-seccion">
+                    <div class="detalle-titulo">Fechas en las que fallaste (${item.count})</div>
+                    <div class="fechas-fallos">
+                        ${item.fallos.map(fallo => {
+                            const fecha = fallo.fecha instanceof Date ? fallo.fecha : new Date(fallo.fecha);
+                            return fecha.toLocaleDateString('es-ES', { 
+                                day: '2-digit', 
+                                month: '2-digit', 
+                                year: 'numeric'
+                            });
+                        }).join(' • ')}
                     </div>
                 </div>
                 
