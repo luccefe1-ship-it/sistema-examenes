@@ -250,7 +250,11 @@ function actualizarResumenGeneral() {
     document.getElementById('paginasTotales').textContent = hojasLeidas;
     document.getElementById('paginasRestantes').textContent = hojasRestantes;
     document.getElementById('testsTotales').textContent = `${testsRealizados}/${testsRecomendados}`;
-    document.getElementById('diasRestantes').textContent = diasRestantes;
+    
+    // Formatear fecha objetivo
+    const fechaObjetivoFormateada = fechaObjetivo.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+    document.getElementById('fechaObjetivo').textContent = fechaObjetivoFormateada;
+    document.getElementById('diasRestantes').textContent = `${diasRestantes} días restantes`;
     document.getElementById('porcentajeCompleto').textContent = `${porcentaje}%`;
     document.getElementById('barraProgresoGeneral').style.width = `${porcentaje}%`;
     
@@ -645,7 +649,9 @@ window.borrarTodosRegistros = async function() {
     
     alert('✅ Todos los registros borrados');
     location.reload();
-    // Función de consolidación (llamar desde consola: window.consolidarTemasProgreso())
+}; // Cierre de borrarTodosRegistros
+
+// Función de consolidación (llamar desde consola: window.consolidarTemasProgreso())
 window.consolidarTemasProgreso = async function() {
     try {
         const progresoRef = doc(db, "progresoSimple", currentUser.uid);
@@ -708,4 +714,64 @@ window.consolidarTemasProgreso = async function() {
         alert('Error: ' + error.message);
     }
 };
+// Abrir modal modificar planning
+window.abrirModalModificarPlanning = function() {
+    const modal = document.getElementById('modalModificarPlanning');
+    
+    // Prellenar con valores actuales
+    const fechaActual = new Date(planningData.fechaObjetivo);
+    document.getElementById('inputNuevaFecha').value = fechaActual.toISOString().split('T')[0];
+    document.getElementById('inputNuevosTests').value = planningData.testsDiarios || 0;
+    
+    modal.style.display = 'flex';
 };
+
+// Cerrar modal
+window.cerrarModalModificarPlanning = function() {
+    document.getElementById('modalModificarPlanning').style.display = 'none';
+};
+
+// Guardar modificación del planning
+window.guardarModificacionPlanning = async function() {
+    const nuevaFecha = document.getElementById('inputNuevaFecha').value;
+    const nuevosTestsDiarios = parseInt(document.getElementById('inputNuevosTests').value);
+    
+    if (!nuevaFecha) {
+        alert('Debes seleccionar una fecha objetivo');
+        return;
+    }
+    
+    if (nuevosTestsDiarios < 0) {
+        alert('Los tests diarios no pueden ser negativos');
+        return;
+    }
+    
+    try {
+        const fechaObjetivoDate = new Date(nuevaFecha);
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const diasRestantes = Math.max(1, Math.ceil((fechaObjetivoDate - hoy) / (1000 * 60 * 60 * 24)));
+        
+        // Calcular nuevos tests recomendados
+        const testsRecomendados = nuevosTestsDiarios * diasRestantes;
+        
+        // Actualizar planning manteniendo todo el progreso
+        const planningRef = doc(db, "planningSimple", currentUser.uid);
+        await updateDoc(planningRef, {
+            fechaObjetivo: fechaObjetivoDate.toISOString(),
+            testsDiarios: nuevosTestsDiarios,
+            testsRecomendados: testsRecomendados
+        });
+        
+        // Recargar datos
+        await cargarDatos();
+        
+        cerrarModalModificarPlanning();
+        alert('Planning actualizado correctamente');
+        
+    } catch (error) {
+        console.error('Error actualizando planning:', error);
+        alert('Error al actualizar el planning');
+    }
+};
+
