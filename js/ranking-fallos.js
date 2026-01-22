@@ -1,6 +1,6 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, query, where, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let currentUser = null;
 
@@ -80,7 +80,7 @@ async function cargarRanking() {
             }
 
             detalleRespuestas.forEach(detalle => {
-                if (detalle.estado !== 'incorrecta') {
+                if (detalle.estado !== 'incorrecta' || detalle.restaurada) {
                     return;
                 }
                 
@@ -202,6 +202,7 @@ function renderRankingItem(item, posicion) {
                     </div>
                 </div>
                 <div class="ranking-fallos">${item.count} ${item.count === 1 ? 'fallo' : 'fallos'}</div>
+                <button class="btn-restaurar" onclick="restaurarPregunta('${pregunta.texto.replace(/'/g, "\\'")}')">↻</button>
                 <span class="ranking-expand">▼</span>
             </div>
             <div class="ranking-detalles">
@@ -229,4 +230,47 @@ function renderRankingItem(item, posicion) {
             </div>
         </div>
     `;
+}
+
+// Hacer la función global
+window.restaurarPregunta = async function(textoPregunta) {
+    if (!confirm('¿Restaurar esta pregunta a cero fallos? Desaparecerá del ranking.')) {
+        return;
+    }
+
+    try {
+        const q = query(
+            collection(db, "resultados"),
+            where("usuarioId", "==", currentUser.uid)
+        );
+
+        const snapshot = await getDocs(q);
+        
+        // Actualizar cada test que contenga esta pregunta
+        for (const docSnapshot of snapshot.docs) {
+            const resultado = docSnapshot.data();
+            let modificado = false;
+            
+            const detalleActualizado = resultado.detalleRespuestas.map(detalle => {
+                if (detalle.pregunta.texto === textoPregunta && detalle.estado === 'incorrecta') {
+                    modificado = true;
+                    return { ...detalle, restaurada: true };
+                }
+                return detalle;
+            });
+
+            if (modificado) {
+                await updateDoc(doc(db, "resultados", docSnapshot.id), {
+                    detalleRespuestas: detalleActualizado
+                });
+            }
+        }
+
+        alert('✅ Pregunta restaurada correctamente');
+        await cargarRanking();
+
+    } catch (error) {
+        console.error('Error restaurando pregunta:', error);
+        alert('❌ Error al restaurar la pregunta');
+    }
 }
