@@ -112,32 +112,56 @@ function calcularDatosDia(fecha) {
     // Sumar hojas y tests del día
     let hojasLeidas = 0;
     let testsRealizados = 0;
+    let detalleHojas = [];
     
     registrosDia.forEach(reg => {
         hojasLeidas += reg.hojasLeidas || 0;
         testsRealizados += reg.testsRealizados || 0;
+        
+        // Recopilar detalles de páginas
+        if (reg.hojasLeidas > 0) {
+            const temaNombre = reg.temaNombre || 'Tema desconocido';
+            if (reg.paginaDesde && reg.paginaHasta) {
+                if (reg.paginaDesde === reg.paginaHasta) {
+                    detalleHojas.push(`${temaNombre}: página ${reg.paginaDesde}`);
+                } else {
+                    detalleHojas.push(`${temaNombre}: páginas ${reg.paginaDesde}-${reg.paginaHasta}`);
+                }
+            } else {
+                detalleHojas.push(`${temaNombre}: ${reg.hojasLeidas} hoja${reg.hojasLeidas > 1 ? 's' : ''}`);
+            }
+        }
     });
     
     // Calcular objetivos diarios
     const objetivos = calcularObjetivosDia(fecha);
     
-    // Determinar estado
+    // Determinar estado - NUEVA LÓGICA
     let estado = 'incumplido';
     
-    if (hojasLeidas >= objetivos.hojas && testsRealizados >= objetivos.tests) {
-        if (hojasLeidas > objetivos.hojas || testsRealizados > objetivos.tests) {
-            estado = 'mejorado';
+    // Si hizo algo (hojas o tests), no es incumplido
+    if (hojasLeidas > 0 || testsRealizados > 0) {
+        // Si cumple o supera ambos objetivos
+        if (hojasLeidas >= objetivos.hojas && testsRealizados >= objetivos.tests) {
+            if (hojasLeidas > objetivos.hojas || testsRealizados > objetivos.tests) {
+                estado = 'mejorado';
+            } else {
+                estado = 'cumplido';
+            }
         } else {
+            // Hizo algo pero no cumplió objetivos
             estado = 'cumplido';
         }
     }
+    // Si no hizo nada (0 hojas y 0 tests), queda como 'incumplido'
     
     return {
         hojasLeidas,
         testsRealizados,
         objetivoHojas: objetivos.hojas,
         objetivoTests: objetivos.tests,
-        estado
+        estado,
+        detalleHojas
     };
 }
 
@@ -172,6 +196,16 @@ function renderizarDia(fecha, datos) {
     const opciones = { day: 'numeric', month: 'long', year: 'numeric' };
     const fechaTexto = fecha.toLocaleDateString('es-ES', opciones);
     
+    // Construir HTML de detalles de hojas
+    let detalleHojasHTML = '';
+    if (datos.detalleHojas && datos.detalleHojas.length > 0) {
+        detalleHojasHTML = '<div style="margin-top: 8px; font-size: 14px; color: #555;">';
+        datos.detalleHojas.forEach(detalle => {
+            detalleHojasHTML += `<div>📖 ${detalle}</div>`;
+        });
+        detalleHojasHTML += '</div>';
+    }
+    
     const div = document.createElement('div');
     div.className = `dia-registro ${datos.estado}`;
     div.innerHTML = `
@@ -185,7 +219,8 @@ function renderizarDia(fecha, datos) {
         </div>
         <div class="dia-datos">
             <div>📄 Hojas leídas: <strong>${datos.hojasLeidas}</strong> / ${datos.objetivoHojas}</div>
-            <div>✅ Tests realizados: <strong>${datos.testsRealizados}</strong></div>
+            ${detalleHojasHTML}
+            <div style="margin-top: 8px;">✅ Tests realizados: <strong>${datos.testsRealizados}</strong></div>
         </div>
     `;
     
