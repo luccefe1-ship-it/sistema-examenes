@@ -334,9 +334,22 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
     const temaId = document.getElementById('temaActual').value;
     const hojasHoy = parseInt(document.getElementById('paginasHoy').value) || 0;
     const testsHoy = parseInt(document.getElementById('testsHoy').value) || 0;
+    const paginaDesde = parseInt(document.getElementById('paginaDesde').value) || null;
+    const paginaHasta = parseInt(document.getElementById('paginaHasta').value) || null;
     
     if (!temaId) {
         alert('Por favor, selecciona un tema');
+        return;
+    }
+    
+    // Validar páginas si se proporcionaron
+    if ((paginaDesde && !paginaHasta) || (!paginaDesde && paginaHasta)) {
+        alert('Debes especificar tanto la página inicial como la final');
+        return;
+    }
+    
+    if (paginaDesde && paginaHasta && paginaDesde > paginaHasta) {
+        alert('La página inicial no puede ser mayor que la final');
         return;
     }
     
@@ -375,12 +388,21 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
             progresoData.registros = [];
         }
         
-        progresoData.registros.push({
+        const nuevoRegistro = {
             fecha: new Date(),
             temaId: temaId,
+            temaNombre: tema.nombre,
             hojasLeidas: hojasHoy,
             testsRealizados: testsHoy
-        });
+        };
+        
+        // Añadir páginas si se especificaron
+        if (paginaDesde && paginaHasta) {
+            nuevoRegistro.paginaDesde = paginaDesde;
+            nuevoRegistro.paginaHasta = paginaHasta;
+        }
+        
+        progresoData.registros.push(nuevoRegistro);
         
         // Guardar en Firebase
         await setDoc(doc(db, "progresoSimple", currentUser.uid), progresoData);
