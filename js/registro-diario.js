@@ -120,7 +120,27 @@ function calcularDatosDia(fecha) {
         
         // Recopilar detalles de páginas
         if (reg.hojasLeidas > 0) {
-            const temaNombre = reg.temaNombre || 'Tema desconocido';
+            // Obtener nombre del tema desde planningData o desde el registro
+            let temaNombre = 'Tema desconocido';
+            
+            // Intentar desde planningData primero
+            if (reg.temaId && planningData && planningData.temas) {
+                const tema = planningData.temas.find(t => t.id === reg.temaId);
+                if (tema) {
+                    temaNombre = tema.nombre;
+                }
+            }
+            
+            // Si no, intentar desde el registro mismo
+            if (temaNombre === 'Tema desconocido' && reg.temaNombre) {
+                temaNombre = reg.temaNombre;
+            }
+            
+            // Si no, intentar desde progresoData
+            if (temaNombre === 'Tema desconocido' && reg.temaId && progresoData.temas && progresoData.temas[reg.temaId]) {
+                temaNombre = progresoData.temas[reg.temaId].nombre;
+            }
+            
             if (reg.paginaDesde && reg.paginaHasta) {
                 if (reg.paginaDesde === reg.paginaHasta) {
                     detalleHojas.push(`${temaNombre}: página ${reg.paginaDesde}`);
