@@ -191,10 +191,19 @@ function calcularDatosDia(fecha) {
     // Calcular objetivos diarios
     const objetivos = calcularObjetivosDia(fecha);
     
-    // Determinar estado
+    // Determinar estado y porcentaje de avance
     let estado = 'incumplido';
+    let porcentajeAvance = 0;
     
     if (hojasLeidas > 0 || testsRealizados > 0) {
+        // Calcular porcentajes individuales (limitados a 100% cada uno)
+        const porcentajeHojas = objetivos.hojas > 0 ? Math.min((hojasLeidas / objetivos.hojas) * 100, 100) : 0;
+        const porcentajeTests = objetivos.tests > 0 ? Math.min((testsRealizados / objetivos.tests) * 100, 100) : 100;
+        
+        // Promedio de ambos porcentajes
+        porcentajeAvance = Math.round((porcentajeHojas + porcentajeTests) / 2);
+        
+        // Determinar estado
         if (hojasLeidas >= objetivos.hojas && testsRealizados >= objetivos.tests) {
             if (hojasLeidas > objetivos.hojas || testsRealizados > objetivos.tests) {
                 estado = 'mejorado';
@@ -202,7 +211,7 @@ function calcularDatosDia(fecha) {
                 estado = 'cumplido';
             }
         } else {
-            estado = 'cumplido';
+            estado = 'avanzado';
         }
     }
     
@@ -212,6 +221,7 @@ function calcularDatosDia(fecha) {
         objetivoHojas: objetivos.hojas,
         objetivoTests: objetivos.tests,
         estado,
+        porcentajeAvance,
         detalleHojas
     };
 }
@@ -257,16 +267,26 @@ function renderizarDia(fecha, datos) {
         detalleHojasHTML += '</div>';
     }
     
+    // Construir HTML del estado
+    let estadoHTML = '';
+    if (datos.estado === 'cumplido') {
+        estadoHTML = '<div class="dia-estado cumplido">✅ Cumplido</div>';
+    } else if (datos.estado === 'mejorado') {
+        estadoHTML = '<div class="dia-estado mejorado">🌟 Mejorado</div>';
+    } else if (datos.estado === 'avanzado') {
+        estadoHTML = `<div class="dia-estado avanzado">
+            <span class="estado-avanzado-texto" style="background: linear-gradient(to right, #3b82f6 0%, #3b82f6 ${datos.porcentajeAvance}%, #cbd5e1 ${datos.porcentajeAvance}%, #cbd5e1 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">🔵 Avanzado</span>
+        </div>`;
+    } else {
+        estadoHTML = '<div class="dia-estado incumplido">❌ Incumplido</div>';
+    }
+    
     const div = document.createElement('div');
     div.className = `dia-registro ${datos.estado}`;
     div.innerHTML = `
         <div class="dia-header">
             <div class="dia-fecha">📅 ${fechaTexto}</div>
-            <div class="dia-estado ${datos.estado}">
-                ${datos.estado === 'cumplido' ? '✅ Cumplido' : 
-                  datos.estado === 'mejorado' ? '🌟 Mejorado' : 
-                  '❌ Incumplido'}
-            </div>
+            ${estadoHTML}
         </div>
         <div class="dia-datos">
             <div>📄 Hojas leídas: <strong>${datos.hojasLeidas}</strong> / ${datos.objetivoHojas}</div>
