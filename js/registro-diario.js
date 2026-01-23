@@ -274,8 +274,8 @@ function renderizarDia(fecha, datos) {
     } else if (datos.estado === 'mejorado') {
         estadoHTML = '<div class="dia-estado mejorado">🌟 Mejorado</div>';
     } else if (datos.estado === 'avanzado') {
-        estadoHTML = `<div class="dia-estado avanzado">
-            <span class="estado-avanzado-texto" style="background: linear-gradient(to right, #3b82f6 0%, #3b82f6 ${datos.porcentajeAvance}%, #cbd5e1 ${datos.porcentajeAvance}%, #cbd5e1 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">🔵 Avanzado</span>
+        estadoHTML = `<div class="dia-estado avanzado" style="background: linear-gradient(to right, #dbeafe 0%, #dbeafe ${datos.porcentajeAvance}%, #f1f5f9 ${datos.porcentajeAvance}%, #f1f5f9 100%);">
+            🔵 Avanzado
         </div>`;
     } else {
         estadoHTML = '<div class="dia-estado incumplido">❌ Incumplido</div>';
