@@ -334,22 +334,9 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
     const temaId = document.getElementById('temaActual').value;
     const hojasHoy = parseInt(document.getElementById('paginasHoy').value) || 0;
     const testsHoy = parseInt(document.getElementById('testsHoy').value) || 0;
-    const paginaDesde = parseInt(document.getElementById('paginaDesde').value) || null;
-    const paginaHasta = parseInt(document.getElementById('paginaHasta').value) || null;
     
     if (!temaId) {
         alert('Por favor, selecciona un tema');
-        return;
-    }
-    
-    // Validar páginas si se proporcionaron
-    if ((paginaDesde && !paginaHasta) || (!paginaDesde && paginaHasta)) {
-        alert('Debes especificar tanto la página inicial como la final');
-        return;
-    }
-    
-    if (paginaDesde && paginaHasta && paginaDesde > paginaHasta) {
-        alert('La página inicial no puede ser mayor que la final');
         return;
     }
     
@@ -371,7 +358,7 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
             };
         }
         
-        // Validar que no exceda el total de hojas del tema
+        // Calcular páginas ANTES de actualizar
         const hojasActuales = progresoData.temas[temaId].hojasLeidas || 0;
         const hojasRestantes = Math.max(0, tema.hojas - hojasActuales);
         
@@ -380,6 +367,11 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
             return;
         }
         
+        // Calcular páginas: desde (hojasActuales + 1) hasta (hojasActuales + hojasHoy)
+        const paginaDesde = hojasActuales + 1;
+        const paginaHasta = hojasActuales + hojasHoy;
+        
+        // AHORA actualizar el progreso
         progresoData.temas[temaId].hojasLeidas += hojasHoy;
         progresoData.temas[temaId].testsRealizados += testsHoy;
         
@@ -396,8 +388,8 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
             testsRealizados: testsHoy
         };
         
-        // Añadir páginas si se especificaron
-        if (paginaDesde && paginaHasta) {
+        // Añadir páginas calculadas automáticamente
+        if (hojasHoy > 0) {
             nuevoRegistro.paginaDesde = paginaDesde;
             nuevoRegistro.paginaHasta = paginaHasta;
         }
