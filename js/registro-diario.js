@@ -109,59 +109,92 @@ function calcularDatosDia(fecha) {
         return regFecha.getTime() === fechaLocal.getTime();
     });
     
-    // Sumar hojas y tests del día
+    // Agrupar por tema
+    const registrosPorTema = {};
+    
+    registrosDia.forEach(reg => {
+        const temaId = reg.temaId || 'sin-tema';
+        if (!registrosPorTema[temaId]) {
+            registrosPorTema[temaId] = {
+                hojasLeidas: 0,
+                testsRealizados: 0,
+                paginaDesde: reg.paginaDesde,
+                paginaHasta: reg.paginaHasta,
+                temaId: temaId,
+                temaNombre: reg.temaNombre
+            };
+        }
+        registrosPorTema[temaId].hojasLeidas += reg.hojasLeidas || 0;
+        registrosPorTema[temaId].testsRealizados += reg.testsRealizados || 0;
+        
+        // Actualizar paginaHasta si hay más registros
+        if (reg.paginaHasta && reg.paginaHasta > (registrosPorTema[temaId].paginaHasta || 0)) {
+            registrosPorTema[temaId].paginaHasta = reg.paginaHasta;
+        }
+    });
+    
+    // Calcular totales del día
     let hojasLeidas = 0;
     let testsRealizados = 0;
     let detalleHojas = [];
     
-    registrosDia.forEach(reg => {
-        hojasLeidas += reg.hojasLeidas || 0;
-        testsRealizados += reg.testsRealizados || 0;
+    // Calcular acumulados HASTA este día (inclusive)
+    Object.values(registrosPorTema).forEach(regAgrupado => {
+        hojasLeidas += regAgrupado.hojasLeidas;
+        testsRealizados += regAgrupado.testsRealizados;
         
-        // Recopilar detalles de páginas
-        if (reg.hojasLeidas > 0) {
-            // Obtener nombre del tema desde planningData o desde el registro
-            let temaNombre = 'Tema desconocido';
+        if (regAgrupado.hojasLeidas > 0) {
+            const temaId = regAgrupado.temaId;
             
-            // Intentar desde planningData primero
-            if (reg.temaId && planningData && planningData.temas) {
-                const tema = planningData.temas.find(t => t.id === reg.temaId);
+            // Obtener nombre del tema
+            let temaNombre = 'Tema desconocido';
+            if (temaId && planningData && planningData.temas) {
+                const tema = planningData.temas.find(t => t.id === temaId);
                 if (tema) {
                     temaNombre = tema.nombre;
                 }
             }
-            
-            // Si no, intentar desde el registro mismo
-            if (temaNombre === 'Tema desconocido' && reg.temaNombre) {
-                temaNombre = reg.temaNombre;
+            if (temaNombre === 'Tema desconocido' && regAgrupado.temaNombre) {
+                temaNombre = regAgrupado.temaNombre;
+            }
+            if (temaNombre === 'Tema desconocido' && temaId && progresoData.temas && progresoData.temas[temaId]) {
+                temaNombre = progresoData.temas[temaId].nombre;
             }
             
-            // Si no, intentar desde progresoData
-            if (temaNombre === 'Tema desconocido' && reg.temaId && progresoData.temas && progresoData.temas[reg.temaId]) {
-                temaNombre = progresoData.temas[reg.temaId].nombre;
-            }
-            
-            if (reg.paginaDesde && reg.paginaHasta) {
-                if (reg.paginaDesde === reg.paginaHasta) {
-                    detalleHojas.push(`${temaNombre}: página ${reg.paginaDesde}`);
-                } else {
-                    detalleHojas.push(`${temaNombre}: páginas ${reg.paginaDesde}-${reg.paginaHasta}`);
+            // Calcular acumulado hasta este día (INCLUSIVE)
+            let acumuladoHasta = 0;
+            (progresoData.registros || []).forEach(r => {
+                const rFecha = new Date(r.fecha.seconds * 1000);
+                rFecha.setHours(0, 0, 0, 0);
+                if (rFecha <= fechaLocal && r.temaId === temaId) {
+                    acumuladoHasta += r.hojasLeidas || 0;
                 }
-            } else {
-                detalleHojas.push(`${temaNombre}: ${reg.hojasLeidas} hoja${reg.hojasLeidas > 1 ? 's' : ''}`);
+            });
+            
+            // Construir detalle
+            let detalle = `${temaNombre}: ${regAgrupado.hojasLeidas} hoja${regAgrupado.hojasLeidas > 1 ? 's' : ''}`;
+            
+            if (regAgrupado.paginaDesde && regAgrupado.paginaHasta) {
+                if (regAgrupado.paginaDesde === regAgrupado.paginaHasta) {
+                    detalle = `${temaNombre}: página ${regAgrupado.paginaDesde}`;
+                } else {
+                    detalle = `${temaNombre}: páginas ${regAgrupado.paginaDesde}-${regAgrupado.paginaHasta}`;
+                }
             }
+            
+            detalle += ` - Total acumulado: ${acumuladoHasta} hojas`;
+            
+            detalleHojas.push(detalle);
         }
     });
     
     // Calcular objetivos diarios
     const objetivos = calcularObjetivosDia(fecha);
     
-    // Determinar estado - NUEVA LÓGICA
+    // Determinar estado
     let estado = 'incumplido';
     
-    // Si hizo algo (hojas o tests), no es incumplido
     if (hojasLeidas > 0 || testsRealizados > 0) {
-        // Si cumple o supera ambos objetivos
         if (hojasLeidas >= objetivos.hojas && testsRealizados >= objetivos.tests) {
             if (hojasLeidas > objetivos.hojas || testsRealizados > objetivos.tests) {
                 estado = 'mejorado';
@@ -169,11 +202,9 @@ function calcularDatosDia(fecha) {
                 estado = 'cumplido';
             }
         } else {
-            // Hizo algo pero no cumplió objetivos
             estado = 'cumplido';
         }
     }
-    // Si no hizo nada (0 hojas y 0 tests), queda como 'incumplido'
     
     return {
         hojasLeidas,
