@@ -10,7 +10,8 @@ import {
     where,
     updateDoc,
     deleteDoc,
-    onSnapshot
+    onSnapshot,
+    addDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // ===============================================
@@ -31,6 +32,7 @@ let tiempoRespuestaRestante = 0;
 let preguntaCargadaParaAmbos = false;
 let temasSeleccionados = new Set();
 let cronometroDetenidoManualmente = false;  // BANDERA PARA EVITAR REINICIO
+let preguntasIncorrectasPartida = [];  // REGISTRO DE PREGUNTAS FALLADAS PARA TEST DE REPASO
 
 // Elementos del DOM
 const pantallaInicial = document.getElementById('pantallaInicial');
@@ -900,6 +902,21 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
             const erroresActuales = salaData.jugadores[jugadorActual].errores || 0;
             const nuevosErrores = erroresActuales + 1;
             
+            // REGISTRAR PREGUNTA INCORRECTA PARA TEST DE REPASO
+            preguntasIncorrectasPartida.push({
+                texto: pregunta.pregunta,
+                opciones: pregunta.opciones.map((texto, idx) => ({
+                    letra: ['A', 'B', 'C', 'D'][idx],
+                    texto: texto,
+                    esCorrecta: idx === pregunta.respuestaCorrecta
+                })),
+                respuestaCorrecta: ['A', 'B', 'C', 'D'][pregunta.respuestaCorrecta],
+                respuestaUsuario: ['A', 'B', 'C', 'D'][indiceSeleccionado],
+                temaId: pregunta.temaId || '',
+                temaNombre: pregunta.temaNombre || '',
+                temaEpigrafe: pregunta.temaEpigrafe || ''
+            });
+            
             await updateDoc(salaRef, {
                 [`jugadores.${jugadorActual}.errores`]: nuevosErrores,
                 [`jugadores.${jugadorActual}.preguntasRecibidas`]: preguntasRecibidasActuales + 1,
@@ -1122,7 +1139,7 @@ function agruparPreguntasPorTemas(preguntas) {
 // ===============================================
 // RESULTADOS Y FINALIZACIÓN
 // ===============================================
-function mostrarResultado(salaData) {
+async function mostrarResultado(salaData) {
     interfazJuego.classList.add('hidden');
     pantallaResultado.classList.remove('hidden');
     
@@ -1149,6 +1166,36 @@ function mostrarResultado(salaData) {
     } else if (hePerdido) {
         pantallaResultado.className = 'pantalla-resultado derrota';
         textoResultado.textContent = 'HAS PERDIDO';
+    }
+    
+    // GUARDAR PREGUNTAS FALLADAS EN TEST DE REPASO
+    if (preguntasIncorrectasPartida.length > 0) {
+        try {
+            const promesasGuardado = preguntasIncorrectasPartida.map(async (preguntaFallada) => {
+                const datosPregunta = {
+                    usuarioId: currentUser.uid,
+                    pregunta: {
+                        texto: preguntaFallada.texto,
+                        opciones: preguntaFallada.opciones,
+                        respuestaCorrecta: preguntaFallada.respuestaCorrecta,
+                        temaId: preguntaFallada.temaId,
+                        temaNombre: preguntaFallada.temaNombre,
+                        temaEpigrafe: preguntaFallada.temaEpigrafe
+                    },
+                    respuestaUsuario: preguntaFallada.respuestaUsuario,
+                    estado: 'incorrecta',
+                    fechaFallo: new Date(),
+                    testId: `multijugador_${Date.now()}`,
+                    testNombre: 'Multijugador'
+                };
+                return addDoc(collection(db, "preguntasFalladas"), datosPregunta);
+            });
+            
+            await Promise.all(promesasGuardado);
+            console.log(`${preguntasIncorrectasPartida.length} preguntas falladas guardadas desde multijugador`);
+        } catch (error) {
+            console.error('Error guardando preguntas falladas de multijugador:', error);
+        }
     }
 }
 
@@ -1216,6 +1263,7 @@ function limpiarSala() {
     rival = null;
     preguntasRival = [];
     turnoActual = null;
+    preguntasIncorrectasPartida = [];  // LIMPIAR REGISTRO DE PREGUNTAS FALLADAS
 }
 
 function volverAInicio() {
