@@ -610,7 +610,7 @@ async function finalizarTest() {
         
         // Guardar preguntas falladas para el test de repaso
         const preguntasFalladas = detalleRespuestas.filter(detalle => 
-            detalle.estado === 'incorrecta' || detalle.estado === 'sin-respuesta'
+            detalle.estado === 'incorrecta'
         );
 
         if (preguntasFalladas.length > 0) {
