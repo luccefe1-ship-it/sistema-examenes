@@ -3314,7 +3314,7 @@ sessionStorage.removeItem('cacheResultadosTimestamp');
         // Guardar preguntas falladas para el test de repaso (SOLO si NO es un test de repaso)
         if (!testActual.esRepaso) {
             const preguntasFalladas = resultados.detalleRespuestas.filter(detalle => 
-                detalle.estado === 'incorrecta' || detalle.estado === 'sin-respuesta'
+                detalle.estado === 'incorrecta'
             );
 
             if (preguntasFalladas.length > 0) {
