@@ -289,8 +289,25 @@ async function registrarFalloAdicional(pregunta, respuestaUsuario) {
 
 window.cerrarModalResponder = function() {
     document.getElementById('modalResponder').classList.remove('activo');
+    
+    // Actualizar contador localmente si hubo fallo
+    if (preguntaActual && document.querySelector('.modal-resultado.incorrecto')) {
+        const texto = preguntaActual.texto;
+        document.querySelectorAll('.ranking-enunciado').forEach(el => {
+            if (el.textContent === texto || texto.startsWith(el.textContent.substring(0, 50))) {
+                const item = el.closest('.ranking-item');
+                const fallosEl = item.querySelector('.ranking-fallos');
+                const actual = parseInt(fallosEl.textContent);
+                fallosEl.textContent = (actual + 1) + ' fallos';
+                
+                // Actualizar total
+                const totalEl = document.getElementById('totalFallos');
+                totalEl.textContent = parseInt(totalEl.textContent) + 1;
+            }
+        });
+    }
+    
     preguntaActual = null;
-    cargarRanking();
 }
 
 window.restaurarPregunta = async function(textoPregunta) {
