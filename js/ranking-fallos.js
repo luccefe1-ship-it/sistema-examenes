@@ -262,8 +262,10 @@ window.seleccionarOpcion = async function(letra, elemento) {
     
     if (letra === letraCorrecta) {
         elemento.classList.add('correcta');
-        resultado.innerHTML = `<h4 style="color:#28a745;">✅ ¡Correcto!</h4><button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>`;
-        resultado.className = 'modal-resultado correcto';
+resultado.innerHTML = `
+            <h4 style="color:#28a745;">✅ ¡Correcto!</h4>
+            <button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>
+        `;        resultado.className = 'modal-resultado correcto';
     } else {
         elemento.classList.add('incorrecta');
         document.querySelectorAll('.modal-opcion').forEach(op => {
@@ -271,7 +273,12 @@ window.seleccionarOpcion = async function(letra, elemento) {
                 op.classList.add('correcta');
             }
         });
-        resultado.innerHTML = `<h4 style="color:#dc3545;">❌ Incorrecto</h4><p>La respuesta correcta es: <strong>${letraCorrecta}</strong></p><p style="font-size:12px;color:#666;margin-top:10px;">Se ha sumado un fallo más.</p><button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>`;
+        resultado.innerHTML = `
+            <h4 style="color:#dc3545;">❌ Incorrecto</h4>
+            <p>La respuesta correcta es: <strong>${letraCorrecta}</strong></p>
+            <p style="font-size:12px;color:#666;">Se ha sumado un fallo más.</p>
+            <button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>
+        `;
         resultado.className = 'modal-resultado incorrecto';
         await registrarFalloAdicional(preguntaActual, letra);
     }
