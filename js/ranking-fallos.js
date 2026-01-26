@@ -1,8 +1,9 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { collection, query, where, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let currentUser = null;
+let preguntaActual = null;
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -20,7 +21,6 @@ async function cargarRanking() {
     const rankingList = document.getElementById('rankingList');
 
     try {
-        // Cargar todos los temas
         const temasSnapshot = await getDocs(collection(db, "temas"));
         const mapaTemasCompleto = {};
         const mapaPorNombre = {};
@@ -29,20 +29,16 @@ async function cargarRanking() {
         temasSnapshot.forEach(doc => {
             const tema = { id: doc.id, ...doc.data() };
             temasById[doc.id] = tema;
-            
-            // Si es tema padre, guardarlo
             if (!tema.temaPadreId) {
                 mapaTemasCompleto[doc.id] = tema.nombre;
                 mapaPorNombre[tema.nombre.toLowerCase()] = tema.nombre;
             }
         });
         
-        // Segundo pase: mapear subtemas a sus padres
         temasSnapshot.forEach(doc => {
             const tema = { id: doc.id, ...doc.data() };
             if (tema.temaPadreId && temasById[tema.temaPadreId]) {
                 mapaTemasCompleto[doc.id] = temasById[tema.temaPadreId].nombre;
-                // También mapear por nombre del subtema
                 if (tema.nombre) {
                     mapaPorNombre[tema.nombre.toLowerCase()] = temasById[tema.temaPadreId].nombre;
                 }
@@ -89,22 +85,16 @@ async function cargarRanking() {
                 totalFallos++;
 
                 if (!preguntasAgrupadas[textoKey]) {
-                    // Intentar obtener nombre del tema padre
                     let nombreTemaPadre = 'Sin tema asignado';
                     
-                    // Opción 1: Por temaId
                     if (pregunta.temaId && mapaTemasCompleto[pregunta.temaId]) {
                         nombreTemaPadre = mapaTemasCompleto[pregunta.temaId];
-                    }
-                    // Opción 2: Por temaNombre
-                    else if (pregunta.temaNombre) {
+                    } else if (pregunta.temaNombre) {
                         const nombreLower = pregunta.temaNombre.toLowerCase();
                         if (mapaPorNombre[nombreLower]) {
                             nombreTemaPadre = mapaPorNombre[nombreLower];
                         }
-                    }
-                    // Opción 3: Por temaEpigrafe
-                    else if (pregunta.temaEpigrafe) {
+                    } else if (pregunta.temaEpigrafe) {
                         const epiLower = pregunta.temaEpigrafe.toLowerCase();
                         if (mapaPorNombre[epiLower]) {
                             nombreTemaPadre = mapaPorNombre[epiLower];
@@ -145,7 +135,8 @@ async function cargarRanking() {
         ).join('');
 
         document.querySelectorAll('.ranking-header').forEach(header => {
-            header.addEventListener('click', () => {
+            header.addEventListener('click', (e) => {
+                if (e.target.closest('.btn-restaurar') || e.target.closest('.btn-responder')) return;
                 header.closest('.ranking-item').classList.toggle('expanded');
             });
         });
@@ -188,8 +179,8 @@ function renderRankingItem(item, posicion) {
         `;
     }).join('');
 
-    // Usar el tema padre real que obtuvimos de Firebase
     let temaMostrar = pregunta.temaPadreReal || 'Sin tema asignado';
+    const preguntaData = encodeURIComponent(JSON.stringify(pregunta));
 
     return `
         <div class="ranking-item">
@@ -202,7 +193,8 @@ function renderRankingItem(item, posicion) {
                     </div>
                 </div>
                 <div class="ranking-fallos">${item.count} ${item.count === 1 ? 'fallo' : 'fallos'}</div>
-                <button class="btn-restaurar" onclick="restaurarPregunta('${pregunta.texto.replace(/'/g, "\\'")}')">↻</button>
+                <button class="btn-responder" onclick="event.stopPropagation(); abrirModalResponder('${preguntaData}')">Responder</button>
+                <button class="btn-restaurar" onclick="event.stopPropagation(); restaurarPregunta('${pregunta.texto.replace(/'/g, "\\'")}')">↻</button>
                 <span class="ranking-expand">▼</span>
             </div>
             <div class="ranking-detalles">
@@ -210,14 +202,10 @@ function renderRankingItem(item, posicion) {
                     <div class="detalle-titulo">Enunciado completo</div>
                     <div class="detalle-enunciado">${pregunta.texto}</div>
                 </div>
-                
                 <div class="detalle-seccion">
                     <div class="detalle-titulo">Opciones</div>
-                    <div class="opciones-lista">
-                        ${opcionesHTML}
-                    </div>
+                    <div class="opciones-lista">${opcionesHTML}</div>
                 </div>
-                
                 <div class="detalle-seccion">
                     <div class="detalle-titulo">Tema</div>
                     <div class="detalle-tema">
@@ -232,21 +220,86 @@ function renderRankingItem(item, posicion) {
     `;
 }
 
-// Hacer la función global
-window.restaurarPregunta = async function(textoPregunta) {
-    if (!confirm('¿Restaurar esta pregunta a cero fallos? Desaparecerá del ranking.')) {
-        return;
+window.abrirModalResponder = function(preguntaData) {
+    preguntaActual = JSON.parse(decodeURIComponent(preguntaData));
+    const modal = document.getElementById('modalResponder');
+    const enunciado = document.getElementById('modalEnunciado');
+    const opciones = document.getElementById('modalOpciones');
+    const resultado = document.getElementById('modalResultado');
+    
+    enunciado.textContent = preguntaActual.texto;
+    opciones.innerHTML = preguntaActual.opciones.map(opcion => `
+        <div class="modal-opcion" onclick="seleccionarOpcion('${opcion.letra}', this)">
+            <span class="modal-opcion-letra">${opcion.letra}</span>
+            <span class="modal-opcion-texto">${opcion.texto}</span>
+        </div>
+    `).join('');
+    
+    resultado.style.display = 'none';
+    resultado.className = 'modal-resultado';
+    modal.classList.add('activo');
+}
+
+window.seleccionarOpcion = async function(letra, elemento) {
+    if (document.querySelector('.modal-opcion.correcta') || document.querySelector('.modal-opcion.incorrecta')) return;
+    
+    const opcionCorrecta = preguntaActual.opciones.find(o => o.esCorrecta || o.letra === preguntaActual.respuestaCorrecta);
+    const letraCorrecta = opcionCorrecta?.letra || preguntaActual.respuestaCorrecta;
+    const resultado = document.getElementById('modalResultado');
+    
+    if (letra === letraCorrecta) {
+        elemento.classList.add('correcta');
+        resultado.innerHTML = `<h4 style="color:#28a745;">✅ ¡Correcto!</h4><button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>`;
+        resultado.className = 'modal-resultado correcto';
+    } else {
+        elemento.classList.add('incorrecta');
+        document.querySelectorAll('.modal-opcion').forEach(op => {
+            if (op.querySelector('.modal-opcion-letra').textContent === letraCorrecta) {
+                op.classList.add('correcta');
+            }
+        });
+        resultado.innerHTML = `<h4 style="color:#dc3545;">❌ Incorrecto</h4><p>La respuesta correcta es: <strong>${letraCorrecta}</strong></p><p style="font-size:12px;color:#666;margin-top:10px;">Se ha sumado un fallo más.</p><button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>`;
+        resultado.className = 'modal-resultado incorrecto';
+        await registrarFalloAdicional(preguntaActual, letra);
     }
+    resultado.style.display = 'block';
+}
+
+async function registrarFalloAdicional(pregunta, respuestaUsuario) {
+    try {
+        await addDoc(collection(db, "resultados"), {
+            usuarioId: currentUser.uid,
+            fecha: serverTimestamp(),
+            nombreTest: "Repaso Ranking Fallos",
+            totalPreguntas: 1,
+            correctas: 0,
+            incorrectas: 1,
+            enBlanco: 0,
+            porcentaje: 0,
+            detalleRespuestas: [{
+                pregunta: pregunta,
+                respuestaUsuario: respuestaUsuario,
+                estado: 'incorrecta'
+            }]
+        });
+    } catch (error) {
+        console.error('Error registrando fallo:', error);
+    }
+}
+
+window.cerrarModalResponder = function() {
+    document.getElementById('modalResponder').classList.remove('activo');
+    preguntaActual = null;
+    cargarRanking();
+}
+
+window.restaurarPregunta = async function(textoPregunta) {
+    if (!confirm('¿Restaurar esta pregunta a cero fallos? Desaparecerá del ranking.')) return;
 
     try {
-        const q = query(
-            collection(db, "resultados"),
-            where("usuarioId", "==", currentUser.uid)
-        );
-
+        const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
         const snapshot = await getDocs(q);
         
-        // Actualizar cada test que contenga esta pregunta
         for (const docSnapshot of snapshot.docs) {
             const resultado = docSnapshot.data();
             let modificado = false;
@@ -268,7 +321,6 @@ window.restaurarPregunta = async function(textoPregunta) {
 
         alert('✅ Pregunta restaurada correctamente');
         await cargarRanking();
-
     } catch (error) {
         console.error('Error restaurando pregunta:', error);
         alert('❌ Error al restaurar la pregunta');
