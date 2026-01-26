@@ -248,8 +248,8 @@ window.abrirModalResponder = function(preguntaData) {
         </div>
     `).join('');
     
+    resultado.className = '';
     resultado.style.display = 'none';
-    resultado.className = 'modal-resultado';
     modal.classList.add('activo');
 }
 
@@ -265,7 +265,8 @@ window.seleccionarOpcion = async function(letra, elemento) {
 resultado.innerHTML = `
             <h4 style="color:#28a745;">✅ ¡Correcto!</h4>
             <button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>
-        `;        resultado.className = 'modal-resultado correcto';
+        `;
+        resultado.className = 'visible correcto';
     } else {
         elemento.classList.add('incorrecta');
         document.querySelectorAll('.modal-opcion').forEach(op => {
@@ -279,7 +280,7 @@ resultado.innerHTML = `
             <p style="font-size:12px;color:#666;">Se ha sumado un fallo más.</p>
             <button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>
         `;
-        resultado.className = 'modal-resultado incorrecto';
+        resultado.className = 'visible incorrecto';
         await registrarFalloAdicional(preguntaActual, letra);
     }
     resultado.style.display = 'block';
