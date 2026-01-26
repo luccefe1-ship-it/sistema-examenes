@@ -4,6 +4,9 @@ import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimest
 
 let currentUser = null;
 let preguntaActual = null;
+let cacheRanking = null;
+let cacheTemas = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -21,7 +24,14 @@ async function cargarRanking() {
     const rankingList = document.getElementById('rankingList');
 
     try {
-        const temasSnapshot = await getDocs(collection(db, "temas"));
+        // Usar caché de temas si existe
+        let temasSnapshot;
+        if (cacheTemas) {
+            temasSnapshot = cacheTemas;
+        } else {
+            temasSnapshot = await getDocs(collection(db, "temas"));
+            cacheTemas = temasSnapshot;
+        }
         const mapaTemasCompleto = {};
         const mapaPorNombre = {};
         const temasById = {};
@@ -119,6 +129,9 @@ async function cargarRanking() {
 
         const rankingArray = Object.values(preguntasAgrupadas)
             .sort((a, b) => b.count - a.count);
+
+        // Guardar en caché
+        cacheRanking = { rankingArray, totalFallos, timestamp: Date.now() };
 
         document.getElementById('totalPreguntas').textContent = rankingArray.length;
         document.getElementById('totalFallos').textContent = totalFallos;
@@ -266,6 +279,9 @@ window.seleccionarOpcion = async function(letra, elemento) {
 }
 
 async function registrarFalloAdicional(pregunta, respuestaUsuario) {
+    // Invalidar caché
+    cacheRanking = null;
+    
     try {
         await addDoc(collection(db, "resultados"), {
             usuarioId: currentUser.uid,
@@ -343,6 +359,9 @@ window.restaurarPregunta = async function(textoPregunta) {
         });
     }, 350);
 
+    // Invalidar caché
+    cacheRanking = null;
+    
     // Guardar en Firebase en segundo plano
     try {
         const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
