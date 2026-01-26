@@ -262,10 +262,7 @@ window.seleccionarOpcion = async function(letra, elemento) {
     
     if (letra === letraCorrecta) {
         elemento.classList.add('correcta');
-resultado.innerHTML = `
-            <h4 style="color:#28a745;">✅ ¡Correcto!</h4>
-            <button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>
-        `;
+        resultado.innerHTML = '<h4 style="color:#28a745;">✅ ¡Correcto!</h4><button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>';
         resultado.className = 'visible correcto';
     } else {
         elemento.classList.add('incorrecta');
@@ -274,12 +271,7 @@ resultado.innerHTML = `
                 op.classList.add('correcta');
             }
         });
-        resultado.innerHTML = `
-            <h4 style="color:#dc3545;">❌ Incorrecto</h4>
-            <p>La respuesta correcta es: <strong>${letraCorrecta}</strong></p>
-            <p style="font-size:12px;color:#666;">Se ha sumado un fallo más.</p>
-            <button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>
-        `;
+        resultado.innerHTML = '<h4 style="color:#dc3545;">❌ Incorrecto</h4><p>La respuesta correcta es: <strong>' + letraCorrecta + '</strong></p><p style="font-size:12px;color:#666;">Se ha sumado un fallo más.</p><button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>';
         resultado.className = 'visible incorrecto';
         await registrarFalloAdicional(preguntaActual, letra);
     }
@@ -315,7 +307,7 @@ window.cerrarModalResponder = function() {
     document.getElementById('modalResponder').classList.remove('activo');
     
     // Actualizar contador localmente si hubo fallo
-    if (preguntaActual && document.querySelector('.modal-resultado.incorrecto')) {
+    if (preguntaActual && document.querySelector('#modalResultado.incorrecto')) {
         const texto = preguntaActual.texto;
         document.querySelectorAll('.ranking-enunciado').forEach(el => {
             if (el.textContent === texto || texto.startsWith(el.textContent.substring(0, 50))) {
