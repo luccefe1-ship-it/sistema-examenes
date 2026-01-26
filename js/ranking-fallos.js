@@ -313,6 +313,37 @@ window.cerrarModalResponder = function() {
 window.restaurarPregunta = async function(textoPregunta) {
     if (!confirm('¿Restaurar esta pregunta a cero fallos? Desaparecerá del ranking.')) return;
 
+    // Encontrar y ocultar el item inmediatamente
+    let itemEliminado = null;
+    let fallosEliminados = 0;
+    document.querySelectorAll('.ranking-item').forEach(item => {
+        const enunciado = item.querySelector('.ranking-enunciado').textContent;
+        if (textoPregunta.startsWith(enunciado.substring(0, 50)) || enunciado === textoPregunta) {
+            fallosEliminados = parseInt(item.querySelector('.ranking-fallos').textContent) || 1;
+            itemEliminado = item;
+            item.style.transition = 'opacity 0.3s, transform 0.3s';
+            item.style.opacity = '0';
+            item.style.transform = 'translateX(-100px)';
+            setTimeout(() => item.remove(), 300);
+        }
+    });
+
+    // Actualizar contadores inmediatamente
+    const totalPregEl = document.getElementById('totalPreguntas');
+    const totalFallosEl = document.getElementById('totalFallos');
+    totalPregEl.textContent = parseInt(totalPregEl.textContent) - 1;
+    totalFallosEl.textContent = parseInt(totalFallosEl.textContent) - fallosEliminados;
+
+    // Renumerar posiciones
+    setTimeout(() => {
+        document.querySelectorAll('.ranking-item').forEach((item, index) => {
+            const posEl = item.querySelector('.ranking-posicion');
+            posEl.textContent = index + 1;
+            posEl.className = 'ranking-posicion ' + (index === 0 ? 'posicion-1' : index === 1 ? 'posicion-2' : index === 2 ? 'posicion-3' : 'posicion-normal');
+        });
+    }, 350);
+
+    // Guardar en Firebase en segundo plano
     try {
         const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
         const snapshot = await getDocs(q);
@@ -335,11 +366,7 @@ window.restaurarPregunta = async function(textoPregunta) {
                 });
             }
         }
-
-        alert('✅ Pregunta restaurada correctamente');
-        await cargarRanking();
     } catch (error) {
         console.error('Error restaurando pregunta:', error);
-        alert('❌ Error al restaurar la pregunta');
     }
 }
