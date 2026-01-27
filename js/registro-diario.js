@@ -547,6 +547,9 @@ function calcularDatosGrafica(tipo) {
 // ==========================================
 // GENERADOR DE INFORME PDF
 // ==========================================
+// ==========================================
+// GENERADOR DE INFORME PDF
+// ==========================================
 function generarInformePDF() {
     const btn = document.getElementById('btnDescargarInforme');
     btn.disabled = true;
@@ -611,75 +614,136 @@ function generarInformePDF() {
         doc.text(metricas.mensajeScore, 105, y + 22, { align: 'center' });
         y += 40;
         
-        // === PROGRESO DE HOJAS ===
+        // === RESUMEN GENERAL ===
         doc.setTextColor(51, 51, 51);
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text('PROGRESO DE HOJAS', 20, y);
-        y += 8;
-        
-        // Barra de progreso hojas
-        const porcentajeHojas = metricas.porcentajeHojas;
-        doc.setFillColor(229, 231, 235);
-        doc.roundedRect(20, y, 170, 8, 2, 2, 'F');
-        doc.setFillColor(59, 130, 246);
-        doc.roundedRect(20, y, Math.min(170, 170 * porcentajeHojas / 100), 8, 2, 2, 'F');
-        y += 12;
+        doc.text('RESUMEN GENERAL', 20, y);
+        y += 10;
         
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Hojas leidas: ${metricas.hojasLeidas} de ${metricas.hojasTotales} (${porcentajeHojas.toFixed(1)}%)`, 20, y);
-        y += 6;
-        doc.text(`Ritmo actual: ${metricas.ritmoHojasActual.toFixed(1)} hojas/dia`, 20, y);
-        doc.text(`Ritmo necesario: ${metricas.ritmoHojasNecesario.toFixed(1)} hojas/dia`, 110, y);
-        y += 6;
         
+        // Tabla resumen
+        doc.setFillColor(59, 130, 246);
+        doc.rect(20, y, 85, 8, 'F');
+        doc.setFillColor(16, 185, 129);
+        doc.rect(105, y, 85, 8, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.text('HOJAS', 62.5, y + 6, { align: 'center' });
+        doc.text('TESTS', 147.5, y + 6, { align: 'center' });
+        y += 8;
+        
+        doc.setFillColor(245, 245, 245);
+        doc.rect(20, y, 85, 24, 'F');
+        doc.rect(105, y, 85, 24, 'F');
+        
+        doc.setTextColor(51, 51, 51);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${metricas.hojasLeidas} / ${metricas.hojasTotales} (${metricas.porcentajeHojas.toFixed(1)}%)`, 62.5, y + 7, { align: 'center' });
+        doc.text(`Ritmo: ${metricas.ritmoHojasActual.toFixed(1)} hojas/dia`, 62.5, y + 14, { align: 'center' });
+        doc.text(`Necesario: ${metricas.ritmoHojasNecesario.toFixed(1)} hojas/dia`, 62.5, y + 21, { align: 'center' });
+        
+        doc.text(`${metricas.testsRealizados} / ${metricas.testsTotales} (${metricas.porcentajeTests.toFixed(1)}%)`, 147.5, y + 7, { align: 'center' });
+        doc.text(`Ritmo: ${metricas.ritmoTestsActual.toFixed(1)} tests/dia`, 147.5, y + 14, { align: 'center' });
+        doc.text(`Necesario: ${metricas.ritmoTestsNecesario.toFixed(1)} tests/dia`, 147.5, y + 21, { align: 'center' });
+        y += 32;
+        
+        // Diferencia de ritmo
         const diffRitmoHojas = metricas.ritmoHojasActual - metricas.ritmoHojasNecesario;
         if (diffRitmoHojas >= 0) {
             doc.setTextColor(16, 185, 129);
-            doc.text(`+${diffRitmoHojas.toFixed(1)} hojas/dia por encima del objetivo`, 20, y);
+            doc.text(`Tu ritmo de hojas: +${diffRitmoHojas.toFixed(1)} hojas/dia por encima del necesario`, 20, y);
         } else {
             doc.setTextColor(239, 68, 68);
-            doc.text(`${diffRitmoHojas.toFixed(1)} hojas/dia por debajo del objetivo`, 20, y);
+            doc.text(`Tu ritmo de hojas: ${diffRitmoHojas.toFixed(1)} hojas/dia por debajo del necesario`, 20, y);
         }
         y += 15;
         
-        // === PROGRESO DE TESTS ===
+        // === PROGRESO POR TEMAS ===
         doc.setTextColor(51, 51, 51);
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text('PROGRESO DE TESTS', 20, y);
+        doc.text('PROGRESO POR TEMAS', 20, y);
         y += 8;
         
-        // Barra de progreso tests
-        const porcentajeTests = metricas.porcentajeTests;
-        doc.setFillColor(229, 231, 235);
-        doc.roundedRect(20, y, 170, 8, 2, 2, 'F');
-        doc.setFillColor(16, 185, 129);
-        doc.roundedRect(20, y, Math.min(170, 170 * porcentajeTests / 100), 8, 2, 2, 'F');
-        y += 12;
-        
-        doc.setFontSize(11);
+        doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Tests realizados: ${metricas.testsRealizados} de ${metricas.testsTotales} (${porcentajeTests.toFixed(1)}%)`, 20, y);
-        y += 6;
-        doc.text(`Ritmo actual: ${metricas.ritmoTestsActual.toFixed(1)} tests/dia`, 20, y);
-        doc.text(`Ritmo necesario: ${metricas.ritmoTestsNecesario.toFixed(1)} tests/dia`, 110, y);
-        y += 15;
+        
+        metricas.progresoTemas.forEach((tema, index) => {
+            if (y > 250) {
+                doc.addPage();
+                y = 20;
+            }
+            
+            // Fondo alternado
+            if (index % 2 === 0) {
+                doc.setFillColor(250, 250, 250);
+                doc.rect(20, y - 3, 170, 12, 'F');
+            }
+            
+            // Nombre del tema (truncado si es muy largo)
+            let nombreTema = tema.nombre;
+            if (nombreTema.length > 35) {
+                nombreTema = nombreTema.substring(0, 32) + '...';
+            }
+            
+            doc.setTextColor(51, 51, 51);
+            doc.text(nombreTema, 22, y + 3);
+            
+            // Barra de progreso mini
+            const barraX = 95;
+            const barraW = 50;
+            doc.setFillColor(229, 231, 235);
+            doc.roundedRect(barraX, y - 1, barraW, 6, 1, 1, 'F');
+            
+            const progColor = tema.porcentaje >= 100 ? [16, 185, 129] : 
+                             tema.porcentaje >= 50 ? [59, 130, 246] : [245, 158, 11];
+            doc.setFillColor(...progColor);
+            doc.roundedRect(barraX, y - 1, Math.min(barraW, barraW * tema.porcentaje / 100), 6, 1, 1, 'F');
+            
+            // Datos
+            doc.setTextColor(100, 100, 100);
+            doc.text(`${tema.hojasLeidas}/${tema.hojasTotales}`, 150, y + 3);
+            doc.text(`${tema.porcentaje.toFixed(0)}%`, 175, y + 3);
+            
+            y += 12;
+        });
+        
+        y += 8;
         
         // === ANÁLISIS DE CUMPLIMIENTO ===
+        if (y > 230) {
+            doc.addPage();
+            y = 20;
+        }
+        
         doc.setTextColor(51, 51, 51);
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text('ANALISIS DE CUMPLIMIENTO', 20, y);
-        y += 8;
+        y += 10;
         
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Dias cumplidos: ${metricas.diasCumplidos}`, 20, y);
-        doc.text(`Dias avanzados: ${metricas.diasAvanzados}`, 80, y);
-        doc.text(`Dias incumplidos: ${metricas.diasIncumplidos}`, 140, y);
-        y += 6;
+        
+        // Iconos de estado con colores
+        doc.setFillColor(16, 185, 129);
+        doc.circle(25, y + 2, 3, 'F');
+        doc.setTextColor(51, 51, 51);
+        doc.text(`Dias cumplidos: ${metricas.diasCumplidos}`, 32, y + 4);
+        
+        doc.setFillColor(59, 130, 246);
+        doc.circle(85, y + 2, 3, 'F');
+        doc.text(`Dias avanzados: ${metricas.diasAvanzados}`, 92, y + 4);
+        
+        doc.setFillColor(239, 68, 68);
+        doc.circle(145, y + 2, 3, 'F');
+        doc.text(`Dias sin actividad: ${metricas.diasIncumplidos}`, 152, y + 4);
+        
+        y += 10;
         doc.text(`Tasa de cumplimiento: ${metricas.tasaCumplimiento.toFixed(1)}%`, 20, y);
         doc.text(`Racha actual: ${metricas.rachaActual} dias consecutivos`, 110, y);
         y += 15;
@@ -688,43 +752,77 @@ function generarInformePDF() {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text('PROYECCION', 20, y);
-        y += 8;
+        y += 10;
         
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        doc.text(`A este ritmo, completaras las hojas el: ${metricas.fechaProyectadaHojas}`, 20, y);
-        y += 6;
+        doc.text(`A tu ritmo actual (${metricas.ritmoHojasActual.toFixed(1)} hojas/dia), completaras el temario el:`, 20, y);
+        y += 7;
         
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(59, 130, 246);
+        doc.text(metricas.fechaProyectadaHojas, 20, y);
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
         if (metricas.diasDesfase > 0) {
             doc.setTextColor(239, 68, 68);
-            doc.text(`Desfase: +${metricas.diasDesfase} dias respecto al objetivo`, 20, y);
+            doc.text(`(${metricas.diasDesfase} dias despues del objetivo)`, 70, y);
         } else if (metricas.diasDesfase < 0) {
             doc.setTextColor(16, 185, 129);
-            doc.text(`Adelanto: ${Math.abs(metricas.diasDesfase)} dias respecto al objetivo`, 20, y);
+            doc.text(`(${Math.abs(metricas.diasDesfase)} dias ANTES del objetivo)`, 70, y);
         } else {
             doc.setTextColor(59, 130, 246);
-            doc.text(`Vas perfectamente segun lo planificado`, 20, y);
+            doc.text(`(justo en la fecha objetivo)`, 70, y);
         }
         y += 15;
         
         // === RECOMENDACIONES ===
+        if (y > 230) {
+            doc.addPage();
+            y = 20;
+        }
+        
         doc.setTextColor(51, 51, 51);
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text('RECOMENDACIONES', 20, y);
-        y += 8;
+        y += 10;
         
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         metricas.recomendaciones.forEach((rec, i) => {
-            if (y > 270) {
+            if (y > 260) {
                 doc.addPage();
                 y = 20;
             }
-            const lines = doc.splitTextToSize(`${i + 1}. ${rec}`, 170);
+            const bullet = i + 1;
+            const lines = doc.splitTextToSize(`${bullet}. ${rec}`, 170);
             doc.text(lines, 20, y);
-            y += lines.length * 5 + 3;
+            y += lines.length * 5 + 4;
         });
+        
+        y += 10;
+        
+        // === CONCLUSIÓN FINAL ===
+        if (y > 220) {
+            doc.addPage();
+            y = 20;
+        }
+        
+        doc.setFillColor(102, 126, 234);
+        doc.roundedRect(20, y, 170, 45, 3, 3, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('CONCLUSION', 105, y + 10, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const conclusionLines = doc.splitTextToSize(metricas.conclusion, 160);
+        doc.text(conclusionLines, 105, y + 20, { align: 'center' });
         
         // === PIE DE PÁGINA ===
         doc.setFontSize(9);
@@ -744,6 +842,7 @@ function generarInformePDF() {
     }
 }
 
+// Calcular todas las métricas para el informe
 // Calcular todas las métricas para el informe
 function calcularMetricasInforme() {
     const fechaInicio = planningData.fechaCreacion ? 
@@ -767,10 +866,36 @@ function calcularMetricasInforme() {
     // Acumulados
     let hojasLeidas = 0;
     let testsRealizados = 0;
+    const hojasPorTema = {};
+    
     (progresoData.registros || []).forEach(reg => {
         hojasLeidas += reg.hojasLeidas || 0;
         testsRealizados += reg.testsRealizados || 0;
+        
+        // Acumular por tema
+        if (reg.temaId) {
+            if (!hojasPorTema[reg.temaId]) {
+                hojasPorTema[reg.temaId] = 0;
+            }
+            hojasPorTema[reg.temaId] += reg.hojasLeidas || 0;
+        }
     });
+    
+    // Progreso por temas
+    const progresoTemas = planningData.temas.map(tema => {
+        const leidas = hojasPorTema[tema.id] || 0;
+        const porcentaje = tema.hojas > 0 ? (leidas / tema.hojas) * 100 : 0;
+        return {
+            id: tema.id,
+            nombre: tema.nombre,
+            hojasTotales: tema.hojas,
+            hojasLeidas: leidas,
+            porcentaje: Math.min(100, porcentaje)
+        };
+    });
+    
+    // Ordenar por porcentaje descendente
+    progresoTemas.sort((a, b) => b.porcentaje - a.porcentaje);
     
     // Porcentajes
     const porcentajeHojas = hojasTotales > 0 ? (hojasLeidas / hojasTotales) * 100 : 0;
@@ -842,27 +967,49 @@ function calcularMetricasInforme() {
     }
     
     if (diasIncumplidos > diasCumplidos) {
-        recomendaciones.push(`Has incumplido más días de los que has cumplido. Intenta ser más constante.`);
+        recomendaciones.push(`Has tenido mas dias sin actividad que dias cumplidos. Intenta ser mas constante.`);
     }
     
     if (rachaActual === 0 && diasTranscurridos > 3) {
         recomendaciones.push(`No tienes racha activa. Intenta cumplir los objetivos hoy para empezar una nueva.`);
     } else if (rachaActual >= 3) {
-        recomendaciones.push(`Llevas ${rachaActual} días cumpliendo. ¡Sigue así!`);
+        recomendaciones.push(`Llevas ${rachaActual} dias cumpliendo objetivos. Sigue asi!`);
     }
     
     if (diasDesfase > 7) {
-        recomendaciones.push(`Vas ${diasDesfase} días por detrás. Considera dedicar más tiempo o revisar tus objetivos.`);
+        recomendaciones.push(`Vas ${diasDesfase} dias por detras. Considera dedicar mas tiempo o revisar tus objetivos.`);
     } else if (diasDesfase < -7) {
-        recomendaciones.push(`Vas ${Math.abs(diasDesfase)} días adelantado. ¡Excelente trabajo!`);
+        recomendaciones.push(`Vas ${Math.abs(diasDesfase)} dias adelantado. Excelente trabajo!`);
     }
     
     if (porcentajeTests < porcentajeHojas - 20) {
-        recomendaciones.push(`Tus tests van por detrás de tus hojas. Equilibra ambas actividades.`);
+        recomendaciones.push(`Tus tests van por detras de tus hojas. Equilibra ambas actividades.`);
+    }
+    
+    // Temas con menor avance
+    const temasRetrasados = progresoTemas.filter(t => t.porcentaje < 10 && t.hojasTotales > 0);
+    if (temasRetrasados.length > 0 && temasRetrasados.length <= 3) {
+        const nombres = temasRetrasados.map(t => t.nombre.substring(0, 20)).join(', ');
+        recomendaciones.push(`Temas sin empezar o con poco avance: ${nombres}.`);
     }
     
     if (recomendaciones.length === 0) {
-        recomendaciones.push(`Mantén tu ritmo actual. Estás progresando adecuadamente.`);
+        recomendaciones.push(`Manten tu ritmo actual. Estas progresando adecuadamente.`);
+    }
+    
+    // Conclusión final
+    let conclusion = '';
+    if (diasDesfase < 0) {
+        conclusion = `En ${diasTranscurridos} dias has leido ${hojasLeidas} hojas y realizado ${testsRealizados} tests. `;
+        conclusion += `Tu ritmo de ${ritmoHojasActual.toFixed(1)} hojas/dia supera el necesario (${ritmoHojasNecesario.toFixed(1)}). `;
+        conclusion += `Si mantienes este ritmo, terminaras ${Math.abs(diasDesfase)} dias antes del ${fechaObjetivo.toLocaleDateString('es-ES')}. Excelente trabajo!`;
+    } else if (diasDesfase === 0) {
+        conclusion = `Vas perfectamente segun lo planificado. Has completado ${porcentajeHojas.toFixed(1)}% del temario `;
+        conclusion += `en ${diasTranscurridos} dias. Manten este ritmo para cumplir tu objetivo el ${fechaObjetivo.toLocaleDateString('es-ES')}.`;
+    } else {
+        conclusion = `Has avanzado ${hojasLeidas} hojas en ${diasTranscurridos} dias (${porcentajeHojas.toFixed(1)}% del total). `;
+        conclusion += `Tu ritmo actual de ${ritmoHojasActual.toFixed(1)} hojas/dia esta por debajo del necesario (${ritmoHojasNecesario.toFixed(1)}). `;
+        conclusion += `Necesitas aumentar la intensidad para cumplir el objetivo del ${fechaObjetivo.toLocaleDateString('es-ES')}.`;
     }
     
     return {
@@ -890,6 +1037,8 @@ function calcularMetricasInforme() {
         diasDesfase,
         scoreGlobal,
         mensajeScore,
-        recomendaciones
+        recomendaciones,
+        progresoTemas,
+        conclusion
     };
 }
