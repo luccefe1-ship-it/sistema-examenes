@@ -598,21 +598,76 @@ function generarInformePDF() {
         doc.text(`Dias restantes: ${metricas.diasRestantes}`, 110, y);
         y += 15;
         
-        // === PUNTUACIÓN GLOBAL ===
-        doc.setFillColor(240, 240, 240);
-        doc.roundedRect(20, y, 170, 30, 3, 3, 'F');
+        // === DIBUJO MONTAÑA DE PROGRESO ===
+        const montanaX = 105; // Centro
+        const montanaBase = y + 50;
+        const montanaAltura = 45;
+        const montanaAncho = 80;
         
-        doc.setFontSize(16);
+        // Montaña principal (triángulo)
+        doc.setFillColor(139, 169, 219); // Azul montaña
+        doc.triangle(
+            montanaX, montanaBase - montanaAltura,  // Cima
+            montanaX - montanaAncho/2, montanaBase, // Base izquierda
+            montanaX + montanaAncho/2, montanaBase  // Base derecha
+        );
+        
+        // Nieve en la cima
+        doc.setFillColor(255, 255, 255);
+        doc.triangle(
+            montanaX, montanaBase - montanaAltura,
+            montanaX - 12, montanaBase - montanaAltura + 12,
+            montanaX + 12, montanaBase - montanaAltura + 12
+        );
+        
+        // Calcular posición de la persona según porcentaje
+        const porcentajeAvance = metricas.porcentajeHojas;
+        const alturaPersona = (porcentajeAvance / 100) * montanaAltura;
+        const personaY = montanaBase - alturaPersona;
+        
+        // Calcular X en el borde de la montaña según la altura
+        const proporcion = alturaPersona / montanaAltura;
+        const anchoEnAltura = montanaAncho * (1 - proporcion);
+        const personaX = montanaX - anchoEnAltura/2 - 8;
+        
+        // Dibujar persona (figura simple)
+        doc.setFillColor(239, 68, 68); // Rojo
+        // Cabeza
+        doc.circle(personaX, personaY - 6, 3, 'F');
+        // Cuerpo
+        doc.setDrawColor(239, 68, 68);
+        doc.setLineWidth(1.5);
+        doc.line(personaX, personaY - 3, personaX, personaY + 5); // Torso
+        doc.line(personaX, personaY + 5, personaX - 3, personaY + 10); // Pierna izq
+        doc.line(personaX, personaY + 5, personaX + 3, personaY + 10); // Pierna der
+        doc.line(personaX, personaY, personaX - 4, personaY + 3); // Brazo izq
+        doc.line(personaX, personaY, personaX + 4, personaY - 2); // Brazo der (arriba)
+        
+        // Bandera en la cima
+        doc.setFillColor(16, 185, 129);
+        doc.setDrawColor(51, 51, 51);
+        doc.setLineWidth(0.5);
+        doc.line(montanaX, montanaBase - montanaAltura, montanaX, montanaBase - montanaAltura - 10);
+        doc.triangle(
+            montanaX, montanaBase - montanaAltura - 10,
+            montanaX, montanaBase - montanaAltura - 5,
+            montanaX + 8, montanaBase - montanaAltura - 7.5
+        );
+        
+        // Texto de progreso
+        doc.setTextColor(51, 51, 51);
+        doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        const scoreColor = metricas.scoreGlobal >= 80 ? [16, 185, 129] : 
-                          metricas.scoreGlobal >= 50 ? [245, 158, 11] : [239, 68, 68];
-        doc.setTextColor(...scoreColor);
-        doc.text(`SCORE GLOBAL: ${metricas.scoreGlobal}/100`, 105, y + 12, { align: 'center' });
+        doc.text(`${porcentajeAvance.toFixed(1)}% completado`, montanaX, montanaBase + 10, { align: 'center' });
         
-        doc.setFontSize(11);
+        // Etiquetas
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
         doc.setTextColor(100, 100, 100);
-        doc.text(metricas.mensajeScore, 105, y + 22, { align: 'center' });
-        y += 40;
+        doc.text('META', montanaX, montanaBase - montanaAltura - 12, { align: 'center' });
+        doc.text('INICIO', montanaX, montanaBase + 18, { align: 'center' });
+        
+        y = montanaBase + 25;
         
         // === RESUMEN GENERAL ===
         doc.setTextColor(51, 51, 51);
