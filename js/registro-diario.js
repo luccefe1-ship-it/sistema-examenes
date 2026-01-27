@@ -5,6 +5,7 @@ import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-
 let currentUser = null;
 let planningData = null;
 let progresoData = null;
+let userName = '';
 
 // Debug: hacer accesibles en consola
 window.debugData = { currentUser, planningData, progresoData };
@@ -16,7 +17,8 @@ onAuthStateChanged(auth, async (user) => {
         try {
             const userDoc = await getDoc(doc(db, "usuarios", user.uid));
             if (userDoc.exists()) {
-                document.getElementById('userName').textContent = userDoc.data().nombre;
+                userName = userDoc.data().nombre;
+                document.getElementById('userName').textContent = userName;
             }
             
             await cargarDatos();
@@ -34,6 +36,9 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
     await signOut(auth);
     window.location.href = 'index.html';
 });
+
+// Evento botón descargar informe
+document.getElementById('btnDescargarInforme').addEventListener('click', generarInformePDF);
 
 // Cargar datos
 async function cargarDatos() {
@@ -537,4 +542,354 @@ function calcularDatosGrafica(tipo) {
     }
     
     return { labels, objetivo, real };
+}
+
+// ==========================================
+// GENERADOR DE INFORME PDF
+// ==========================================
+function generarInformePDF() {
+    const btn = document.getElementById('btnDescargarInforme');
+    btn.disabled = true;
+    btn.textContent = '⏳ Generando...';
+    
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Calcular métricas
+        const metricas = calcularMetricasInforme();
+        
+        let y = 20;
+        
+        // === ENCABEZADO ===
+        doc.setFillColor(102, 126, 234);
+        doc.rect(0, 0, 210, 40, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.text('INFORME DE PROGRESO', 105, 18, { align: 'center' });
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Plataforma Examenes de Justicia`, 105, 28, { align: 'center' });
+        doc.text(`Generado: ${new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}`, 105, 35, { align: 'center' });
+        
+        y = 50;
+        
+        // === DATOS DEL ESTUDIANTE ===
+        doc.setTextColor(51, 51, 51);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('ESTUDIANTE', 20, y);
+        y += 8;
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Nombre: ${userName}`, 20, y);
+        y += 6;
+        doc.text(`Fecha inicio: ${metricas.fechaInicio}`, 20, y);
+        doc.text(`Fecha objetivo: ${metricas.fechaObjetivo}`, 110, y);
+        y += 6;
+        doc.text(`Dias transcurridos: ${metricas.diasTranscurridos} de ${metricas.diasTotales}`, 20, y);
+        doc.text(`Dias restantes: ${metricas.diasRestantes}`, 110, y);
+        y += 15;
+        
+        // === PUNTUACIÓN GLOBAL ===
+        doc.setFillColor(240, 240, 240);
+        doc.roundedRect(20, y, 170, 30, 3, 3, 'F');
+        
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        const scoreColor = metricas.scoreGlobal >= 80 ? [16, 185, 129] : 
+                          metricas.scoreGlobal >= 50 ? [245, 158, 11] : [239, 68, 68];
+        doc.setTextColor(...scoreColor);
+        doc.text(`SCORE GLOBAL: ${metricas.scoreGlobal}/100`, 105, y + 12, { align: 'center' });
+        
+        doc.setFontSize(11);
+        doc.setTextColor(100, 100, 100);
+        doc.text(metricas.mensajeScore, 105, y + 22, { align: 'center' });
+        y += 40;
+        
+        // === PROGRESO DE HOJAS ===
+        doc.setTextColor(51, 51, 51);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('PROGRESO DE HOJAS', 20, y);
+        y += 8;
+        
+        // Barra de progreso hojas
+        const porcentajeHojas = metricas.porcentajeHojas;
+        doc.setFillColor(229, 231, 235);
+        doc.roundedRect(20, y, 170, 8, 2, 2, 'F');
+        doc.setFillColor(59, 130, 246);
+        doc.roundedRect(20, y, Math.min(170, 170 * porcentajeHojas / 100), 8, 2, 2, 'F');
+        y += 12;
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Hojas leidas: ${metricas.hojasLeidas} de ${metricas.hojasTotales} (${porcentajeHojas.toFixed(1)}%)`, 20, y);
+        y += 6;
+        doc.text(`Ritmo actual: ${metricas.ritmoHojasActual.toFixed(1)} hojas/dia`, 20, y);
+        doc.text(`Ritmo necesario: ${metricas.ritmoHojasNecesario.toFixed(1)} hojas/dia`, 110, y);
+        y += 6;
+        
+        const diffRitmoHojas = metricas.ritmoHojasActual - metricas.ritmoHojasNecesario;
+        if (diffRitmoHojas >= 0) {
+            doc.setTextColor(16, 185, 129);
+            doc.text(`+${diffRitmoHojas.toFixed(1)} hojas/dia por encima del objetivo`, 20, y);
+        } else {
+            doc.setTextColor(239, 68, 68);
+            doc.text(`${diffRitmoHojas.toFixed(1)} hojas/dia por debajo del objetivo`, 20, y);
+        }
+        y += 15;
+        
+        // === PROGRESO DE TESTS ===
+        doc.setTextColor(51, 51, 51);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('PROGRESO DE TESTS', 20, y);
+        y += 8;
+        
+        // Barra de progreso tests
+        const porcentajeTests = metricas.porcentajeTests;
+        doc.setFillColor(229, 231, 235);
+        doc.roundedRect(20, y, 170, 8, 2, 2, 'F');
+        doc.setFillColor(16, 185, 129);
+        doc.roundedRect(20, y, Math.min(170, 170 * porcentajeTests / 100), 8, 2, 2, 'F');
+        y += 12;
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Tests realizados: ${metricas.testsRealizados} de ${metricas.testsTotales} (${porcentajeTests.toFixed(1)}%)`, 20, y);
+        y += 6;
+        doc.text(`Ritmo actual: ${metricas.ritmoTestsActual.toFixed(1)} tests/dia`, 20, y);
+        doc.text(`Ritmo necesario: ${metricas.ritmoTestsNecesario.toFixed(1)} tests/dia`, 110, y);
+        y += 15;
+        
+        // === ANÁLISIS DE CUMPLIMIENTO ===
+        doc.setTextColor(51, 51, 51);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('ANALISIS DE CUMPLIMIENTO', 20, y);
+        y += 8;
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Dias cumplidos: ${metricas.diasCumplidos}`, 20, y);
+        doc.text(`Dias avanzados: ${metricas.diasAvanzados}`, 80, y);
+        doc.text(`Dias incumplidos: ${metricas.diasIncumplidos}`, 140, y);
+        y += 6;
+        doc.text(`Tasa de cumplimiento: ${metricas.tasaCumplimiento.toFixed(1)}%`, 20, y);
+        doc.text(`Racha actual: ${metricas.rachaActual} dias consecutivos`, 110, y);
+        y += 15;
+        
+        // === PROYECCIÓN ===
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('PROYECCION', 20, y);
+        y += 8;
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`A este ritmo, completaras las hojas el: ${metricas.fechaProyectadaHojas}`, 20, y);
+        y += 6;
+        
+        if (metricas.diasDesfase > 0) {
+            doc.setTextColor(239, 68, 68);
+            doc.text(`Desfase: +${metricas.diasDesfase} dias respecto al objetivo`, 20, y);
+        } else if (metricas.diasDesfase < 0) {
+            doc.setTextColor(16, 185, 129);
+            doc.text(`Adelanto: ${Math.abs(metricas.diasDesfase)} dias respecto al objetivo`, 20, y);
+        } else {
+            doc.setTextColor(59, 130, 246);
+            doc.text(`Vas perfectamente segun lo planificado`, 20, y);
+        }
+        y += 15;
+        
+        // === RECOMENDACIONES ===
+        doc.setTextColor(51, 51, 51);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RECOMENDACIONES', 20, y);
+        y += 8;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        metricas.recomendaciones.forEach((rec, i) => {
+            if (y > 270) {
+                doc.addPage();
+                y = 20;
+            }
+            const lines = doc.splitTextToSize(`${i + 1}. ${rec}`, 170);
+            doc.text(lines, 20, y);
+            y += lines.length * 5 + 3;
+        });
+        
+        // === PIE DE PÁGINA ===
+        doc.setFontSize(9);
+        doc.setTextColor(150, 150, 150);
+        doc.text('Este informe ha sido generado automaticamente por la Plataforma Examenes de Justicia', 105, 290, { align: 'center' });
+        
+        // Descargar
+        const fechaArchivo = new Date().toISOString().split('T')[0];
+        doc.save(`Informe_Progreso_${fechaArchivo}.pdf`);
+        
+    } catch (error) {
+        console.error('Error generando PDF:', error);
+        alert('Error al generar el informe. Inténtalo de nuevo.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📄 Descargar Informe';
+    }
+}
+
+// Calcular todas las métricas para el informe
+function calcularMetricasInforme() {
+    const fechaInicio = planningData.fechaCreacion ? 
+        new Date(planningData.fechaCreacion.seconds * 1000) : new Date();
+    fechaInicio.setHours(0, 0, 0, 0);
+    
+    const fechaObjetivo = new Date(planningData.fechaObjetivo);
+    fechaObjetivo.setHours(0, 0, 0, 0);
+    
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    
+    const diasTotales = Math.ceil((fechaObjetivo - fechaInicio) / (1000 * 60 * 60 * 24));
+    const diasTranscurridos = Math.ceil((hoy - fechaInicio) / (1000 * 60 * 60 * 24)) + 1;
+    const diasRestantes = Math.max(0, Math.ceil((fechaObjetivo - hoy) / (1000 * 60 * 60 * 24)));
+    
+    // Totales
+    const hojasTotales = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
+    const testsTotales = planningData.testsRecomendados || 0;
+    
+    // Acumulados
+    let hojasLeidas = 0;
+    let testsRealizados = 0;
+    (progresoData.registros || []).forEach(reg => {
+        hojasLeidas += reg.hojasLeidas || 0;
+        testsRealizados += reg.testsRealizados || 0;
+    });
+    
+    // Porcentajes
+    const porcentajeHojas = hojasTotales > 0 ? (hojasLeidas / hojasTotales) * 100 : 0;
+    const porcentajeTests = testsTotales > 0 ? (testsRealizados / testsTotales) * 100 : 0;
+    
+    // Ritmos
+    const ritmoHojasActual = diasTranscurridos > 0 ? hojasLeidas / diasTranscurridos : 0;
+    const ritmoHojasNecesario = diasRestantes > 0 ? (hojasTotales - hojasLeidas) / diasRestantes : 0;
+    const ritmoTestsActual = diasTranscurridos > 0 ? testsRealizados / diasTranscurridos : 0;
+    const ritmoTestsNecesario = diasRestantes > 0 ? (testsTotales - testsRealizados) / diasRestantes : 0;
+    
+    // Análisis de días
+    let diasCumplidos = 0;
+    let diasAvanzados = 0;
+    let diasIncumplidos = 0;
+    let rachaActual = 0;
+    let enRacha = true;
+    
+    const dias = [];
+    for (let d = new Date(fechaInicio); d <= hoy; d.setDate(d.getDate() + 1)) {
+        dias.push(new Date(d));
+    }
+    
+    dias.reverse().forEach(fecha => {
+        const diaData = calcularDatosDia(fecha);
+        if (diaData.estado === 'cumplido' || diaData.estado === 'mejorado') {
+            diasCumplidos++;
+            if (enRacha) rachaActual++;
+        } else if (diaData.estado === 'avanzado') {
+            diasAvanzados++;
+            enRacha = false;
+        } else {
+            diasIncumplidos++;
+            enRacha = false;
+        }
+    });
+    
+    const tasaCumplimiento = diasTranscurridos > 0 ? (diasCumplidos / diasTranscurridos) * 100 : 0;
+    
+    // Proyección
+    const hojasRestantes = hojasTotales - hojasLeidas;
+    let diasParaTerminar = ritmoHojasActual > 0 ? Math.ceil(hojasRestantes / ritmoHojasActual) : 999;
+    const fechaProyectada = new Date(hoy);
+    fechaProyectada.setDate(fechaProyectada.getDate() + diasParaTerminar);
+    const diasDesfase = Math.ceil((fechaProyectada - fechaObjetivo) / (1000 * 60 * 60 * 24));
+    
+    // Score global (ponderado)
+    const scoreHojas = Math.min(100, porcentajeHojas);
+    const scoreTests = Math.min(100, porcentajeTests);
+    const scoreCumplimiento = tasaCumplimiento;
+    const scoreRitmo = ritmoHojasNecesario > 0 ? Math.min(100, (ritmoHojasActual / ritmoHojasNecesario) * 100) : 100;
+    
+    const scoreGlobal = Math.round((scoreHojas * 0.35 + scoreTests * 0.25 + scoreCumplimiento * 0.25 + scoreRitmo * 0.15));
+    
+    // Mensaje según score
+    let mensajeScore = '';
+    if (scoreGlobal >= 90) mensajeScore = 'Excelente! Vas por muy buen camino';
+    else if (scoreGlobal >= 75) mensajeScore = 'Muy bien! Mantén el ritmo';
+    else if (scoreGlobal >= 60) mensajeScore = 'Bien, pero puedes mejorar';
+    else if (scoreGlobal >= 40) mensajeScore = 'Necesitas intensificar el estudio';
+    else mensajeScore = 'Situación crítica. Requiere acción inmediata';
+    
+    // Recomendaciones
+    const recomendaciones = [];
+    
+    if (ritmoHojasActual < ritmoHojasNecesario) {
+        const deficit = ritmoHojasNecesario - ritmoHojasActual;
+        recomendaciones.push(`Aumenta tu ritmo de lectura en ${deficit.toFixed(1)} hojas diarias para alcanzar el objetivo.`);
+    }
+    
+    if (diasIncumplidos > diasCumplidos) {
+        recomendaciones.push(`Has incumplido más días de los que has cumplido. Intenta ser más constante.`);
+    }
+    
+    if (rachaActual === 0 && diasTranscurridos > 3) {
+        recomendaciones.push(`No tienes racha activa. Intenta cumplir los objetivos hoy para empezar una nueva.`);
+    } else if (rachaActual >= 3) {
+        recomendaciones.push(`Llevas ${rachaActual} días cumpliendo. ¡Sigue así!`);
+    }
+    
+    if (diasDesfase > 7) {
+        recomendaciones.push(`Vas ${diasDesfase} días por detrás. Considera dedicar más tiempo o revisar tus objetivos.`);
+    } else if (diasDesfase < -7) {
+        recomendaciones.push(`Vas ${Math.abs(diasDesfase)} días adelantado. ¡Excelente trabajo!`);
+    }
+    
+    if (porcentajeTests < porcentajeHojas - 20) {
+        recomendaciones.push(`Tus tests van por detrás de tus hojas. Equilibra ambas actividades.`);
+    }
+    
+    if (recomendaciones.length === 0) {
+        recomendaciones.push(`Mantén tu ritmo actual. Estás progresando adecuadamente.`);
+    }
+    
+    return {
+        fechaInicio: fechaInicio.toLocaleDateString('es-ES'),
+        fechaObjetivo: fechaObjetivo.toLocaleDateString('es-ES'),
+        diasTotales,
+        diasTranscurridos,
+        diasRestantes,
+        hojasTotales,
+        hojasLeidas,
+        testsTotales,
+        testsRealizados,
+        porcentajeHojas,
+        porcentajeTests,
+        ritmoHojasActual,
+        ritmoHojasNecesario,
+        ritmoTestsActual,
+        ritmoTestsNecesario,
+        diasCumplidos,
+        diasAvanzados,
+        diasIncumplidos,
+        tasaCumplimiento,
+        rachaActual,
+        fechaProyectadaHojas: fechaProyectada.toLocaleDateString('es-ES'),
+        diasDesfase,
+        scoreGlobal,
+        mensajeScore,
+        recomendaciones
+    };
 }
