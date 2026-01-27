@@ -773,24 +773,30 @@ function generarInformePDF() {
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
         
-        // Iconos de estado con colores
+        // Días cumplidos
         doc.setFillColor(16, 185, 129);
-        doc.circle(25, y + 2, 3, 'F');
+        doc.circle(25, y, 3, 'F');
         doc.setTextColor(51, 51, 51);
-        doc.text(`Dias cumplidos: ${metricas.diasCumplidos}`, 32, y + 4);
+        doc.text(`Dias cumplidos: ${metricas.diasCumplidos}`, 32, y + 1);
+        y += 8;
         
+        // Días avanzados
         doc.setFillColor(59, 130, 246);
-        doc.circle(85, y + 2, 3, 'F');
-        doc.text(`Dias avanzados: ${metricas.diasAvanzados}`, 92, y + 4);
+        doc.circle(25, y, 3, 'F');
+        doc.text(`Dias avanzados: ${metricas.diasAvanzados}`, 32, y + 1);
+        y += 8;
         
+        // Días sin actividad
         doc.setFillColor(239, 68, 68);
-        doc.circle(145, y + 2, 3, 'F');
-        doc.text(`Dias sin actividad: ${metricas.diasIncumplidos}`, 152, y + 4);
-        
+        doc.circle(25, y, 3, 'F');
+        doc.text(`Dias sin actividad: ${metricas.diasIncumplidos}`, 32, y + 1);
         y += 10;
+        
+        // Tasa y racha
         doc.text(`Tasa de cumplimiento: ${metricas.tasaCumplimiento.toFixed(1)}%`, 20, y);
-        doc.text(`Racha actual: ${metricas.rachaActual} dias consecutivos`, 110, y);
-        y += 15;
+        y += 6;
+        doc.text(`Racha actual: ${metricas.rachaActual} dias consecutivos`, 20, y);
+        y += 12;
         
         // === PROYECCIÓN ===
         doc.setFontSize(14);
