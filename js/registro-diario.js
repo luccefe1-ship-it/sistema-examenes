@@ -719,19 +719,29 @@ function generarInformePDF() {
         doc.text('PROGRESO POR TEMAS', 20, y);
         y += 10;
         
-        doc.setFontSize(9);
+        doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
         
+        const columnaIzq = 20;
+        const columnaDer = 110;
+        const anchoColumna = 85;
+        let yInicial = y;
+        let columnaActual = 0;
+        
         metricas.progresoTemas.forEach((tema, index) => {
-            if (y > 265) {
+            // Alternar columnas
+            const xPos = columnaActual === 0 ? columnaIzq : columnaDer;
+            
+            if (columnaActual === 0 && y > 265) {
                 doc.addPage();
                 y = 20;
+                yInicial = y;
             }
             
-            // Nombre del tema
+            // Nombre del tema truncado
             let nombreTema = tema.nombre;
-            if (nombreTema.length > 40) {
-                nombreTema = nombreTema.substring(0, 37) + '...';
+            if (nombreTema.length > 20) {
+                nombreTema = nombreTema.substring(0, 17) + '...';
             }
             
             // Color según progreso
@@ -745,9 +755,25 @@ function generarInformePDF() {
                 doc.setTextColor(150, 150, 150);
             }
             
-            doc.text(`${nombreTema}: ${tema.hojasLeidas}/${tema.hojasTotales} hojas (${tema.porcentaje.toFixed(0)}%)`, 22, y);
-            y += 6;
+            // Línea 1: Nombre y hojas
+            doc.text(`${nombreTema}`, xPos, y);
+            doc.setTextColor(80, 80, 80);
+            doc.text(`${tema.hojasLeidas}/${tema.hojasTotales} hojas (${tema.porcentaje.toFixed(0)}%)`, xPos, y + 4);
+            doc.text(`${tema.testsRealizados || 0} tests`, xPos, y + 8);
+            
+            // Cambiar columna o bajar fila
+            if (columnaActual === 0) {
+                columnaActual = 1;
+            } else {
+                columnaActual = 0;
+                y += 14;
+            }
         });
+        
+        // Si terminó en columna izquierda, ajustar y
+        if (columnaActual === 1) {
+            y += 14;
+        }
         
         y += 8;
         
@@ -951,15 +977,28 @@ function calcularMetricasInforme() {
     
     ritmoHojasActual = diasParaRitmo > 0 ? hojasParaRitmo / diasParaRitmo : 0;
     
+    // Contar tests por tema
+    const testsPorTema = {};
+    (progresoData.registros || []).forEach(reg => {
+        if (reg.temaId && reg.testsRealizados) {
+            if (!testsPorTema[reg.temaId]) {
+                testsPorTema[reg.temaId] = 0;
+            }
+            testsPorTema[reg.temaId] += reg.testsRealizados;
+        }
+    });
+    
     // Progreso por temas
     const progresoTemas = planningData.temas.map(tema => {
         const leidas = hojasPorTema[tema.id] || 0;
+        const tests = testsPorTema[tema.id] || 0;
         const porcentaje = tema.hojas > 0 ? (leidas / tema.hojas) * 100 : 0;
         return {
             id: tema.id,
             nombre: tema.nombre,
             hojasTotales: tema.hojas,
             hojasLeidas: leidas,
+            testsRealizados: tests,
             porcentaje: Math.min(100, porcentaje)
         };
     });
