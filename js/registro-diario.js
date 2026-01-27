@@ -658,7 +658,7 @@ function generarInformePDF() {
             doc.text(`Tu ritmo de hojas: +${diffRitmoHojas.toFixed(1)} hojas/dia por encima del necesario`, 20, y);
         } else {
             doc.setTextColor(239, 68, 68);
-            doc.text(`Tu ritmo de hojas: ${diffRitmoHojas.toFixed(1)} hojas/dia por debajo del necesario`, 20, y);
+            doc.text(`Tu ritmo de hojas: ${Math.abs(diffRitmoHojas).toFixed(1)} hojas/dia por debajo del necesario`, 20, y);
         }
         y += 15;
         
