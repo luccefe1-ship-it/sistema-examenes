@@ -667,49 +667,36 @@ function generarInformePDF() {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text('PROGRESO POR TEMAS', 20, y);
-        y += 8;
+        y += 10;
         
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
         
         metricas.progresoTemas.forEach((tema, index) => {
-            if (y > 250) {
+            if (y > 265) {
                 doc.addPage();
                 y = 20;
             }
             
-            // Fondo alternado
-            if (index % 2 === 0) {
-                doc.setFillColor(250, 250, 250);
-                doc.rect(20, y - 3, 170, 12, 'F');
-            }
-            
-            // Nombre del tema (truncado si es muy largo)
+            // Nombre del tema
             let nombreTema = tema.nombre;
-            if (nombreTema.length > 35) {
-                nombreTema = nombreTema.substring(0, 32) + '...';
+            if (nombreTema.length > 40) {
+                nombreTema = nombreTema.substring(0, 37) + '...';
             }
             
-            doc.setTextColor(51, 51, 51);
-            doc.text(nombreTema, 22, y + 3);
+            // Color según progreso
+            if (tema.porcentaje >= 100) {
+                doc.setTextColor(16, 185, 129);
+            } else if (tema.porcentaje >= 50) {
+                doc.setTextColor(59, 130, 246);
+            } else if (tema.porcentaje > 0) {
+                doc.setTextColor(245, 158, 11);
+            } else {
+                doc.setTextColor(150, 150, 150);
+            }
             
-            // Barra de progreso mini
-            const barraX = 95;
-            const barraW = 50;
-            doc.setFillColor(229, 231, 235);
-            doc.roundedRect(barraX, y - 1, barraW, 6, 1, 1, 'F');
-            
-            const progColor = tema.porcentaje >= 100 ? [16, 185, 129] : 
-                             tema.porcentaje >= 50 ? [59, 130, 246] : [245, 158, 11];
-            doc.setFillColor(...progColor);
-            doc.roundedRect(barraX, y - 1, Math.min(barraW, barraW * tema.porcentaje / 100), 6, 1, 1, 'F');
-            
-            // Datos
-            doc.setTextColor(100, 100, 100);
-            doc.text(`${tema.hojasLeidas}/${tema.hojasTotales}`, 150, y + 3);
-            doc.text(`${tema.porcentaje.toFixed(0)}%`, 175, y + 3);
-            
-            y += 12;
+            doc.text(`${nombreTema}: ${tema.hojasLeidas}/${tema.hojasTotales} hojas (${tema.porcentaje.toFixed(0)}%)`, 22, y);
+            y += 6;
         });
         
         y += 8;
@@ -844,6 +831,7 @@ function generarInformePDF() {
 
 // Calcular todas las métricas para el informe
 // Calcular todas las métricas para el informe
+// Calcular todas las métricas para el informe
 function calcularMetricasInforme() {
     const fechaInicio = planningData.fechaCreacion ? 
         new Date(planningData.fechaCreacion.seconds * 1000) : new Date();
@@ -863,10 +851,11 @@ function calcularMetricasInforme() {
     const hojasTotales = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
     const testsTotales = planningData.testsRecomendados || 0;
     
-    // Acumulados
+    // Acumulados y por tema
     let hojasLeidas = 0;
     let testsRealizados = 0;
     const hojasPorTema = {};
+    const hojasPorDia = {};
     
     (progresoData.registros || []).forEach(reg => {
         hojasLeidas += reg.hojasLeidas || 0;
@@ -879,7 +868,38 @@ function calcularMetricasInforme() {
             }
             hojasPorTema[reg.temaId] += reg.hojasLeidas || 0;
         }
+        
+        // Acumular por día
+        if (reg.fecha) {
+            const regFecha = new Date(reg.fecha.seconds * 1000);
+            regFecha.setHours(0, 0, 0, 0);
+            const fechaKey = regFecha.getTime();
+            if (!hojasPorDia[fechaKey]) {
+                hojasPorDia[fechaKey] = 0;
+            }
+            hojasPorDia[fechaKey] += reg.hojasLeidas || 0;
+        }
     });
+    
+    // Calcular ritmo REAL (excluyendo el primer día si fue carga masiva)
+    const diasConRegistro = Object.keys(hojasPorDia).sort((a, b) => a - b);
+    let ritmoHojasActual = 0;
+    let diasParaRitmo = diasTranscurridos;
+    let hojasParaRitmo = hojasLeidas;
+    
+    if (diasConRegistro.length > 1) {
+        const primerDia = parseInt(diasConRegistro[0]);
+        const hojasPrimerDia = hojasPorDia[primerDia];
+        const promedioDiasPosteriores = (hojasLeidas - hojasPrimerDia) / (diasTranscurridos - 1);
+        
+        // Si el primer día tiene más de 3x el promedio de los demás, es carga inicial
+        if (hojasPrimerDia > promedioDiasPosteriores * 3 && promedioDiasPosteriores > 0) {
+            hojasParaRitmo = hojasLeidas - hojasPrimerDia;
+            diasParaRitmo = diasTranscurridos - 1;
+        }
+    }
+    
+    ritmoHojasActual = diasParaRitmo > 0 ? hojasParaRitmo / diasParaRitmo : 0;
     
     // Progreso por temas
     const progresoTemas = planningData.temas.map(tema => {
@@ -894,15 +914,11 @@ function calcularMetricasInforme() {
         };
     });
     
-    // Ordenar por porcentaje descendente
-    progresoTemas.sort((a, b) => b.porcentaje - a.porcentaje);
-    
     // Porcentajes
     const porcentajeHojas = hojasTotales > 0 ? (hojasLeidas / hojasTotales) * 100 : 0;
     const porcentajeTests = testsTotales > 0 ? (testsRealizados / testsTotales) * 100 : 0;
     
-    // Ritmos
-    const ritmoHojasActual = diasTranscurridos > 0 ? hojasLeidas / diasTranscurridos : 0;
+    // Ritmo necesario
     const ritmoHojasNecesario = diasRestantes > 0 ? (hojasTotales - hojasLeidas) / diasRestantes : 0;
     const ritmoTestsActual = diasTranscurridos > 0 ? testsRealizados / diasTranscurridos : 0;
     const ritmoTestsNecesario = diasRestantes > 0 ? (testsTotales - testsRealizados) / diasRestantes : 0;
@@ -942,74 +958,85 @@ function calcularMetricasInforme() {
     fechaProyectada.setDate(fechaProyectada.getDate() + diasParaTerminar);
     const diasDesfase = Math.ceil((fechaProyectada - fechaObjetivo) / (1000 * 60 * 60 * 24));
     
-    // Score global (ponderado)
-    const scoreHojas = Math.min(100, porcentajeHojas);
-    const scoreTests = Math.min(100, porcentajeTests);
-    const scoreCumplimiento = tasaCumplimiento;
-    const scoreRitmo = ritmoHojasNecesario > 0 ? Math.min(100, (ritmoHojasActual / ritmoHojasNecesario) * 100) : 100;
+    // Porcentaje del tiempo transcurrido
+    const porcentajeTiempo = diasTotales > 0 ? (diasTranscurridos / diasTotales) * 100 : 0;
     
-    const scoreGlobal = Math.round((scoreHojas * 0.35 + scoreTests * 0.25 + scoreCumplimiento * 0.25 + scoreRitmo * 0.15));
+    // Score global CORREGIDO - basado en si vas adelantado o atrasado
+    let scoreGlobal = 50; // Base
+    
+    // Ajustar por proyección (más importante)
+    if (diasDesfase < -30) scoreGlobal += 40;
+    else if (diasDesfase < -14) scoreGlobal += 30;
+    else if (diasDesfase < -7) scoreGlobal += 20;
+    else if (diasDesfase < 0) scoreGlobal += 10;
+    else if (diasDesfase > 30) scoreGlobal -= 30;
+    else if (diasDesfase > 14) scoreGlobal -= 20;
+    else if (diasDesfase > 7) scoreGlobal -= 10;
+    
+    // Ajustar por consistencia
+    if (tasaCumplimiento >= 80) scoreGlobal += 10;
+    else if (tasaCumplimiento >= 50) scoreGlobal += 5;
+    else if (tasaCumplimiento < 30) scoreGlobal -= 10;
+    
+    // Ajustar por progreso vs tiempo
+    if (porcentajeHojas >= porcentajeTiempo) scoreGlobal += 5;
+    else if (porcentajeHojas < porcentajeTiempo - 10) scoreGlobal -= 5;
+    
+    scoreGlobal = Math.max(0, Math.min(100, scoreGlobal));
     
     // Mensaje según score
     let mensajeScore = '';
-    if (scoreGlobal >= 90) mensajeScore = 'Excelente! Vas por muy buen camino';
-    else if (scoreGlobal >= 75) mensajeScore = 'Muy bien! Mantén el ritmo';
-    else if (scoreGlobal >= 60) mensajeScore = 'Bien, pero puedes mejorar';
-    else if (scoreGlobal >= 40) mensajeScore = 'Necesitas intensificar el estudio';
-    else mensajeScore = 'Situación crítica. Requiere acción inmediata';
+    if (scoreGlobal >= 85) mensajeScore = 'Excelente! Vas muy por delante del objetivo';
+    else if (scoreGlobal >= 70) mensajeScore = 'Muy bien! Llevas buen ritmo';
+    else if (scoreGlobal >= 55) mensajeScore = 'Bien, vas segun lo previsto';
+    else if (scoreGlobal >= 40) mensajeScore = 'Necesitas mejorar el ritmo';
+    else mensajeScore = 'Atencion: vas por detras del objetivo';
     
     // Recomendaciones
     const recomendaciones = [];
     
     if (ritmoHojasActual < ritmoHojasNecesario) {
         const deficit = ritmoHojasNecesario - ritmoHojasActual;
-        recomendaciones.push(`Aumenta tu ritmo de lectura en ${deficit.toFixed(1)} hojas diarias para alcanzar el objetivo.`);
-    }
-    
-    if (diasIncumplidos > diasCumplidos) {
-        recomendaciones.push(`Has tenido mas dias sin actividad que dias cumplidos. Intenta ser mas constante.`);
+        recomendaciones.push(`Aumenta tu ritmo en ${deficit.toFixed(1)} hojas/dia para alcanzar el objetivo.`);
+    } else if (ritmoHojasActual > ritmoHojasNecesario * 1.5) {
+        recomendaciones.push(`Tu ritmo actual es muy bueno. Puedes mantenerlo o incluso relajarlo un poco.`);
     }
     
     if (rachaActual === 0 && diasTranscurridos > 3) {
-        recomendaciones.push(`No tienes racha activa. Intenta cumplir los objetivos hoy para empezar una nueva.`);
-    } else if (rachaActual >= 3) {
-        recomendaciones.push(`Llevas ${rachaActual} dias cumpliendo objetivos. Sigue asi!`);
+        recomendaciones.push(`No tienes racha activa. Cumple el objetivo de hoy para empezar una nueva.`);
+    } else if (rachaActual >= 5) {
+        recomendaciones.push(`Llevas ${rachaActual} dias de racha. Excelente constancia!`);
     }
     
-    if (diasDesfase > 7) {
-        recomendaciones.push(`Vas ${diasDesfase} dias por detras. Considera dedicar mas tiempo o revisar tus objetivos.`);
-    } else if (diasDesfase < -7) {
+    if (diasDesfase < -14) {
         recomendaciones.push(`Vas ${Math.abs(diasDesfase)} dias adelantado. Excelente trabajo!`);
+    } else if (diasDesfase > 7) {
+        recomendaciones.push(`Vas ${diasDesfase} dias por detras. Intensifica el estudio.`);
     }
     
-    if (porcentajeTests < porcentajeHojas - 20) {
-        recomendaciones.push(`Tus tests van por detras de tus hojas. Equilibra ambas actividades.`);
-    }
-    
-    // Temas con menor avance
-    const temasRetrasados = progresoTemas.filter(t => t.porcentaje < 10 && t.hojasTotales > 0);
-    if (temasRetrasados.length > 0 && temasRetrasados.length <= 3) {
-        const nombres = temasRetrasados.map(t => t.nombre.substring(0, 20)).join(', ');
-        recomendaciones.push(`Temas sin empezar o con poco avance: ${nombres}.`);
+    // Temas sin empezar
+    const temasNoEmpezados = progresoTemas.filter(t => t.hojasLeidas === 0 && t.hojasTotales > 0);
+    if (temasNoEmpezados.length > 0 && temasNoEmpezados.length <= 5) {
+        recomendaciones.push(`Tienes ${temasNoEmpezados.length} tema(s) sin empezar.`);
     }
     
     if (recomendaciones.length === 0) {
-        recomendaciones.push(`Manten tu ritmo actual. Estas progresando adecuadamente.`);
+        recomendaciones.push(`Manten tu ritmo actual. Vas bien encaminado.`);
     }
     
     // Conclusión final
     let conclusion = '';
     if (diasDesfase < 0) {
-        conclusion = `En ${diasTranscurridos} dias has leido ${hojasLeidas} hojas y realizado ${testsRealizados} tests. `;
-        conclusion += `Tu ritmo de ${ritmoHojasActual.toFixed(1)} hojas/dia supera el necesario (${ritmoHojasNecesario.toFixed(1)}). `;
-        conclusion += `Si mantienes este ritmo, terminaras ${Math.abs(diasDesfase)} dias antes del ${fechaObjetivo.toLocaleDateString('es-ES')}. Excelente trabajo!`;
-    } else if (diasDesfase === 0) {
-        conclusion = `Vas perfectamente segun lo planificado. Has completado ${porcentajeHojas.toFixed(1)}% del temario `;
-        conclusion += `en ${diasTranscurridos} dias. Manten este ritmo para cumplir tu objetivo el ${fechaObjetivo.toLocaleDateString('es-ES')}.`;
+        conclusion = `Llevas ${hojasLeidas} hojas leidas y ${testsRealizados} tests en ${diasTranscurridos} dias. `;
+        conclusion += `Tu ritmo real de ${ritmoHojasActual.toFixed(1)} hojas/dia supera el necesario (${ritmoHojasNecesario.toFixed(1)}). `;
+        conclusion += `A este ritmo, terminaras ${Math.abs(diasDesfase)} dias antes del objetivo. Excelente!`;
+    } else if (diasDesfase <= 7) {
+        conclusion = `Vas segun lo planificado con ${hojasLeidas} hojas (${porcentajeHojas.toFixed(1)}%). `;
+        conclusion += `Manten tu ritmo de ${ritmoHojasActual.toFixed(1)} hojas/dia para cumplir el objetivo.`;
     } else {
-        conclusion = `Has avanzado ${hojasLeidas} hojas en ${diasTranscurridos} dias (${porcentajeHojas.toFixed(1)}% del total). `;
-        conclusion += `Tu ritmo actual de ${ritmoHojasActual.toFixed(1)} hojas/dia esta por debajo del necesario (${ritmoHojasNecesario.toFixed(1)}). `;
-        conclusion += `Necesitas aumentar la intensidad para cumplir el objetivo del ${fechaObjetivo.toLocaleDateString('es-ES')}.`;
+        conclusion = `Llevas ${hojasLeidas} hojas en ${diasTranscurridos} dias. `;
+        conclusion += `Tu ritmo de ${ritmoHojasActual.toFixed(1)} hojas/dia esta por debajo del necesario (${ritmoHojasNecesario.toFixed(1)}). `;
+        conclusion += `Necesitas aumentar la intensidad para cumplir el ${fechaObjetivo.toLocaleDateString('es-ES')}.`;
     }
     
     return {
