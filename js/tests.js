@@ -1572,8 +1572,8 @@ window.vaciarTema = async function(temaId) {
             cacheTimestamp = null;
             cacheTemas = [];
             
-            await cargarBancoPreguntas();
             alert(alertMsg);
+            cargarBancoPreguntas();
         }
         
     } catch (error) {
