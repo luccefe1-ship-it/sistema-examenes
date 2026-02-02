@@ -1564,8 +1564,14 @@ window.vaciarTema = async function(temaId) {
             if (numPreguntas > 0) alertMsg += `- ${numPreguntas} preguntas eliminadas\n`;
             if (numSubtemas > 0) alertMsg += `- ${numSubtemas} subtema(s) eliminado(s)`;
             
+            // Invalidar caché
+            sessionStorage.removeItem('cacheTemas');
+            sessionStorage.removeItem('cacheTemasTimestamp');
+            cacheTimestamp = null;
+            cacheTemas = [];
+            
+            await cargarBancoPreguntas();
             alert(alertMsg);
-            cargarBancoPreguntas();
         }
         
     } catch (error) {
