@@ -651,9 +651,10 @@ async function asignarPreguntasATema() {
         alert(`${preguntasProcesadas.length} preguntas asignadas al tema "${temaSeleccionado.nombre}"`);
 
 // Invalidar caché
-cacheTemas = null;
 sessionStorage.removeItem('cacheTemas');
 sessionStorage.removeItem('cacheTemasTimestamp');
+cacheTimestamp = null;
+cacheTemas = null;
 
 // Limpiar formulario
 textoPreguntas.value = '';
@@ -1472,9 +1473,10 @@ window.eliminarTodosTemas = async function() {
             await Promise.all(promises);
 
 // Invalidar caché
-cacheTemas = null;
 sessionStorage.removeItem('cacheTemas');
 sessionStorage.removeItem('cacheTemasTimestamp');
+cacheTimestamp = null;
+cacheTemas = null;
 
 alert('Todos los temas han sido eliminados');
 cargarBancoPreguntas();
@@ -1598,9 +1600,10 @@ window.eliminarTema = async function(temaId) {
             await deleteDoc(doc(db, "temas", temaId));
             
             // Invalidar caché
-cacheTemas = null;
 sessionStorage.removeItem('cacheTemas');
 sessionStorage.removeItem('cacheTemasTimestamp');
+cacheTimestamp = null;
+cacheTemas = null;
 
 alert('Tema y subtemas eliminados exitosamente');
 cargarBancoPreguntas();
@@ -2152,9 +2155,10 @@ window.eliminarSeleccionadas = async function() {
         }
         
         // Invalidar caché para forzar recarga desde Firebase
-        cacheTemas = null;
         sessionStorage.removeItem('cacheTemas');
         sessionStorage.removeItem('cacheTemasTimestamp');
+        cacheTimestamp = null;
+        cacheTemas = null;
         
         alert(`Se eliminaron ${totalEliminadas} pregunta(s) seleccionada(s).`);
         cerrarModalDuplicadas();
@@ -3337,9 +3341,10 @@ async function guardarResultado(resultados) {
         await addDoc(collection(db, "resultados"), datosLimpios);
         
         // Invalidar caché de resultados
+        sessionStorage.removeItem('cacheResultados');
+        sessionStorage.removeItem('cacheResultadosTimestamp');
+        cacheResultadosTimestamp = null;
         cacheResultados = null;
-sessionStorage.removeItem('cacheResultados');
-sessionStorage.removeItem('cacheResultadosTimestamp');
 
         // Guardar preguntas falladas para el test de repaso (SOLO si NO es un test de repaso)
         if (!testActual.esRepaso) {
