@@ -393,7 +393,11 @@ sessionStorage.setItem('cacheSucio', 'true');
 
 // Agregar tema al DOM sin recargar todo
 if (document.getElementById('banco-section').classList.contains('active')) {
-    agregarTemaAlDOM(docRef.id, temaData);
+    if (esSubtema && temaPadreId) {
+        agregarSubtemaAlDOM(docRef.id, temaData, temaPadreId);
+    } else {
+        agregarTemaAlDOM(docRef.id, temaData);
+    }
 }
 
     } catch (error) {
@@ -986,6 +990,64 @@ function agregarTemaAlDOM(temaId, temaData) {
         listaTemas.appendChild(temaDiv);
     }
 }
+// Agregar subtema al DOM sin recargar todo
+function agregarSubtemaAlDOM(subtemaId, subtemaData, temaPadreId) {
+    let wrapper = document.getElementById(`subtemas-wrapper-${temaPadreId}`);
+    
+    // Si no existe el wrapper, crearlo
+    if (!wrapper) {
+        const temaCard = document.querySelector(`[data-tema-id="${temaPadreId}"]`);
+        if (!temaCard) return;
+        
+        // Crear wrapper y botón toggle
+        wrapper = document.createElement('div');
+        wrapper.className = 'subtemas-wrapper';
+        wrapper.id = `subtemas-wrapper-${temaPadreId}`;
+        wrapper.style.display = 'block';
+        
+        // Añadir botón de toggle si no existe
+        const nombreDiv = temaCard.querySelector('.tema-nombre');
+        if (nombreDiv && !nombreDiv.querySelector('.btn-toggle-subtemas')) {
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = 'btn-toggle-subtemas';
+            toggleBtn.setAttribute('onclick', `toggleSubtemasVisibilidad('${temaPadreId}')`);
+            toggleBtn.title = 'Mostrar/Ocultar subtemas';
+            toggleBtn.innerHTML = `<span id="toggle-icon-${temaPadreId}">📂</span>`;
+            nombreDiv.appendChild(toggleBtn);
+        }
+        
+        // Insertar wrapper después del header
+        const temaHeader = temaCard.querySelector('.tema-header');
+        if (temaHeader) {
+            temaHeader.insertAdjacentElement('afterend', wrapper);
+        } else {
+            temaCard.appendChild(wrapper);
+        }
+    } else {
+        // Mostrar wrapper si estaba oculto
+        wrapper.style.display = 'block';
+        const icon = document.getElementById(`toggle-icon-${temaPadreId}`);
+        if (icon) icon.textContent = '📂';
+    }
+    
+    // Crear HTML del subtema
+    const subtemaHTML = crearSubtemaHTML(subtemaId, subtemaData);
+    wrapper.insertAdjacentHTML('beforeend', subtemaHTML);
+    
+    // Actualizar contador del tema padre
+    const temaCard = document.querySelector(`[data-tema-id="${temaPadreId}"]`);
+    if (temaCard) {
+        const statsDiv = temaCard.querySelector('.tema-stats');
+        if (statsDiv) {
+            const match = statsDiv.textContent.match(/(\d+) preguntas/);
+            if (match) {
+                const preguntasActuales = parseInt(match[1]);
+                statsDiv.textContent = statsDiv.textContent.replace(/\d+ preguntas/, `${preguntasActuales} preguntas`);
+            }
+        }
+    }
+}
+
 // Manejar toggle de tema (abrir/cerrar)
 window.manejarToggleTema = function(event, temaId) {
     if (event.target.open) {
