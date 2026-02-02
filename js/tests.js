@@ -388,16 +388,15 @@ async function crearTema() {
 
         alert('Tema creado exitosamente');
 
-// Marcar caché como sucio
-sessionStorage.setItem('cacheSucio', 'true');
+// Invalidar caché
+sessionStorage.removeItem('cacheTemas');
+sessionStorage.removeItem('cacheTemasTimestamp');
+cacheTimestamp = null;
+cacheTemas = null;
 
-// Agregar tema al DOM sin recargar todo
+// Recargar banco si está activo
 if (document.getElementById('banco-section').classList.contains('active')) {
-    if (esSubtema && temaPadreId) {
-        agregarSubtemaAlDOM(docRef.id, temaData, temaPadreId);
-    } else {
-        agregarTemaAlDOM(docRef.id, temaData);
-    }
+    cargarBancoPreguntas();
 }
 
     } catch (error) {
@@ -996,8 +995,17 @@ function agregarSubtemaAlDOM(subtemaId, subtemaData, temaPadreId) {
     
     // Si no existe el wrapper, crearlo
     if (!wrapper) {
-        const temaCard = document.querySelector(`[data-tema-id="${temaPadreId}"]`);
-        if (!temaCard) return;
+        // Buscar como tema principal O como subtema
+        let temaCard = document.querySelector(`[data-tema-id="${temaPadreId}"]`);
+        if (!temaCard) {
+            temaCard = document.querySelector(`[data-subtema-id="${temaPadreId}"]`);
+        }
+        if (!temaCard) {
+            // Forzar recarga si no se encuentra el contenedor
+            sessionStorage.setItem('cacheSucio', 'true');
+            cargarBancoPreguntas();
+            return;
+        }
         
         // Crear wrapper y botón toggle
         wrapper = document.createElement('div');
