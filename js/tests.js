@@ -1517,7 +1517,7 @@ window.editarTema = async function(temaId) {
         alert('Error al editar el tema');
     }
 };
-// Vaciar tema (eliminar solo las preguntas)
+// Vaciar tema (eliminar preguntas directas y subtemas)
 window.vaciarTema = async function(temaId) {
     try {
         const temaDoc = await getDoc(doc(db, "temas", temaId));
@@ -1527,20 +1527,44 @@ window.vaciarTema = async function(temaId) {
         }
         
         const temaData = temaDoc.data();
-        const numPreguntas = temaData.preguntasTotal || temaData.preguntas?.length || 0;
+        const numPreguntas = temaData.preguntas?.length || 0;
         
-        if (numPreguntas === 0) {
+        // Buscar subtemas de este tema
+        const q = query(
+            collection(db, "temas"), 
+            where("usuarioId", "==", currentUser.uid),
+            where("temaPadreId", "==", temaId)
+        );
+        const subtemasSnapshot = await getDocs(q);
+        const numSubtemas = subtemasSnapshot.docs.length;
+        
+        if (numPreguntas === 0 && numSubtemas === 0) {
             alert('Este tema ya está vacío');
             return;
         }
         
-        if (confirm(`¿Estás seguro de que quieres eliminar las ${numPreguntas} preguntas del tema "${temaData.nombre}"? El tema se mantendrá pero quedará vacío.`)) {
+        let mensaje = `¿Estás seguro de que quieres vaciar el tema "${temaData.nombre}"?\n\nSe eliminará:\n`;
+        if (numPreguntas > 0) mensaje += `- ${numPreguntas} preguntas directas\n`;
+        if (numSubtemas > 0) mensaje += `- ${numSubtemas} subtema(s) con todas sus preguntas\n`;
+        mensaje += `\nEl tema principal se mantendrá pero quedará vacío.`;
+        
+        if (confirm(mensaje)) {
+            // Eliminar subtemas
+            for (const subtemaDoc of subtemasSnapshot.docs) {
+                await deleteDoc(doc(db, "temas", subtemaDoc.id));
+            }
+            
+            // Vaciar preguntas del tema principal
             await updateDoc(doc(db, "temas", temaId), {
                 preguntas: [],
                 ultimaActualizacion: new Date()
             });
             
-            alert(`Se eliminaron ${numPreguntas} preguntas del tema "${temaData.nombre}"`);
+            let alertMsg = `Tema "${temaData.nombre}" vaciado:\n`;
+            if (numPreguntas > 0) alertMsg += `- ${numPreguntas} preguntas eliminadas\n`;
+            if (numSubtemas > 0) alertMsg += `- ${numSubtemas} subtema(s) eliminado(s)`;
+            
+            alert(alertMsg);
             cargarBancoPreguntas();
         }
         
