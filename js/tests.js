@@ -1579,6 +1579,12 @@ window.editarTema = async function(temaId) {
                 fechaModificacion: new Date()
             });
             
+            // Invalidar caché
+            sessionStorage.removeItem('cacheTemas');
+            sessionStorage.removeItem('cacheTemasTimestamp');
+            cacheTimestamp = null;
+            cacheTemas = null;
+            
             // Recargar la lista de temas
             await cargarBancoPreguntas();
             alert('Tema actualizado correctamente');
