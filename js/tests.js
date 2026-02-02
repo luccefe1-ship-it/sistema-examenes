@@ -1579,15 +1579,26 @@ window.editarTema = async function(temaId) {
                 fechaModificacion: new Date()
             });
             
-            // Invalidar caché completamente
-            sessionStorage.removeItem('cacheTemas');
-            sessionStorage.removeItem('cacheTemasTimestamp');
-            cacheTimestamp = null;
-            cacheTemas = null;
-            cargandoBanco = false;
+            // Marcar caché como sucio para próxima carga
+            sessionStorage.setItem('cacheSucio', 'true');
             
-            // Recargar la lista de temas y esperar
-            await cargarBancoPreguntas();
+            // Actualizar nombre directamente en el DOM (sin recargar)
+            const temaCard = document.querySelector(`[data-tema-id="${temaId}"]`);
+            if (temaCard) {
+                const nombreDiv = temaCard.querySelector('.tema-nombre');
+                if (nombreDiv) {
+                    nombreDiv.innerHTML = nombreDiv.innerHTML.replace(temaData.nombre, nuevoNombre.trim());
+                }
+            }
+            
+            // También buscar en subtemas
+            const subtemaCard = document.querySelector(`[data-subtema-id="${temaId}"]`);
+            if (subtemaCard) {
+                const nombreDiv = subtemaCard.querySelector('.subtema-nombre');
+                if (nombreDiv) {
+                    nombreDiv.innerHTML = nombreDiv.innerHTML.replace(temaData.nombre, nuevoNombre.trim());
+                }
+            }
             
             alert('Tema actualizado correctamente');
         }
