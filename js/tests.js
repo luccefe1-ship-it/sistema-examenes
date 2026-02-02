@@ -1579,18 +1579,17 @@ window.editarTema = async function(temaId) {
                 fechaModificacion: new Date()
             });
             
-            alert('Tema actualizado correctamente');
-            
             // Invalidar caché completamente
             sessionStorage.removeItem('cacheTemas');
             sessionStorage.removeItem('cacheTemasTimestamp');
-            sessionStorage.setItem('cacheSucio', 'true');
             cacheTimestamp = null;
             cacheTemas = null;
             cargandoBanco = false;
             
-            // Recargar la lista de temas
-            cargarBancoPreguntas();
+            // Recargar la lista de temas y esperar
+            await cargarBancoPreguntas();
+            
+            alert('Tema actualizado correctamente');
         }
         
     } catch (error) {
