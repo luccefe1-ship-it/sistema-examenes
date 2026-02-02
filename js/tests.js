@@ -1938,10 +1938,22 @@ async function detectarPreguntasDuplicadas() {
         const todasLasPreguntas = [];
         const duplicadas = [];
         
+        // Crear mapa de temas para buscar nombres de padres
+        const temasMap = {};
+        querySnapshot.forEach((doc) => {
+            temasMap[doc.id] = doc.data();
+        });
+        
         // Recopilar todas las preguntas
         querySnapshot.forEach((doc) => {
             const tema = doc.data();
             if (tema.preguntas) {
+                // Obtener nombre del padre si existe
+                let temaPadreNombre = null;
+                if (tema.temaPadreId && temasMap[tema.temaPadreId]) {
+                    temaPadreNombre = temasMap[tema.temaPadreId].nombre;
+                }
+                
                 tema.preguntas.forEach((pregunta, index) => {
                     // Crear una firma única: enunciado + todas las opciones ordenadas
                     const opcionesOrdenadas = pregunta.opciones
@@ -1958,6 +1970,7 @@ async function detectarPreguntasDuplicadas() {
                         texto: pregunta.texto.toLowerCase().trim(),
                         temaId: doc.id,
                         temaNombre: tema.nombre,
+                        temaPadreNombre: temaPadreNombre,
                         preguntaIndex: index,
                         preguntaCompleta: pregunta,
                         fechaCreacion: pregunta.fechaCreacion || tema.fechaCreacion || new Date('2020-01-01')
@@ -2012,13 +2025,19 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     titulo.style.marginBottom = '15px';
     modalContent.appendChild(titulo);
     
-    // Extraer temas únicos
-    const temasUnicos = new Set();
+    // Extraer temas únicos con información del padre
+    const temasInfo = {};
     duplicadas.forEach(dup => {
-        temasUnicos.add(dup.pregunta1.temaNombre);
-        temasUnicos.add(dup.pregunta2.temaNombre);
+        [dup.pregunta1, dup.pregunta2].forEach(p => {
+            if (!temasInfo[p.temaNombre]) {
+                temasInfo[p.temaNombre] = {
+                    nombre: p.temaNombre,
+                    padre: p.temaPadreNombre
+                };
+            }
+        });
     });
-    const temasArray = Array.from(temasUnicos).sort();
+    const temasArray = Object.values(temasInfo).sort((a, b) => a.nombre.localeCompare(b.nombre));
     
     const listaDuplicadas = document.createElement('div');
     listaDuplicadas.id = 'listaDuplicadas';
@@ -2104,7 +2123,8 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     let dropdownHTML = '<select id="filtroTemasDuplicadas" onchange="seleccionarPorTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px;">';
     dropdownHTML += '<option value="">🎯 Seleccionar por tema...</option>';
     temasArray.forEach(tema => {
-        dropdownHTML += `<option value="${tema}">${tema}</option>`;
+        const displayText = tema.padre ? `${tema.nombre} (${tema.padre})` : tema.nombre;
+        dropdownHTML += `<option value="${tema.nombre}">${displayText}</option>`;
     });
     dropdownHTML += '</select>';
     
