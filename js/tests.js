@@ -14,6 +14,8 @@ import {
     writeBatch,
     setDoc  // <-- AÑADIR ESTA LÍNEA
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// Exponer función al scope global para onclick
+window.abrirModalTemaDigital = abrirModalTemaDigital;
 // Variables globales
 let currentUser = null;
 let temaSeleccionado = null;
