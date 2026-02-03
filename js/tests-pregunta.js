@@ -636,54 +636,42 @@ async function finalizarTest() {
         await addDoc(collection(db, "resultados"), resultadosCompletos);
         console.log('Resultados guardados en Firebase');
         
-        // Si es test de ranking, procesar las preguntas acertadas (eliminarlas del ranking)
+        // Si es test de ranking, guardar preguntas acertadas como "dominadas" (ocultas del ranking pero sin borrar historial)
         if (testConfig.esRanking) {
             const preguntasAcertadas = detalleRespuestas.filter(detalle => 
                 detalle.estado === 'correcta'
             );
             
             if (preguntasAcertadas.length > 0) {
-                console.log(`Marcando ${preguntasAcertadas.length} preguntas acertadas como restauradas en el ranking...`);
+                console.log(`Guardando ${preguntasAcertadas.length} preguntas como dominadas...`);
                 
-                // Buscar todos los resultados del usuario
-                const qResultados = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
-                const snapshotResultados = await getDocs(qResultados);
+                // Obtener o crear documento de preguntas dominadas
+                const dominadasRef = doc(db, "preguntasDominadas", currentUser.uid);
+                const dominadasDoc = await getDoc(dominadasRef);
                 
-                const promesasActualizacion = [];
+                let preguntasDominadas = [];
+                if (dominadasDoc.exists()) {
+                    preguntasDominadas = dominadasDoc.data().preguntas || [];
+                }
                 
-                snapshotResultados.docs.forEach(docSnapshot => {
-                    const resultado = docSnapshot.data();
-                    if (!resultado.detalleRespuestas) return;
-                    
-                    let modificado = false;
-                    
-                    const detalleActualizado = resultado.detalleRespuestas.map(detalle => {
-                        // Verificar si esta pregunta fue acertada en el test de ranking
-                        const fueAcertada = preguntasAcertadas.some(acertada => 
-                            acertada.pregunta.texto === detalle.pregunta?.texto
-                        );
-                        
-                        if (fueAcertada && detalle.estado === 'incorrecta' && !detalle.restaurada) {
-                            modificado = true;
-                            return { ...detalle, restaurada: true };
-                        }
-                        return detalle;
-                    });
-                    
-                    if (modificado) {
-                        promesasActualizacion.push(
-                            updateDoc(doc(db, "resultados", docSnapshot.id), {
-                                detalleRespuestas: detalleActualizado
-                            })
-                        );
+                // Añadir las nuevas preguntas acertadas
+                preguntasAcertadas.forEach(acertada => {
+                    const textoNormalizado = acertada.pregunta.texto.trim();
+                    if (!preguntasDominadas.includes(textoNormalizado)) {
+                        preguntasDominadas.push(textoNormalizado);
                     }
                 });
                 
-                await Promise.all(promesasActualizacion);
-                console.log(`${preguntasAcertadas.length} preguntas eliminadas del ranking de fallos`);
+                // Guardar
+                await setDoc(dominadasRef, { 
+                    preguntas: preguntasDominadas,
+                    ultimaActualizacion: new Date()
+                });
+                
+                console.log(`${preguntasAcertadas.length} preguntas marcadas como dominadas (ocultas del ranking)`);
             }
             
-            console.log('Test de ranking finalizado. Los fallos nuevos ya están registrados en resultados.');
+            console.log('Test de ranking finalizado.');
         }
 
         // Guardar preguntas falladas para el test de repaso (excepto si ya es test de ranking)
@@ -691,7 +679,36 @@ async function finalizarTest() {
             detalle.estado === 'incorrecta'
         );
 
+        // Si NO es test de ranking y hay fallos, verificar si alguna estaba "dominada" y quitarla
         if (preguntasFalladas.length > 0 && !testConfig.esRanking) {
+            // Quitar de dominadas las preguntas que se han vuelto a fallar
+            try {
+                const dominadasRef = doc(db, "preguntasDominadas", currentUser.uid);
+                const dominadasDoc = await getDoc(dominadasRef);
+                
+                if (dominadasDoc.exists()) {
+                    let preguntasDominadas = dominadasDoc.data().preguntas || [];
+                    const cantidadAntes = preguntasDominadas.length;
+                    
+                    // Filtrar: quitar las que se han fallado de nuevo
+                    preguntasDominadas = preguntasDominadas.filter(textoDominada => {
+                        const seHaFallado = preguntasFalladas.some(fallada => 
+                            fallada.pregunta.texto.trim() === textoDominada
+                        );
+                        return !seHaFallado;
+                    });
+                    
+                    if (preguntasDominadas.length < cantidadAntes) {
+                        await setDoc(dominadasRef, { 
+                            preguntas: preguntasDominadas,
+                            ultimaActualizacion: new Date()
+                        });
+                        console.log(`${cantidadAntes - preguntasDominadas.length} preguntas vuelven al ranking por fallarlas de nuevo`);
+                    }
+                }
+            } catch (error) {
+                console.error('Error actualizando dominadas:', error);
+            }
             const promesasGuardado = preguntasFalladas.map(async (detalle) => {
                 // Obtener respuestaCorrecta de forma robusta
                 let respuestaCorrecta = detalle.respuestaCorrecta;
