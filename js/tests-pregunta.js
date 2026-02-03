@@ -856,7 +856,19 @@ async function cargarExplicacion() {
         </div>
     `;
     
-    const temaId = pregunta.temaId;
+    console.log('=== DEBUG EXPLICACIÓN ===');
+    console.log('Pregunta completa:', pregunta);
+    console.log('temaId:', pregunta.temaId);
+    console.log('temaNombre:', pregunta.temaNombre);
+    
+    let temaId = pregunta.temaId;
+    
+    // Si no hay temaId, intentar buscar por nombre
+    if (!temaId && pregunta.temaNombre) {
+        console.log('Buscando tema por nombre:', pregunta.temaNombre);
+        temaId = await buscarTemaIdPorNombre(pregunta.temaNombre);
+        console.log('TemaId encontrado:', temaId);
+    }
     
     if (!temaId) {
         mostrarNoDisponible('No se ha identificado el tema de esta pregunta.');
@@ -864,6 +876,21 @@ async function cargarExplicacion() {
     }
     
     try {
+        // Verificar si existe documento digital
+        const temaRef = doc(db, 'temas', temaId);
+        const temaSnap = await getDoc(temaRef);
+        
+        console.log('Tema existe:', temaSnap.exists());
+        if (temaSnap.exists()) {
+            console.log('Datos tema:', temaSnap.data());
+            console.log('Tiene documento digital:', !!temaSnap.data().documentoDigital);
+        }
+        
+        if (!temaSnap.exists() || !temaSnap.data().documentoDigital) {
+            mostrarNoDisponible('Este tema no tiene documento digital subido.');
+            return;
+        }
+        
         // Buscar contexto en documento digital
         const resultado = await buscarContextoEnDocumento(pregunta, temaId);
         
@@ -875,6 +902,22 @@ async function cargarExplicacion() {
     } catch (error) {
         console.error('Error cargando explicación:', error);
         mostrarNoDisponible('Error al cargar la explicación.');
+    }
+}
+
+async function buscarTemaIdPorNombre(nombreTema) {
+    try {
+        const temasRef = collection(db, 'temas');
+        const q = query(temasRef, where('nombre', '==', nombreTema));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+            return querySnapshot.docs[0].id;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error buscando tema por nombre:', error);
+        return null;
     }
 }
 
