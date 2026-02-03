@@ -154,6 +154,9 @@ async function cargarRanking() {
             });
         });
 
+        // Calcular tema con más fallos
+        mostrarTemaMasFallos(rankingArray);
+
     } catch (error) {
         console.error('Error cargando ranking:', error);
         loading.innerHTML = '<p style="color: #ff6b6b;">Error al cargar el ranking: ' + error.message + '</p>';
@@ -402,4 +405,83 @@ async function actualizarFirebaseRestaurar(textoDecodificado) {
     } catch (error) {
         console.error('Error restaurando pregunta en Firebase:', error);
     }
+// Mostrar tema con más fallos
+function mostrarTemaMasFallos(rankingArray) {
+    const fallosPorTema = {};
+    
+    rankingArray.forEach(item => {
+        const tema = item.pregunta.temaPadreReal || 'Sin tema';
+        if (!fallosPorTema[tema]) {
+            fallosPorTema[tema] = 0;
+        }
+        fallosPorTema[tema] += item.count;
+    });
+    
+    let temaMax = 'Sin datos';
+    let maxFallos = 0;
+    
+    for (const [tema, fallos] of Object.entries(fallosPorTema)) {
+        if (fallos > maxFallos) {
+            maxFallos = fallos;
+            temaMax = tema;
+        }
+    }
+    
+    const container = document.getElementById('temaMasFallos');
+    if (container) {
+        container.innerHTML = `
+            <span class="tema-nombre-sidebar">${temaMax}</span>
+            <span class="tema-fallos-count">${maxFallos} fallos</span>
+        `;
+    }
+}
+
+// Selector de número de preguntas
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.btn-num').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.btn-num').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+});
+
+// Iniciar test del ranking
+window.iniciarTestRanking = async function() {
+    const btnActivo = document.querySelector('.btn-num.active');
+    const numPreguntas = btnActivo ? btnActivo.dataset.num : '10';
+    
+    if (!cacheRanking || !cacheRanking.rankingArray || cacheRanking.rankingArray.length === 0) {
+        alert('No hay preguntas disponibles para el test');
+        return;
+    }
+    
+    const todasPreguntas = cacheRanking.rankingArray.map(item => item.pregunta);
+    
+    let preguntasTest;
+    if (numPreguntas === 'todas') {
+        preguntasTest = [...todasPreguntas];
+    } else {
+        const num = parseInt(numPreguntas);
+        preguntasTest = todasPreguntas.slice(0, Math.min(num, todasPreguntas.length));
+    }
+    
+    // Mezclar aleatoriamente
+    for (let i = preguntasTest.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [preguntasTest[i], preguntasTest[j]] = [preguntasTest[j], preguntasTest[i]];
+    }
+    
+    const configuracion = {
+        nombreTest: `Test Ranking Fallos - ${new Date().toLocaleDateString()}`,
+        temas: 'ranking-fallos',
+        preguntas: preguntasTest,
+        numPreguntas: preguntasTest.length,
+        tiempoLimite: 'sin',
+        esRanking: true
+    };
+    
+    localStorage.setItem('testConfig', JSON.stringify(configuracion));
+    window.location.href = 'tests-pregunta.html';
+}
 }
