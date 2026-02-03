@@ -876,33 +876,72 @@ async function cargarExplicacion() {
     }
     
     try {
-        // Verificar si existe documento digital
-        const temaRef = doc(db, 'temas', temaId);
-        const temaSnap = await getDoc(temaRef);
+        // Buscar tema con documento digital en jerarquía
+        const temaConDocumento = await buscarTemaConDocumentoEnJerarquia(temaId);
         
-        console.log('Tema existe:', temaSnap.exists());
-        if (temaSnap.exists()) {
-            console.log('Datos tema:', temaSnap.data());
-            console.log('Tiene documento digital:', !!temaSnap.data().documentoDigital);
-        }
-        
-        if (!temaSnap.exists() || !temaSnap.data().documentoDigital) {
-            mostrarNoDisponible('Este tema no tiene documento digital subido.');
+        if (!temaConDocumento) {
+            mostrarNoDisponible('Ni este tema ni su tema padre tienen documento digital subido.');
             return;
         }
         
+        console.log('✅ Tema con documento encontrado:', temaConDocumento);
+        
         // Buscar contexto en documento digital
-        const resultado = await buscarContextoEnDocumento(pregunta, temaId);
+        const resultado = await buscarContextoEnDocumento(pregunta, temaConDocumento.id);
         
         if (resultado && resultado.encontrado) {
-            mostrarContextoEncontrado(resultado.contexto, temaId, pregunta.id);
+            mostrarContextoEncontrado(resultado.contexto, temaConDocumento.id, pregunta.id);
         } else {
-            mostrarNoEncontrado(temaId);
+            mostrarNoEncontrado(temaConDocumento.id);
         }
     } catch (error) {
         console.error('Error cargando explicación:', error);
         mostrarNoDisponible('Error al cargar la explicación.');
     }
+}
+
+// Buscar tema con documento en jerarquía (subir hasta encontrar)
+async function buscarTemaConDocumentoEnJerarquia(temaId) {
+    let temaActualId = temaId;
+    let intentos = 0;
+    const maxIntentos = 5; // Evitar bucle infinito
+    
+    while (temaActualId && intentos < maxIntentos) {
+        console.log(`Buscando documento en tema: ${temaActualId} (intento ${intentos + 1})`);
+        
+        const temaRef = doc(db, 'temas', temaActualId);
+        const temaSnap = await getDoc(temaRef);
+        
+        if (!temaSnap.exists()) {
+            console.log('Tema no existe');
+            return null;
+        }
+        
+        const temaData = temaSnap.data();
+        console.log('Datos tema:', temaData.nombre, '- Tiene documento:', !!temaData.documentoDigital);
+        
+        // Si tiene documento, devolver
+        if (temaData.documentoDigital) {
+            return {
+                id: temaActualId,
+                nombre: temaData.nombre,
+                documento: temaData.documentoDigital
+            };
+        }
+        
+        // Si no tiene documento, subir al padre
+        if (temaData.temaPadreId) {
+            console.log('Subiendo al tema padre:', temaData.temaPadreId);
+            temaActualId = temaData.temaPadreId;
+        } else {
+            console.log('No hay tema padre, fin de búsqueda');
+            return null;
+        }
+        
+        intentos++;
+    }
+    
+    return null;
 }
 
 async function buscarTemaIdPorNombre(nombreTema) {
@@ -965,15 +1004,15 @@ function mostrarNoDisponible(mensaje) {
 
 window.abrirTemaCompleto = async function(temaId) {
     try {
-        const temaRef = doc(db, 'temas', temaId);
-        const temaSnap = await getDoc(temaRef);
+        // Buscar tema con documento en jerarquía
+        const temaConDocumento = await buscarTemaConDocumentoEnJerarquia(temaId);
         
-        if (!temaSnap.exists() || !temaSnap.data().documentoDigital) {
-            alert('No hay documento digital para este tema');
+        if (!temaConDocumento) {
+            alert('No hay documento digital para este tema ni su tema padre');
             return;
         }
         
-        const documento = temaSnap.data().documentoDigital;
+        const documento = temaConDocumento.documento;
         const pregunta = testConfig.preguntas[preguntaActual];
         
         // Mostrar documento completo en el panel
