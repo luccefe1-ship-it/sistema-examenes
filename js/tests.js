@@ -4398,45 +4398,13 @@ async function cargarTestRepaso() {
     }
 }
 
-// Variable para guardar el modo de repaso seleccionado
-let modoRepasoSeleccionado = 'completo';
-
-// Mostrar modal para elegir modo de repaso
-window.iniciarTestRepaso = function() {
-    const modal = document.getElementById('modalModoRepaso');
-    if (modal) {
-        modal.style.display = 'flex';
-        modoRepasoSeleccionado = 'completo';
-        // Resetear selección visual
-        document.querySelectorAll('.mode-btn-repaso').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.mode === 'completo');
-        });
-    }
-};
-
-// Seleccionar modo de repaso
-window.seleccionarModoRepaso = function(modo) {
-    modoRepasoSeleccionado = modo;
-    document.querySelectorAll('.mode-btn-repaso').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.mode === modo);
-    });
-};
-
-// Cerrar modal modo repaso
-window.cerrarModalModoRepaso = function() {
-    const modal = document.getElementById('modalModoRepaso');
-    if (modal) modal.style.display = 'none';
-};
-
-// Confirmar e iniciar test de repaso
-window.confirmarModoRepaso = async function() {
-    cerrarModalModoRepaso();
-    await ejecutarTestRepaso(modoRepasoSeleccionado);
-};
-
-// Ejecutar Test de Repaso (función original renombrada)
-async function ejecutarTestRepaso(modo) {
+// Iniciar Test de Repaso
+window.iniciarTestRepaso = async function() {
     try {
+        // Detectar modo seleccionado en el selector superior
+        const btnModoActivo = document.querySelector('.mode-btn.active');
+        const modoSeleccionado = btnModoActivo ? btnModoActivo.dataset.mode : 'completo';
+
         // Cargar preguntas falladas
         const q = query(
             collection(db, "preguntasFalladas"), 
@@ -4455,31 +4423,17 @@ async function ejecutarTestRepaso(modo) {
             const data = doc.data();
             preguntasRepaso.push({
                 ...data.pregunta,
-                documentId: doc.id // Para poder eliminarla después si es correcta
+                documentId: doc.id
             });
         });
 
         // Obtener preguntas únicas y aleatorias para el repaso
         const preguntasMezcladas = obtenerPreguntasUnicasAleatorias(preguntasRepaso, preguntasRepaso.length);
 
-        // Crear objeto test
-        testActual = {
-            id: generarIdTest(),
-            nombre: `Test de Repaso - ${new Date().toLocaleDateString()}`,
-            tema: 'repaso',
-            preguntas: preguntasMezcladas,
-            tiempoLimite: 'sin',
-            fechaInicio: new Date(),
-            esRepaso: true
-        };
-
-        // Inicializar respuestas
-        respuestasUsuario = {};
-
-        // Iniciar test según modo
-        if (modo === 'pregunta') {
+        // Si modo pregunta a pregunta, redirigir
+        if (modoSeleccionado === 'pregunta') {
             const configuracion = {
-                nombreTest: testActual.nombre,
+                nombreTest: `Test de Repaso - ${new Date().toLocaleDateString()}`,
                 temas: 'repaso',
                 preguntas: preguntasMezcladas,
                 numPreguntas: preguntasMezcladas.length,
@@ -4491,7 +4445,18 @@ async function ejecutarTestRepaso(modo) {
             return;
         }
 
-        // Modo completo
+        // Modo completo: crear objeto test
+        testActual = {
+            id: generarIdTest(),
+            nombre: `Test de Repaso - ${new Date().toLocaleDateString()}`,
+            tema: 'repaso',
+            preguntas: preguntasMezcladas,
+            tiempoLimite: 'sin',
+            fechaInicio: new Date(),
+            esRepaso: true
+        };
+
+        respuestasUsuario = {};
         mostrarInterfazTest();
 
     } catch (error) {
