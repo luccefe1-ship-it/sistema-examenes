@@ -199,15 +199,16 @@ function renderRankingItem(item, posicion) {
         <div class="ranking-item">
             <div class="ranking-header">
                 <div class="ranking-posicion ${posicionClass}">${posicion}</div>
+                <div class="ranking-tema-padre">${pregunta.temaPadreReal || 'Sin tema'}</div>
                 <div class="ranking-info">
                     <div class="ranking-enunciado">${pregunta.texto}</div>
                     <div class="ranking-meta">
-                        <span>📚 ${pregunta.temaEpigrafe || pregunta.temaNombre || 'Sin tema'}</span>
+                        <span>📄 ${pregunta.temaEpigrafe || pregunta.temaNombre || 'Sin epígrafe'}</span>
                     </div>
                 </div>
                 <div class="ranking-fallos">${item.count} ${item.count === 1 ? 'fallo' : 'fallos'}</div>
                 <button class="btn-responder" onclick="event.stopPropagation(); abrirModalResponder('${preguntaData}')">Responder</button>
-                <button class="btn-restaurar" onclick="event.stopPropagation(); restaurarPregunta('${pregunta.texto.replace(/'/g, "\\'")}')">↻</button>
+                <button class="btn-restaurar" onclick="event.stopPropagation(); restaurarPregunta('${encodeURIComponent(pregunta.texto)}')">↻</button>
                 <span class="ranking-expand">▼</span>
             </div>
             <div class="ranking-detalles">
@@ -329,12 +330,15 @@ window.cerrarModalResponder = function() {
 window.restaurarPregunta = async function(textoPregunta) {
     if (!confirm('¿Restaurar esta pregunta a cero fallos? Desaparecerá del ranking.')) return;
 
+    // Decodificar el texto
+    const textoDecodificado = decodeURIComponent(textoPregunta);
+
     // Encontrar y ocultar el item inmediatamente
     let itemEliminado = null;
     let fallosEliminados = 0;
     document.querySelectorAll('.ranking-item').forEach(item => {
         const enunciado = item.querySelector('.ranking-enunciado').textContent;
-        if (textoPregunta.startsWith(enunciado.substring(0, 50)) || enunciado === textoPregunta) {
+        if (textoDecodificado === enunciado || textoDecodificado.substring(0, 80) === enunciado.substring(0, 80)) {
             fallosEliminados = parseInt(item.querySelector('.ranking-fallos').textContent) || 1;
             itemEliminado = item;
             item.style.transition = 'opacity 0.3s, transform 0.3s';
@@ -372,7 +376,7 @@ window.restaurarPregunta = async function(textoPregunta) {
             let modificado = false;
             
             const detalleActualizado = resultado.detalleRespuestas.map(detalle => {
-                if (detalle.pregunta.texto === textoPregunta && detalle.estado === 'incorrecta') {
+                if (detalle.pregunta.texto === textoDecodificado && detalle.estado === 'incorrecta' && !detalle.restaurada) {
                     modificado = true;
                     return { ...detalle, restaurada: true };
                 }
