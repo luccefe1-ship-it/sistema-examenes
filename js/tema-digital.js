@@ -1,4 +1,4 @@
-import { db, storage } from './firebase-config.js';
+import { db, storage, auth } from './firebase-config.js';
 import { doc, getDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 
@@ -97,8 +97,13 @@ async function procesarDocumento(archivo) {
             textoExtraido = await extraerTextoPDF(archivo);
         }
         
-        // Subir a Firebase Storage
-        const storageRef = ref(storage, `temas-digitales/${temaActualDigital}/${archivo.name}`);
+                // Subir a Firebase Storage
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+            alert('Error: Usuario no autenticado');
+            return;
+        }
+        const storageRef = ref(storage, `temas-digitales/${currentUser.uid}/${archivo.name}`);
         const snapshot = await uploadBytes(storageRef, archivo);
         const downloadURL = await getDownloadURL(snapshot.ref);
         
