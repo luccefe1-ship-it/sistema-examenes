@@ -581,16 +581,26 @@ async function finalizarTest() {
             respuestaLetra = respuestaUsuario.respuestaUsuario;
         }
         
+        // Obtener respuestaCorrecta de forma robusta
+        let respuestaCorrecta = pregunta.respuestaCorrecta;
+        if (!respuestaCorrecta && pregunta.opciones) {
+            const opcionCorrecta = pregunta.opciones.find(op => op.esCorrecta === true);
+            if (opcionCorrecta) {
+                respuestaCorrecta = opcionCorrecta.letra;
+            }
+        }
+
         return {
             pregunta: {
                 texto: pregunta.texto || '',
                 opciones: pregunta.opciones || [],
+                respuestaCorrecta: respuestaCorrecta,
                 temaId: pregunta.temaId || '',
                 temaNombre: pregunta.temaNombre || '',
                 temaEpigrafe: pregunta.temaEpigrafe || ''
             },
             respuestaUsuario: respuestaLetra,
-            respuestaCorrecta: pregunta.respuestaCorrecta,
+            respuestaCorrecta: respuestaCorrecta,
             estado: estado,
             indice: index + 1
         };
@@ -622,19 +632,28 @@ async function finalizarTest() {
         await addDoc(collection(db, "resultados"), resultadosCompletos);
         console.log('Resultados guardados en Firebase');
         
-        // Guardar preguntas falladas para el test de repaso
+        // Guardar preguntas falladas para el test de repaso (excepto si ya es test de ranking)
         const preguntasFalladas = detalleRespuestas.filter(detalle => 
             detalle.estado === 'incorrecta'
         );
 
-        if (preguntasFalladas.length > 0) {
+        if (preguntasFalladas.length > 0 && !testConfig.esRanking) {
             const promesasGuardado = preguntasFalladas.map(async (detalle) => {
+                // Obtener respuestaCorrecta de forma robusta
+                let respuestaCorrecta = detalle.respuestaCorrecta;
+                if (!respuestaCorrecta && detalle.pregunta.opciones) {
+                    const opcionCorrecta = detalle.pregunta.opciones.find(op => op.esCorrecta === true);
+                    if (opcionCorrecta) {
+                        respuestaCorrecta = opcionCorrecta.letra;
+                    }
+                }
+
                 const preguntaFallada = {
                     usuarioId: currentUser.uid,
                     pregunta: {
                         texto: detalle.pregunta.texto,
                         opciones: detalle.pregunta.opciones,
-                        respuestaCorrecta: detalle.respuestaCorrecta,
+                        respuestaCorrecta: respuestaCorrecta,
                         temaId: detalle.pregunta.temaId || '',
                         temaNombre: detalle.pregunta.temaNombre || '',
                         temaEpigrafe: detalle.pregunta.temaEpigrafe || ''
