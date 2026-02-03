@@ -235,21 +235,8 @@ if (crearTemaBancoBtn) {
     if (fileInput) {
         fileInput.addEventListener('change', manejarArchivoSeleccionado);
     }
-}
-// Inicializar tema digital
-inicializarTemaDigital();
-// Importar archivo
-const importarArchivoBtn = document.getElementById('importarArchivoBtn');
-const fileInput = document.getElementById('fileInput');
-
-if (importarArchivoBtn) {
-    importarArchivoBtn.addEventListener('click', () => {
-        fileInput.click();
-    });
-}
-
-if (fileInput) {
-    fileInput.addEventListener('change', manejarArchivoSeleccionado);
+// Inicializar tema digital cuando DOM está listo
+    inicializarTemaDigital();
 }
 
 
