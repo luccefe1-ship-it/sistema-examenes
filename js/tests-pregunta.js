@@ -960,27 +960,44 @@ async function buscarTemaIdPorNombre(nombreTema) {
     }
 }
 
-function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
+async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
     const contenido = document.getElementById('explicacionContenido');
     
+    // Obtener documento completo para buscador
+    const temaConDocumento = await buscarTemaConDocumentoEnJerarquia(temaId);
+    const documentoCompleto = temaConDocumento ? temaConDocumento.documento.textoExtraido : '';
+    
     // Cargar subrayados previos si existen
-    cargarSubrayadosPrevios(preguntaId).then(subrayados => {
-        let textoFinal = contexto;
-        
-        if (subrayados) {
-            textoFinal = aplicarSubrayados(contexto, subrayados);
-        }
-        
-        contenido.innerHTML = `
-            <div class="explicacion-texto" id="textoExplicacion">
-                ${textoFinal}
+    const subrayados = await cargarSubrayadosPrevios(preguntaId);
+    let textoFinal = contexto;
+    
+    if (subrayados) {
+        textoFinal = aplicarSubrayados(contexto, subrayados);
+    }
+    
+    contenido.innerHTML = `
+        <div class="contexto-encontrado-header">
+            <p class="contexto-info">✅ Contexto encontrado automáticamente</p>
+            
+            <!-- Buscador de texto -->
+            <div class="buscador-texto">
+                <input type="text" id="buscadorInput" placeholder="🔍 Buscar en el documento completo..." class="input-buscador">
+                <button onclick="buscarEnDocumentoCompleto('${temaId}')" class="btn-buscar">Buscar</button>
+                <button onclick="verDocumentoCompleto('${temaId}')" class="btn-ver-completo">📄 Ver Documento Completo</button>
             </div>
-        `;
-        
-        // Ocultar botones de subrayado (contexto automático)
-        document.querySelector('.btn-subrayar').style.display = 'none';
-        document.querySelector('.btn-guardar-subrayado').style.display = 'none';
-    });
+        </div>
+        <div class="explicacion-texto contexto-automatico" id="textoExplicacion" data-texto-original="${contexto.replace(/"/g, '&quot;')}" data-documento-completo="${documentoCompleto.replace(/"/g, '&quot;')}">
+            ${textoFinal}
+        </div>
+    `;
+    
+    // Mostrar botones de subrayado
+    const accionesDiv = document.querySelector('.explicacion-acciones');
+    accionesDiv.innerHTML = `
+        <button class="btn-subrayar" onclick="habilitarSubrayado()">✏️ Subrayar</button>
+        <button class="btn-borrar-subrayado" onclick="borrarSubrayado()">🗑️ Borrar Subrayado</button>
+        <button class="btn-guardar-subrayado" onclick="guardarSubrayado()" style="display:none;">💾 Guardar Subrayado</button>
+    `;
 }
 
 function mostrarNoEncontrado(temaId) {
@@ -1106,7 +1123,60 @@ window.limpiarBusqueda = function() {
     const textoOriginal = textoExplicacion.dataset.textoOriginal;
     textoExplicacion.innerHTML = textoOriginal.replace(/\n/g, '<br>');
 };
+window.buscarEnDocumentoCompleto = async function(temaId) {
+    const input = document.getElementById('buscadorInput');
+    const textoBuscar = input.value.trim();
+    
+    if (!textoBuscar) {
+        alert('Escribe algo para buscar');
+        return;
+    }
+    
+    // Cargar documento completo y buscar
+    const temaConDocumento = await buscarTemaConDocumentoEnJerarquia(temaId);
+    if (!temaConDocumento) {
+        alert('No se pudo cargar el documento');
+        return;
+    }
+    
+    const textoCompleto = temaConDocumento.documento.textoExtraido;
+    const textoExplicacion = document.getElementById('textoExplicacion');
+    
+    // Escapar caracteres especiales para regex
+    const textoEscapado = textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(textoEscapado, 'gi');
+    
+    // Buscar coincidencias
+    const matches = textoCompleto.match(regex);
+    
+    if (!matches || matches.length === 0) {
+        alert('No se encontraron coincidencias');
+        return;
+    }
+    
+    // Encontrar contexto de la primera coincidencia
+    const indice = textoCompleto.toLowerCase().indexOf(textoBuscar.toLowerCase());
+    const margen = 300;
+    const inicio = Math.max(0, indice - margen);
+    const fin = Math.min(textoCompleto.length, indice + textoBuscar.length + margen);
+    
+    let contexto = textoCompleto.substring(inicio, fin);
+    
+    // Resaltar coincidencias en el contexto
+    contexto = contexto.replace(regex, (match) => {
+        return `<mark class="busqueda-highlight">${match}</mark>`;
+    });
+    
+    // Actualizar contenido
+    textoExplicacion.innerHTML = contexto.replace(/\n/g, '<br>');
+    textoExplicacion.dataset.textoOriginal = contexto;
+    
+    alert(`Se encontraron ${matches.length} coincidencias. Mostrando la primera.`);
+};
 
+window.verDocumentoCompleto = async function(temaId) {
+    await abrirTemaCompleto(temaId);
+};
 window.borrarSubrayado = async function() {
     if (!confirm('¿Eliminar todos los subrayados guardados para esta pregunta?')) {
         return;
