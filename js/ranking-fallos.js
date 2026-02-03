@@ -327,20 +327,18 @@ window.cerrarModalResponder = function() {
     preguntaActual = null;
 }
 
-window.restaurarPregunta = async function(textoPregunta) {
+window.restaurarPregunta = function(textoPregunta) {
     if (!confirm('¿Restaurar esta pregunta a cero fallos? Desaparecerá del ranking.')) return;
 
     // Decodificar el texto
     const textoDecodificado = decodeURIComponent(textoPregunta);
 
     // Encontrar y ocultar el item inmediatamente
-    let itemEliminado = null;
     let fallosEliminados = 0;
     document.querySelectorAll('.ranking-item').forEach(item => {
         const enunciado = item.querySelector('.ranking-enunciado').textContent;
         if (textoDecodificado === enunciado || textoDecodificado.substring(0, 80) === enunciado.substring(0, 80)) {
             fallosEliminados = parseInt(item.querySelector('.ranking-fallos').textContent) || 1;
-            itemEliminado = item;
             item.style.transition = 'opacity 0.3s, transform 0.3s';
             item.style.opacity = '0';
             item.style.transform = 'translateX(-100px)';
@@ -365,18 +363,26 @@ window.restaurarPregunta = async function(textoPregunta) {
 
     // Invalidar caché
     cacheRanking = null;
+    cacheTemas = null;
     
-    // Guardar en Firebase en segundo plano
+    // Guardar en Firebase en SEGUNDO PLANO (sin await, sin bloquear)
+    actualizarFirebaseRestaurar(textoDecodificado);
+}
+
+// Función separada para actualizar Firebase sin bloquear la UI
+async function actualizarFirebaseRestaurar(textoDecodificado) {
     try {
         const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
         const snapshot = await getDocs(q);
         
-        for (const docSnapshot of snapshot.docs) {
+        const promesas = [];
+        
+        snapshot.docs.forEach(docSnapshot => {
             const resultado = docSnapshot.data();
             let modificado = false;
             
             const detalleActualizado = resultado.detalleRespuestas.map(detalle => {
-                if (detalle.pregunta.texto === textoDecodificado && detalle.estado === 'incorrecta' && !detalle.restaurada) {
+                if (detalle.pregunta?.texto === textoDecodificado && detalle.estado === 'incorrecta' && !detalle.restaurada) {
                     modificado = true;
                     return { ...detalle, restaurada: true };
                 }
@@ -384,12 +390,16 @@ window.restaurarPregunta = async function(textoPregunta) {
             });
 
             if (modificado) {
-                await updateDoc(doc(db, "resultados", docSnapshot.id), {
+                promesas.push(updateDoc(doc(db, "resultados", docSnapshot.id), {
                     detalleRespuestas: detalleActualizado
-                });
+                }));
             }
-        }
+        });
+        
+        // Ejecutar todas las actualizaciones en paralelo
+        await Promise.all(promesas);
+        console.log('Pregunta restaurada en Firebase');
     } catch (error) {
-        console.error('Error restaurando pregunta:', error);
+        console.error('Error restaurando pregunta en Firebase:', error);
     }
 }
