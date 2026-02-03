@@ -1,6 +1,6 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let currentUser = null;
 let preguntaActual = null;
@@ -33,11 +33,16 @@ async function cargarRanking() {
     const rankingList = document.getElementById('rankingList');
 
     try {
-        // Cargar temas y resultados en PARALELO
-        const [temasSnapshot, resultadosSnapshot] = await Promise.all([
+        // Cargar temas, resultados y preguntas dominadas en PARALELO
+        const [temasSnapshot, resultadosSnapshot, dominadasDoc] = await Promise.all([
             cacheTemas ? Promise.resolve(cacheTemas) : getDocs(collection(db, "temas")),
-            getDocs(query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid)))
+            getDocs(query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid))),
+            getDoc(doc(db, "preguntasDominadas", currentUser.uid))
         ]);
+        
+        // Obtener lista de preguntas dominadas (ocultas del ranking)
+        const preguntasDominadas = dominadasDoc.exists() ? (dominadasDoc.data().preguntas || []) : [];
+        console.log(`Preguntas dominadas (ocultas): ${preguntasDominadas.length}`);
         
         cacheTemas = temasSnapshot;
 
@@ -96,6 +101,12 @@ async function cargarRanking() {
                 
                 const pregunta = detalle.pregunta;
                 if (!pregunta || !pregunta.texto) return;
+                
+                // Excluir preguntas dominadas (acertadas en test de ranking)
+                const textoNormalizado = pregunta.texto.trim();
+                if (preguntasDominadas.includes(textoNormalizado)) {
+                    return;
+                }
                 
                 const textoKey = pregunta.texto;
                 totalFallos++;
