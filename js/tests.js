@@ -3494,26 +3494,39 @@ async function guardarResultado(resultados) {
             );
 
             if (preguntasCorrectas.length > 0) {
-                const promesasEliminacion = preguntasCorrectas.map(async (detalle) => {
-                    // Buscar y eliminar la pregunta fallada que ahora fue respondida correctamente
-                    const q = query(
-                        collection(db, "preguntasFalladas"),
-                        where("usuarioId", "==", currentUser.uid),
-                        where("pregunta.texto", "==", detalle.pregunta.texto)
+                console.log(`Intentando eliminar ${preguntasCorrectas.length} preguntas acertadas del banco de repaso...`);
+                
+                // Obtener TODAS las preguntas falladas del usuario
+                const q = query(
+                    collection(db, "preguntasFalladas"),
+                    where("usuarioId", "==", currentUser.uid)
+                );
+                
+                const querySnapshot = await getDocs(q);
+                const eliminaciones = [];
+                
+                // Comparar cada pregunta fallada con las acertadas
+                querySnapshot.forEach((docSnapshot) => {
+                    const data = docSnapshot.data();
+                    const textoFallada = data.pregunta?.texto?.trim();
+                    
+                    // Verificar si esta pregunta fue acertada
+                    const fueAcertada = preguntasCorrectas.some(correcta => 
+                        correcta.pregunta?.texto?.trim() === textoFallada
                     );
                     
-                    const querySnapshot = await getDocs(q);
-                    const eliminaciones = [];
-                    
-                    querySnapshot.forEach((doc) => {
-                        eliminaciones.push(deleteDoc(doc.ref));
-                    });
-                    
-                    return Promise.all(eliminaciones);
+                    if (fueAcertada) {
+                        console.log('Eliminando pregunta acertada:', textoFallada?.substring(0, 50));
+                        eliminaciones.push(deleteDoc(docSnapshot.ref));
+                    }
                 });
 
-                await Promise.all(promesasEliminacion);
-                console.log(`${preguntasCorrectas.length} preguntas falladas eliminadas tras respuesta correcta`);
+                if (eliminaciones.length > 0) {
+                    await Promise.all(eliminaciones);
+                    console.log(`✅ ${eliminaciones.length} preguntas eliminadas del banco de repaso`);
+                } else {
+                    console.log('⚠️ No se encontraron preguntas para eliminar');
+                }
                 
                 // Actualizar interfaz del test de repaso
                 setTimeout(() => cargarTestRepaso(), 1000);
