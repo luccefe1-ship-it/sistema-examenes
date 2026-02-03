@@ -691,6 +691,10 @@ async function finalizarTest() {
     // Limpiar localStorage de config
     localStorage.removeItem('testConfig');
     
+    // Invalidar caché de resultados para que se recarguen
+    sessionStorage.removeItem('cacheResultados');
+    sessionStorage.removeItem('cacheResultadosTimestamp');
+    
     // Guardar resultados temporalmente para mostrarlos inmediatamente
     localStorage.setItem('ultimosResultados', JSON.stringify(resultadosCompletos));
     
