@@ -5,7 +5,11 @@ import {
     collection,
     doc,
     getDoc,
-    setDoc
+    setDoc,
+    getDocs,
+    query,
+    where,
+    updateDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let currentUser = null;
@@ -632,6 +636,56 @@ async function finalizarTest() {
         await addDoc(collection(db, "resultados"), resultadosCompletos);
         console.log('Resultados guardados en Firebase');
         
+        // Si es test de ranking, procesar las preguntas acertadas (eliminarlas del ranking)
+        if (testConfig.esRanking) {
+            const preguntasAcertadas = detalleRespuestas.filter(detalle => 
+                detalle.estado === 'correcta'
+            );
+            
+            if (preguntasAcertadas.length > 0) {
+                console.log(`Marcando ${preguntasAcertadas.length} preguntas acertadas como restauradas en el ranking...`);
+                
+                // Buscar todos los resultados del usuario
+                const qResultados = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
+                const snapshotResultados = await getDocs(qResultados);
+                
+                const promesasActualizacion = [];
+                
+                snapshotResultados.docs.forEach(docSnapshot => {
+                    const resultado = docSnapshot.data();
+                    if (!resultado.detalleRespuestas) return;
+                    
+                    let modificado = false;
+                    
+                    const detalleActualizado = resultado.detalleRespuestas.map(detalle => {
+                        // Verificar si esta pregunta fue acertada en el test de ranking
+                        const fueAcertada = preguntasAcertadas.some(acertada => 
+                            acertada.pregunta.texto === detalle.pregunta?.texto
+                        );
+                        
+                        if (fueAcertada && detalle.estado === 'incorrecta' && !detalle.restaurada) {
+                            modificado = true;
+                            return { ...detalle, restaurada: true };
+                        }
+                        return detalle;
+                    });
+                    
+                    if (modificado) {
+                        promesasActualizacion.push(
+                            updateDoc(doc(db, "resultados", docSnapshot.id), {
+                                detalleRespuestas: detalleActualizado
+                            })
+                        );
+                    }
+                });
+                
+                await Promise.all(promesasActualizacion);
+                console.log(`${preguntasAcertadas.length} preguntas eliminadas del ranking de fallos`);
+            }
+            
+            console.log('Test de ranking finalizado. Los fallos nuevos ya están registrados en resultados.');
+        }
+
         // Guardar preguntas falladas para el test de repaso (excepto si ya es test de ranking)
         const preguntasFalladas = detalleRespuestas.filter(detalle => 
             detalle.estado === 'incorrecta'
