@@ -976,6 +976,10 @@ function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
                 ${textoFinal}
             </div>
         `;
+        
+        // Ocultar botones de subrayado (contexto automático)
+        document.querySelector('.btn-subrayar').style.display = 'none';
+        document.querySelector('.btn-guardar-subrayado').style.display = 'none';
     });
 }
 
@@ -990,6 +994,10 @@ function mostrarNoEncontrado(temaId) {
             </button>
         </div>
     `;
+    
+    // Ocultar botones de subrayado
+    document.querySelector('.btn-subrayar').style.display = 'none';
+    document.querySelector('.btn-guardar-subrayado').style.display = 'none';
 }
 
 function mostrarNoDisponible(mensaje) {
@@ -1030,18 +1038,94 @@ window.abrirTemaCompleto = async function(temaId) {
             <div class="documento-completo-header">
                 <h4>📄 ${documento.nombre}</h4>
                 <p class="documento-info">${Math.round(documento.tamano / 1024)} KB | ${documento.textoExtraido.length.toLocaleString()} caracteres</p>
+                
+                <!-- Buscador de texto -->
+                <div class="buscador-texto">
+                    <input type="text" id="buscadorInput" placeholder="🔍 Buscar en el documento..." class="input-buscador">
+                    <button onclick="buscarEnDocumento()" class="btn-buscar">Buscar</button>
+                    <button onclick="limpiarBusqueda()" class="btn-limpiar-busqueda">Limpiar</button>
+                </div>
             </div>
-            <div class="explicacion-texto documento-completo" id="textoExplicacion">
+            <div class="explicacion-texto documento-completo" id="textoExplicacion" data-texto-original="${documento.textoExtraido.replace(/"/g, '&quot;')}">
                 ${textoMostrar.replace(/\n/g, '<br>')}
             </div>
         `;
         
-        // Mostrar botones de subrayado
-        document.querySelector('.btn-subrayar').style.display = 'inline-block';
+        // Mostrar botones de subrayado y borrado
+        const accionesDiv = document.querySelector('.explicacion-acciones');
+        accionesDiv.innerHTML = `
+            <button class="btn-subrayar" onclick="habilitarSubrayado()">✏️ Subrayar</button>
+            <button class="btn-borrar-subrayado" onclick="borrarSubrayado()">🗑️ Borrar Subrayado</button>
+            <button class="btn-guardar-subrayado" onclick="guardarSubrayado()" style="display:none;">💾 Guardar Subrayado</button>
+        `;
         
     } catch (error) {
         console.error('Error abriendo tema completo:', error);
         alert('Error al cargar el documento');
+    }
+};
+
+window.buscarEnDocumento = function() {
+    const input = document.getElementById('buscadorInput');
+    const textoExplicacion = document.getElementById('textoExplicacion');
+    const textoBuscar = input.value.trim();
+    
+    if (!textoBuscar) {
+        alert('Escribe algo para buscar');
+        return;
+    }
+    
+    const textoOriginal = textoExplicacion.dataset.textoOriginal;
+    
+    // Escapar caracteres especiales para regex
+    const textoEscapado = textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(textoEscapado, 'gi');
+    
+    // Resaltar coincidencias
+    let textoResaltado = textoOriginal.replace(regex, (match) => {
+        return `<mark class="busqueda-highlight">${match}</mark>`;
+    });
+    
+    textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
+    
+    // Scroll a la primera coincidencia
+    const primeraCoincidencia = textoExplicacion.querySelector('.busqueda-highlight');
+    if (primeraCoincidencia) {
+        primeraCoincidencia.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+        alert('No se encontraron coincidencias');
+    }
+};
+
+window.limpiarBusqueda = function() {
+    const input = document.getElementById('buscadorInput');
+    const textoExplicacion = document.getElementById('textoExplicacion');
+    
+    input.value = '';
+    
+    const textoOriginal = textoExplicacion.dataset.textoOriginal;
+    textoExplicacion.innerHTML = textoOriginal.replace(/\n/g, '<br>');
+};
+
+window.borrarSubrayado = async function() {
+    if (!confirm('¿Eliminar todos los subrayados guardados para esta pregunta?')) {
+        return;
+    }
+    
+    try {
+        const pregunta = testConfig.preguntas[preguntaActual];
+        const subrayadoRef = doc(db, 'subrayados', `${currentUser.uid}_${pregunta.id}`);
+        await deleteDoc(subrayadoRef);
+        
+        // Restaurar texto original
+        const textoExplicacion = document.getElementById('textoExplicacion');
+        const textoOriginal = textoExplicacion.dataset.textoOriginal;
+        textoExplicacion.innerHTML = textoOriginal.replace(/\n/g, '<br>');
+        
+        alert('✅ Subrayados eliminados');
+    } catch (error) {
+        console.error('Error borrando subrayado:', error);
+        alert('Error al borrar los subrayados');
     }
 };
 
