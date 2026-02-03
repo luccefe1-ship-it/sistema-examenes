@@ -464,6 +464,175 @@
             .btn-salir { padding: 6px 12px; font-size: 0.75rem; }
             .estadisticas-tiempo-real { font-size: 0.8rem; }
         }
+
+        /* Estilos para explicación */
+        .btn-ver-explicacion {
+            margin-top: 16px;
+            padding: 10px 20px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: none;
+        }
+
+        .btn-ver-explicacion.mostrar {
+            display: inline-block;
+        }
+
+        .btn-ver-explicacion:hover {
+            background: #2563eb;
+        }
+
+        .explicacion-panel {
+            display: none;
+            margin-top: 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            background: white;
+            overflow: hidden;
+        }
+
+        .explicacion-panel.activa {
+            display: block;
+        }
+
+        .explicacion-header {
+            background: linear-gradient(to right, #1e293b, #334155);
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .explicacion-header h3 {
+            color: white;
+            font-size: 1rem;
+            margin: 0;
+        }
+
+        .btn-cerrar-explicacion {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            line-height: 1;
+            transition: all 0.2s ease;
+        }
+
+        .btn-cerrar-explicacion:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .explicacion-contenido {
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f8fafc;
+        }
+
+        .explicacion-cargando {
+            text-align: center;
+            padding: 40px 20px;
+            color: #64748b;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 16px;
+            border: 4px solid #e2e8f0;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .explicacion-texto {
+            font-size: 0.95rem;
+            line-height: 1.8;
+            color: #334155;
+        }
+
+        .explicacion-texto mark {
+            background: #fef08a;
+            padding: 2px 4px;
+            border-radius: 2px;
+            font-weight: 500;
+        }
+
+        .explicacion-no-encontrado {
+            text-align: center;
+            padding: 40px 20px;
+            color: #64748b;
+        }
+
+        .explicacion-no-encontrado p {
+            margin-bottom: 16px;
+        }
+
+        .btn-abrir-tema {
+            padding: 10px 20px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .btn-abrir-tema:hover {
+            background: #2563eb;
+        }
+
+        .explicacion-acciones {
+            padding: 12px 16px;
+            background: #f1f5f9;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .btn-subrayar,
+        .btn-guardar-subrayado {
+            padding: 8px 16px;
+            background: white;
+            border: 2px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-subrayar:hover,
+        .btn-guardar-subrayado:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+
+        .explicacion-texto.modo-subrayar {
+            user-select: text;
+            cursor: text;
+        }
+
+        .explicacion-texto .subrayado {
+            background: #fef08a;
+            border-bottom: 2px solid #eab308;
+        }
     </style>
 </head>
 <body>
@@ -507,6 +676,26 @@
                 <div class="feedback-container" id="feedbackContainer">
                     <div class="feedback-titulo" id="feedbackTitulo">✅ ¡Correcto!</div>
                     <div class="feedback-texto" id="feedbackTexto">Has seleccionado la respuesta correcta.</div>
+                    <button class="btn-ver-explicacion" id="btnVerExplicacion" onclick="toggleExplicacion()">
+                        📖 Ver Explicación
+                    </button>
+                </div>
+
+                <div class="explicacion-panel" id="explicacionPanel">
+                    <div class="explicacion-header">
+                        <h3>📚 Explicación del Tema Digital</h3>
+                        <button class="btn-cerrar-explicacion" onclick="cerrarExplicacion()">✕</button>
+                    </div>
+                    <div class="explicacion-contenido" id="explicacionContenido">
+                        <div class="explicacion-cargando">
+                            <div class="spinner"></div>
+                            <p>Buscando contexto...</p>
+                        </div>
+                    </div>
+                    <div class="explicacion-acciones">
+                        <button class="btn-subrayar" onclick="habilitarSubrayado()">✏️ Subrayar</button>
+                        <button class="btn-guardar-subrayado" onclick="guardarSubrayado()" style="display:none;">💾 Guardar Subrayado</button>
+                    </div>
                 </div>
             </div>
 
