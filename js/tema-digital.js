@@ -277,39 +277,87 @@ export async function buscarContextoEnDocumento(pregunta, temaId) {
         }
         
         const texto = temaSnap.data().documentoDigital.textoExtraido;
-        const preguntaTexto = pregunta.pregunta;
+        const preguntaTexto = pregunta.texto || pregunta.pregunta;
         
-        // Búsqueda literal primero
+        console.log('=== BÚSQUEDA AUTOMÁTICA ===');
+        console.log('Texto pregunta:', preguntaTexto);
+        
+        // 1. Búsqueda literal por texto de pregunta
         let indice = texto.toLowerCase().indexOf(preguntaTexto.toLowerCase());
         
         if (indice !== -1) {
+            console.log('✅ Encontrado por texto de pregunta literal');
             return extraerContexto(texto, indice, preguntaTexto.length);
         }
         
-        // Búsqueda por palabras clave
+        // 2. Búsqueda por respuesta correcta
+        const respuestaCorrecta = obtenerTextoRespuestaCorrecta(pregunta);
+        if (respuestaCorrecta) {
+            console.log('Buscando por respuesta correcta:', respuestaCorrecta);
+            indice = texto.toLowerCase().indexOf(respuestaCorrecta.toLowerCase());
+            
+            if (indice !== -1) {
+                console.log('✅ Encontrado por respuesta correcta literal');
+                return extraerContexto(texto, indice, respuestaCorrecta.length);
+            }
+        }
+        
+        // 3. Búsqueda por palabras clave de la pregunta
         const palabrasClave = extraerPalabrasClave(preguntaTexto);
+        console.log('Palabras clave pregunta:', palabrasClave);
         
         for (const palabra of palabrasClave) {
             indice = texto.toLowerCase().indexOf(palabra.toLowerCase());
             if (indice !== -1) {
+                console.log('✅ Encontrado por palabra clave:', palabra);
                 return extraerContexto(texto, indice, palabra.length);
             }
         }
         
-        // Búsqueda por epígrafe si existe
-        if (pregunta.epigrafe) {
-            indice = texto.toLowerCase().indexOf(pregunta.epigrafe.toLowerCase());
-            if (indice !== -1) {
-                return extraerContexto(texto, indice, pregunta.epigrafe.length);
+        // 4. Búsqueda por palabras clave de respuesta correcta
+        if (respuestaCorrecta) {
+            const palabrasRespuesta = extraerPalabrasClave(respuestaCorrecta);
+            console.log('Palabras clave respuesta:', palabrasRespuesta);
+            
+            for (const palabra of palabrasRespuesta) {
+                indice = texto.toLowerCase().indexOf(palabra.toLowerCase());
+                if (indice !== -1) {
+                    console.log('✅ Encontrado por palabra clave respuesta:', palabra);
+                    return extraerContexto(texto, indice, palabra.length);
+                }
             }
         }
         
+        // 5. Búsqueda por epígrafe si existe
+        if (pregunta.epigrafe || pregunta.temaEpigrafe) {
+            const epigrafe = pregunta.epigrafe || pregunta.temaEpigrafe;
+            console.log('Buscando por epígrafe:', epigrafe);
+            indice = texto.toLowerCase().indexOf(epigrafe.toLowerCase());
+            if (indice !== -1) {
+                console.log('✅ Encontrado por epígrafe');
+                return extraerContexto(texto, indice, epigrafe.length);
+            }
+        }
+        
+        console.log('❌ No se encontró contexto');
         return null;
         
     } catch (error) {
         console.error('Error buscando contexto:', error);
         return null;
     }
+}
+
+function obtenerTextoRespuestaCorrecta(pregunta) {
+    if (!pregunta.opciones || !pregunta.respuestaCorrecta) {
+        return null;
+    }
+    
+    const opcionCorrecta = pregunta.opciones.find(
+        op => op.letra === pregunta.respuestaCorrecta || op.esCorrecta === true
+    );
+    
+    return opcionCorrecta ? opcionCorrecta.texto : null;
 }
 
 // Extraer contexto alrededor de la coincidencia
