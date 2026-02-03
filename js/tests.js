@@ -1,4 +1,5 @@
 import { auth, db } from './firebase-config.js';
+import { inicializarTemaDigital, abrirModalTemaDigital } from './tema-digital.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
     doc, 
@@ -233,7 +234,8 @@ if (crearTemaBancoBtn) {
         fileInput.addEventListener('change', manejarArchivoSeleccionado);
     }
 }
-
+// Inicializar tema digital
+inicializarTemaDigital();
 // Importar archivo
 const importarArchivoBtn = document.getElementById('importarArchivoBtn');
 const fileInput = document.getElementById('fileInput');
@@ -903,6 +905,7 @@ temasPrincipales.forEach(tema => {
                         <div class="tema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
                     </div>
                   <div class="tema-acciones">
+    <button class="btn-tema-digital ${tema.documentoDigital ? 'has-document' : ''}" onclick="abrirModalTemaDigital('${id}')" data-tema-id="${id}">${tema.documentoDigital ? '✅' : '📄'} Tema Digital</button>
     <button class="btn-secondary" onclick="crearSubtema('${id}')">📂 Crear Subtema</button>
     <button class="btn-importar" onclick="importarATema('${id}')">📥 Importar</button>
     <button class="btn-exportar" onclick="exportarTema('${id}')">📤 Exportar</button>
