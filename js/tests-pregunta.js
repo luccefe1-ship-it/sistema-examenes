@@ -9,7 +9,8 @@ import {
     getDocs,
     query,
     where,
-    updateDoc
+    updateDoc,
+    deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let currentUser = null;
@@ -636,6 +637,39 @@ async function finalizarTest() {
         await addDoc(collection(db, "resultados"), resultadosCompletos);
         console.log('Resultados guardados en Firebase');
         
+        // Si es test de REPASO, eliminar las preguntas acertadas de preguntasFalladas
+        if (testConfig.esRepaso) {
+            const preguntasAcertadas = detalleRespuestas.filter(detalle => 
+                detalle.estado === 'correcta'
+            );
+            
+            if (preguntasAcertadas.length > 0) {
+                console.log(`Eliminando ${preguntasAcertadas.length} preguntas acertadas de preguntasFalladas...`);
+                
+                const promesasEliminacion = preguntasAcertadas.map(async (detalle) => {
+                    const q = query(
+                        collection(db, "preguntasFalladas"),
+                        where("usuarioId", "==", currentUser.uid)
+                    );
+                    
+                    const querySnapshot = await getDocs(q);
+                    const eliminaciones = [];
+                    
+                    querySnapshot.forEach((docSnapshot) => {
+                        const data = docSnapshot.data();
+                        if (data.pregunta && data.pregunta.texto === detalle.pregunta.texto) {
+                            eliminaciones.push(deleteDoc(doc(db, "preguntasFalladas", docSnapshot.id)));
+                        }
+                    });
+                    
+                    return Promise.all(eliminaciones);
+                });
+                
+                await Promise.all(promesasEliminacion);
+                console.log(`${preguntasAcertadas.length} preguntas eliminadas del banco de repaso`);
+            }
+        }
+
         // Si es test de ranking, guardar preguntas acertadas como "dominadas" (ocultas del ranking pero sin borrar historial)
         if (testConfig.esRanking) {
             const preguntasAcertadas = detalleRespuestas.filter(detalle => 
