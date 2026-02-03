@@ -41,6 +41,20 @@ function cargarConfiguracion() {
     
     testConfig = JSON.parse(configStr);
     
+    // Normalizar preguntas: asegurar que todas tengan respuestaCorrecta
+    if (testConfig.preguntas) {
+        testConfig.preguntas = testConfig.preguntas.map(pregunta => {
+            // Si no tiene respuestaCorrecta, buscarla en las opciones
+            if (!pregunta.respuestaCorrecta && pregunta.opciones) {
+                const opcionCorrecta = pregunta.opciones.find(op => op.esCorrecta === true);
+                if (opcionCorrecta) {
+                    pregunta.respuestaCorrecta = opcionCorrecta.letra;
+                }
+            }
+            return pregunta;
+        });
+    }
+    
     // Mostrar nombre del test
     document.getElementById('nombreTestPregunta').textContent = testConfig.nombreTest || 'Test';
     
