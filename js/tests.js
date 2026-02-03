@@ -4398,8 +4398,44 @@ async function cargarTestRepaso() {
     }
 }
 
-// Iniciar Test de Repaso
-window.iniciarTestRepaso = async function() {
+// Variable para guardar el modo de repaso seleccionado
+let modoRepasoSeleccionado = 'completo';
+
+// Mostrar modal para elegir modo de repaso
+window.iniciarTestRepaso = function() {
+    const modal = document.getElementById('modalModoRepaso');
+    if (modal) {
+        modal.style.display = 'flex';
+        modoRepasoSeleccionado = 'completo';
+        // Resetear selección visual
+        document.querySelectorAll('.mode-btn-repaso').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === 'completo');
+        });
+    }
+};
+
+// Seleccionar modo de repaso
+window.seleccionarModoRepaso = function(modo) {
+    modoRepasoSeleccionado = modo;
+    document.querySelectorAll('.mode-btn-repaso').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === modo);
+    });
+};
+
+// Cerrar modal modo repaso
+window.cerrarModalModoRepaso = function() {
+    const modal = document.getElementById('modalModoRepaso');
+    if (modal) modal.style.display = 'none';
+};
+
+// Confirmar e iniciar test de repaso
+window.confirmarModoRepaso = async function() {
+    cerrarModalModoRepaso();
+    await ejecutarTestRepaso(modoRepasoSeleccionado);
+};
+
+// Ejecutar Test de Repaso (función original renombrada)
+async function ejecutarTestRepaso(modo) {
     try {
         // Cargar preguntas falladas
         const q = query(
@@ -4440,7 +4476,22 @@ window.iniciarTestRepaso = async function() {
         // Inicializar respuestas
         respuestasUsuario = {};
 
-        // Iniciar test
+        // Iniciar test según modo
+        if (modo === 'pregunta') {
+            const configuracion = {
+                nombreTest: testActual.nombre,
+                temas: 'repaso',
+                preguntas: preguntasMezcladas,
+                numPreguntas: preguntasMezcladas.length,
+                tiempoLimite: 'sin',
+                esRepaso: true
+            };
+            localStorage.setItem('testConfig', JSON.stringify(configuracion));
+            window.location.href = 'tests-pregunta.html';
+            return;
+        }
+
+        // Modo completo
         mostrarInterfazTest();
 
     } catch (error) {
