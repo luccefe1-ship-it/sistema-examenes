@@ -920,9 +920,47 @@ function mostrarNoDisponible(mensaje) {
     `;
 }
 
-window.abrirTemaCompleto = function(temaId) {
-    // Abrir tema digital completo (implementar según tu estructura)
-    alert('Función en desarrollo: abrir tema digital completo');
+window.abrirTemaCompleto = async function(temaId) {
+    try {
+        const temaRef = doc(db, 'temas', temaId);
+        const temaSnap = await getDoc(temaRef);
+        
+        if (!temaSnap.exists() || !temaSnap.data().documentoDigital) {
+            alert('No hay documento digital para este tema');
+            return;
+        }
+        
+        const documento = temaSnap.data().documentoDigital;
+        const pregunta = testConfig.preguntas[preguntaActual];
+        
+        // Mostrar documento completo en el panel
+        const contenido = document.getElementById('explicacionContenido');
+        
+        // Cargar subrayados previos si existen
+        const subrayados = await cargarSubrayadosPrevios(pregunta.id);
+        let textoMostrar = documento.textoExtraido;
+        
+        if (subrayados) {
+            textoMostrar = subrayados;
+        }
+        
+        contenido.innerHTML = `
+            <div class="documento-completo-header">
+                <h4>📄 ${documento.nombre}</h4>
+                <p class="documento-info">${Math.round(documento.tamano / 1024)} KB | ${documento.textoExtraido.length.toLocaleString()} caracteres</p>
+            </div>
+            <div class="explicacion-texto documento-completo" id="textoExplicacion">
+                ${textoMostrar.replace(/\n/g, '<br>')}
+            </div>
+        `;
+        
+        // Mostrar botones de subrayado
+        document.querySelector('.btn-subrayar').style.display = 'inline-block';
+        
+    } catch (error) {
+        console.error('Error abriendo tema completo:', error);
+        alert('Error al cargar el documento');
+    }
 };
 
 window.habilitarSubrayado = function() {
