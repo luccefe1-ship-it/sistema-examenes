@@ -6,7 +6,6 @@ let currentUser = null;
 let preguntaActual = null;
 let cacheRanking = null;
 let cacheTemas = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -18,20 +17,31 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
+// Inicializar selectores de número de preguntas
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.btn-num').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.btn-num').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+});
+
 async function cargarRanking() {
     const loading = document.getElementById('loading');
     const emptyState = document.getElementById('emptyState');
     const rankingList = document.getElementById('rankingList');
 
     try {
-        // Usar caché de temas si existe
-        let temasSnapshot;
-        if (cacheTemas) {
-            temasSnapshot = cacheTemas;
-        } else {
-            temasSnapshot = await getDocs(collection(db, "temas"));
-            cacheTemas = temasSnapshot;
-        }
+        // Cargar temas y resultados en PARALELO
+        const [temasSnapshot, resultadosSnapshot] = await Promise.all([
+            cacheTemas ? Promise.resolve(cacheTemas) : getDocs(collection(db, "temas")),
+            getDocs(query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid)))
+        ]);
+        
+        cacheTemas = temasSnapshot;
+
+        // Construir mapas de temas
         const mapaTemasCompleto = {};
         const mapaPorNombre = {};
         const temasById = {};
@@ -54,24 +64,18 @@ async function cargarRanking() {
                 }
             }
         });
-        
-        const q = query(
-            collection(db, "resultados"),
-            where("usuarioId", "==", currentUser.uid)
-        );
 
-        const snapshot = await getDocs(q);
-
-        if (snapshot.empty) {
+        if (resultadosSnapshot.empty) {
             loading.style.display = 'none';
             emptyState.style.display = 'block';
+            actualizarSidebar([]);
             return;
         }
 
         const preguntasAgrupadas = {};
         let totalFallos = 0;
 
-        snapshot.forEach(doc => {
+        resultadosSnapshot.forEach(doc => {
             const resultado = doc.data();
             const detalleRespuestas = resultado.detalleRespuestas || [];
             const nombreTest = resultado.nombreTest || 'Test';
@@ -91,6 +95,8 @@ async function cargarRanking() {
                 }
                 
                 const pregunta = detalle.pregunta;
+                if (!pregunta || !pregunta.texto) return;
+                
                 const textoKey = pregunta.texto;
                 totalFallos++;
 
@@ -140,26 +146,77 @@ async function cargarRanking() {
 
         if (rankingArray.length === 0) {
             emptyState.style.display = 'block';
+            actualizarSidebar([]);
             return;
         }
 
-        rankingList.innerHTML = rankingArray.map((item, index) => 
+        // Renderizar solo los primeros 50 items inicialmente para velocidad
+        const itemsIniciales = rankingArray.slice(0, 50);
+        rankingList.innerHTML = itemsIniciales.map((item, index) => 
             renderRankingItem(item, index + 1)
         ).join('');
 
-        document.querySelectorAll('.ranking-header').forEach(header => {
-            header.addEventListener('click', (e) => {
-                if (e.target.closest('.btn-restaurar') || e.target.closest('.btn-responder')) return;
-                header.closest('.ranking-item').classList.toggle('expanded');
-            });
-        });
+        // Renderizar el resto en segundo plano
+        if (rankingArray.length > 50) {
+            setTimeout(() => {
+                const itemsRestantes = rankingArray.slice(50);
+                const htmlRestante = itemsRestantes.map((item, index) => 
+                    renderRankingItem(item, index + 51)
+                ).join('');
+                rankingList.insertAdjacentHTML('beforeend', htmlRestante);
+                agregarEventListeners();
+            }, 100);
+        }
 
-        // Calcular tema con más fallos
-        mostrarTemaMasFallos(rankingArray);
+        agregarEventListeners();
+        actualizarSidebar(rankingArray);
 
     } catch (error) {
         console.error('Error cargando ranking:', error);
         loading.innerHTML = '<p style="color: #ff6b6b;">Error al cargar el ranking: ' + error.message + '</p>';
+    }
+}
+
+function agregarEventListeners() {
+    document.querySelectorAll('.ranking-header').forEach(header => {
+        if (!header.dataset.listenerAdded) {
+            header.dataset.listenerAdded = 'true';
+            header.addEventListener('click', (e) => {
+                if (e.target.closest('.btn-restaurar') || e.target.closest('.btn-responder')) return;
+                header.closest('.ranking-item').classList.toggle('expanded');
+            });
+        }
+    });
+}
+
+function actualizarSidebar(rankingArray) {
+    // Calcular tema con más fallos
+    const fallosPorTema = {};
+    
+    rankingArray.forEach(item => {
+        const tema = item.pregunta.temaPadreReal || 'Sin tema';
+        if (!fallosPorTema[tema]) {
+            fallosPorTema[tema] = 0;
+        }
+        fallosPorTema[tema] += item.count;
+    });
+    
+    let temaMax = 'Sin datos';
+    let maxFallos = 0;
+    
+    for (const [tema, fallos] of Object.entries(fallosPorTema)) {
+        if (fallos > maxFallos) {
+            maxFallos = fallos;
+            temaMax = tema;
+        }
+    }
+    
+    const container = document.getElementById('temaMasFallos');
+    if (container) {
+        container.innerHTML = `
+            <span class="tema-nombre-sidebar">${temaMax}</span>
+            <span class="tema-fallos-count">${maxFallos} fallos</span>
+        `;
     }
 }
 
@@ -173,7 +230,7 @@ function renderRankingItem(item, posicion) {
     else if (posicion === 2) posicionClass = 'posicion-2';
     else if (posicion === 3) posicionClass = 'posicion-3';
 
-    const opcionesHTML = pregunta.opciones.map((opcion) => {
+    const opcionesHTML = (pregunta.opciones || []).map((opcion) => {
         let claseOpcion = '';
         let badge = '';
         
@@ -195,8 +252,9 @@ function renderRankingItem(item, posicion) {
         `;
     }).join('');
 
-    let temaMostrar = pregunta.temaPadreReal || 'Sin tema asignado';
     const preguntaData = encodeURIComponent(JSON.stringify(pregunta));
+    const temaMostrar = pregunta.temaPadreReal || pregunta.temaNombre || 'Sin tema';
+    const textoEscapado = encodeURIComponent(pregunta.texto);
 
     return `
         <div class="ranking-item">
@@ -211,7 +269,7 @@ function renderRankingItem(item, posicion) {
                 </div>
                 <div class="ranking-fallos">${item.count} ${item.count === 1 ? 'fallo' : 'fallos'}</div>
                 <button class="btn-responder" onclick="event.stopPropagation(); abrirModalResponder('${preguntaData}')">Responder</button>
-                <button class="btn-restaurar" onclick="event.stopPropagation(); restaurarPregunta('${encodeURIComponent(pregunta.texto)}')">↻</button>
+                <button class="btn-restaurar" onclick="event.stopPropagation(); restaurarPregunta('${textoEscapado}')">↻</button>
                 <span class="ranking-expand">▼</span>
             </div>
             <div class="ranking-detalles">
@@ -245,7 +303,7 @@ window.abrirModalResponder = function(preguntaData) {
     const resultado = document.getElementById('modalResultado');
     
     enunciado.textContent = preguntaActual.texto;
-    opciones.innerHTML = preguntaActual.opciones.map(opcion => `
+    opciones.innerHTML = (preguntaActual.opciones || []).map(opcion => `
         <div class="modal-opcion" onclick="seleccionarOpcion('${opcion.letra}', this)">
             <span class="modal-opcion-letra">${opcion.letra}</span>
             <span class="modal-opcion-texto">${opcion.texto}</span>
@@ -277,13 +335,12 @@ window.seleccionarOpcion = async function(letra, elemento) {
         });
         resultado.innerHTML = '<h4 style="color:#dc3545;">❌ Incorrecto</h4><p>La respuesta correcta es: <strong>' + letraCorrecta + '</strong></p><p style="font-size:12px;color:#666;">Se ha sumado un fallo más.</p><button class="btn-cerrar-modal" onclick="cerrarModalResponder()">Cerrar</button>';
         resultado.className = 'visible incorrecto';
-        await registrarFalloAdicional(preguntaActual, letra);
+        registrarFalloAdicional(preguntaActual, letra);
     }
     resultado.style.display = 'block';
 }
 
 async function registrarFalloAdicional(pregunta, respuestaUsuario) {
-    // Invalidar caché
     cacheRanking = null;
     
     try {
@@ -310,7 +367,6 @@ async function registrarFalloAdicional(pregunta, respuestaUsuario) {
 window.cerrarModalResponder = function() {
     document.getElementById('modalResponder').classList.remove('activo');
     
-    // Actualizar contador localmente si hubo fallo
     if (preguntaActual && document.querySelector('#modalResultado.incorrecto')) {
         const texto = preguntaActual.texto;
         document.querySelectorAll('.ranking-enunciado').forEach(el => {
@@ -320,7 +376,6 @@ window.cerrarModalResponder = function() {
                 const actual = parseInt(fallosEl.textContent);
                 fallosEl.textContent = (actual + 1) + ' fallos';
                 
-                // Actualizar total
                 const totalEl = document.getElementById('totalFallos');
                 totalEl.textContent = parseInt(totalEl.textContent) + 1;
             }
@@ -333,10 +388,8 @@ window.cerrarModalResponder = function() {
 window.restaurarPregunta = function(textoPregunta) {
     if (!confirm('¿Restaurar esta pregunta a cero fallos? Desaparecerá del ranking.')) return;
 
-    // Decodificar el texto
     const textoDecodificado = decodeURIComponent(textoPregunta);
 
-    // Encontrar y ocultar el item inmediatamente
     let fallosEliminados = 0;
     document.querySelectorAll('.ranking-item').forEach(item => {
         const enunciado = item.querySelector('.ranking-enunciado').textContent;
@@ -349,13 +402,11 @@ window.restaurarPregunta = function(textoPregunta) {
         }
     });
 
-    // Actualizar contadores inmediatamente
     const totalPregEl = document.getElementById('totalPreguntas');
     const totalFallosEl = document.getElementById('totalFallos');
     totalPregEl.textContent = parseInt(totalPregEl.textContent) - 1;
     totalFallosEl.textContent = parseInt(totalFallosEl.textContent) - fallosEliminados;
 
-    // Renumerar posiciones
     setTimeout(() => {
         document.querySelectorAll('.ranking-item').forEach((item, index) => {
             const posEl = item.querySelector('.ranking-posicion');
@@ -364,15 +415,12 @@ window.restaurarPregunta = function(textoPregunta) {
         });
     }, 350);
 
-    // Invalidar caché
     cacheRanking = null;
     cacheTemas = null;
     
-    // Guardar en Firebase en SEGUNDO PLANO (sin await, sin bloquear)
     actualizarFirebaseRestaurar(textoDecodificado);
 }
 
-// Función separada para actualizar Firebase sin bloquear la UI
 async function actualizarFirebaseRestaurar(textoDecodificado) {
     try {
         const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
@@ -399,55 +447,15 @@ async function actualizarFirebaseRestaurar(textoDecodificado) {
             }
         });
         
-        // Ejecutar todas las actualizaciones en paralelo
         await Promise.all(promesas);
         console.log('Pregunta restaurada en Firebase');
     } catch (error) {
         console.error('Error restaurando pregunta en Firebase:', error);
     }
-// Mostrar tema con más fallos
-function mostrarTemaMasFallos(rankingArray) {
-    const fallosPorTema = {};
-    
-    rankingArray.forEach(item => {
-        const tema = item.pregunta.temaPadreReal || 'Sin tema';
-        if (!fallosPorTema[tema]) {
-            fallosPorTema[tema] = 0;
-        }
-        fallosPorTema[tema] += item.count;
-    });
-    
-    let temaMax = 'Sin datos';
-    let maxFallos = 0;
-    
-    for (const [tema, fallos] of Object.entries(fallosPorTema)) {
-        if (fallos > maxFallos) {
-            maxFallos = fallos;
-            temaMax = tema;
-        }
-    }
-    
-    const container = document.getElementById('temaMasFallos');
-    if (container) {
-        container.innerHTML = `
-            <span class="tema-nombre-sidebar">${temaMax}</span>
-            <span class="tema-fallos-count">${maxFallos} fallos</span>
-        `;
-    }
 }
 
-// Selector de número de preguntas
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.btn-num').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.btn-num').forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-        });
-    });
-});
-
 // Iniciar test del ranking
-window.iniciarTestRanking = async function() {
+window.iniciarTestRanking = function() {
     const btnActivo = document.querySelector('.btn-num.active');
     const numPreguntas = btnActivo ? btnActivo.dataset.num : '10';
     
@@ -483,5 +491,4 @@ window.iniciarTestRanking = async function() {
     
     localStorage.setItem('testConfig', JSON.stringify(configuracion));
     window.location.href = 'tests-pregunta.html';
-}
 }
