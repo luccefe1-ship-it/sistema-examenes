@@ -1093,7 +1093,7 @@ window.abrirTemaCompleto = async function(temaId) {
                 <!-- Buscador de texto -->
                 <div class="buscador-texto">
                     <input type="text" id="buscadorInput" placeholder="🔍 Buscar en el documento..." class="input-buscador">
-                    <button onclick="buscarEnDocumento()" class="btn-buscar">Buscar</button>
+                    <button onclick="buscarEnTexto()" class="btn-buscar">Buscar</button>
                     <button onclick="limpiarBusqueda()" class="btn-limpiar-busqueda">Limpiar</button>
                 </div>
             </div>
@@ -1116,37 +1116,6 @@ window.abrirTemaCompleto = async function(temaId) {
     }
 };
 
-window.buscarEnDocumento = function() {
-    const input = document.getElementById('buscadorInput');
-    const textoExplicacion = document.getElementById('textoExplicacion');
-    const textoBuscar = input.value.trim();
-    
-    if (!textoBuscar) {
-        alert('Escribe algo para buscar');
-        return;
-    }
-    
-    const textoOriginal = textoExplicacion.dataset.textoOriginal;
-    
-    // Escapar caracteres especiales para regex
-    const textoEscapado = textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(textoEscapado, 'gi');
-    
-    // Resaltar coincidencias
-    let textoResaltado = textoOriginal.replace(regex, (match) => {
-        return `<mark class="busqueda-highlight">${match}</mark>`;
-    });
-    
-    textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
-    
-    // Scroll a la primera coincidencia
-    const primeraCoincidencia = textoExplicacion.querySelector('.busqueda-highlight');
-    if (primeraCoincidencia) {
-        primeraCoincidencia.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-        alert('No se encontraron coincidencias');
-    }
-};
 
 window.limpiarBusqueda = async function() {
     const input = document.getElementById('buscadorInput');
