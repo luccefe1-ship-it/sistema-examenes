@@ -1373,11 +1373,6 @@ window.guardarSubrayado = async function() {
     
     const elementos = textoExplicacion.querySelectorAll('.subrayado');
     
-    if (elementos.length === 0) {
-        alert('No has subrayado ningún texto');
-        return;
-    }
-    
     try {
         const preguntaId = window.preguntaIdActual;
         
@@ -1386,22 +1381,30 @@ window.guardarSubrayado = async function() {
             return;
         }
         
-        console.log('Guardando para ID:', preguntaId);
-        console.log('Usuario:', currentUser.uid);
-        
         const docId = `${currentUser.uid}_${preguntaId}`;
         const subrayadoRef = doc(db, 'subrayados', docId);
         
-        await setDoc(subrayadoRef, {
-            usuarioId: currentUser.uid,
-            preguntaId: preguntaId,
-            htmlCompleto: textoExplicacion.innerHTML,
-            cantidadSubrayados: elementos.length,
-            fecha: new Date()
-        }, { merge: true });
-        
-        console.log('✅ Guardado exitoso');
-        alert('✅ Subrayado guardado correctamente');
+        if (elementos.length === 0) {
+            // No hay subrayados: eliminar el documento de Firebase
+            const docSnap = await getDoc(subrayadoRef);
+            if (docSnap.exists()) {
+                await deleteDoc(subrayadoRef);
+                console.log('✅ Subrayados eliminados (no quedaban)');
+            }
+            alert('✅ Guardado (sin subrayados)');
+        } else {
+            // Hay subrayados: guardar
+            await setDoc(subrayadoRef, {
+                usuarioId: currentUser.uid,
+                preguntaId: preguntaId,
+                htmlCompleto: textoExplicacion.innerHTML,
+                cantidadSubrayados: elementos.length,
+                fecha: new Date()
+            }, { merge: true });
+            
+            console.log('✅ Guardado exitoso');
+            alert('✅ Subrayado guardado correctamente');
+        }
         
     } catch (error) {
         console.error('❌ Error:', error);
