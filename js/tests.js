@@ -5492,27 +5492,6 @@ function obtenerTextoTemasSimple(tema) {
     }
 }
 
-window.cerrarExplicacionResultado = function() {
-    const modal = document.getElementById('modalExplicacionResultado');
-    if (modal) {
-        modal.classList.remove('mostrar');
-    }
-};
-
-window.cambiarTabResultado = async function(tab) {
-    document.querySelectorAll('#modalExplicacionResultado .tab-btn').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('#modalExplicacionResultado .tab-content').forEach(content => content.classList.remove('active'));
-    
-    if (tab === 'digital') {
-        document.getElementById('tabDigitalRes').classList.add('active');
-        document.getElementById('contentDigitalRes').classList.add('active');
-    } else if (tab === 'gemini') {
-        document.getElementById('tabGeminiRes').classList.add('active');
-        document.getElementById('contentGeminiRes').classList.add('active');
-        await cargarExplicacionGeminiResultado();
-    }
-};
-
 async function cargarExplicacionResultado() {
     const contenido = document.getElementById('explicacionContenidoRes');
     const pregunta = window.preguntaActualExplicacion;
