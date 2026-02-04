@@ -863,6 +863,93 @@
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.03); }
         }
+
+        /* Tabs de explicación */
+        .tabs-explicacion {
+            display: flex;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .tab-btn {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.7);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: #1e293b;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .textarea-gemini {
+            width: 100%;
+            min-height: 400px;
+            padding: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            resize: vertical;
+            background: white;
+        }
+
+        .textarea-gemini:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .btn-guardar-gemini {
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-guardar-gemini:hover {
+            background: #2563eb;
+        }
+
+        .btn-borrar-gemini {
+            padding: 8px 16px;
+            background: white;
+            border: 2px solid #ef4444;
+            color: #ef4444;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-borrar-gemini:hover {
+            background: #fef2f2;
+        }
     </style>
 </head>
 <body>
@@ -913,18 +1000,36 @@
 
                 <div class="explicacion-panel" id="explicacionPanel">
                     <div class="explicacion-header">
-                        <h3>📚 Explicación del Tema Digital</h3>
+                        <div class="tabs-explicacion">
+                            <button class="tab-btn active" id="tabDigital" onclick="cambiarTab('digital')">📚 Tema Digital</button>
+                            <button class="tab-btn" id="tabGemini" onclick="cambiarTab('gemini')">🤖 Explicación Gemini</button>
+                        </div>
                         <button class="btn-cerrar-explicacion" onclick="cerrarExplicacion()">✕</button>
                     </div>
-                    <div class="explicacion-contenido" id="explicacionContenido">
-                        <div class="explicacion-cargando">
-                            <div class="spinner"></div>
-                            <p>Buscando contexto...</p>
+                    
+                    <!-- Tab Digital -->
+                    <div class="tab-content active" id="contentDigital">
+                        <div class="explicacion-contenido" id="explicacionContenido">
+                            <div class="explicacion-cargando">
+                                <div class="spinner"></div>
+                                <p>Buscando contexto...</p>
+                            </div>
+                        </div>
+                        <div class="explicacion-acciones" id="accionesDigital">
+                            <button class="btn-subrayar" onclick="habilitarSubrayado()">✏️ Subrayar</button>
+                            <button class="btn-guardar-subrayado" onclick="guardarSubrayado()" style="display:none;">💾 Guardar Subrayado</button>
                         </div>
                     </div>
-                    <div class="explicacion-acciones">
-                        <button class="btn-subrayar" onclick="habilitarSubrayado()">✏️ Subrayar</button>
-                        <button class="btn-guardar-subrayado" onclick="guardarSubrayado()" style="display:none;">💾 Guardar Subrayado</button>
+                    
+                    <!-- Tab Gemini -->
+                    <div class="tab-content" id="contentGemini">
+                        <div class="explicacion-contenido">
+                            <textarea id="textoGemini" class="textarea-gemini" placeholder="Pega aquí tu explicación de Gemini o escribe cualquier anotación personalizada..."></textarea>
+                        </div>
+                        <div class="explicacion-acciones">
+                            <button class="btn-guardar-gemini" onclick="guardarExplicacionGemini()">💾 Guardar Explicación</button>
+                            <button class="btn-borrar-gemini" onclick="borrarExplicacionGemini()">🗑️ Borrar</button>
+                        </div>
                     </div>
                 </div>
             </div>
