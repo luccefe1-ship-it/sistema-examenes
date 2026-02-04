@@ -973,47 +973,49 @@ async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
     
     const documentoCompleto = temaConDocumento.documento.textoExtraido;
     
+    // Generar ID de pregunta
+    const preguntaTexto = pregunta.texto || '';
+    let hash = 0;
+    for (let i = 0; i < preguntaTexto.length; i++) {
+        const char = preguntaTexto.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    const preguntaIdHash = 'q_' + Math.abs(hash).toString(36);
+    
     // Cargar subrayados previos si existen
-    const subrayados = await cargarSubrayadosPrevios(preguntaId);
+    const subrayados = await cargarSubrayadosPrevios(preguntaIdHash);
     
     let textoMostrar;
     let mensajeInfo;
     
     if (subrayados) {
-        // Si hay subrayados guardados, mostrarlos
         textoMostrar = subrayados;
         mensajeInfo = '✅ Mostrando tus subrayados guardados';
     } else {
-        // Si no hay subrayados, mostrar documento completo SIN resaltar nada
         textoMostrar = documentoCompleto;
         mensajeInfo = '✅ Documento cargado - Puedes hacer scroll o buscar texto específico';
     }
+    
+    // Guardar texto sin procesar en una variable global para búsqueda
+    window.textoDocumentoOriginal = documentoCompleto;
+    window.preguntaIdActual = preguntaIdHash;
     
     contenido.innerHTML = `
         <div class="contexto-encontrado-header">
             <p class="contexto-info">${mensajeInfo}</p>
             
-            <!-- Buscador de texto -->
             <div class="buscador-texto">
                 <input type="text" id="buscadorInput" placeholder="🔍 Buscar texto en el documento..." class="input-buscador">
                 <button onclick="buscarEnTexto()" class="btn-buscar">Buscar</button>
                 <button onclick="limpiarBusqueda()" class="btn-limpiar-busqueda">Limpiar</button>
             </div>
         </div>
-        <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacion" data-texto-original="${documentoCompleto.replace(/"/g, '&quot;')}" data-pregunta-id="${preguntaId}">
+        <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacion">
             ${textoMostrar.replace(/\n/g, '<br>')}
         </div>
     `;
     
-    // Scroll automático al contexto encontrado o al subrayado
-    setTimeout(() => {
-        const elemento = document.getElementById('contextoEncontrado') || document.querySelector('.subrayado');
-        if (elemento) {
-            elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    }, 100);
-    
-    // Mostrar botones de subrayado
     const accionesDiv = document.querySelector('.explicacion-acciones');
     accionesDiv.innerHTML = `
         <button class="btn-subrayar" onclick="habilitarSubrayado()">✏️ Subrayar</button>
@@ -1106,17 +1108,11 @@ window.abrirTemaCompleto = async function(temaId) {
 
 
 window.limpiarBusqueda = async function() {
-    const input = document.getElementById('buscadorInput');
-    const textoExplicacion = document.getElementById('textoExplicacion');
-    
-    input.value = '';
-    
-    // Recargar la explicación completa
+    document.getElementById('buscadorInput').value = '';
     await cargarExplicacion();
 };
 window.buscarEnTexto = function() {
     const input = document.getElementById('buscadorInput');
-    const textoExplicacion = document.getElementById('textoExplicacion');
     const textoBuscar = input.value.trim();
     
     if (!textoBuscar) {
@@ -1124,90 +1120,96 @@ window.buscarEnTexto = function() {
         return;
     }
     
-    // Obtener texto original
-    let textoOriginal = textoExplicacion.dataset.textoOriginal;
+    const textoOriginal = window.textoDocumentoOriginal;
     
     if (!textoOriginal) {
-        // Si no hay dataset, intentar obtener el texto limpio del contenedor
-        textoOriginal = textoExplicacion.textContent || textoExplicacion.innerText || '';
-        console.log('Texto original obtenido del contenido:', textoOriginal.substring(0, 100));
+        alert('Error: No hay documento cargado');
+        return;
     }
     
     console.log('Buscando:', textoBuscar);
-    console.log('Longitud texto original:', textoOriginal.length);
+    console.log('Longitud documento:', textoOriginal.length);
     
-    // Escapar caracteres especiales para regex
-    const textoEscapado = textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(textoEscapado, 'gi');
+    // Buscar sin regex para evitar problemas
+    const textoLower = textoOriginal.toLowerCase();
+    const buscarLower = textoBuscar.toLowerCase();
     
-    // Contar coincidencias
-    const matches = textoOriginal.match(regex);
+    let posicion = textoLower.indexOf(buscarLower);
+    let coincidencias = 0;
     
-    console.log('Coincidencias encontradas:', matches ? matches.length : 0);
-    
-    if (!matches || matches.length === 0) {
+    if (posicion === -1) {
         alert('No se encontraron coincidencias');
         return;
     }
     
-    // Resaltar todas las coincidencias
+    // Contar todas las coincidencias
+    let pos = 0;
+    while ((pos = textoLower.indexOf(buscarLower, pos)) !== -1) {
+        coincidencias++;
+        pos += buscarLower.length;
+    }
+    
+    console.log('Coincidencias encontradas:', coincidencias);
+    
+    // Resaltar coincidencias manualmente
+    let textoResaltado = textoOriginal;
+    const regex = new RegExp(textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    
     let contador = 0;
-    let textoResaltado = textoOriginal.replace(regex, (match) => {
+    textoResaltado = textoResaltado.replace(regex, (match) => {
         contador++;
         const id = contador === 1 ? ' id="primeraCoincidencia"' : '';
         return `<mark${id} class="busqueda-highlight">${match}</mark>`;
     });
     
+    const textoExplicacion = document.getElementById('textoExplicacion');
     textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
     
-    // Scroll a la primera coincidencia
     setTimeout(() => {
-        const primeraCoincidencia = document.getElementById('primeraCoincidencia');
-        if (primeraCoincidencia) {
-            primeraCoincidencia.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const primera = document.getElementById('primeraCoincidencia');
+        if (primera) {
+            primera.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }, 100);
     
-    alert(`Se encontraron ${matches.length} coincidencias`);
+    alert(`Se encontraron ${coincidencias} coincidencias`);
 };
 window.borrarSubrayado = async function() {
-    if (!confirm('¿Eliminar todos los subrayados guardados para esta pregunta?')) {
+    if (!confirm('¿Eliminar los subrayados?')) {
         return;
     }
     
     try {
-        const pregunta = testConfig.preguntas[preguntaActual];
-        const preguntaTexto = pregunta.texto || '';
+        const preguntaId = window.preguntaIdActual;
         
-        // Usar mismo hash que en guardar
-        let hash = 0;
-        for (let i = 0; i < preguntaTexto.length; i++) {
-            const char = preguntaTexto.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
+        if (!preguntaId) {
+            alert('Error: No se pudo identificar la pregunta');
+            return;
         }
-        const preguntaId = 'q_' + Math.abs(hash).toString(36);
         
-        console.log('Borrando subrayado para pregunta ID:', preguntaId);
+        console.log('Borrando ID:', preguntaId);
         
         const docId = `${currentUser.uid}_${preguntaId}`;
         const subrayadoRef = doc(db, 'subrayados', docId);
         
+        // Primero verificar si existe
+        const docSnap = await getDoc(subrayadoRef);
+        
+        if (!docSnap.exists()) {
+            alert('No hay subrayados guardados para esta pregunta');
+            await cargarExplicacion();
+            return;
+        }
+        
         await deleteDoc(subrayadoRef);
         
-        console.log('✅ Subrayado eliminado');
-        
-        // Recargar explicación sin subrayados
+        console.log('✅ Borrado exitoso');
         await cargarExplicacion();
-        
         alert('✅ Subrayados eliminados');
+        
     } catch (error) {
-        console.error('❌ Error borrando subrayado:', error);
-        if (error.code === 'not-found') {
-            alert('No hay subrayados guardados para esta pregunta');
-        } else {
-            alert('Error al borrar: ' + error.message);
-        }
+        console.error('❌ Error:', error);
+        alert('Error al borrar: ' + error.message);
     }
 };
 
@@ -1247,87 +1249,61 @@ window.guardarSubrayado = async function() {
     const textoExplicacion = document.getElementById('textoExplicacion');
     const btnSubrayar = document.querySelector('.btn-subrayar');
     const btnGuardar = document.querySelector('.btn-guardar-subrayado');
-    const pregunta = testConfig.preguntas[preguntaActual];
     
     if (!textoExplicacion || !btnSubrayar || !btnGuardar) {
-        console.error('Elementos no encontrados');
-        alert('Error: No se encontraron los elementos necesarios');
+        alert('Error: Elementos no encontrados');
         return;
     }
     
-    // Remover event listener
     document.removeEventListener('mouseup', marcarSeleccion);
     
     textoExplicacion.classList.remove('modo-subrayar');
     btnSubrayar.style.display = 'inline-block';
     btnGuardar.style.display = 'none';
     
-    // Obtener texto subrayado
-    const subrayados = [];
     const elementos = textoExplicacion.querySelectorAll('.subrayado');
-    elementos.forEach(el => {
-        subrayados.push(el.textContent);
-    });
     
-    if (subrayados.length === 0) {
+    if (elementos.length === 0) {
         alert('No has subrayado ningún texto');
         return;
     }
     
     try {
-        // Generar ID único para la pregunta usando hash simple
-        const preguntaTexto = pregunta.texto || '';
-        let hash = 0;
-        for (let i = 0; i < preguntaTexto.length; i++) {
-            const char = preguntaTexto.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        const preguntaId = 'q_' + Math.abs(hash).toString(36);
+        const preguntaId = window.preguntaIdActual;
         
-        console.log('Guardando subrayado para pregunta ID:', preguntaId);
+        if (!preguntaId) {
+            alert('Error: No se pudo identificar la pregunta');
+            return;
+        }
+        
+        console.log('Guardando para ID:', preguntaId);
         console.log('Usuario:', currentUser.uid);
         
-        // Guardar en Firestore
         const docId = `${currentUser.uid}_${preguntaId}`;
         const subrayadoRef = doc(db, 'subrayados', docId);
         
         await setDoc(subrayadoRef, {
             usuarioId: currentUser.uid,
             preguntaId: preguntaId,
-            preguntaTextoCompleto: preguntaTexto,
-            temaId: pregunta.temaId || '',
             htmlCompleto: textoExplicacion.innerHTML,
-            cantidadSubrayados: subrayados.length,
-            fechaGuardado: new Date()
-        });
+            cantidadSubrayados: elementos.length,
+            fecha: new Date()
+        }, { merge: true });
         
-        console.log('✅ Subrayado guardado correctamente');
+        console.log('✅ Guardado exitoso');
         alert('✅ Subrayado guardado correctamente');
+        
     } catch (error) {
-        console.error('❌ Error guardando subrayado:', error);
-        console.error('Detalles:', error.code, error.message);
+        console.error('❌ Error:', error);
         alert('Error al guardar: ' + error.message);
     }
 };
 
-async function cargarSubrayadosPrevios(preguntaId) {
+async function cargarSubrayadosPrevios(preguntaIdHash) {
     try {
-        const pregunta = testConfig.preguntas[preguntaActual];
-        const preguntaTexto = pregunta.texto || '';
+        console.log('Cargando subrayados para:', preguntaIdHash);
         
-        // Usar mismo hash que en guardar
-        let hash = 0;
-        for (let i = 0; i < preguntaTexto.length; i++) {
-            const char = preguntaTexto.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        const preguntaIdGenerado = 'q_' + Math.abs(hash).toString(36);
-        
-        console.log('Buscando subrayados para ID:', preguntaIdGenerado);
-        
-        const docId = `${currentUser.uid}_${preguntaIdGenerado}`;
+        const docId = `${currentUser.uid}_${preguntaIdHash}`;
         const subrayadoRef = doc(db, 'subrayados', docId);
         const subDoc = await getDoc(subrayadoRef);
         
@@ -1339,7 +1315,7 @@ async function cargarSubrayadosPrevios(preguntaId) {
         console.log('No hay subrayados previos');
         return null;
     } catch (error) {
-        console.error('Error cargando subrayados:', error);
+        console.error('Error cargando:', error);
         return null;
     }
 }
