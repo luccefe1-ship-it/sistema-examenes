@@ -1021,7 +1021,6 @@ async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
         <button class="btn-subrayar" onclick="subrayarSeleccion()">✏️ Subrayar</button>
         <button class="btn-borrar-subrayado" onclick="borrarSubrayado()">🗑️ Quitar Subrayado</button>
         <button class="btn-guardar-subrayado" onclick="guardarSubrayado()">💾 Guardar</button>
-        <button class="btn-borrar-todo" onclick="borrarTodoSubrayado()">🗑️ Borrar Todo</button>
     `;
     
     // Scroll automático al primer subrayado guardado
@@ -1110,7 +1109,6 @@ window.abrirTemaCompleto = async function(temaId) {
             <button class="btn-subrayar" onclick="subrayarSeleccion()">✏️ Subrayar</button>
             <button class="btn-borrar-subrayado" onclick="borrarSubrayado()">🗑️ Quitar Subrayado</button>
             <button class="btn-guardar-subrayado" onclick="guardarSubrayado()">💾 Guardar</button>
-            <button class="btn-borrar-todo" onclick="borrarTodoSubrayado()">🗑️ Borrar Todo</button>
         `;
         
     } catch (error) {
@@ -1289,45 +1287,37 @@ window.borrarSubrayado = function() {
     const selection = window.getSelection();
     
     if (!selection || selection.toString().length === 0) {
-        alert('Selecciona texto primero');
+        alert('Selecciona el texto subrayado que quieres eliminar');
         return;
     }
     
     try {
         const range = selection.getRangeAt(0);
-        const container = range.commonAncestorContainer;
         
-        // Buscar elementos subrayados en la selección
-        let elementoPadre = container.nodeType === 3 ? container.parentNode : container;
-        let subrayados = [];
+        // Obtener todos los subrayados del documento
+        const todosSubrayados = document.querySelectorAll('.subrayado');
+        let borrados = 0;
         
-        // Si el elemento padre es un subrayado
-        if (elementoPadre.classList && elementoPadre.classList.contains('subrayado')) {
-            subrayados.push(elementoPadre);
-        }
-        
-        // Buscar subrayados hijos
-        if (elementoPadre.querySelectorAll) {
-            subrayados.push(...elementoPadre.querySelectorAll('.subrayado'));
-        }
-        
-        if (subrayados.length === 0) {
-            alert('No hay subrayados en el texto seleccionado');
-            return;
-        }
-        
-        // Quitar el subrayado manteniendo el texto
-        subrayados.forEach(span => {
-            const parent = span.parentNode;
-            while (span.firstChild) {
-                parent.insertBefore(span.firstChild, span);
+        todosSubrayados.forEach(span => {
+            // Verificar si el span está completamente dentro de la selección
+            if (selection.containsNode(span, true)) {
+                const parent = span.parentNode;
+                while (span.firstChild) {
+                    parent.insertBefore(span.firstChild, span);
+                }
+                parent.removeChild(span);
+                borrados++;
             }
-            parent.removeChild(span);
         });
+        
+        if (borrados === 0) {
+            alert('No hay subrayados en el texto seleccionado');
+        }
         
         selection.removeAllRanges();
         
     } catch (e) {
+        console.error('Error:', e);
         alert('Error al borrar subrayado');
     }
 };
@@ -1365,40 +1355,6 @@ async function guardarSubrayadoAutomatico() {
         console.error('Error guardando automáticamente:', error);
     }
 }
-
-window.borrarTodoSubrayado = async function() {
-    if (!confirm('¿Eliminar TODOS los subrayados de esta pregunta?')) {
-        return;
-    }
-    
-    try {
-        const preguntaId = window.preguntaIdActual;
-        
-        if (!preguntaId) {
-            alert('Error: No se pudo identificar la pregunta');
-            return;
-        }
-        
-        const docId = `${currentUser.uid}_${preguntaId}`;
-        const subrayadoRef = doc(db, 'subrayados', docId);
-        
-        const docSnap = await getDoc(subrayadoRef);
-        
-        if (!docSnap.exists()) {
-            alert('No hay subrayados guardados');
-            await cargarExplicacion();
-            return;
-        }
-        
-        await deleteDoc(subrayadoRef);
-        await cargarExplicacion();
-        alert('✅ Todos los subrayados eliminados');
-        
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error al borrar: ' + error.message);
-    }
-};
 
 window.guardarSubrayado = async function() {
     const textoExplicacion = document.getElementById('textoExplicacion');
