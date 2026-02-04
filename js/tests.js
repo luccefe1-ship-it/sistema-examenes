@@ -12,15 +12,15 @@ import {
     where, 
     collection, 
     writeBatch,
-    setDoc  // <-- AÑADIR ESTA LÍNEA
+    setDoc  // <-- AÃ‘ADIR ESTA LÃNEA
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-// Exponer función al scope global para onclick
+// Exponer funciÃ³n al scope global para onclick
 window.abrirModalTemaDigital = abrirModalTemaDigital;
 // Variables globales
 let currentUser = null;
 let temaSeleccionado = null;
 let preguntasProcesadas = [];
-let temasAbiertos = new Set(); // Para recordar qué temas están expandidos
+let temasAbiertos = new Set(); // Para recordar quÃ© temas estÃ¡n expandidos
 let preguntasImportadas = [];
 // Cache para temas cargados
 let cacheTemas = null;
@@ -29,17 +29,17 @@ const CACHE_DURACION = 5 * 60 * 1000; // 5 minutos
 let cacheResultados = null;
 let cacheResultadosTimestamp = null;
 
-// Flags para evitar múltiples cargas simultáneas
+// Flags para evitar mÃºltiples cargas simultÃ¡neas
 let cargandoBanco = false;
 let cargandoResultados = false;
 let cargandoTemasTest = false;
-// Exponer para diagnóstico
+// Exponer para diagnÃ³stico
 window.testActual = null;
 window.testActual = null;
 
-// Función de diagnóstico global
+// FunciÃ³n de diagnÃ³stico global
 window.diagnosticarTema5 = async function() {
-    console.log('=== DIAGNÓSTICO TEMA 5 ===');
+    console.log('=== DIAGNÃ“STICO TEMA 5 ===');
     
     const tema5Query = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
     const snapshot = await getDocs(tema5Query);
@@ -87,9 +87,9 @@ const cancelarSeleccionarTema = document.getElementById('cancelarSeleccionarTema
 // Elementos del banco de preguntas
 const listaTemas = document.getElementById('listaTemas');
 
-// Inicialización
+// InicializaciÃ³n
 document.addEventListener('DOMContentLoaded', () => {
-    // Ocultar todo el contenido hasta que se decida qué mostrar
+    // Ocultar todo el contenido hasta que se decida quÃ© mostrar
     const mainContent = document.querySelector('.main-content');
     if (mainContent) mainContent.style.display = 'none';
  // Selector de modo
@@ -103,14 +103,14 @@ document.addEventListener('DOMContentLoaded', () => {
             modoTest = this.dataset.mode;
         });
     });   
-    // Verificar autenticación
+    // Verificar autenticaciÃ³n
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             currentUser = user;
             await cargarDatosUsuario();
-            // Eliminamos cargarTemas() de aquí; cada sección cargará sus datos solo cuando sea necesario
+            // Eliminamos cargarTemas() de aquÃ­; cada secciÃ³n cargarÃ¡ sus datos solo cuando sea necesario
             
-            // Verificar si debe ir a una sección específica por URL
+            // Verificar si debe ir a una secciÃ³n especÃ­fica por URL
             const urlParams = new URLSearchParams(window.location.search);
             const sectionParam = urlParams.get('section');
             
@@ -127,10 +127,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            // Mostrar contenido ahora que ya se decidió la sección
+            // Mostrar contenido ahora que ya se decidiÃ³ la secciÃ³n
             if (mainContent) mainContent.style.display = 'block';
             
-            // Inicializar test aleatorio si la sección está activa
+            // Inicializar test aleatorio si la secciÃ³n estÃ¡ activa
             const seccionAleatorio = document.getElementById('aleatorio-section');
             if (seccionAleatorio && seccionAleatorio.classList.contains('active')) {
                 setTimeout(() => {
@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Configurar event listeners
 function setupEventListeners() {
-    // Navegación
+    // NavegaciÃ³n
     backBtn.addEventListener('click', () => {
         window.location.href = 'homepage.html';
     });
@@ -159,11 +159,11 @@ function setupEventListeners() {
             await signOut(auth);
             window.location.href = 'index.html';
         } catch (error) {
-            console.error('Error al cerrar sesión:', error);
+            console.error('Error al cerrar sesiÃ³n:', error);
         }
     });
 
-    // Sub-navegación
+    // Sub-navegaciÃ³n
     subNavBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const section = btn.dataset.section;
@@ -171,11 +171,11 @@ function setupEventListeners() {
         });
     });
 
-    // Gestión de temas
+    // GestiÃ³n de temas
     crearTemaBtn.addEventListener('click', () => {
         modalCrearTema.style.display = 'block';
     });
-    // Botón crear tema en banco de preguntas
+    // BotÃ³n crear tema en banco de preguntas
 const crearTemaBancoBtn = document.getElementById('crearTemaBancoBtn');
 if (crearTemaBancoBtn) {
     crearTemaBancoBtn.addEventListener('click', () => {
@@ -235,7 +235,7 @@ if (crearTemaBancoBtn) {
     if (fileInput) {
         fileInput.addEventListener('change', manejarArchivoSeleccionado);
     }
-// Inicializar tema digital cuando DOM está listo
+// Inicializar tema digital cuando DOM estÃ¡ listo
     inicializarTemaDigital();
 }
 
@@ -256,7 +256,7 @@ async function cargarDatosUsuario() {
     }
 }
 
-// Cambiar sección activa
+// Cambiar secciÃ³n activa
 function cambiarSeccion(seccionId) {
     // Ocultar contenido temporalmente durante el cambio
     const mainContent = document.querySelector('.main-content');
@@ -280,9 +280,9 @@ function cambiarSeccion(seccionId) {
         seccionActiva.classList.add('active');
     }
 
-    // Cargar datos específicos de la sección (solo si no están cargando)
+    // Cargar datos especÃ­ficos de la secciÃ³n (solo si no estÃ¡n cargando)
     if (seccionId === 'banco') {
-        // Solo cargar si no está cargando y no hay caché válido
+        // Solo cargar si no estÃ¡ cargando y no hay cachÃ© vÃ¡lido
         const necesitaCargar = !cargandoBanco && 
                               (!cacheTemas || !cacheTimestamp || 
                                (Date.now() - cacheTimestamp >= CACHE_DURACION));
@@ -290,7 +290,7 @@ function cambiarSeccion(seccionId) {
         if (necesitaCargar) {
             cargarBancoPreguntas();
         } else {
-            console.log('✅ Banco ya cargado o en caché');
+            console.log('âœ… Banco ya cargado o en cachÃ©');
         }
     }
     else if (seccionId === 'aleatorio') {
@@ -301,7 +301,7 @@ function cambiarSeccion(seccionId) {
         }, 100);
     }
     else if (seccionId === 'resultados') {
-        // Solo cargar si no está cargando y no hay caché válido
+        // Solo cargar si no estÃ¡ cargando y no hay cachÃ© vÃ¡lido
         const necesitaCargar = !cargandoResultados && 
                               (!cacheResultados || !cacheResultadosTimestamp || 
                                (Date.now() - cacheResultadosTimestamp >= CACHE_DURACION));
@@ -309,7 +309,7 @@ function cambiarSeccion(seccionId) {
         if (necesitaCargar) {
             cargarResultados();
         } else {
-            console.log('✅ Resultados ya cargados o en caché');
+            console.log('âœ… Resultados ya cargados o en cachÃ©');
         }
     }
     // Mostrar contenido nuevamente
@@ -361,7 +361,7 @@ async function crearTema() {
 
         const docRef = await addDoc(collection(db, "temas"), temaData);
 
-        // Seleccionar automáticamente el tema creado
+        // Seleccionar automÃ¡ticamente el tema creado
         temaSeleccionado = {
             id: docRef.id,
             ...temaData
@@ -379,13 +379,13 @@ async function crearTema() {
 
         alert('Tema creado exitosamente');
 
-// Invalidar caché
+// Invalidar cachÃ©
 sessionStorage.removeItem('cacheTemas');
 sessionStorage.removeItem('cacheTemasTimestamp');
 cacheTimestamp = null;
 cacheTemas = null;
 
-// Recargar banco si está activo
+// Recargar banco si estÃ¡ activo
 if (document.getElementById('banco-section').classList.contains('active')) {
     cargarBancoPreguntas();
 }
@@ -428,20 +428,20 @@ async function cargarTemasEnSelect() {
         });
 
         
-        // Ordenar temas con ordenamiento numérico inteligente (igual que banco)
+        // Ordenar temas con ordenamiento numÃ©rico inteligente (igual que banco)
 temasPrincipales.sort((a, b) => {
     const nombreA = a.data.nombre;
     const nombreB = b.data.nombre;
     
-    // Extraer números del nombre si existen
+    // Extraer nÃºmeros del nombre si existen
     const numeroA = nombreA.match(/\d+/);
     const numeroB = nombreB.match(/\d+/);
     
     if (numeroA && numeroB) {
-        // Si ambos tienen números, ordenar por número
+        // Si ambos tienen nÃºmeros, ordenar por nÃºmero
         return parseInt(numeroA[0]) - parseInt(numeroB[0]);
     } else {
-        // Si no tienen números, orden alfabético normal
+        // Si no tienen nÃºmeros, orden alfabÃ©tico normal
         return nombreA.localeCompare(nombreB);
     }
 });
@@ -450,7 +450,7 @@ temasPrincipales.sort((a, b) => {
         temasPrincipales.forEach(({ id, data: tema }) => {
             const option = document.createElement('option');
             option.value = id;
-            option.textContent = `📚 ${tema.nombre}`;
+            option.textContent = `ðŸ“š ${tema.nombre}`;
             listaTemaSelect.appendChild(option);
 
             // Agregar subtemas si los tiene
@@ -458,7 +458,7 @@ temasPrincipales.sort((a, b) => {
                 subtemasPorPadre[id].forEach(subtema => {
                     const subOption = document.createElement('option');
                     subOption.value = subtema.id;
-                    subOption.textContent = `  ↳ ${subtema.data.nombre}`;
+                    subOption.textContent = `  â†³ ${subtema.data.nombre}`;
                     listaTemaSelect.appendChild(subOption);
                 });
             }
@@ -512,7 +512,7 @@ function procesarTextoPreguntas() {
         preguntasProcesadas = parsearPreguntas(texto);
         
         if (preguntasProcesadas.length === 0) {
-            alert('No se encontraron preguntas válidas en el texto');
+            alert('No se encontraron preguntas vÃ¡lidas en el texto');
             return;
         }
 
@@ -551,12 +551,12 @@ function parsearPreguntas(texto) {
                 fechaCreacion: new Date()
             };
         }
-        // Detectar opciones - PATRÓN MEJORADO
+        // Detectar opciones - PATRÃ“N MEJORADO
         else if (preguntaActual && linea.match(/^[A-D]\)/)) {
-            // Detectar si es respuesta correcta (con ** antes o después del texto)
+            // Detectar si es respuesta correcta (con ** antes o despuÃ©s del texto)
             const esCorrecta = linea.includes(')**') || linea.includes('**');
             
-            // Limpiar el texto de la opción (remover A), B), etc. y los asteriscos)
+            // Limpiar el texto de la opciÃ³n (remover A), B), etc. y los asteriscos)
             let textoOpcion = linea.replace(/^[A-D]\)/, '').trim();
             textoOpcion = textoOpcion.replace(/\*\*/g, '').trim();
             
@@ -574,7 +574,7 @@ function parsearPreguntas(texto) {
         }
     }
     
-    // Agregar última pregunta
+    // Agregar Ãºltima pregunta
     if (preguntaActual) {
         preguntas.push(preguntaActual);
     }
@@ -583,12 +583,12 @@ function parsearPreguntas(texto) {
     const preguntasValidas = preguntas.filter(p => {
         const esValida = p.opciones.length === 4 && p.respuestaCorrecta && p.texto.length > 0;
         if (!esValida) {
-            console.log('Pregunta inválida:', p);
+            console.log('Pregunta invÃ¡lida:', p);
         }
         return esValida;
     });
     
-    console.log(`Procesadas ${preguntas.length} preguntas, ${preguntasValidas.length} válidas`);
+    console.log(`Procesadas ${preguntas.length} preguntas, ${preguntasValidas.length} vÃ¡lidas`);
     return preguntasValidas;
 }
 
@@ -644,7 +644,7 @@ async function asignarPreguntasATema() {
 
         alert(`${preguntasProcesadas.length} preguntas asignadas al tema "${temaSeleccionado.nombre}"`);
 
-// Invalidar caché
+// Invalidar cachÃ©
 sessionStorage.removeItem('cacheTemas');
 sessionStorage.removeItem('cacheTemasTimestamp');
 cacheTimestamp = null;
@@ -656,7 +656,7 @@ textoPreguntas.value = '';
         preguntasProcesadasDiv.style.display = 'none';
         actualizarTemaSeleccionado();
         
-        // Recargar banco de preguntas si está activo
+        // Recargar banco de preguntas si estÃ¡ activo
         if (document.getElementById('banco-section').classList.contains('active')) {
             cargarBancoPreguntas();
         }
@@ -695,7 +695,7 @@ async function cargarTemas() {
 // Cargar banco de preguntas
 async function cargarBancoPreguntas() {
     if (cargandoBanco) {
-        console.log('⏸️ Ya cargando banco, omitiendo...');
+        console.log('â¸ï¸ Ya cargando banco, omitiendo...');
         return;
     }
     
@@ -703,7 +703,7 @@ async function cargarBancoPreguntas() {
         cargandoBanco = true;
         let querySnapshot;
         
-        // Verificar si el caché está sucio (hubo cambios)
+        // Verificar si el cachÃ© estÃ¡ sucio (hubo cambios)
         const cacheSucio = sessionStorage.getItem('cacheSucio') === 'true';
         if (cacheSucio) {
             sessionStorage.removeItem('cacheSucio');
@@ -713,7 +713,7 @@ async function cargarBancoPreguntas() {
             cacheTimestamp = null;
         }
         
-        // 🆕 INTENTAR RECUPERAR CACHÉ DE sessionStorage
+        // ðŸ†• INTENTAR RECUPERAR CACHÃ‰ DE sessionStorage
         const cacheGuardado = sessionStorage.getItem('cacheTemas');
         const timestampGuardado = sessionStorage.getItem('cacheTemasTimestamp');
         
@@ -721,7 +721,7 @@ async function cargarBancoPreguntas() {
             const tiempoTranscurrido = Date.now() - parseInt(timestampGuardado);
             
             if (tiempoTranscurrido < CACHE_DURACION) {
-                console.log('✅ Recuperando caché desde sessionStorage');
+                console.log('âœ… Recuperando cachÃ© desde sessionStorage');
                 const datosCache = JSON.parse(cacheGuardado);
                 
                 // Reconstruir QuerySnapshot simulado
@@ -741,19 +741,19 @@ async function cargarBancoPreguntas() {
                 cacheTemas = querySnapshot;
                 cacheTimestamp = parseInt(timestampGuardado);
             } else {
-                console.log('⏰ Caché expirado, recargando...');
+                console.log('â° CachÃ© expirado, recargando...');
                 sessionStorage.removeItem('cacheTemas');
                 sessionStorage.removeItem('cacheTemasTimestamp');
             }
         }
         
-        // Si no hay caché válido, cargar desde Firebase
+        // Si no hay cachÃ© vÃ¡lido, cargar desde Firebase
         if (!querySnapshot) {
-            console.log('🔄 Recargando temas desde Firebase');
+            console.log('ðŸ”„ Recargando temas desde Firebase');
             const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
             querySnapshot = await getDocs(q);
             
-            // 🆕 GUARDAR EN sessionStorage
+            // ðŸ†• GUARDAR EN sessionStorage
             const datosParaGuardar = [];
             querySnapshot.forEach(doc => {
                 datosParaGuardar.push({
@@ -772,7 +772,7 @@ async function cargarBancoPreguntas() {
         listaTemas.innerHTML = '';
         
         if (querySnapshot.empty) {
-            listaTemas.innerHTML = '<p>No hay temas creados aún. Ve a "Subir Preguntas" para crear tu primer tema.</p>';
+            listaTemas.innerHTML = '<p>No hay temas creados aÃºn. Ve a "Subir Preguntas" para crear tu primer tema.</p>';
             return;
         }
 
@@ -781,8 +781,8 @@ async function cargarBancoPreguntas() {
         controlesDiv.className = 'controles-generales';
         controlesDiv.innerHTML = `
             <input type="text" id="buscadorPreguntas" placeholder="Buscar preguntas..." />
-            <button id="detectarDuplicadasBtn" class="btn-warning">🔍 Detectar Duplicadas</button>
-            <button class="btn-danger" onclick="eliminarTodosTemas()">🗑️ Eliminar Todos los Temas</button>
+            <button id="detectarDuplicadasBtn" class="btn-warning">ðŸ” Detectar Duplicadas</button>
+            <button class="btn-danger" onclick="eliminarTodosTemas()">ðŸ—‘ï¸ Eliminar Todos los Temas</button>
         `;
         listaTemas.appendChild(controlesDiv);
 
@@ -814,44 +814,44 @@ async function cargarBancoPreguntas() {
             }
         });
 
-// ORDENAR TEMAS CON ORDEN NUMÉRICO INTELIGENTE
+// ORDENAR TEMAS CON ORDEN NUMÃ‰RICO INTELIGENTE
 temasPrincipales.sort((a, b) => {
     const nombreA = a.data.nombre;
     const nombreB = b.data.nombre;
     
-    // Extraer números del nombre si existen
+    // Extraer nÃºmeros del nombre si existen
     const numeroA = nombreA.match(/\d+/);
     const numeroB = nombreB.match(/\d+/);
     
     if (numeroA && numeroB) {
-        // Si ambos tienen números, ordenar por número
+        // Si ambos tienen nÃºmeros, ordenar por nÃºmero
         return parseInt(numeroA[0]) - parseInt(numeroB[0]);
     } else {
-        // Si no tienen números, orden alfabético normal
+        // Si no tienen nÃºmeros, orden alfabÃ©tico normal
         return nombreA.localeCompare(nombreB);
     }
 });
 
-// ORDENAR SUBTEMAS CON ORDENAMIENTO NUMÉRICO INTELIGENTE (IGUAL QUE TEMAS PRINCIPALES)
+// ORDENAR SUBTEMAS CON ORDENAMIENTO NUMÃ‰RICO INTELIGENTE (IGUAL QUE TEMAS PRINCIPALES)
 Object.keys(subtemasPorPadre).forEach(padreId => {
     subtemasPorPadre[padreId].sort((a, b) => {
         const nombreA = a.data.nombre;
         const nombreB = b.data.nombre;
         
-        // Extraer números del nombre si existen
+        // Extraer nÃºmeros del nombre si existen
         const numeroA = nombreA.match(/\d+/);
         const numeroB = nombreB.match(/\d+/);
         
         if (numeroA && numeroB) {
-            // Si ambos tienen números, ordenar por número
+            // Si ambos tienen nÃºmeros, ordenar por nÃºmero
             return parseInt(numeroA[0]) - parseInt(numeroB[0]);
         } else {
-            // Si no tienen números, orden alfabético normal
+            // Si no tienen nÃºmeros, orden alfabÃ©tico normal
             return nombreA.localeCompare(nombreB);
         }
     });
 });
-// NUEVA SECCIÓN: Sumar preguntas de subtemas a los temas principales
+// NUEVA SECCIÃ“N: Sumar preguntas de subtemas a los temas principales
 temasPrincipales.forEach(tema => {
     if (subtemasPorPadre[tema.id]) {
         const preguntasSubtemas = subtemasPorPadre[tema.id].reduce((total, subtema) => {
@@ -884,23 +884,23 @@ temasPrincipales.forEach(tema => {
                 <div class="tema-header">
                     <div class="tema-info">
                         <div class="tema-nombre">
-    📚 ${tema.nombre}
+    ðŸ“š ${tema.nombre}
     ${subtemasPorPadre[id] && subtemasPorPadre[id].length > 0 ? 
         `<button class="btn-toggle-subtemas" onclick="toggleSubtemasVisibilidad('${id}')" title="Mostrar/Ocultar subtemas">
-            <span id="toggle-icon-${id}">📁</span>
+            <span id="toggle-icon-${id}">ðŸ“</span>
         </button>` : ''
     }
 </div>
-                        <div class="tema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
+                        <div class="tema-stats">${numPreguntas} preguntas â€¢ Creado: ${fechaCreacion}</div>
                     </div>
                   <div class="tema-acciones">
-    <button class="btn-tema-digital ${tema.documentoDigital ? 'has-document' : ''}" onclick="abrirModalTemaDigital('${id}')" data-tema-id="${id}">${tema.documentoDigital ? '✅' : '📄'} Tema Digital</button>
-    <button class="btn-secondary" onclick="crearSubtema('${id}')">📂 Crear Subtema</button>
-    <button class="btn-importar" onclick="importarATema('${id}')">📥 Importar</button>
-    <button class="btn-exportar" onclick="exportarTema('${id}')">📤 Exportar</button>
-    <button class="btn-warning" onclick="vaciarTema('${id}')">🧹 Vaciar Tema</button>
-    <button class="btn-secondary" onclick="editarTema('${id}')">✏️ Editar</button>
-    <button class="btn-danger" onclick="eliminarTema('${id}')">🗑️ Eliminar</button>
+    <button class="btn-tema-digital ${tema.documentoDigital ? 'has-document' : ''}" onclick="abrirModalTemaDigital('${id}')" data-tema-id="${id}">${tema.documentoDigital ? 'âœ…' : 'ðŸ“„'} Tema Digital</button>
+    <button class="btn-secondary" onclick="crearSubtema('${id}')">ðŸ“‚ Crear Subtema</button>
+    <button class="btn-importar" onclick="importarATema('${id}')">ðŸ“¥ Importar</button>
+    <button class="btn-exportar" onclick="exportarTema('${id}')">ðŸ“¤ Exportar</button>
+    <button class="btn-warning" onclick="vaciarTema('${id}')">ðŸ§¹ Vaciar Tema</button>
+    <button class="btn-secondary" onclick="editarTema('${id}')">âœï¸ Editar</button>
+    <button class="btn-danger" onclick="eliminarTema('${id}')">ðŸ—‘ï¸ Eliminar</button>
 </div>
                 </div>
                 ${tema.descripcion ? `<div class="tema-descripcion">${tema.descripcion}</div>` : ''}
@@ -916,7 +916,7 @@ temasPrincipales.forEach(tema => {
                 <details ontoggle="cargarPreguntasLazy(event, '${id}')">
                     <summary>Ver y editar preguntas (${preguntasPropias})</summary>
                     <div class="lista-preguntas" id="preguntas-${id}" data-cargado="false">
-                        <div style="text-align:center;padding:20px;">⏳ Cargando preguntas...</div>
+                        <div style="text-align:center;padding:20px;">â³ Cargando preguntas...</div>
                     </div>
                 </details>
             </div>
@@ -958,22 +958,22 @@ function agregarTemaAlDOM(temaId, temaData) {
     temaDiv.innerHTML = `
         <div class="tema-header">
             <div class="tema-info">
-                <div class="tema-nombre">📚 ${temaData.nombre}</div>
-                <div class="tema-stats">0 preguntas • Creado: ${fechaCreacion}</div>
+                <div class="tema-nombre">ðŸ“š ${temaData.nombre}</div>
+                <div class="tema-stats">0 preguntas â€¢ Creado: ${fechaCreacion}</div>
             </div>
             <div class="tema-acciones">
-                <button class="btn-secondary" onclick="crearSubtema('${temaId}')">📂 Crear Subtema</button>
-                <button class="btn-importar" onclick="importarATema('${temaId}')">📥 Importar</button>
-                <button class="btn-exportar" onclick="exportarTema('${temaId}')">📤 Exportar</button>
-                <button class="btn-warning" onclick="vaciarTema('${temaId}')">🧹 Vaciar Tema</button>
-                <button class="btn-secondary" onclick="editarTema('${temaId}')">✏️ Editar</button>
-                <button class="btn-danger" onclick="eliminarTema('${temaId}')">🗑️ Eliminar</button>
+                <button class="btn-secondary" onclick="crearSubtema('${temaId}')">ðŸ“‚ Crear Subtema</button>
+                <button class="btn-importar" onclick="importarATema('${temaId}')">ðŸ“¥ Importar</button>
+                <button class="btn-exportar" onclick="exportarTema('${temaId}')">ðŸ“¤ Exportar</button>
+                <button class="btn-warning" onclick="vaciarTema('${temaId}')">ðŸ§¹ Vaciar Tema</button>
+                <button class="btn-secondary" onclick="editarTema('${temaId}')">âœï¸ Editar</button>
+                <button class="btn-danger" onclick="eliminarTema('${temaId}')">ðŸ—‘ï¸ Eliminar</button>
             </div>
         </div>
         ${temaData.descripcion ? `<div class="tema-descripcion">${temaData.descripcion}</div>` : ''}
     `;
     
-    // Insertar después de los controles generales
+    // Insertar despuÃ©s de los controles generales
     const controlesGenerales = listaTemas.querySelector('.controles-generales');
     if (controlesGenerales && controlesGenerales.nextSibling) {
         listaTemas.insertBefore(temaDiv, controlesGenerales.nextSibling);
@@ -999,24 +999,24 @@ function agregarSubtemaAlDOM(subtemaId, subtemaData, temaPadreId) {
             return;
         }
         
-        // Crear wrapper y botón toggle
+        // Crear wrapper y botÃ³n toggle
         wrapper = document.createElement('div');
         wrapper.className = 'subtemas-wrapper';
         wrapper.id = `subtemas-wrapper-${temaPadreId}`;
         wrapper.style.display = 'block';
         
-        // Añadir botón de toggle si no existe
+        // AÃ±adir botÃ³n de toggle si no existe
         const nombreDiv = temaCard.querySelector('.tema-nombre');
         if (nombreDiv && !nombreDiv.querySelector('.btn-toggle-subtemas')) {
             const toggleBtn = document.createElement('button');
             toggleBtn.className = 'btn-toggle-subtemas';
             toggleBtn.setAttribute('onclick', `toggleSubtemasVisibilidad('${temaPadreId}')`);
             toggleBtn.title = 'Mostrar/Ocultar subtemas';
-            toggleBtn.innerHTML = `<span id="toggle-icon-${temaPadreId}">📂</span>`;
+            toggleBtn.innerHTML = `<span id="toggle-icon-${temaPadreId}">ðŸ“‚</span>`;
             nombreDiv.appendChild(toggleBtn);
         }
         
-        // Insertar wrapper después del header
+        // Insertar wrapper despuÃ©s del header
         const temaHeader = temaCard.querySelector('.tema-header');
         if (temaHeader) {
             temaHeader.insertAdjacentElement('afterend', wrapper);
@@ -1027,7 +1027,7 @@ function agregarSubtemaAlDOM(subtemaId, subtemaData, temaPadreId) {
         // Mostrar wrapper si estaba oculto
         wrapper.style.display = 'block';
         const icon = document.getElementById(`toggle-icon-${temaPadreId}`);
-        if (icon) icon.textContent = '📂';
+        if (icon) icon.textContent = 'ðŸ“‚';
     }
     
     // Crear HTML del subtema
@@ -1076,10 +1076,10 @@ function crearPreguntaEditable(pregunta, index, temaId) {
                 <button class="btn-icon btn-verify ${verificada ? 'verified' : ''}" 
                         onclick="toggleVerificacion('${temaId}', ${index})" 
                         title="${verificada ? 'Pregunta verificada' : 'Marcar como verificada'}">
-                    ${verificada ? '⭐' : '☆'}
+                    ${verificada ? 'â­' : 'â˜†'}
                 </button>
-                <button class="btn-icon btn-edit" onclick="editarPregunta('${temaId}', ${index})" title="Editar pregunta">✏️</button>
-                <button class="btn-icon btn-delete" onclick="eliminarPregunta('${temaId}', ${index})" title="Eliminar pregunta">🗑️</button>
+                <button class="btn-icon btn-edit" onclick="editarPregunta('${temaId}', ${index})" title="Editar pregunta">âœï¸</button>
+                <button class="btn-icon btn-delete" onclick="eliminarPregunta('${temaId}', ${index})" title="Eliminar pregunta">ðŸ—‘ï¸</button>
             </div>
             <div class="pregunta-texto" id="texto-${temaId}-${index}">${pregunta.texto}</div>
             <div class="opciones-container" id="opciones-${temaId}-${index}">
@@ -1107,15 +1107,15 @@ function crearSubtemaHTML(subtemaId, subtema) {
         <div class="subtema-container" draggable="true" data-subtema-id="${subtemaId}">
             <div class="subtema-header">
                 <div class="subtema-info">
-                    <div class="subtema-nombre">📁 ${subtema.nombre}</div>
-                    <div class="subtema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
+                    <div class="subtema-nombre">ðŸ“ ${subtema.nombre}</div>
+                    <div class="subtema-stats">${numPreguntas} preguntas â€¢ Creado: ${fechaCreacion}</div>
                 </div>
                 
 <div class="subtema-acciones">
-    <button class="btn-importar btn-sm" onclick="importarATema('${subtemaId}')">📥 Importar</button>
-    <button class="btn-exportar btn-sm" onclick="exportarTema('${subtemaId}')">📤 Exportar</button>
-    <button class="btn-secondary btn-sm" onclick="editarTema('${subtemaId}')">✏️</button>
-    <button class="btn-danger btn-sm" onclick="eliminarTema('${subtemaId}')">🗑️</button>
+    <button class="btn-importar btn-sm" onclick="importarATema('${subtemaId}')">ðŸ“¥ Importar</button>
+    <button class="btn-exportar btn-sm" onclick="exportarTema('${subtemaId}')">ðŸ“¤ Exportar</button>
+    <button class="btn-secondary btn-sm" onclick="editarTema('${subtemaId}')">âœï¸</button>
+    <button class="btn-danger btn-sm" onclick="eliminarTema('${subtemaId}')">ðŸ—‘ï¸</button>
 </div>
             </div>
             ${subtema.descripcion ? `<div class="subtema-descripcion">${subtema.descripcion}</div>` : ''}
@@ -1133,7 +1133,7 @@ function crearSubtemaHTML(subtemaId, subtema) {
     `;
 }
 
-// Función para mostrar/ocultar subtemas
+// FunciÃ³n para mostrar/ocultar subtemas
 window.toggleSubtemasVisibilidad = function(temaId) {
     const wrapper = document.getElementById(`subtemas-wrapper-${temaId}`);
     const icon = document.getElementById(`toggle-icon-${temaId}`);
@@ -1143,11 +1143,11 @@ window.toggleSubtemasVisibilidad = function(temaId) {
     if (wrapper.style.display === 'none') {
         // Mostrar subtemas
         wrapper.style.display = 'block';
-        icon.textContent = '📂';
+        icon.textContent = 'ðŸ“‚';
     } else {
         // Ocultar subtemas
         wrapper.style.display = 'none';
-        icon.textContent = '📁';
+        icon.textContent = 'ðŸ“';
     }
 };
 
@@ -1156,7 +1156,7 @@ function configurarDragAndDrop() {
     const temaCards = document.querySelectorAll('.tema-card');
     const subtemaContainers = document.querySelectorAll('.subtema-container');
     
-    // Función para guardar orden (definida dentro del scope)
+    // FunciÃ³n para guardar orden (definida dentro del scope)
     async function guardarOrdenTemas() {
         try {
             const temasOrdenados = [];
@@ -1272,7 +1272,7 @@ function configurarDragAndDrop() {
     });
 }
 
-// Toggle verificación de pregunta
+// Toggle verificaciÃ³n de pregunta
 window.toggleVerificacion = async function(temaId, preguntaIndex) {
     try {
         const temaRef = doc(db, "temas", temaId);
@@ -1284,7 +1284,7 @@ window.toggleVerificacion = async function(temaId, preguntaIndex) {
         
         await updateDoc(temaRef, { preguntas });
 
-        // Actualizar el botón de verificación buscando específicamente en el tema correcto
+        // Actualizar el botÃ³n de verificaciÃ³n buscando especÃ­ficamente en el tema correcto
         const preguntasContainer = document.getElementById(`preguntas-${temaId}`);
         if (preguntasContainer) {
             const todasLasPreguntas = preguntasContainer.querySelectorAll('.pregunta-item');
@@ -1295,26 +1295,26 @@ window.toggleVerificacion = async function(temaId, preguntaIndex) {
                 if (btnVerify) {
                     if (preguntas[preguntaIndex].verificada) {
                         btnVerify.classList.add('verified');
-                        btnVerify.innerHTML = '⭐';
+                        btnVerify.innerHTML = 'â­';
                     } else {
                         btnVerify.classList.remove('verified');
-                        btnVerify.innerHTML = '☆';
+                        btnVerify.innerHTML = 'â˜†';
                     }
                 }
                 preguntaDiv.classList.toggle('pregunta-verificada', preguntas[preguntaIndex].verificada);
             }
         }
         
-        // Marcar caché como sucio (se actualizará en próxima carga completa)
+        // Marcar cachÃ© como sucio (se actualizarÃ¡ en prÃ³xima carga completa)
         sessionStorage.setItem('cacheSucio', 'true');
         
     } catch (error) {
-        console.error('Error al cambiar verificación:', error);
+        console.error('Error al cambiar verificaciÃ³n:', error);
         alert('Error al actualizar la pregunta');
     }
 };
 
-// Función para actualizar solo el contenido de preguntas de un tema específico
+// FunciÃ³n para actualizar solo el contenido de preguntas de un tema especÃ­fico
 async function actualizarContenidoPreguntas(temaId) {
     try {
         const temaRef = doc(db, "temas", temaId);
@@ -1368,8 +1368,8 @@ window.editarPregunta = function(temaId, preguntaIndex) {
     const botonesDiv = document.createElement('div');
     botonesDiv.innerHTML = `
         <div style="margin-top: 15px; text-align: center;">
-            <button class="btn-success" onclick="guardarEdicionPregunta('${temaId}', ${preguntaIndex})">💾 Guardar</button>
-            <button class="btn-secondary" onclick="cancelarEdicionPregunta('${temaId}')">❌ Cancelar</button>
+            <button class="btn-success" onclick="guardarEdicionPregunta('${temaId}', ${preguntaIndex})">ðŸ’¾ Guardar</button>
+            <button class="btn-secondary" onclick="cancelarEdicionPregunta('${temaId}')">âŒ Cancelar</button>
         </div>
     `;
     
@@ -1377,7 +1377,7 @@ window.editarPregunta = function(temaId, preguntaIndex) {
     preguntaDiv.appendChild(botonesDiv);
 };
 
-// Guardar edición de pregunta
+// Guardar ediciÃ³n de pregunta
 window.guardarEdicionPregunta = async function(temaId, preguntaIndex) {
     try {
         const temaRef = doc(db, "temas", temaId);
@@ -1426,7 +1426,7 @@ await actualizarContenidoPreguntas(temaId);
     }
 };
 
-// Cancelar edición
+// Cancelar ediciÃ³n
 window.cancelarEdicionPregunta = async function(temaId) {
     // Actualizar solo el contenido de las preguntas sin recargar todo
     await actualizarContenidoPreguntas(temaId);
@@ -1450,7 +1450,7 @@ window.cambiarRespuestaCorrecta = async function(temaId, preguntaIndex, nuevaLet
         
         await updateDoc(temaRef, { preguntas });
         
-        // NO recargar - el radio button ya está actualizado visualmente
+        // NO recargar - el radio button ya estÃ¡ actualizado visualmente
         sessionStorage.setItem('cacheSucio', 'true');
         
     } catch (error) {
@@ -1459,9 +1459,9 @@ window.cambiarRespuestaCorrecta = async function(temaId, preguntaIndex, nuevaLet
     }
 };
 
-// Eliminar pregunta específica
+// Eliminar pregunta especÃ­fica
 window.eliminarPregunta = async function(temaId, preguntaIndex) {
-    if (confirm('¿Estás seguro de que quieres eliminar esta pregunta?')) {
+    if (confirm('Â¿EstÃ¡s seguro de que quieres eliminar esta pregunta?')) {
         try {
             const temaRef = doc(db, "temas", temaId);
             const temaDoc = await getDoc(temaRef);
@@ -1520,7 +1520,7 @@ window.eliminarPregunta = async function(temaId, preguntaIndex) {
 
 // Eliminar todos los temas
 window.eliminarTodosTemas = async function() {
-    const confirmacion = prompt('Esta acción eliminará TODOS tus temas y preguntas permanentemente.\nEscribe "ELIMINAR TODO" para confirmar:');
+    const confirmacion = prompt('Esta acciÃ³n eliminarÃ¡ TODOS tus temas y preguntas permanentemente.\nEscribe "ELIMINAR TODO" para confirmar:');
     
     if (confirmacion === 'ELIMINAR TODO') {
         try {
@@ -1534,7 +1534,7 @@ window.eliminarTodosTemas = async function() {
             
             await Promise.all(promises);
 
-// Invalidar caché
+// Invalidar cachÃ©
 sessionStorage.removeItem('cacheTemas');
 sessionStorage.removeItem('cacheTemasTimestamp');
 cacheTimestamp = null;
@@ -1549,7 +1549,7 @@ cargarBancoPreguntas();
             alert('Error al eliminar los temas');
         }
     } else if (confirmacion !== null) {
-        alert('Confirmación incorrecta. No se eliminó nada.');
+        alert('ConfirmaciÃ³n incorrecta. No se eliminÃ³ nada.');
     }
 };
 
@@ -1571,7 +1571,7 @@ window.editarTema = async function(temaId) {
                 fechaModificacion: new Date()
             });
             
-            // Marcar caché como sucio para próxima carga
+            // Marcar cachÃ© como sucio para prÃ³xima carga
             sessionStorage.setItem('cacheSucio', 'true');
             
             // Actualizar nombre directamente en el DOM (sin recargar)
@@ -1583,7 +1583,7 @@ window.editarTema = async function(temaId) {
                 }
             }
             
-            // También buscar en subtemas
+            // TambiÃ©n buscar en subtemas
             const subtemaCard = document.querySelector(`[data-subtema-id="${temaId}"]`);
             if (subtemaCard) {
                 const nombreDiv = subtemaCard.querySelector('.subtema-nombre');
@@ -1622,14 +1622,14 @@ window.vaciarTema = async function(temaId) {
         const numSubtemas = subtemasSnapshot.docs.length;
         
         if (numPreguntas === 0 && numSubtemas === 0) {
-            alert('Este tema ya está vacío');
+            alert('Este tema ya estÃ¡ vacÃ­o');
             return;
         }
         
-        let mensaje = `¿Estás seguro de que quieres vaciar el tema "${temaData.nombre}"?\n\nSe eliminará:\n`;
+        let mensaje = `Â¿EstÃ¡s seguro de que quieres vaciar el tema "${temaData.nombre}"?\n\nSe eliminarÃ¡:\n`;
         if (numPreguntas > 0) mensaje += `- ${numPreguntas} preguntas directas\n`;
         if (numSubtemas > 0) mensaje += `- ${numSubtemas} subtema(s) con todas sus preguntas\n`;
-        mensaje += `\nEl tema principal se mantendrá pero quedará vacío.`;
+        mensaje += `\nEl tema principal se mantendrÃ¡ pero quedarÃ¡ vacÃ­o.`;
         
         if (confirm(mensaje)) {
             // Eliminar subtemas
@@ -1647,7 +1647,7 @@ window.vaciarTema = async function(temaId) {
             if (numPreguntas > 0) alertMsg += `- ${numPreguntas} preguntas eliminadas\n`;
             if (numSubtemas > 0) alertMsg += `- ${numSubtemas} subtema(s) eliminado(s)`;
             
-            // Invalidar caché
+            // Invalidar cachÃ©
             sessionStorage.removeItem('cacheTemas');
             sessionStorage.removeItem('cacheTemasTimestamp');
             cacheTimestamp = null;
@@ -1663,7 +1663,7 @@ window.vaciarTema = async function(temaId) {
     }
 };
 window.eliminarTema = async function(temaId) {
-    if (confirm('¿Estás seguro de que quieres eliminar este tema? Se eliminarán también todos sus subtemas.')) {
+    if (confirm('Â¿EstÃ¡s seguro de que quieres eliminar este tema? Se eliminarÃ¡n tambiÃ©n todos sus subtemas.')) {
         try {
             // Eliminar subtemas primero
             const q = query(
@@ -1680,7 +1680,7 @@ window.eliminarTema = async function(temaId) {
             // Eliminar tema principal
             await deleteDoc(doc(db, "temas", temaId));
             
-            // Invalidar caché
+            // Invalidar cachÃ©
 sessionStorage.removeItem('cacheTemas');
 sessionStorage.removeItem('cacheTemasTimestamp');
 cacheTimestamp = null;
@@ -1696,7 +1696,7 @@ cargarTemas();
     }
 };
 
-// Función auxiliar para cerrar modales
+// FunciÃ³n auxiliar para cerrar modales
 function cerrarModal(modal) {
     modal.style.display = 'none';
     // Limpiar campos
@@ -1786,10 +1786,10 @@ function filtrarPreguntas() {
             mensaje = document.createElement('div');
             mensaje.id = 'mensajeNoResultados';
             mensaje.style.cssText = 'padding: 20px; text-align: center; color: #dc3545; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; margin: 20px 0; font-weight: bold;';
-            mensaje.innerHTML = `❌ No se encontraron preguntas que empiecen con: "<strong>${textoBusqueda}</strong>"`;
+            mensaje.innerHTML = `âŒ No se encontraron preguntas que empiecen con: "<strong>${textoBusqueda}</strong>"`;
             document.getElementById('listaTemas').appendChild(mensaje);
         } else {
-            mensaje.innerHTML = `❌ No se encontraron preguntas que empiecen con: "<strong>${textoBusqueda}</strong>"`;
+            mensaje.innerHTML = `âŒ No se encontraron preguntas que empiecen con: "<strong>${textoBusqueda}</strong>"`;
         }
         mensaje.style.display = 'block';
     } else if (mensaje) {
@@ -1804,7 +1804,7 @@ function limpiarBuscador() {
     });
 }
 
-// ELIMINAR SUBTEMAS HUÃ‰RFANOS
+// ELIMINAR SUBTEMAS HUÃƒâ€°RFANOS
 window.eliminarSubtemasHuerfanos = async function() {
     try {
         const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
@@ -1819,7 +1819,7 @@ window.eliminarSubtemasHuerfanos = async function() {
             }
         });
         
-        // Encontrar subtemas huÃ©rfanos
+        // Encontrar subtemas huÃƒÂ©rfanos
         const subtemasHuerfanos = [];
         querySnapshot.forEach((doc) => {
             const tema = doc.data();
@@ -1834,33 +1834,33 @@ window.eliminarSubtemasHuerfanos = async function() {
         });
         
         if (subtemasHuerfanos.length === 0) {
-            alert('No se encontraron subtemas huÃ©rfanos');
+            alert('No se encontraron subtemas huÃƒÂ©rfanos');
             return;
         }
         
-        const mensaje = `Se encontraron ${subtemasHuerfanos.length} subtemas huÃ©rfanos:\n\n` +
+        const mensaje = `Se encontraron ${subtemasHuerfanos.length} subtemas huÃƒÂ©rfanos:\n\n` +
             subtemasHuerfanos.map(s => `- ${s.nombre} (${s.preguntas} preguntas)`).join('\n') +
-            '\n\nÂ¿Eliminarlos todos?';
+            '\n\nÃ‚Â¿Eliminarlos todos?';
         
         if (!confirm(mensaje)) return;
         
-        // Eliminar subtemas huÃ©rfanos
+        // Eliminar subtemas huÃƒÂ©rfanos
         for (const subtema of subtemasHuerfanos) {
             await deleteDoc(doc(db, "temas", subtema.id));
         }
         
-        alert(`Se eliminaron ${subtemasHuerfanos.length} subtemas huÃ©rfanos`);
+        alert(`Se eliminaron ${subtemasHuerfanos.length} subtemas huÃƒÂ©rfanos`);
         cargarBancoPreguntas();
         
     } catch (error) {
         console.error('Error:', error);
-        alert('Error al eliminar subtemas huÃ©rfanos');
+        alert('Error al eliminar subtemas huÃƒÂ©rfanos');
     }
 };
 
 window.diagnosticarTemas = async function() {
     try {
-        console.log('=== DIAGNÃ"STICO DE TEMAS ===');
+        console.log('=== DIAGNÃƒ"STICO DE TEMAS ===');
         const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
         const querySnapshot = await getDocs(q);
         
@@ -1891,7 +1891,7 @@ window.diagnosticarTemas = async function() {
             
             // Buscar el tema que contiene "CE de 1978"
             if (tema.nombre.includes('CE de 1978') || tema.nombre.includes('I.La CE')) {
-                console.log('âš ï¸ TEMA PROBLEMÃ�TICO ENCONTRADO!');
+                console.log('Ã¢Å¡ Ã¯Â¸ TEMA PROBLEMÃƒï¿½TICO ENCONTRADO!');
                 temasProblematicos.push(info);
             }
             
@@ -1905,7 +1905,7 @@ window.diagnosticarTemas = async function() {
         console.log('=== RESUMEN ===');
         console.log(`Temas principales: ${temasPrincipales.length}`);
         console.log(`Subtemas: ${subtemas.length}`);
-        console.log(`Temas problemÃ¡ticos (CE 1978): ${temasProblematicos.length}`);
+        console.log(`Temas problemÃƒÂ¡ticos (CE 1978): ${temasProblematicos.length}`);
         
         if (temasProblematicos.length > 0) {
             alert(`Se encontraron ${temasProblematicos.length} temas con "CE de 1978". Revisa la consola del navegador (F12) para ver los detalles.`);
@@ -1916,8 +1916,8 @@ window.diagnosticarTemas = async function() {
         return { temasPrincipales, subtemas, temasProblematicos };
         
     } catch (error) {
-        console.error('Error en diagnÃ³stico:', error);
-        alert('Error en diagnÃ³stico: ' + error.message);
+        console.error('Error en diagnÃƒÂ³stico:', error);
+        alert('Error en diagnÃƒÂ³stico: ' + error.message);
     }
 };
 
@@ -1947,7 +1947,7 @@ async function detectarPreguntasDuplicadas() {
                 }
                 
                 tema.preguntas.forEach((pregunta, index) => {
-                    // Crear una firma única: enunciado + todas las opciones ordenadas
+                    // Crear una firma Ãºnica: enunciado + todas las opciones ordenadas
                     const opcionesOrdenadas = pregunta.opciones
                         ? pregunta.opciones
                             .map(op => op.texto.toLowerCase().trim())
@@ -1984,7 +1984,7 @@ async function detectarPreguntasDuplicadas() {
         }
         
         if (duplicadas.length === 0) {
-            alert('✅ No se encontraron preguntas duplicadas (con enunciado y opciones idénticas)');
+            alert('âœ… No se encontraron preguntas duplicadas (con enunciado y opciones idÃ©nticas)');
             return;
         }
         
@@ -2017,7 +2017,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     titulo.style.marginBottom = '15px';
     modalContent.appendChild(titulo);
     
-    // Extraer temas únicos con información del padre
+    // Extraer temas Ãºnicos con informaciÃ³n del padre
     const temasInfo = {};
     duplicadas.forEach(dup => {
         [dup.pregunta1, dup.pregunta2].forEach(p => {
@@ -2051,7 +2051,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
             ? dup.pregunta1.preguntaCompleta.opciones.map(op => {
                 const esCorrecta = op.esCorrecta || op.letra === dup.pregunta1.preguntaCompleta.respuestaCorrecta;
                 return `<div style="margin: 5px 0; padding: 8px; background: ${esCorrecta ? '#d4edda' : '#f8f9fa'}; border-radius: 4px; border-left: 3px solid ${esCorrecta ? '#28a745' : '#6c757d'};">
-                    <strong>${op.letra})</strong> ${op.texto} ${esCorrecta ? '✓' : ''}
+                    <strong>${op.letra})</strong> ${op.texto} ${esCorrecta ? 'âœ“' : ''}
                 </div>`;
             }).join('')
             : '<p style="color: #6c757d;">Sin opciones</p>';
@@ -2061,7 +2061,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
             ? dup.pregunta2.preguntaCompleta.opciones.map(op => {
                 const esCorrecta = op.esCorrecta || op.letra === dup.pregunta2.preguntaCompleta.respuestaCorrecta;
                 return `<div style="margin: 5px 0; padding: 8px; background: ${esCorrecta ? '#d4edda' : '#f8f9fa'}; border-radius: 4px; border-left: 3px solid ${esCorrecta ? '#28a745' : '#6c757d'};">
-                    <strong>${op.letra})</strong> ${op.texto} ${esCorrecta ? '✓' : ''}
+                    <strong>${op.letra})</strong> ${op.texto} ${esCorrecta ? 'âœ“' : ''}
                 </div>`;
             }).join('')
             : '<p style="color: #6c757d;">Sin opciones</p>';
@@ -2074,7 +2074,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
                     '<input type="checkbox" class="checkbox-pregunta" data-tema-id="' + dup.pregunta1.temaId + '" data-pregunta-index="' + dup.pregunta1.preguntaIndex + '" data-tema-nombre="' + dup.pregunta1.temaNombre + '" style="width: 20px; height: 20px; cursor: pointer;">' +
                 '</div>' +
                 '<div style="background: #e9ecef; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; display: inline-block; font-weight: bold; color: #495057;">' +
-                    '📁 ' + dup.pregunta1.temaNombre +
+                    'ðŸ“ ' + dup.pregunta1.temaNombre +
                 '</div>' +
                 '<div style="font-weight: bold; margin: 10px 0; font-size: 16px; color: #212529;">' +
                     dup.pregunta1.preguntaCompleta.texto +
@@ -2089,7 +2089,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
                     '<input type="checkbox" class="checkbox-pregunta" data-tema-id="' + dup.pregunta2.temaId + '" data-pregunta-index="' + dup.pregunta2.preguntaIndex + '" data-tema-nombre="' + dup.pregunta2.temaNombre + '" style="width: 20px; height: 20px; cursor: pointer;">' +
                 '</div>' +
                 '<div style="background: #e9ecef; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; display: inline-block; font-weight: bold; color: #495057;">' +
-                    '📁 ' + dup.pregunta2.temaNombre +
+                    'ðŸ“ ' + dup.pregunta2.temaNombre +
                 '</div>' +
                 '<div style="font-weight: bold; margin: 10px 0; font-size: 16px; color: #212529;">' +
                     dup.pregunta2.preguntaCompleta.texto +
@@ -2113,7 +2113,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     
     // Crear dropdown de temas
     let dropdownHTML = '<select id="filtroTemasDuplicadas" onchange="seleccionarPorTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px;">';
-    dropdownHTML += '<option value="">🎯 Seleccionar por tema...</option>';
+    dropdownHTML += '<option value="">ðŸŽ¯ Seleccionar por tema...</option>';
     temasArray.forEach(tema => {
         const displayText = tema.padre ? `${tema.nombre} (${tema.padre})` : tema.nombre;
         dropdownHTML += `<option value="${tema.nombre}">${displayText}</option>`;
@@ -2122,11 +2122,11 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     
     modalActions.innerHTML = 
         dropdownHTML +
-        '<button class="btn-info" onclick="seleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☑️ Seleccionar Todas</button>' +
-        '<button class="btn-info" onclick="deseleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☐ Deseleccionar Todas</button>' +
-        '<button class="btn-danger" onclick="eliminarSeleccionadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">🗑️ Eliminar Seleccionadas</button>' +
+        '<button class="btn-info" onclick="seleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">â˜‘ï¸ Seleccionar Todas</button>' +
+        '<button class="btn-info" onclick="deseleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">â˜ Deseleccionar Todas</button>' +
+        '<button class="btn-danger" onclick="eliminarSeleccionadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">ðŸ—‘ï¸ Eliminar Seleccionadas</button>' +
         '<button class="btn-secondary" onclick="cerrarModalDuplicadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">Cerrar</button>' +
-        '<button class="btn-primary" onclick="volverADetectar()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">🔄 Volver a Detectar</button>';
+        '<button class="btn-primary" onclick="volverADetectar()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">ðŸ”„ Volver a Detectar</button>';
     
     modalContent.appendChild(modalActions);
     modal.appendChild(modalContent);
@@ -2138,7 +2138,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
 
 // Eliminar pregunta especifica
 window.eliminarEspecifica = async function(temaId, preguntaIndex, duplicadoIndex) {
-    if (confirm('¿Eliminar esta pregunta duplicada?')) {
+    if (confirm('Â¿Eliminar esta pregunta duplicada?')) {
         await eliminarPregunta(temaId, preguntaIndex);
         
         const items = document.querySelectorAll('.duplicada-item');
@@ -2151,7 +2151,7 @@ window.eliminarEspecifica = async function(temaId, preguntaIndex, duplicadoIndex
         titulo.textContent = 'Preguntas Duplicadas Encontradas (' + restantes + ')';
         
         if (restantes === 0) {
-            document.getElementById('listaDuplicadas').innerHTML = '<p style="text-align: center; color: #28a745; font-weight: bold;">¡No quedan preguntas duplicadas!</p>';
+            document.getElementById('listaDuplicadas').innerHTML = '<p style="text-align: center; color: #28a745; font-weight: bold;">Â¡No quedan preguntas duplicadas!</p>';
         }
     }
 };
@@ -2215,7 +2215,7 @@ window.eliminarSeleccionadas = async function() {
         return;
     }
     
-    const confirmacion = confirm(`¿Eliminar ${checkboxes.length} pregunta(s) seleccionada(s)? Esta acción no se puede deshacer.`);
+    const confirmacion = confirm(`Â¿Eliminar ${checkboxes.length} pregunta(s) seleccionada(s)? Esta acciÃ³n no se puede deshacer.`);
     if (!confirmacion) return;
     
     try {
@@ -2238,7 +2238,7 @@ window.eliminarSeleccionadas = async function() {
         for (const temaId in eliminacionesPorTema) {
             const indices = eliminacionesPorTema[temaId];
             
-            // Ordenar índices en orden descendente para eliminar de atrás hacia adelante
+            // Ordenar Ã­ndices en orden descendente para eliminar de atrÃ¡s hacia adelante
             indices.sort((a, b) => b - a);
             
             const temaRef = doc(db, "temas", temaId);
@@ -2255,7 +2255,7 @@ window.eliminarSeleccionadas = async function() {
             await updateDoc(temaRef, { preguntas });
         }
         
-        // Invalidar caché para forzar recarga desde Firebase
+        // Invalidar cachÃ© para forzar recarga desde Firebase
         sessionStorage.removeItem('cacheTemas');
         sessionStorage.removeItem('cacheTemasTimestamp');
         cacheTimestamp = null;
@@ -2281,7 +2281,7 @@ window.crearSubtema = function(temaPadreId) {
     cargarTemasPadre(temaPadreId);
 };
 
-// Mostrar/ocultar opción de subtema
+// Mostrar/ocultar opciÃ³n de subtema
 function mostrarOpcionSubtema() {
     const esSubtema = document.getElementById('esSubtema').checked;
     const temaPadreSelect = document.getElementById('temaPadreSelect');
@@ -2333,7 +2333,7 @@ let respuestasUsuario = {};
 // Inicializar funcionalidad de test aleatorio
 function inicializarTestAleatorio() {
     try {
-        // Verificar que estamos en la sección correcta
+        // Verificar que estamos en la secciÃ³n correcta
         const seccionAleatorio = document.getElementById('aleatorio-section');
         if (!seccionAleatorio || !seccionAleatorio.classList.contains('active')) {
             return;
@@ -2368,21 +2368,21 @@ function inicializarTestAleatorio() {
             selectorTema.addEventListener('change', actualizarPreguntasDisponibles);
         }
 
-        // Botón empezar test - Verificar que exista
+        // BotÃ³n empezar test - Verificar que exista
         const btnEmpezar = document.getElementById('empezarTestBtn');
         if (btnEmpezar) {
             btnEmpezar.removeEventListener('click', empezarTest);
             btnEmpezar.addEventListener('click', empezarTest);
         }
 
-        // Botón finalizar test - Verificar que exista
+        // BotÃ³n finalizar test - Verificar que exista
         const btnFinalizar = document.getElementById('finalizarTestBtn');
         if (btnFinalizar) {
             btnFinalizar.removeEventListener('click', finalizarTest);
             btnFinalizar.addEventListener('click', finalizarTest);
         }
 
-        // Cargar temas en el selector - Solo si el usuario está autenticado
+        // Cargar temas en el selector - Solo si el usuario estÃ¡ autenticado
         if (currentUser) {
             cargarTemasParaTest();
         }
@@ -2397,7 +2397,7 @@ if (currentUser) {
     }
 }
 
-// Funciones separadas para manejar clics (mejor práctica)
+// Funciones separadas para manejar clics (mejor prÃ¡ctica)
 function manejarClickCantidad() {
     try {
         document.querySelectorAll('.btn-cantidad').forEach(b => b.classList.remove('active'));
@@ -2426,11 +2426,11 @@ function manejarClickTiempo() {
     }
 }
 
-// Cargar temas para test con dropdown y subtemas - CON CACHÉ
+// Cargar temas para test con dropdown y subtemas - CON CACHÃ‰
 async function cargarTemasParaTest() {
-    // ✅ EVITAR MÚLTIPLES CARGAS SIMULTÁNEAS
+    // âœ… EVITAR MÃšLTIPLES CARGAS SIMULTÃNEAS
     if (cargandoTemasTest) {
-        console.log('⏸️ Ya cargando temas test, omitiendo...');
+        console.log('â¸ï¸ Ya cargando temas test, omitiendo...');
         return;
     }
     
@@ -2438,12 +2438,12 @@ async function cargarTemasParaTest() {
         cargandoTemasTest = true;
         let querySnapshot;
         
-        // ✅ USAR CACHÉ (igual que cargarBancoPreguntas)
+        // âœ… USAR CACHÃ‰ (igual que cargarBancoPreguntas)
         if (cacheTemas && cacheTimestamp && (Date.now() - cacheTimestamp < CACHE_DURACION)) {
-            console.log('✅ Usando caché de temas en Test Aleatorio');
+            console.log('âœ… Usando cachÃ© de temas en Test Aleatorio');
             querySnapshot = cacheTemas;
         } else {
-            console.log('🔄 Recargando temas desde Firebase en Test Aleatorio');
+            console.log('ðŸ”„ Recargando temas desde Firebase en Test Aleatorio');
             const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
             querySnapshot = await getDocs(q);
             cacheTemas = querySnapshot;
@@ -2507,7 +2507,7 @@ async function cargarTemasParaTest() {
             preguntasTodosTemas.textContent = `${totalPreguntasVerificadas} preguntas`;
         }
 
-        // Ordenar temas con ordenamiento numérico inteligente
+        // Ordenar temas con ordenamiento numÃ©rico inteligente
         temasPrincipales.sort((a, b) => {
             const nombreA = a.nombre;
             const nombreB = b.nombre;
@@ -2542,7 +2542,7 @@ async function cargarTemasParaTest() {
                     </label>
                     ${tieneSubtemas ? `
                         <div class="subtemas-toggle" onclick="toggleSubtemas('${tema.id}')">
-                            <span class="subtema-arrow" id="arrow-${tema.id}">▶</span>
+                            <span class="subtema-arrow" id="arrow-${tema.id}">â–¶</span>
                         </div>
                     ` : ''}
                 </div>
@@ -2556,7 +2556,7 @@ async function cargarTemasParaTest() {
                        data-preguntas="${subtema.preguntasVerificadas}" 
                        data-tema-padre="${tema.id}"
                        onclick="debugClick(this)" onchange="manejarSeleccionTema(event)">
-                <span class="subtema-nombre">↳ ${subtema.nombre}</span>
+                <span class="subtema-nombre">â†³ ${subtema.nombre}</span>
             </div>
             <span class="subtema-preguntas">${subtema.preguntasVerificadas} preguntas</span>
         </label>
@@ -2580,7 +2580,7 @@ async function cargarTemasParaTest() {
     
     // Configurar eventos post-carga
     setTimeout(() => {
-        console.log('Ejecutando configuración post-carga...');
+        console.log('Ejecutando configuraciÃ³n post-carga...');
         forzarEventListeners();
         
         const primerCantidad = document.querySelector('.btn-cantidad');
@@ -2618,11 +2618,11 @@ async function actualizarPreguntasDisponibles() {
                 }
             });
         } else {
-            // CORRECCIÓN: No sumar duplicados entre tema padre e hijos
+            // CORRECCIÃ“N: No sumar duplicados entre tema padre e hijos
             const temasSeleccionados = new Set();
             const subtemasPadres = new Set();
             
-            // Primero, identificar qué temas son subtemas y cuáles son sus padres
+            // Primero, identificar quÃ© temas son subtemas y cuÃ¡les son sus padres
             temasCheckboxes.forEach(checkbox => {
                 const temaPadre = checkbox.getAttribute('data-tema-padre');
                 if (temaPadre) {
@@ -2667,13 +2667,13 @@ function obtenerTemasSeleccionados() {
     
     // Obtener checkboxes marcados excluyendo "todos los temas"
     const checkboxesMarcados = document.querySelectorAll('.tema-checkbox:checked:not(#todosLosTemas)');
-    console.log('Checkboxes de temas específicos encontrados:', checkboxesMarcados.length);
+    console.log('Checkboxes de temas especÃ­ficos encontrados:', checkboxesMarcados.length);
     
     const idsSeleccionados = Array.from(checkboxesMarcados).map(cb => cb.value);
-    console.log('IDs extraídos:', idsSeleccionados);
+    console.log('IDs extraÃ­dos:', idsSeleccionados);
     
     if (idsSeleccionados.length === 0) {
-        console.log('FALLBACK: No hay temas específicos, devolviendo "todos"');
+        console.log('FALLBACK: No hay temas especÃ­ficos, devolviendo "todos"');
         return 'todos';
     }
     
@@ -2724,7 +2724,7 @@ async function empezarTest() {
             return;
         }
 
-        // Determinar número final de preguntas
+        // Determinar nÃºmero final de preguntas
         const numFinal = numPreguntas === 'todas' ? 
             preguntasDisponibles.length : Math.min(parseInt(numPreguntas), preguntasDisponibles.length);
         
@@ -2733,7 +2733,7 @@ async function empezarTest() {
             return;
         }
 
-        // Obtener preguntas únicas y aleatorias
+        // Obtener preguntas Ãºnicas y aleatorias
         const preguntasSeleccionadas = obtenerPreguntasUnicasAleatorias(preguntasDisponibles, numFinal);
 
         // NUEVO: Si el modo es "pregunta", guardar config y redirigir
@@ -2763,13 +2763,13 @@ async function empezarTest() {
             esRepaso: false
         };
 
-        window.testActual = testActual;  // AÑADIR ESTA LÍNEA
+        window.testActual = testActual;  // AÃ‘ADIR ESTA LÃNEA
         respuestasUsuario = {};
 
         // Mostrar interfaz del test
         mostrarInterfazTest();
         
-        // Iniciar cronómetro si hay límite de tiempo
+        // Iniciar cronÃ³metro si hay lÃ­mite de tiempo
         if (tiempoSeleccionado !== 'sin') {
             iniciarCronometro(parseInt(tiempoSeleccionado) * 60);
         }
@@ -2780,7 +2780,7 @@ async function empezarTest() {
     }
 }
 
-// Obtener preguntas verificadas (VERSIÓN CORREGIDA)
+// Obtener preguntas verificadas (VERSIÃ“N CORREGIDA)
 async function obtenerPreguntasVerificadas(temasSeleccionados) {
     console.log('=== OBTENER PREGUNTAS VERIFICADAS ===');
     console.log('Temas seleccionados:', temasSeleccionados);
@@ -2820,7 +2820,7 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
             }
         });
     } else if (Array.isArray(temasSeleccionados) && temasSeleccionados.length > 0) {
-        console.log('Caso: array de temas específicos');
+        console.log('Caso: array de temas especÃ­ficos');
         console.log('IDs de temas a procesar:', temasSeleccionados);
         
         // OPTIMIZADO: Procesar todos los temas en paralelo
@@ -2836,7 +2836,7 @@ documentos.forEach((temaDoc, idx) => {
     
     if (temaDoc.exists()) {
                     const tema = temaDoc.data();
-                    console.log(`✅ Tema encontrado: ${tema.nombre}`);
+                    console.log(`âœ… Tema encontrado: ${tema.nombre}`);
                     
                     if (tema.preguntas && tema.preguntas.length > 0) {
                         console.log(`  Total preguntas en el tema: ${tema.preguntas.length}`);
@@ -2858,22 +2858,22 @@ documentos.forEach((temaDoc, idx) => {
                                     temaEpigrafe: tema.epigrafe || ''
                                 });
                                 preguntasVerificadasTema++;
-                                console.log(`    ✓ Pregunta verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
+                                console.log(`    âœ“ Pregunta verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
                             } else {
-                                console.log(`    ✗ Pregunta NO verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
+                                console.log(`    âœ— Pregunta NO verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
                             }
                         });
                         
-                        console.log(`  📊 Total verificadas de este tema: ${preguntasVerificadasTema}`);
+                        console.log(`  ðŸ“Š Total verificadas de este tema: ${preguntasVerificadasTema}`);
                     } else {
-                        console.log(`  ⚠️ Tema sin preguntas`);
+                        console.log(`  âš ï¸ Tema sin preguntas`);
                     }
                 } else {
-                    console.log(`  ❌ TEMA NO ENCONTRADO: ${temaId}`);
+                    console.log(`  âŒ TEMA NO ENCONTRADO: ${temaId}`);
                 }
 });
     } else {
-        console.log('❌ Caso no válido - temasSeleccionados:', temasSeleccionados);
+        console.log('âŒ Caso no vÃ¡lido - temasSeleccionados:', temasSeleccionados);
     }
 
     console.log(`\n=== RESUMEN FINAL ===`);
@@ -2886,7 +2886,7 @@ documentos.forEach((temaDoc, idx) => {
         resumenPorTema[tema] = (resumenPorTema[tema] || 0) + 1;
     });
     
-    console.log('Distribución de preguntas verificadas por tema:');
+    console.log('DistribuciÃ³n de preguntas verificadas por tema:');
     Object.entries(resumenPorTema).forEach(([tema, count]) => {
         console.log(`  ${tema}: ${count} preguntas`);
     });
@@ -2897,16 +2897,16 @@ documentos.forEach((temaDoc, idx) => {
 
 // Mostrar interfaz del test
 function mostrarInterfazTest() {
-    // Ocultar configuración
+    // Ocultar configuraciÃ³n
     document.querySelector('.test-config-container').style.display = 'none';
     
-    // Ocultar test de repaso durante la ejecución del test
+    // Ocultar test de repaso durante la ejecuciÃ³n del test
     const containerRepaso = document.getElementById('testRepasoContainer');
     if (containerRepaso) {
         containerRepaso.style.display = 'none';
     }
     
-    // Mostrar test en ejecución
+    // Mostrar test en ejecuciÃ³n
     document.getElementById('testEnEjecucion').style.display = 'block';
     
     // Actualizar header
@@ -2958,7 +2958,7 @@ function generarPreguntasTest() {
                 radio.closest('.opcion-test').classList.remove('seleccionada');
             });
             
-            // Seleccionar esta opción
+            // Seleccionar esta opciÃ³n
             this.classList.add('seleccionada');
             this.querySelector('input').checked = true;
             
@@ -2977,7 +2977,7 @@ function actualizarProgreso() {
     document.getElementById('preguntaActualNum').textContent = respondidas;
 }
 
-// Iniciar cronómetro
+// Iniciar cronÃ³metro
 function iniciarCronometro(segundos) {
     tiempoRestanteSegundos = segundos;
     
@@ -2994,7 +2994,7 @@ function iniciarCronometro(segundos) {
     actualizarDisplayCronometro();
 }
 
-// Actualizar display del cronómetro
+// Actualizar display del cronÃ³metro
 function actualizarDisplayCronometro() {
     const minutos = Math.floor(tiempoRestanteSegundos / 60);
     const segundos = tiempoRestanteSegundos % 60;
@@ -3014,7 +3014,7 @@ async function finalizarTest() {
     console.log('testActual completo:', testActual);
     
     if (!testActual) {
-        console.error('❌ testActual es null');
+        console.error('âŒ testActual es null');
         alert('Error: no hay test activo');
         volverAConfigurarTest();
         return;
@@ -3033,7 +3033,7 @@ async function finalizarTest() {
     const resultados = calcularResultados();
     
     if (!resultados) {
-        console.error('❌ Error calculando resultados');
+        console.error('âŒ Error calculando resultados');
         alert('Error al calcular resultados del test');
         volverAConfigurarTest();
         return;
@@ -3048,7 +3048,7 @@ async function finalizarTest() {
         console.error('Error guardando resultado:', error);
     }
     
-    // Registrar test en progreso automáticamente
+    // Registrar test en progreso automÃ¡ticamente
     try {
         // Obtener temas utilizados en el test
         let temasUtilizados = [];
@@ -3058,7 +3058,7 @@ async function finalizarTest() {
         
         if (testActual.tema === 'todos') {
             console.log('Caso: todos los temas');
-            // Si fue test de todos los temas, obtener todos los temas únicos de las preguntas usando temaIdProgreso
+            // Si fue test de todos los temas, obtener todos los temas Ãºnicos de las preguntas usando temaIdProgreso
             const temasUnicos = new Set();
             testActual.preguntas.forEach(pregunta => {
                 const temaProgreso = pregunta.temaIdProgreso || pregunta.temaId;
@@ -3069,7 +3069,7 @@ async function finalizarTest() {
             });
             temasUtilizados = Array.from(temasUnicos);
         } else if (Array.isArray(testActual.tema)) {
-            console.log('Caso: array de temas específicos');
+            console.log('Caso: array de temas especÃ­ficos');
             console.log('Temas originalmente seleccionados:', testActual.tema);
             
             // Si seleccionaste un solo tema, usar ese tema directamente
@@ -3077,8 +3077,8 @@ async function finalizarTest() {
                 console.log('-> Un solo tema seleccionado, usando directamente');
                 temasUtilizados = [testActual.tema[0]];
             } else {
-                console.log('-> Múltiples temas seleccionados, extrayendo de preguntas');
-                // Múltiples temas: extraer de las preguntas
+                console.log('-> MÃºltiples temas seleccionados, extrayendo de preguntas');
+                // MÃºltiples temas: extraer de las preguntas
                 const temasUnicos = new Set();
                 testActual.preguntas.forEach(pregunta => {
                     const temaProgreso = pregunta.temaIdProgreso || pregunta.temaId;
@@ -3090,7 +3090,7 @@ async function finalizarTest() {
             }
         } else if (typeof testActual.tema === 'string' && testActual.tema !== 'repaso') {
             console.log('Caso: tema string individual');
-            // Si fue un tema específico (pero no repaso)
+            // Si fue un tema especÃ­fico (pero no repaso)
             temasUtilizados = [testActual.tema];
         } else {
             console.log('Caso: no reconocido o repaso - extrayendo de preguntas');
@@ -3109,14 +3109,14 @@ async function finalizarTest() {
         console.log('TEMAS FINALES PARA PROGRESO:', temasUtilizados);
         console.log('Temas utilizados calculados:', temasUtilizados);
         
-        // USAR SIEMPRE LA FUNCIÓN DIRECTA para mayor confiabilidad
+        // USAR SIEMPRE LA FUNCIÃ“N DIRECTA para mayor confiabilidad
         if (temasUtilizados.length > 0) {
             console.log('Registrando test directamente...');
             await registrarTestDirectamenteEnTests(temasUtilizados);
-            // NUEVO: Registrar también en progresoSimple para progreso diario
+            // NUEVO: Registrar tambiÃ©n en progresoSimple para progreso diario
             await registrarTestEnProgresoSimple(temasUtilizados);
         } else {
-            console.log('No hay temas válidos para registrar');
+            console.log('No hay temas vÃ¡lidos para registrar');
         }
         
     } catch (error) {
@@ -3133,7 +3133,7 @@ function calcularResultados() {
     console.log('testActual:', testActual);
     
     if (!testActual || !testActual.preguntas) {
-        console.error('❌ testActual inválido');
+        console.error('âŒ testActual invÃ¡lido');
         return null;
     }
     
@@ -3190,14 +3190,14 @@ function mostrarResultados(resultados) {
     console.log('Resultados recibidos:', resultados);
     
     if (!resultados || !resultados.test) {
-        console.error('❌ Resultados inválidos');
+        console.error('âŒ Resultados invÃ¡lidos');
         alert('Error mostrando resultados');
         volverAConfigurarTest();
         return;
     }
     
     try {
-        // Ocultar COMPLETAMENTE test en ejecución
+        // Ocultar COMPLETAMENTE test en ejecuciÃ³n
         const testEjecucion = document.getElementById('testEnEjecucion');
         if (testEjecucion) {
             testEjecucion.style.display = 'none';
@@ -3209,7 +3209,7 @@ function mostrarResultados(resultados) {
         containerRepaso.style.display = 'none';
     }
     
-    // Ocultar COMPLETAMENTE configuración del test
+    // Ocultar COMPLETAMENTE configuraciÃ³n del test
     const configContainer = document.querySelector('.test-config-container');
     if (configContainer) {
         configContainer.style.display = 'none';
@@ -3234,7 +3234,7 @@ function mostrarResultados(resultados) {
     // Generar HTML de resultados
     container.innerHTML = generarHTMLResultados(resultados);
     
-    // Scroll suave al inicio después de un breve delay
+    // Scroll suave al inicio despuÃ©s de un breve delay
         setTimeout(() => {
             window.scrollTo({ 
                 top: 0, 
@@ -3243,7 +3243,7 @@ function mostrarResultados(resultados) {
         }, 300);
         
     } catch (error) {
-        console.error('❌ Error en mostrarResultados:', error);
+        console.error('âŒ Error en mostrarResultados:', error);
         alert('Error mostrando resultados: ' + error.message);
         volverAConfigurarTest();
     }
@@ -3253,40 +3253,40 @@ function generarHTMLResultados(resultados) {
     console.log('=== GENERAR HTML RESULTADOS ===');
     console.log('Resultados recibidos:', resultados);
     
-    // VALIDACIÓN COMPLETA
+    // VALIDACIÃ“N COMPLETA
     if (!resultados) {
-        console.error('❌ Resultados es null o undefined');
-        return '<div style="padding: 40px; text-align: center; color: #dc3545;"><h3>⚠️ Error: No hay datos de resultados</h3><p>Por favor, vuelve a intentar el test.</p><button onclick="volverAConfigurarTest()" class="btn-empezar-test">Volver</button></div>';
+        console.error('âŒ Resultados es null o undefined');
+        return '<div style="padding: 40px; text-align: center; color: #dc3545;"><h3>âš ï¸ Error: No hay datos de resultados</h3><p>Por favor, vuelve a intentar el test.</p><button onclick="volverAConfigurarTest()" class="btn-empezar-test">Volver</button></div>';
     }
     
     if (!resultados.test) {
-        console.error('❌ resultados.test es null o undefined');
+        console.error('âŒ resultados.test es null o undefined');
         console.log('Estructura completa:', JSON.stringify(resultados, null, 2));
-        return '<div style="padding: 40px; text-align: center; color: #dc3545;"><h3>⚠️ Error: Datos del test incompletos</h3><p>Faltan datos del test.</p><button onclick="volverAConfigurarTest()" class="btn-empezar-test">Volver</button></div>';
+        return '<div style="padding: 40px; text-align: center; color: #dc3545;"><h3>âš ï¸ Error: Datos del test incompletos</h3><p>Faltan datos del test.</p><button onclick="volverAConfigurarTest()" class="btn-empezar-test">Volver</button></div>';
     }
     
     if (!resultados.test.nombre) {
-        console.error('❌ resultados.test.nombre es null');
+        console.error('âŒ resultados.test.nombre es null');
         console.log('resultados.test:', resultados.test);
     }
     
     const { correctas, incorrectas, sinResponder, total, porcentaje, detalleRespuestas, tiempoEmpleado } = resultados;
     
-    // Determinar mensaje según porcentaje
+    // Determinar mensaje segÃºn porcentaje
     let mensaje = '';
     let icono = '';
     if (porcentaje >= 90) {
         mensaje = 'Excelente trabajo!';
-        icono = '🏆';
+        icono = 'ðŸ†';
     } else if (porcentaje >= 75) {
         mensaje = 'Muy bien!';
-        icono = '⭐';
+        icono = 'â­';
     } else if (porcentaje >= 60) {
         mensaje = 'Buen trabajo';
-        icono = '📈';
+        icono = 'ðŸ“ˆ';
     } else {
         mensaje = 'Sigue practicando!';
-        icono = '📚';
+        icono = 'ðŸ“š';
     }
 
     const tiempoFormateado = formatearTiempo(tiempoEmpleado || 0);
@@ -3295,15 +3295,15 @@ function generarHTMLResultados(resultados) {
         new Date().toLocaleDateString('es-ES');
 
     let html = '<div class="resultado-header">';
-    // Botón hacer otro test arriba
+    // BotÃ³n hacer otro test arriba
     html += '<div style="text-align: center; margin-bottom: 20px;">';
     html += '<button onclick="volverAConfigurarTest()" class="btn-empezar-test">Hacer Otro Test</button>';
     html += '</div>';
     html += '<div class="resultado-icono">' + icono + '</div>';
-    // Determinar color según aciertos
+    // Determinar color segÃºn aciertos
     let colorPuntuacion = '';
     if (correctas > total / 2) {
-        colorPuntuacion = '#28a745'; // Verde - más de la mitad correctas
+        colorPuntuacion = '#28a745'; // Verde - mÃ¡s de la mitad correctas
     } else if (correctas === total / 2) {
         colorPuntuacion = '#ffc107'; // Amarillo - exactamente la mitad
     } else {
@@ -3321,17 +3321,17 @@ html += '</div>';
 
 html += '<div class="estadisticas-grid">';
 html += '<div class="estadistica-card correctas">';
-html += '<div class="estadistica-icono">✅</div>';
+html += '<div class="estadistica-icono">âœ…</div>';
 html += '<div class="estadistica-numero">' + correctas + '</div>';
 html += '<div class="estadistica-label">Correctas</div>';
 html += '</div>';
 html += '<div class="estadistica-card incorrectas">';
-html += '<div class="estadistica-icono">❌</div>';
+html += '<div class="estadistica-icono">âŒ</div>';
 html += '<div class="estadistica-numero">' + incorrectas + '</div>';
 html += '<div class="estadistica-label">Incorrectas</div>';
 html += '</div>';
 html += '<div class="estadistica-card sin-responder">';
-html += '<div class="estadistica-icono">⭕</div>';
+html += '<div class="estadistica-icono">â­•</div>';
 html += '<div class="estadistica-numero">' + sinResponder + '</div>';
 html += '<div class="estadistica-label">Sin responder</div>';
 html += '</div>';
@@ -3339,7 +3339,7 @@ html += '</div>';
 
 html += '<div class="revision-respuestas">';
 html += '<div class="revision-header">';
-html += '<h3>Revisión de Respuestas</h3>';
+html += '<h3>RevisiÃ³n de Respuestas</h3>';
 html += '</div>';
     
     detalleRespuestas.forEach(detalle => {
@@ -3377,10 +3377,10 @@ html += '</div>';
             html += '<div class="' + clases + '">';
             html += opcion.letra + ') ' + opcion.texto;
             if (opcion.letra === detalle.respuestaCorrecta) {
-                html += ' ✓';
+                html += ' âœ“';
             }
             if (opcion.letra === detalle.respuestaUsuario && opcion.letra !== detalle.respuestaCorrecta) {
-                html += ' ✗';
+                html += ' âœ—';
             }
             html += '</div>';
         });
@@ -3390,7 +3390,7 @@ html += '</div>';
             html += '<div class="sin-respuesta-nota">No respondiste esta pregunta</div>';
         }
         
-        // Botón Ver Explicación
+        // BotÃ³n Ver ExplicaciÃ³n
         const preguntaTextoParaId = detalle.pregunta.texto || '';
         let hashId = 0;
         for (let i = 0; i < preguntaTextoParaId.length; i++) {
@@ -3400,7 +3400,7 @@ html += '</div>';
         }
         const preguntaIdHash = 'q_' + Math.abs(hashId).toString(36);
         
-        html += '<button class="btn-ver-explicacion-resultado" onclick="abrirExplicacionResultado(\'' + preguntaIdHash + '\', ' + JSON.stringify(detalle.pregunta).replace(/'/g, "\\'") + ')">📖 Ver Explicación</button>';
+        html += '<button class="btn-ver-explicacion-resultado" onclick="abrirExplicacionResultado(\'' + preguntaIdHash + '\', ' + JSON.stringify(detalle.pregunta).replace(/'/g, "\\'") + ')">ðŸ“– Ver ExplicaciÃ³n</button>';
         
         html += '</div>';
     });
@@ -3454,7 +3454,7 @@ async function guardarResultado(resultados) {
         // Guardar resultado principal
         await addDoc(collection(db, "resultados"), datosLimpios);
         
-        // Invalidar caché de resultados
+        // Invalidar cachÃ© de resultados
         sessionStorage.removeItem('cacheResultados');
         sessionStorage.removeItem('cacheResultadosTimestamp');
         cacheResultadosTimestamp = null;
@@ -3467,7 +3467,7 @@ async function guardarResultado(resultados) {
             );
 
             if (preguntasFalladas.length > 0) {
-                // Guardar cada pregunta fallada en la colección especial
+                // Guardar cada pregunta fallada en la colecciÃ³n especial
                 const promesasGuardado = preguntasFalladas.map(async (detalle) => {
                     const preguntaFallada = {
                         usuarioId: currentUser.uid,
@@ -3528,9 +3528,9 @@ async function guardarResultado(resultados) {
 
                 if (eliminaciones.length > 0) {
                     await Promise.all(eliminaciones);
-                    console.log(`✅ ${eliminaciones.length} preguntas eliminadas del banco de repaso`);
+                    console.log(`âœ… ${eliminaciones.length} preguntas eliminadas del banco de repaso`);
                 } else {
-                    console.log('⚠️ No se encontraron preguntas para eliminar');
+                    console.log('âš ï¸ No se encontraron preguntas para eliminar');
                 }
                 
                 // Actualizar interfaz del test de repaso
@@ -3571,7 +3571,7 @@ window.volverAConfigurarTest = function() {
         clearInterval(cronometroInterval);
     }
     
-    // IMPORTANTE: Cambiar a la sección aleatorio
+    // IMPORTANTE: Cambiar a la secciÃ³n aleatorio
     cambiarSeccion('aleatorio');
     
     // Ocultar resultados COMPLETAMENTE
@@ -3581,13 +3581,13 @@ window.volverAConfigurarTest = function() {
         resultadosTest.innerHTML = ''; // Limpiar contenido
     }
     
-    // Ocultar test en ejecución
+    // Ocultar test en ejecuciÃ³n
     const testEjecucion = document.getElementById('testEnEjecucion');
     if (testEjecucion) {
         testEjecucion.style.display = 'none';
     }
     
-    // Mostrar configuración
+    // Mostrar configuraciÃ³n
     const configContainer = document.querySelector('.test-config-container');
     if (configContainer) {
         configContainer.style.display = 'block';
@@ -3615,7 +3615,7 @@ window.volverAConfigurarTest = function() {
 // Cargar historial de resultados
 async function cargarResultados() {
     if (cargandoResultados) {
-        console.log('⏸️ Ya cargando resultados, omitiendo...');
+        console.log('â¸ï¸ Ya cargando resultados, omitiendo...');
         return;
     }
     
@@ -3629,7 +3629,7 @@ async function cargarResultados() {
         
         let querySnapshot;
         
-        // 🆕 RECUPERAR CACHÉ DE sessionStorage
+        // ðŸ†• RECUPERAR CACHÃ‰ DE sessionStorage
         const cacheGuardado = sessionStorage.getItem('cacheResultados');
         const timestampGuardado = sessionStorage.getItem('cacheResultadosTimestamp');
         
@@ -3637,7 +3637,7 @@ async function cargarResultados() {
             const tiempoTranscurrido = Date.now() - parseInt(timestampGuardado);
             
             if (tiempoTranscurrido < CACHE_DURACION) {
-                console.log('✅ Recuperando caché resultados desde sessionStorage');
+                console.log('âœ… Recuperando cachÃ© resultados desde sessionStorage');
                 const datosCache = JSON.parse(cacheGuardado);
                 
                 querySnapshot = {
@@ -3662,14 +3662,14 @@ async function cargarResultados() {
         }
         
         if (!querySnapshot) {
-            console.log('🔄 Recargando resultados desde Firebase');
+            console.log('ðŸ”„ Recargando resultados desde Firebase');
             const q = query(
                 collection(db, "resultados"), 
                 where("usuarioId", "==", currentUser.uid)
             );
             querySnapshot = await getDocs(q);
             
-            // 🆕 GUARDAR SOLO DATOS RESUMIDOS EN sessionStorage (sin detalleRespuestas)
+            // ðŸ†• GUARDAR SOLO DATOS RESUMIDOS EN sessionStorage (sin detalleRespuestas)
             const datosParaGuardar = [];
             querySnapshot.forEach(doc => {
                 const data = doc.data();
@@ -3691,10 +3691,10 @@ async function cargarResultados() {
             try {
                 sessionStorage.setItem('cacheResultados', JSON.stringify(datosParaGuardar));
                 sessionStorage.setItem('cacheResultadosTimestamp', Date.now().toString());
-                console.log('✅ Caché guardado exitosamente');
+                console.log('âœ… CachÃ© guardado exitosamente');
             } catch (e) {
-                console.log('⚠️ No se pudo guardar caché (muy grande):', e);
-                // Si falla, limpiar sessionStorage y continuar sin caché
+                console.log('âš ï¸ No se pudo guardar cachÃ© (muy grande):', e);
+                // Si falla, limpiar sessionStorage y continuar sin cachÃ©
                 sessionStorage.removeItem('cacheResultados');
                 sessionStorage.removeItem('cacheResultadosTimestamp');
             }
@@ -3704,13 +3704,13 @@ async function cargarResultados() {
         }
         
         if (querySnapshot.empty) {
-            listResultados.innerHTML = '<p>No has realizado ningún test aún.</p>';
+            listResultados.innerHTML = '<p>No has realizado ningÃºn test aÃºn.</p>';
             return;
         }
         
         listResultados.innerHTML = '';
 
-        // PANEL DE ESTADÍSTICAS GLOBALES
+        // PANEL DE ESTADÃSTICAS GLOBALES
         let totalTests = 0;
         let totalPreguntasContestadas = 0;
         let totalCorrectas = 0;
@@ -3739,25 +3739,25 @@ const notaMedia = totalTests > 0 ? Math.round(sumaPorcentajes / totalTests) : 0;
 const panelEstadisticas = document.createElement('div');
 panelEstadisticas.className = 'panel-estadisticas-globales';
 panelEstadisticas.innerHTML = `
-    <h3>📊 Estadísticas Generales</h3>
+    <h3>ðŸ“Š EstadÃ­sticas Generales</h3>
     <div class="estadisticas-grid-global">
         <div class="stat-global nota-media">
-            <div class="stat-icono">📈</div>
+            <div class="stat-icono">ðŸ“ˆ</div>
             <div class="stat-valor">${notaMedia}%</div>
             <div class="stat-label">Nota Media</div>
         </div>
         <div class="stat-global">
-            <div class="stat-icono">📝</div>
+            <div class="stat-icono">ðŸ“</div>
             <div class="stat-valor">${preguntasUnicas.size}</div>
-            <div class="stat-label">Preguntas Únicas</div>
+            <div class="stat-label">Preguntas Ãšnicas</div>
         </div>
         <div class="stat-global correctas-global">
-            <div class="stat-icono">✅</div>
+            <div class="stat-icono">âœ…</div>
             <div class="stat-valor">${totalCorrectas}</div>
             <div class="stat-label">Acertadas</div>
         </div>
         <div class="stat-global incorrectas-global">
-            <div class="stat-icono">❌</div>
+            <div class="stat-icono">âŒ</div>
             <div class="stat-valor">${totalIncorrectas}</div>
             <div class="stat-label">Falladas</div>
         </div>
@@ -3765,15 +3765,15 @@ panelEstadisticas.innerHTML = `
 `;
 listResultados.appendChild(panelEstadisticas);
 
-// Agregar botón eliminar todos más discreto
+// Agregar botÃ³n eliminar todos mÃ¡s discreto
 const eliminarTodosBtn = document.createElement('div');
 eliminarTodosBtn.className = 'controles-resultados-discreto';
 eliminarTodosBtn.innerHTML = `
     <button class="btn-ranking-fallos" onclick="window.location.href='ranking-fallos.html'">
-        🏆 Ranking de Fallos
+        ðŸ† Ranking de Fallos
     </button>
     <button class="btn-eliminar-discreto" onclick="eliminarTodosResultados()" title="Eliminar todos los resultados">
-        🗑️ Limpiar historial
+        ðŸ—‘ï¸ Limpiar historial
     </button>
 `;
 listResultados.appendChild(eliminarTodosBtn);
@@ -3786,9 +3786,9 @@ listResultados.appendChild(eliminarTodosBtn);
             resultados.push({ id: doc.id, data: resultado });
         });
         
-        // Ordenar por fecha de creación descendente (más reciente primero)
+        // Ordenar por fecha de creaciÃ³n descendente (mÃ¡s reciente primero)
         resultados.sort((a, b) => {
-    // Manejar tanto Timestamps de Firebase como strings de fecha del caché
+    // Manejar tanto Timestamps de Firebase como strings de fecha del cachÃ©
     let fechaA, fechaB;
     
     if (a.data.fechaCreacion?.toDate) {
@@ -3816,7 +3816,7 @@ listResultados.appendChild(eliminarTodosBtn);
         
         resultados.forEach(({ id, data: resultado }) => {
     
-    // Manejar tanto Timestamps de Firebase como strings de fecha del caché
+    // Manejar tanto Timestamps de Firebase como strings de fecha del cachÃ©
     let fechaObj;
     if (resultado.fechaCreacion?.toDate) {
         fechaObj = resultado.fechaCreacion.toDate();
@@ -3854,7 +3854,7 @@ listResultados.appendChild(eliminarTodosBtn);
 </div>
         <div class="resultado-acciones" onclick="event.stopPropagation()">
             <button class="btn-eliminar-resultado" onclick="eliminarResultado('${id}')" title="Eliminar resultado">
-                🗑️
+                ðŸ—‘ï¸
             </button>
         </div>
     </div>
@@ -3868,13 +3868,13 @@ listResultados.appendChild(eliminarTodosBtn);
         cargandoResultados = false;
     }
 }
-// Eliminar resultado específico
+// Eliminar resultado especÃ­fico
 window.eliminarResultado = async function(resultadoId) {
-    if (confirm('¿Estás seguro de que quieres eliminar este resultado? Esta acción no se puede deshacer.')) {
+    if (confirm('Â¿EstÃ¡s seguro de que quieres eliminar este resultado? Esta acciÃ³n no se puede deshacer.')) {
         try {
             await deleteDoc(doc(db, "resultados", resultadoId));
             
-            // Invalidar caché
+            // Invalidar cachÃ©
             cacheResultados = null;
 sessionStorage.removeItem('cacheResultados');
 sessionStorage.removeItem('cacheResultadosTimestamp');
@@ -3890,7 +3890,7 @@ sessionStorage.removeItem('cacheResultadosTimestamp');
 };
 // Eliminar todos los resultados
 window.eliminarTodosResultados = async function() {
-    const confirmacion = prompt('Esta acción eliminará TODOS tus resultados permanentemente.\nEscribe "ELIMINAR TODO" para confirmar:');
+    const confirmacion = prompt('Esta acciÃ³n eliminarÃ¡ TODOS tus resultados permanentemente.\nEscribe "ELIMINAR TODO" para confirmar:');
     
     if (confirmacion === 'ELIMINAR TODO') {
         try {
@@ -3904,7 +3904,7 @@ window.eliminarTodosResultados = async function() {
             
             await Promise.all(promises);
             
-            // Invalidar caché
+            // Invalidar cachÃ©
             cacheResultados = null;
 sessionStorage.removeItem('cacheResultados');
 sessionStorage.removeItem('cacheResultadosTimestamp');
@@ -3917,7 +3917,7 @@ sessionStorage.removeItem('cacheResultadosTimestamp');
             alert('Error al eliminar los resultados');
         }
     } else if (confirmacion !== null) {
-        alert('Confirmación incorrecta. No se eliminó nada.');
+        alert('ConfirmaciÃ³n incorrecta. No se eliminÃ³ nada.');
     }
 };
 // ==== FUNCIONALIDAD IMPORTAR/EXPORTAR ====
@@ -3928,7 +3928,7 @@ async function manejarArchivoSeleccionado(event) {
     if (!archivo) return;
     
     if (!archivo.name.endsWith('.json')) {
-        alert('Por favor selecciona un archivo JSON válido');
+        alert('Por favor selecciona un archivo JSON vÃ¡lido');
         return;
     }
     
@@ -3943,7 +3943,7 @@ async function manejarArchivoSeleccionado(event) {
         }
     } catch (error) {
         console.error('Error procesando archivo:', error);
-        alert('Error al procesar el archivo. Verifica que sea un JSON válido');
+        alert('Error al procesar el archivo. Verifica que sea un JSON vÃ¡lido');
     }
     
     event.target.value = '';
@@ -3973,7 +3973,7 @@ function procesarArchivoImportado(datos) {
     const numPreguntas = datos.questionsData.length;
     const temaOriginal = datos.originalTopic?.name || 'Tema Importado';
     
-    // Convertir formato con validación estricta
+    // Convertir formato con validaciÃ³n estricta
     const preguntasConvertidas = datos.questionsData.map((q, index) => {
         console.log(`=== PROCESANDO PREGUNTA ${index + 1} ===`);
         console.log('Pregunta completa:', q);
@@ -3989,7 +3989,7 @@ function procesarArchivoImportado(datos) {
         }
         
         if (!q.options || !Array.isArray(q.options) || q.options.length < 4) {
-            console.error(`Pregunta ${index + 1}: options inválido`, q.options);
+            console.error(`Pregunta ${index + 1}: options invÃ¡lido`, q.options);
             return null;
         }
         
@@ -3998,7 +3998,7 @@ function procesarArchivoImportado(datos) {
             return null;
         }
         
-        // Obtener índice de respuesta correcta
+        // Obtener Ã­ndice de respuesta correcta
 let indiceCorrecta = 0;
 if (typeof q.correctAnswer === 'number') {
     indiceCorrecta = q.correctAnswer;
@@ -4010,7 +4010,7 @@ if (typeof q.correctAnswer === 'number') {
     }
 }
 
-console.log(`Índice correcto calculado: ${indiceCorrecta} para correctAnswer: ${q.correctAnswer}`);
+console.log(`Ãndice correcto calculado: ${indiceCorrecta} para correctAnswer: ${q.correctAnswer}`);
 
 const preguntaConvertida = {
     texto: String(q.question).trim(),
@@ -4033,7 +4033,7 @@ const preguntaConvertida = {
     console.log('Primera pregunta convertida:', preguntasConvertidas[0]);
     
     if (preguntasConvertidas.length === 0) {
-        alert('No se pudieron procesar las preguntas. Revisa la consola para más detalles.');
+        alert('No se pudieron procesar las preguntas. Revisa la consola para mÃ¡s detalles.');
         return;
     }
     
@@ -4047,7 +4047,7 @@ async function mostrarModalImportacion(numPreguntas, temaOriginal, preguntasConv
     
     modal.innerHTML = `
         <div class="modal-content">
-            <h3>📁 Importar Preguntas</h3>
+            <h3>ðŸ“ Importar Preguntas</h3>
             <p>Se encontraron <strong>${numPreguntas} preguntas</strong> del tema "<strong>${temaOriginal}</strong>"</p>
             <label for="temaDestinoSelect">Seleccionar tema destino:</label>
             <select id="temaDestinoSelect">
@@ -4091,7 +4091,7 @@ querySnapshot.forEach((doc) => {
     }
 });
 
-// NUEVA SECCIÓN: Sumar preguntas de subtemas a los temas principales
+// NUEVA SECCIÃ“N: Sumar preguntas de subtemas a los temas principales
 temasPrincipales.forEach(tema => {
     if (subtemasPorPadre[tema.id]) {
         const preguntasSubtemas = subtemasPorPadre[tema.id].reduce((total, subtema) => {
@@ -4105,20 +4105,20 @@ temasPrincipales.forEach(tema => {
     }
 });
 
-// Ordenar temas con ordenamiento numérico inteligente (igual que banco)
+// Ordenar temas con ordenamiento numÃ©rico inteligente (igual que banco)
 temasPrincipales.sort((a, b) => {
     const nombreA = a.data.nombre;
     const nombreB = b.data.nombre;
     
-    // Extraer números del nombre si existen
+    // Extraer nÃºmeros del nombre si existen
     const numeroA = nombreA.match(/\d+/);
     const numeroB = nombreB.match(/\d+/);
     
     if (numeroA && numeroB) {
-        // Si ambos tienen números, ordenar por número
+        // Si ambos tienen nÃºmeros, ordenar por nÃºmero
         return parseInt(numeroA[0]) - parseInt(numeroB[0]);
     } else {
-        // Si no tienen números, orden alfabético normal
+        // Si no tienen nÃºmeros, orden alfabÃ©tico normal
         return nombreA.localeCompare(nombreB);
     }
 });
@@ -4134,7 +4134,7 @@ temasPrincipales.forEach(({ id, data: tema }) => {
         subtemasPorPadre[id].forEach(subtema => {
             const subOption = document.createElement('option');
             subOption.value = subtema.id;
-            subOption.textContent = `  ↳ ${subtema.data.nombre}`;
+            subOption.textContent = `  â†³ ${subtema.data.nombre}`;
             select.appendChild(subOption);
         });
     }
@@ -4191,7 +4191,7 @@ async function importarPreguntasDirecto(preguntasConvertidas, modal) {
         document.body.removeChild(modal);
         document.getElementById('fileInput').value = '';
         
-        // Recargar banco si está activo
+        // Recargar banco si estÃ¡ activo
         if (document.getElementById('banco-section').classList.contains('active')) {
             cargarBancoPreguntas();
         }
@@ -4277,7 +4277,7 @@ function mezclarArray(array) {
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     
-    // Segunda pasada para asegurar máxima aleatoriedad
+    // Segunda pasada para asegurar mÃ¡xima aleatoriedad
     for (let i = 0; i < shuffled.length; i++) {
         const j = Math.floor(Math.random() * shuffled.length);
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -4286,13 +4286,13 @@ function mezclarArray(array) {
     return shuffled;
 }
 
-// Función para obtener preguntas con distribución proporcional entre temas
+// FunciÃ³n para obtener preguntas con distribuciÃ³n proporcional entre temas
 function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
-    console.log('=== DISTRIBUCIÓN PARITARIA DEBUG ===');
+    console.log('=== DISTRIBUCIÃ“N PARITARIA DEBUG ===');
     console.log(`Total preguntas recibidas: ${preguntas.length}`);
     console.log(`Cantidad solicitada: ${cantidad}`);
     
-    // AÑADIR ESTE DEBUG
+    // AÃ‘ADIR ESTE DEBUG
     console.log('DETALLE DE PREGUNTAS RECIBIDAS:');
     preguntas.forEach((p, index) => {
         console.log(`${index + 1}. ${p.temaNombre || p.temaId} - Verificada: ${p.verificada} - "${p.texto.substring(0, 50)}..."`);
@@ -4311,7 +4311,7 @@ function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
     });
     
     const arrayUnico = Array.from(preguntasUnicas.values());
-    console.log(`Preguntas únicas después de filtrar: ${arrayUnico.length}`);
+    console.log(`Preguntas Ãºnicas despuÃ©s de filtrar: ${arrayUnico.length}`);
     
     // Agrupar por tema
     const preguntasPorTema = {};
@@ -4337,11 +4337,11 @@ function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
     }
     
     if (temas.length === 1) {
-        console.log('Solo un tema, selección aleatoria normal');
+        console.log('Solo un tema, selecciÃ³n aleatoria normal');
         return mezclarArray(arrayUnico).slice(0, cantidad);
     }
     
-    // RESTO DE LA FUNCIÓN IGUAL...
+    // RESTO DE LA FUNCIÃ“N IGUAL...
     const preguntasPorTemaObjetivo = Math.floor(cantidad / temas.length);
     const preguntasExtra = cantidad % temas.length;
     
@@ -4405,10 +4405,10 @@ async function cargarTestRepaso() {
             contadorElement.textContent = `${totalPreguntasFalladas} preguntas`;
         }
         
-        // Actualizar el botón
+        // Actualizar el botÃ³n
         const botonRepaso = containerRepaso.querySelector('.btn-test-repaso');
         if (botonRepaso) {
-            botonRepaso.textContent = `🔄 Test de Repaso (${totalPreguntasFalladas} preguntas)`;
+            botonRepaso.textContent = `ðŸ”„ Test de Repaso (${totalPreguntasFalladas} preguntas)`;
         }
 
     } catch (error) {
@@ -4445,7 +4445,7 @@ window.iniciarTestRepaso = async function() {
             });
         });
 
-        // Obtener preguntas únicas y aleatorias para el repaso
+        // Obtener preguntas Ãºnicas y aleatorias para el repaso
         const preguntasMezcladas = obtenerPreguntasUnicasAleatorias(preguntasRepaso, preguntasRepaso.length);
 
         // Si modo pregunta a pregunta, redirigir
@@ -4485,7 +4485,7 @@ window.iniciarTestRepaso = async function() {
 
 // Limpiar todas las preguntas falladas
 window.limpiarTodasPreguntasFalladas = async function() {
-    if (!confirm('¿Estás seguro de que quieres eliminar todas las preguntas falladas? Esta acción no se puede deshacer.')) {
+    if (!confirm('Â¿EstÃ¡s seguro de que quieres eliminar todas las preguntas falladas? Esta acciÃ³n no se puede deshacer.')) {
         return;
     }
 
@@ -4519,10 +4519,10 @@ window.toggleDropdownTemas = function() {
     
     if (content.style.display === 'block') {
         content.style.display = 'none';
-        arrow.textContent = '▼';
+        arrow.textContent = 'â–¼';
     } else {
         content.style.display = 'block';
-        arrow.textContent = '▲';
+        arrow.textContent = 'â–²';
     }
 };
 
@@ -4532,10 +4532,10 @@ window.toggleSubtemas = function(temaId) {
     
     if (container.style.display === 'none') {
         container.style.display = 'block';
-        arrow.textContent = '▼';
+        arrow.textContent = 'â–¼';
     } else {
         container.style.display = 'none';
-        arrow.textContent = '▶';
+        arrow.textContent = 'â–¶';
     }
 };
 
@@ -4547,7 +4547,7 @@ document.addEventListener('click', function(event) {
     
     if (dropdown && !dropdown.contains(event.target) && content && content.style.display === 'block') {
         content.style.display = 'none';
-        document.querySelector('.dropdown-arrow').textContent = '▼';
+        document.querySelector('.dropdown-arrow').textContent = 'â–¼';
     }
 });
 window.debugClick = function(checkbox) {
@@ -4559,7 +4559,7 @@ window.debugClick = function(checkbox) {
 };
 
 // =================================
-// FUNCIONES DROPDOWN - VERSIÓN FINAL
+// FUNCIONES DROPDOWN - VERSIÃ“N FINAL
 // =================================
 
 window.toggleDropdownTemas = function() {
@@ -4570,10 +4570,10 @@ window.toggleDropdownTemas = function() {
     
     if (content.style.display === 'block') {
         content.style.display = 'none';
-        arrow.textContent = '▼';
+        arrow.textContent = 'â–¼';
     } else {
         content.style.display = 'block';
-        arrow.textContent = '▲';
+        arrow.textContent = 'â–²';
     }
 };
 
@@ -4585,31 +4585,31 @@ window.toggleSubtemas = function(temaId) {
     
     if (container.style.display === 'none') {
         container.style.display = 'block';
-        arrow.textContent = '▼';
+        arrow.textContent = 'â–¼';
     } else {
         container.style.display = 'none';
-        arrow.textContent = '▶';
+        arrow.textContent = 'â–¶';
     }
 };
 
 window.manejarSeleccionTema = function(event) {
-    console.log('=== DEBUG MANEJO SELECCIÓN TEMA ===');
+    console.log('=== DEBUG MANEJO SELECCIÃ“N TEMA ===');
     
     const todosLosTemas = document.getElementById('todosLosTemas');
     const temasCheckboxes = document.querySelectorAll('.tema-checkbox:not(#todosLosTemas)');
     const placeholder = document.querySelector('.dropdown-placeholder');
     
     if (!todosLosTemas || !placeholder) {
-        console.log('❌ Elementos no encontrados');
+        console.log('âŒ Elementos no encontrados');
         return;
     }
     
     const checkboxClickeado = event.target;
     console.log('Checkbox clickeado:', checkboxClickeado.value, 'Checked:', checkboxClickeado.checked);
     
-    // Si se clickeó "Todos los temas"
+    // Si se clickeÃ³ "Todos los temas"
     if (checkboxClickeado === todosLosTemas) {
-        console.log('✅ Click en "Todos los temas"');
+        console.log('âœ… Click en "Todos los temas"');
         if (todosLosTemas.checked) {
             temasCheckboxes.forEach(checkbox => {
                 checkbox.checked = false;
@@ -4617,10 +4617,10 @@ window.manejarSeleccionTema = function(event) {
             placeholder.textContent = 'Todos los temas seleccionados';
         }
     } else {
-        // Se clickeó un tema específico
-        console.log('✅ Click en tema específico');
+        // Se clickeÃ³ un tema especÃ­fico
+        console.log('âœ… Click en tema especÃ­fico');
         
-        // Si se marca un tema específico, desmarcar "Todos los temas"
+        // Si se marca un tema especÃ­fico, desmarcar "Todos los temas"
         if (checkboxClickeado.checked) {
             console.log('Desmarcando "Todos los temas"');
             todosLosTemas.checked = false;
@@ -4638,9 +4638,9 @@ window.manejarSeleccionTema = function(event) {
             });
         }
         
-        // Contar temas seleccionados después del cambio
+        // Contar temas seleccionados despuÃ©s del cambio
         const temasSeleccionados = Array.from(temasCheckboxes).filter(cb => cb.checked);
-        console.log('Temas seleccionados después del click:', temasSeleccionados.length);
+        console.log('Temas seleccionados despuÃ©s del click:', temasSeleccionados.length);
         
         if (temasSeleccionados.length === 0) {
             console.log('No hay temas seleccionados - marcando "Todos"');
@@ -4663,7 +4663,7 @@ document.addEventListener('click', function(event) {
     if (dropdown && !dropdown.contains(event.target) && content && content.style.display === 'block') {
         content.style.display = 'none';
         const arrow = document.querySelector('.dropdown-arrow');
-        if (arrow) arrow.textContent = '▼';
+        if (arrow) arrow.textContent = 'â–¼';
     }
 });
 function obtenerTextoTemas(tema, temasMap) {
@@ -4684,10 +4684,10 @@ function obtenerTextoTemas(tema, temasMap) {
     } else if (typeof tema === 'string') {
         return temasMap.get(tema) || 'Tema eliminado';
     } else {
-        return 'Tema específico';
+        return 'Tema especÃ­fico';
     }
 }
-// Verificar si un tema es válido (no eliminado)
+// Verificar si un tema es vÃ¡lido (no eliminado)
 function esTemaValido(tema, temasMap) {
     if (tema === 'todos' || tema === 'repaso') {
         return true;
@@ -4700,7 +4700,7 @@ function esTemaValido(tema, temasMap) {
 }
 
 
-// Función para importar preguntas directamente a un tema específico
+// FunciÃ³n para importar preguntas directamente a un tema especÃ­fico
 window.importarATema = function(temaId) {
     // Crear input file temporal
     const fileInput = document.createElement('input');
@@ -4713,7 +4713,7 @@ window.importarATema = function(temaId) {
         if (!archivo) return;
         
         if (!archivo.name.endsWith('.json')) {
-            alert('Por favor selecciona un archivo JSON válido');
+            alert('Por favor selecciona un archivo JSON vÃ¡lido');
             return;
         }
         
@@ -4738,7 +4738,7 @@ window.importarATema = function(temaId) {
             }
         } catch (error) {
             console.error('Error procesando archivo:', error);
-            alert('Error al procesar el archivo. Verifica que sea un JSON válido');
+            alert('Error al procesar el archivo. Verifica que sea un JSON vÃ¡lido');
         }
         
         // Limpiar
@@ -4750,7 +4750,7 @@ window.importarATema = function(temaId) {
     fileInput.click();
 };
 
-// Función auxiliar para procesar preguntas importadas
+// FunciÃ³n auxiliar para procesar preguntas importadas
 function procesarPreguntasImportadas(datos) {
     const preguntasConvertidas = datos.questionsData.map((q, index) => {
         // Validar campos obligatorios
@@ -4758,7 +4758,7 @@ function procesarPreguntasImportadas(datos) {
             return null;
         }
         
-        // Obtener índice de respuesta correcta
+        // Obtener Ã­ndice de respuesta correcta
         let indiceCorrecta = 0;
         if (typeof q.correctAnswer === 'number') {
             indiceCorrecta = q.correctAnswer;
@@ -4786,7 +4786,7 @@ function procesarPreguntasImportadas(datos) {
     return preguntasConvertidas;
 }
 
-// Función para importar preguntas directamente a un tema específico
+// FunciÃ³n para importar preguntas directamente a un tema especÃ­fico
 async function importarPreguntasDirectoATema(preguntasConvertidas, temaId) {
     try {
         // Obtener nombre del tema
@@ -4799,8 +4799,8 @@ async function importarPreguntasDirectoATema(preguntasConvertidas, temaId) {
         const temaData = temaDoc.data();
         const nombreTema = temaData.nombre;
         
-        // Confirmar importación
-        if (!confirm(`¿Importar ${preguntasConvertidas.length} preguntas al tema "${nombreTema}"?`)) {
+        // Confirmar importaciÃ³n
+        if (!confirm(`Â¿Importar ${preguntasConvertidas.length} preguntas al tema "${nombreTema}"?`)) {
             return;
         }
         
@@ -4814,13 +4814,13 @@ async function importarPreguntasDirectoATema(preguntasConvertidas, temaId) {
         
         alert(`${preguntasConvertidas.length} preguntas importadas exitosamente al tema "${nombreTema}"`);
         
-        // Invalidar caché antes de recargar
+        // Invalidar cachÃ© antes de recargar
         cacheTemas = null;
         cacheTimestamp = null;
         sessionStorage.removeItem('cacheTemas');
         sessionStorage.removeItem('cacheTemasTimestamp');
         
-        // Recargar banco si está activo
+        // Recargar banco si estÃ¡ activo
         if (document.getElementById('banco-section').classList.contains('active')) {
             cargarBancoPreguntas();
         }
@@ -4840,7 +4840,7 @@ function limpiarInterfazTestCompleta() {
         clearInterval(cronometroInterval);
     }
     
-    // Mostrar configuración y ocultar otras pantallas
+    // Mostrar configuraciÃ³n y ocultar otras pantallas
     const configContainer = document.querySelector('.test-config-container');
     const testEjecucion = document.getElementById('testEnEjecucion');
     const resultadosTest = document.getElementById('resultadosTest');
@@ -4866,10 +4866,10 @@ function limpiarInterfazTestCompleta() {
         tiempoRestante.style.color = '#dc3545';
     }
 }
-// Función para registrar test directamente si Progreso.js no está cargado
-// Función mejorada para registrar test directamente con mejor manejo de datos
-// Nueva función para registrar en progresoSimple (sistema de progreso diario)
-// Función para normalizar nombres de temas
+// FunciÃ³n para registrar test directamente si Progreso.js no estÃ¡ cargado
+// FunciÃ³n mejorada para registrar test directamente con mejor manejo de datos
+// Nueva funciÃ³n para registrar en progresoSimple (sistema de progreso diario)
+// FunciÃ³n para normalizar nombres de temas
 function normalizarNombreTema(nombre) {
     return nombre
         .toLowerCase()
@@ -4888,7 +4888,7 @@ function normalizarNombreTema(nombre) {
         .replace(/\bdiez\b/i, '10');
 }
 
-// Función para buscar tema del planning por nombre
+// FunciÃ³n para buscar tema del planning por nombre
 async function buscarTemaEnPlanningPorNombre(nombreBanco) {
     try {
         // Cargar planning
@@ -4920,7 +4920,7 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         
         const temasUnicos = [...new Set(temasUtilizados)];
         
-        // NUEVA LÓGICA: Obtener nombres de temas del banco y buscar coincidencias en planning
+        // NUEVA LÃ“GICA: Obtener nombres de temas del banco y buscar coincidencias en planning
         const infoTemasCompleta = await Promise.all(
             temasUnicos.map(async (temaIdBanco) => {
                 const temaDoc = await getDoc(doc(db, "temas", temaIdBanco));
@@ -4943,9 +4943,9 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         
         const infoTemas = infoTemasCompleta.filter(t => t !== null);
         
-        console.log('Info temas con vinculación planning:', infoTemas);
+        console.log('Info temas con vinculaciÃ³n planning:', infoTemas);
         
-        // NUEVA LÓGICA: Detectar si todos son subtemas del mismo padre
+        // NUEVA LÃ“GICA: Detectar si todos son subtemas del mismo padre
 const padres = infoTemas.map(t => t.padre).filter(p => p !== null);
 const todosDelMismoPadre = padres.length === infoTemas.length && 
                             padres.length > 0 &&
@@ -5006,12 +5006,12 @@ const temaPadre = todosDelMismoPadre ? padres[0] : null;
                 temaIdFinal = temaInfo.temaPlanning.id;
                 nombreFinal = temaInfo.temaPlanning.nombre;
                 hojasTotales = temaInfo.temaPlanning.hojas || 0;
-                console.log('✅ Vinculado con planning:', nombreFinal);
+                console.log('âœ… Vinculado con planning:', nombreFinal);
             } else {
-                // Usar ID del banco (tema no está en planning)
+                // Usar ID del banco (tema no estÃ¡ en planning)
                 temaIdFinal = temaInfo.idBanco;
                 nombreFinal = temaInfo.nombreBanco;
-                console.log('⚠️ Tema no encontrado en planning, usando ID banco');
+                console.log('âš ï¸ Tema no encontrado en planning, usando ID banco');
             }
             
             // Crear tema en progreso si no existe
@@ -5028,7 +5028,7 @@ const temaPadre = todosDelMismoPadre ? padres[0] : null;
             progresoData.temas[temaIdFinal].testsRealizados = 
                 (progresoData.temas[temaIdFinal].testsRealizados || 0) + 1;
             
-            // Añadir registro
+            // AÃ±adir registro
             progresoData.registros.push({
                 fecha: fechaHoy,
                 temaId: temaIdFinal,
@@ -5038,10 +5038,10 @@ const temaPadre = todosDelMismoPadre ? padres[0] : null;
         }
         
         await setDoc(progresoRef, progresoData);
-        console.log('✅ Test registrado en progresoSimple');
+        console.log('âœ… Test registrado en progresoSimple');
         
     } catch (error) {
-        console.error('❌ Error registrando test:', error);
+        console.error('âŒ Error registrando test:', error);
     }
 }
 
@@ -5091,7 +5091,7 @@ async function registrarTestDirectamenteEnTests(temasUtilizados) {
                 console.log(`Tema ${temaId} inicializado`);
             }
             
-            // Incrementar contador de tests automáticos
+            // Incrementar contador de tests automÃ¡ticos
 progresoData.temas[temaId].testsAutomaticos = (progresoData.temas[temaId].testsAutomaticos || 0) + 1;
 
 progresoData.temas[temaId].ultimaActualizacion = new Date();
@@ -5101,43 +5101,43 @@ progresoData.temas[temaId].ultimaActualizacion = new Date();
         }
         
         if (temasActualizados > 0) {
-            // Actualizar fecha de última actualización general
+            // Actualizar fecha de Ãºltima actualizaciÃ³n general
             progresoData.ultimaActualizacion = new Date();
             
             // Guardar en Firebase usando setDoc para asegurar que se guarde
             await setDoc(progresoRef, progresoData);
             
-            console.log(`✅ Test registrado exitosamente en ${temasActualizados} temas`);
+            console.log(`âœ… Test registrado exitosamente en ${temasActualizados} temas`);
             console.log('Datos guardados:', progresoData.temas);
         } else {
-            console.log('❌ No se actualizaron temas');
+            console.log('âŒ No se actualizaron temas');
         }
         
         console.log('=====================================');
         
     } catch (error) {
-        console.error('❌ Error registrando test directamente:', error);
+        console.error('âŒ Error registrando test directamente:', error);
         console.error('Stack trace:', error.stack);
     }
 }
-// CORRECCIÓN DEFINITIVA DE EVENT LISTENERS
-// REEMPLAZA COMPLETAMENTE la función forzarEventListeners
+// CORRECCIÃ“N DEFINITIVA DE EVENT LISTENERS
+// REEMPLAZA COMPLETAMENTE la funciÃ³n forzarEventListeners
 function forzarEventListeners() {
     console.log('=== FORZAR EVENT LISTENERS ===');
     
-    // ESPERAR MÁS TIEMPO para que TODO esté cargado
+    // ESPERAR MÃS TIEMPO para que TODO estÃ© cargado
     setTimeout(() => {
-        // 1. BOTÓN EMPEZAR TEST (este debe existir siempre)
+        // 1. BOTÃ“N EMPEZAR TEST (este debe existir siempre)
         const btnEmpezar = document.getElementById('empezarTestBtn');
         if (btnEmpezar) {
             btnEmpezar.removeEventListener('click', empezarTest);
             btnEmpezar.addEventListener('click', empezarTest);
-            console.log('✅ Botón empezar test configurado');
+            console.log('âœ… BotÃ³n empezar test configurado');
         } else {
-            console.log('❌ No se encontró empezarTestBtn');
+            console.log('âŒ No se encontrÃ³ empezarTestBtn');
         }
 
-        // 2. BOTONES DE CANTIDAD (estos se crean dinámicamente)
+        // 2. BOTONES DE CANTIDAD (estos se crean dinÃ¡micamente)
         const botonesCantidad = document.querySelectorAll('.btn-cantidad');
         console.log(`Botones cantidad encontrados: ${botonesCantidad.length}`);
         botonesCantidad.forEach(btn => {
@@ -5145,7 +5145,7 @@ function forzarEventListeners() {
             btn.addEventListener('click', manejarClickCantidad);
         });
 
-        // 3. BOTONES DE TIEMPO (estos se crean dinámicamente)  
+        // 3. BOTONES DE TIEMPO (estos se crean dinÃ¡micamente)  
         const botonesTiempo = document.querySelectorAll('.btn-tiempo');
         console.log(`Botones tiempo encontrados: ${botonesTiempo.length}`);
         botonesTiempo.forEach(btn => {
@@ -5166,11 +5166,11 @@ function forzarEventListeners() {
         console.log('=== FIN FORZAR EVENT LISTENERS ===');
     }, 2000); // Aumentar a 2 segundos
 }
-// Llamar la función cuando se cambie a la sección aleatorio
+// Llamar la funciÃ³n cuando se cambie a la secciÃ³n aleatorio
 // Variables para recordar estado de subtemas
 let subtemasOcultos = new Set();
 
-// Función para mostrar/ocultar subtemas
+// FunciÃ³n para mostrar/ocultar subtemas
 window.toggleSubtemasVisibilidad = function(temaId) {
     const wrapper = document.getElementById(`subtemas-wrapper-${temaId}`);
     const icon = document.getElementById(`toggle-icon-${temaId}`);
@@ -5180,11 +5180,11 @@ window.toggleSubtemasVisibilidad = function(temaId) {
     if (wrapper.style.display === 'none') {
         // Mostrar subtemas
         wrapper.style.display = 'block';
-        icon.textContent = '📂';
+        icon.textContent = 'ðŸ“‚';
     } else {
         // Ocultar subtemas
         wrapper.style.display = 'none';
-        icon.textContent = '📁';
+        icon.textContent = 'ðŸ“';
     }
 };
 // Manejar toggle de subtemas desplegables
@@ -5219,7 +5219,7 @@ window.mostrarDetalleResultado = async function(resultadoId) {
         modalContent.style.maxHeight = '85vh';
         modalContent.style.overflow = 'auto';
         
-        // Generar HTML del detalle (reutilizar la función de mostrar resultados)
+        // Generar HTML del detalle (reutilizar la funciÃ³n de mostrar resultados)
         modalContent.innerHTML = generarHTMLResultadosDetalle(resultado);
         
         modal.appendChild(modalContent);
@@ -5238,27 +5238,27 @@ window.mostrarDetalleResultado = async function(resultadoId) {
     }
 };
 
-// Función para generar HTML de resultados detallado
+// FunciÃ³n para generar HTML de resultados detallado
 function generarHTMLResultadosDetalle(resultado) {
     const { correctas, incorrectas, sinResponder, total, detalleRespuestas } = resultado;
     const porcentaje = total > 0 ? Math.round((correctas / total) * 100) : 0;
     const tiempoEmpleado = resultado.tiempoEmpleado || 0;
     
-    // Determinar mensaje según porcentaje
+    // Determinar mensaje segÃºn porcentaje
     let mensaje = '';
     let icono = '';
     if (porcentaje >= 90) {
         mensaje = 'Excelente trabajo!';
-        icono = '🏆';
+        icono = 'ðŸ†';
     } else if (porcentaje >= 75) {
         mensaje = 'Muy bien!';
-        icono = '⭐';
+        icono = 'â­';
     } else if (porcentaje >= 60) {
         mensaje = 'Buen trabajo';
-        icono = '📈';
+        icono = 'ðŸ“ˆ';
     } else {
         mensaje = 'Sigue practicando!';
-        icono = '📚';
+        icono = 'ðŸ“š';
     }
 
     const tiempoFormateado = formatearTiempo(tiempoEmpleado);
@@ -5268,12 +5268,12 @@ function generarHTMLResultadosDetalle(resultado) {
 
     let html = '<div class="resultado-header">';
     
-    // Botón cerrar en la esquina superior derecha
-    html += '<button onclick="cerrarModalDetalle()" style="position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>';
+    // BotÃ³n cerrar en la esquina superior derecha
+    html += '<button onclick="cerrarModalDetalle()" style="position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">Ã—</button>';
     
     html += '<div class="resultado-icono">' + icono + '</div>';
     
-    // Determinar color según aciertos
+    // Determinar color segÃºn aciertos
     let colorPuntuacion = '';
     if (correctas > total / 2) {
         colorPuntuacion = '#28a745'; // Verde
@@ -5293,17 +5293,17 @@ function generarHTMLResultadosDetalle(resultado) {
 
     html += '<div class="estadisticas-grid">';
     html += '<div class="estadistica-card correctas">';
-    html += '<div class="estadistica-icono">✅</div>';
+    html += '<div class="estadistica-icono">âœ…</div>';
     html += '<div class="estadistica-numero">' + correctas + '</div>';
     html += '<div class="estadistica-label">Correctas</div>';
     html += '</div>';
     html += '<div class="estadistica-card incorrectas">';
-    html += '<div class="estadistica-icono">❌</div>';
+    html += '<div class="estadistica-icono">âŒ</div>';
     html += '<div class="estadistica-numero">' + incorrectas + '</div>';
     html += '<div class="estadistica-label">Incorrectas</div>';
     html += '</div>';
     html += '<div class="estadistica-card sin-responder">';
-    html += '<div class="estadistica-icono">⭕</div>';
+    html += '<div class="estadistica-icono">â­•</div>';
     html += '<div class="estadistica-numero">' + sinResponder + '</div>';
     html += '<div class="estadistica-label">Sin responder</div>';
     html += '</div>';
@@ -5352,10 +5352,10 @@ function generarHTMLResultadosDetalle(resultado) {
                     html += '<div class="' + clases + '">';
                     html += opcion.letra + ') ' + opcion.texto;
                     if (opcion.letra === detalle.respuestaCorrecta) {
-                        html += ' ✓';
+                        html += ' âœ“';
                     }
                     if (opcion.letra === detalle.respuestaUsuario && opcion.letra !== detalle.respuestaCorrecta) {
-                        html += ' ✗';
+                        html += ' âœ—';
                     }
                     html += '</div>';
                 });
@@ -5374,7 +5374,7 @@ function generarHTMLResultadosDetalle(resultado) {
     return html;
 }
 
-// Función para cerrar el modal de detalle
+// FunciÃ³n para cerrar el modal de detalle
 window.cerrarModalDetalle = function() {
     const modales = document.querySelectorAll('.modal');
     modales.forEach(modal => {
@@ -5384,7 +5384,7 @@ window.cerrarModalDetalle = function() {
     });
 };
 
-// Calcular y mostrar estadÃ­sticas globales
+// Calcular y mostrar estadÃƒÂ­sticas globales
 async function mostrarEstadisticasGlobales(querySnapshot) {
     let totalTests = 0;
     let totalPreguntasContestadas = 0;
@@ -5406,7 +5406,7 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
         totalCorrectas += resultado.correctas || 0;
         totalIncorrectas += resultado.incorrectas || 0;
         
-        // Registrar preguntas únicas
+        // Registrar preguntas Ãºnicas
         if (resultado.detalleRespuestas) {
             resultado.detalleRespuestas.forEach(detalle => {
                 if (detalle.pregunta && detalle.pregunta.texto) {
@@ -5419,29 +5419,29 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     totalPreguntasContestadas = totalCorrectas + totalIncorrectas;
     const notaMedia = totalTests > 0 ? Math.round(sumaPorcentajes / totalTests) : 0;
     
-    // Crear panel de estadísticas
+    // Crear panel de estadÃ­sticas
     const panelEstadisticas = document.createElement('div');
     panelEstadisticas.className = 'panel-estadisticas-globales';
     panelEstadisticas.innerHTML = `
-        <h3>📊 Estadísticas Generales</h3>
+        <h3>ðŸ“Š EstadÃ­sticas Generales</h3>
         <div class="estadisticas-grid-global">
             <div class="stat-global nota-media">
-                <div class="stat-icono">📈</div>
+                <div class="stat-icono">ðŸ“ˆ</div>
                 <div class="stat-valor">${notaMedia}%</div>
                 <div class="stat-label">Nota Media</div>
             </div>
             <div class="stat-global">
-                <div class="stat-icono">📝</div>
+                <div class="stat-icono">ðŸ“</div>
                 <div class="stat-valor">${preguntasUnicas.size}</div>
-                <div class="stat-label">Preguntas Únicas</div>
+                <div class="stat-label">Preguntas Ãšnicas</div>
             </div>
             <div class="stat-global correctas-global">
-                <div class="stat-icono">✅</div>
+                <div class="stat-icono">âœ…</div>
                 <div class="stat-valor">${totalCorrectas}</div>
                 <div class="stat-label">Acertadas</div>
             </div>
             <div class="stat-global incorrectas-global">
-                <div class="stat-icono">❌</div>
+                <div class="stat-icono">âŒ</div>
                 <div class="stat-valor">${totalIncorrectas}</div>
                 <div class="stat-label">Falladas</div>
             </div>
@@ -5477,385 +5477,20 @@ window.cargarPreguntasLazy = async function(event, temaId) {
         temasAbiertos.delete(temaId);
     }
 };
-// Versión simplificada sin necesidad de cargar temas
+// VersiÃ³n simplificada sin necesidad de cargar temas
 function obtenerTextoTemasSimple(tema) {
     if (tema === 'todos') {
         return 'Todos los temas';
     } else if (tema === 'repaso') {
         return 'Test de repaso';
     } else if (Array.isArray(tema)) {
-        return tema.length > 1 ? `${tema.length} temas seleccionados` : 'Tema específico';
+        return tema.length > 1 ? `${tema.length} temas seleccionados` : 'Tema especÃ­fico';
     } else if (typeof tema === 'string') {
-        return 'Tema específico';
+        return 'Tema especÃ­fico';
     } else {
         return 'Test';
     }
 }
-
-async function cargarExplicacionResultado() {
-    const contenido = document.getElementById('explicacionContenidoRes');
-    const pregunta = window.preguntaActualExplicacion;
-    
-    contenido.innerHTML = `
-        <div class="explicacion-cargando">
-            <div class="spinner"></div>
-            <p>Buscando contexto...</p>
-        </div>
-    `;
-    
-    let temaId = pregunta.temaId;
-    
-    if (!temaId) {
-        contenido.innerHTML = '<div class="explicacion-no-encontrado"><p>⚠️ No se ha identificado el tema de esta pregunta.</p></div>';
-        return;
-    }
-    
-    try {
-        const temaConDocumento = await buscarTemaConDocumentoEnJerarquiaResultado(temaId);
-        
-        if (!temaConDocumento) {
-            contenido.innerHTML = '<div class="explicacion-no-encontrado"><p>⚠️ Este tema no tiene documento digital.</p></div>';
-            return;
-        }
-        
-        const documentoCompleto = temaConDocumento.documento.textoExtraido;
-        const preguntaIdHash = window.preguntaIdActualExplicacion;
-        
-        const subrayados = await cargarSubrayadosPreviosResultado(preguntaIdHash);
-        
-        let textoMostrar;
-        let mensajeInfo;
-        
-        if (subrayados) {
-            textoMostrar = subrayados;
-            mensajeInfo = '✅ Mostrando tus subrayados guardados';
-        } else {
-            textoMostrar = documentoCompleto;
-            mensajeInfo = '✅ Documento cargado';
-        }
-        
-        window.textoDocumentoOriginalResultado = documentoCompleto;
-        
-        contenido.innerHTML = `
-            <div class="contexto-encontrado-header">
-                <p class="contexto-info">${mensajeInfo}</p>
-                <div class="buscador-texto">
-                    <input type="text" id="buscadorInputRes" placeholder="🔍 Buscar texto..." class="input-buscador">
-                    <button onclick="buscarEnTextoResultado()" class="btn-buscar">Buscar</button>
-                </div>
-            </div>
-            <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacionRes">
-                ${textoMostrar.replace(/\n/g, '<br>')}
-            </div>
-        `;
-        
-    } catch (error) {
-        console.error('Error cargando explicación:', error);
-        contenido.innerHTML = '<div class="explicacion-no-encontrado"><p>⚠️ Error al cargar la explicación.</p></div>';
-    }
-}
-
-async function buscarTemaConDocumentoEnJerarquiaResultado(temaId) {
-    let temaActualId = temaId;
-    let intentos = 0;
-    const maxIntentos = 5;
-    
-    while (temaActualId && intentos < maxIntentos) {
-        const temaRef = doc(db, 'temas', temaActualId);
-        const temaSnap = await getDoc(temaRef);
-        
-        if (!temaSnap.exists()) return null;
-        
-        const temaData = temaSnap.data();
-        
-        if (temaData.documentoDigital) {
-            return {
-                id: temaActualId,
-                nombre: temaData.nombre,
-                documento: temaData.documentoDigital
-            };
-        }
-        
-        if (temaData.temaPadreId) {
-            temaActualId = temaData.temaPadreId;
-        } else {
-            return null;
-        }
-        
-        intentos++;
-    }
-    
-    return null;
-}
-
-async function cargarSubrayadosPreviosResultado(preguntaIdHash) {
-    try {
-        const docId = `${currentUser.uid}_${preguntaIdHash}`;
-        const subrayadoRef = doc(db, 'subrayados', docId);
-        const subDoc = await getDoc(subrayadoRef);
-        
-        if (subDoc.exists()) {
-            return subDoc.data().htmlCompleto;
-        }
-        return null;
-    } catch (error) {
-        console.error('Error cargando subrayados:', error);
-        return null;
-    }
-}
-
-async function cargarExplicacionGeminiResultado() {
-    const textarea = document.getElementById('textoGeminiRes');
-    if (!textarea) return;
-    
-    try {
-        const preguntaIdHash = window.preguntaIdActualExplicacion;
-        const docId = `${currentUser.uid}_${preguntaIdHash}`;
-        const geminiRef = doc(db, 'explicacionesGemini', docId);
-        const geminiDoc = await getDoc(geminiRef);
-        
-        if (geminiDoc.exists()) {
-            textarea.value = geminiDoc.data().texto;
-        } else {
-            textarea.value = '';
-        }
-    } catch (error) {
-        console.error('Error cargando Gemini:', error);
-    }
-}
-
-window.subrayarSeleccionResultado = function() {
-    const selection = window.getSelection();
-    
-    if (!selection || selection.toString().length === 0) {
-        alert('Selecciona texto primero');
-        return;
-    }
-    
-    try {
-        const range = selection.getRangeAt(0);
-        const span = document.createElement('span');
-        span.className = 'subrayado';
-        range.surroundContents(span);
-        selection.removeAllRanges();
-    } catch (e) {
-        alert('No se puede subrayar texto complejo.');
-    }
-};
-
-window.borrarSubrayadoResultado = function() {
-    const selection = window.getSelection();
-    
-    if (!selection || selection.toString().length === 0) {
-        alert('Selecciona el texto subrayado que quieres eliminar');
-        return;
-    }
-    
-    try {
-        const range = selection.getRangeAt(0);
-        const fragment = range.extractContents();
-        
-        const spans = fragment.querySelectorAll('.subrayado');
-        spans.forEach(span => {
-            const parent = span.parentNode;
-            while (span.firstChild) {
-                parent.insertBefore(span.firstChild, span);
-            }
-            parent.removeChild(span);
-        });
-        
-        range.insertNode(fragment);
-        selection.removeAllRanges();
-    } catch (e) {
-        console.error('Error:', e);
-        alert('Error al borrar subrayado');
-    }
-};
-
-window.guardarSubrayadoResultado = async function() {
-    const textoExplicacion = document.getElementById('textoExplicacionRes');
-    
-    if (!textoExplicacion) {
-        alert('Error: Elementos no encontrados');
-        return;
-    }
-    
-    const elementos = textoExplicacion.querySelectorAll('.subrayado');
-    
-    try {
-        const preguntaIdHash = window.preguntaIdActualExplicacion;
-        const docId = `${currentUser.uid}_${preguntaIdHash}`;
-        const subrayadoRef = doc(db, 'subrayados', docId);
-        
-        if (elementos.length === 0) {
-            const docSnap = await getDoc(subrayadoRef);
-            if (docSnap.exists()) {
-                await deleteDoc(subrayadoRef);
-            }
-            alert('✅ Guardado (sin subrayados)');
-        } else {
-            await setDoc(subrayadoRef, {
-                usuarioId: currentUser.uid,
-                preguntaId: preguntaIdHash,
-                htmlCompleto: textoExplicacion.innerHTML,
-                cantidadSubrayados: elementos.length,
-                fecha: new Date()
-            }, { merge: true });
-            
-            alert('✅ Subrayado guardado correctamente');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error al guardar: ' + error.message);
-    }
-};
-
-window.guardarExplicacionGeminiResultado = async function() {
-    const textarea = document.getElementById('textoGeminiRes');
-    if (!textarea) {
-        alert('Error: No se encontró el área de texto');
-        return;
-    }
-    
-    const textoGemini = textarea.value.trim();
-    
-    if (!textoGemini) {
-        alert('Escribe algo antes de guardar');
-        return;
-    }
-    
-    try {
-        const pregunta = window.preguntaActualExplicacion;
-        const preguntaIdHash = window.preguntaIdActualExplicacion;
-        const docId = `${currentUser.uid}_${preguntaIdHash}`;
-        const geminiRef = doc(db, 'explicacionesGemini', docId);
-        
-        await setDoc(geminiRef, {
-            usuarioId: currentUser.uid,
-            preguntaId: preguntaIdHash,
-            preguntaTexto: pregunta.texto || '',
-            texto: textoGemini,
-            fecha: new Date()
-        });
-        
-        alert('✅ Explicación guardada correctamente');
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error al guardar: ' + error.message);
-    }
-};
-
-window.borrarExplicacionGeminiResultado = async function() {
-    if (!confirm('¿Estás seguro de que quieres borrar esta explicación?')) {
-        return;
-    }
-    
-    const textarea = document.getElementById('textoGeminiRes');
-    
-    try {
-        const preguntaIdHash = window.preguntaIdActualExplicacion;
-        const docId = `${currentUser.uid}_${preguntaIdHash}`;
-        const geminiRef = doc(db, 'explicacionesGemini', docId);
-        
-        const geminiDoc = await getDoc(geminiRef);
-        if (geminiDoc.exists()) {
-            await deleteDoc(geminiRef);
-        }
-        
-        textarea.value = '';
-        alert('✅ Explicación borrada');
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error al borrar: ' + error.message);
-    }
-};
-
-window.buscarEnTextoResultado = function() {
-    const input = document.getElementById('buscadorInputRes');
-    const textoBuscar = input.value.trim();
-    
-    if (!textoBuscar) {
-        alert('Escribe algo para buscar');
-        return;
-    }
-    
-    const textoOriginal = window.textoDocumentoOriginalResultado;
-    
-    if (!textoOriginal) {
-        alert('Error: No hay documento cargado');
-        return;
-    }
-    
-    const regex = new RegExp(textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    let contador = 0;
-    const textoResaltado = textoOriginal.replace(regex, (match) => {
-        contador++;
-        return `<mark class="busqueda-highlight">${match}</mark>`;
-    });
-    
-    if (contador === 0) {
-        alert('No se encontraron coincidencias');
-        return;
-    }
-    
-    const textoExplicacion = document.getElementById('textoExplicacionRes');
-    textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
-    
-    alert(`Se encontraron ${contador} coincidencias`);
-};
-// ================== FUNCIONALIDAD DE EXPLICACIÓN EN RESULTADOS ==================
-
-window.abrirExplicacionResultado = async function(preguntaIdHash, preguntaData) {
-    let modal = document.getElementById('modalExplicacionResultado');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'modalExplicacionResultado';
-        modal.className = 'modal-explicacion-overlay';
-        document.body.appendChild(modal);
-    }
-    
-    window.preguntaActualExplicacion = preguntaData;
-    window.preguntaIdActualExplicacion = preguntaIdHash;
-    
-    modal.innerHTML = `
-        <div class="modal-explicacion-content">
-            <div class="modal-explicacion-header">
-                <div class="tabs-explicacion">
-                    <button class="tab-btn active" id="tabDigitalRes" onclick="cambiarTabResultado('digital')">📚 Tema Digital</button>
-                    <button class="tab-btn" id="tabGeminiRes" onclick="cambiarTabResultado('gemini')">🤖 Explicación Gemini</button>
-                </div>
-                <button class="btn-cerrar-modal-explicacion" onclick="cerrarExplicacionResultado()">✕</button>
-            </div>
-            
-            <div class="tab-content active" id="contentDigitalRes">
-                <div class="explicacion-contenido-modal" id="explicacionContenidoRes">
-                    <div class="explicacion-cargando">
-                        <div class="spinner"></div>
-                        <p>Buscando contexto...</p>
-                    </div>
-                </div>
-                <div class="explicacion-acciones-modal" id="accionesDigitalRes">
-                    <button class="btn-subrayar" onclick="subrayarSeleccionResultado()">✏️ Subrayar</button>
-                    <button class="btn-borrar-subrayado" onclick="borrarSubrayadoResultado()">🗑️ Quitar Subrayado</button>
-                    <button class="btn-guardar-subrayado" onclick="guardarSubrayadoResultado()">💾 Guardar</button>
-                </div>
-            </div>
-            
-            <div class="tab-content" id="contentGeminiRes">
-                <div class="explicacion-contenido-modal">
-                    <textarea id="textoGeminiRes" class="textarea-gemini" placeholder="Pega aquí tu explicación de Gemini o escribe cualquier anotación personalizada..."></textarea>
-                </div>
-                <div class="explicacion-acciones-modal">
-                    <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiResultado()">💾 Guardar Explicación</button>
-                    <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiResultado()">🗑️ Borrar</button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    modal.classList.add('mostrar');
-    await cargarExplicacionResultado();
-};
 
 window.cerrarExplicacionResultado = function() {
     const modal = document.getElementById('modalExplicacionResultado');
@@ -5878,6 +5513,69 @@ window.cambiarTabResultado = async function(tab) {
     }
 };
 
+async function cargarExplicacionResultado() {
+    const contenido = document.getElementById('explicacionContenidoRes');
+    const pregunta = window.preguntaActualExplicacion;
+    
+    contenido.innerHTML = `
+        <div class="explicacion-cargando">
+            <div class="spinner"></div>
+            <p>Buscando contexto...</p>
+        </div>
+    `;
+    
+    let temaId = pregunta.temaId;
+    
+    if (!temaId) {
+        contenido.innerHTML = '<div class="explicacion-no-encontrado"><p>âš ï¸ No se ha identificado el tema de esta pregunta.</p></div>';
+        return;
+    }
+    
+    try {
+        const temaConDocumento = await buscarTemaConDocumentoEnJerarquiaResultado(temaId);
+        
+        if (!temaConDocumento) {
+            contenido.innerHTML = '<div class="explicacion-no-encontrado"><p>âš ï¸ Este tema no tiene documento digital.</p></div>';
+            return;
+        }
+        
+        const documentoCompleto = temaConDocumento.documento.textoExtraido;
+        const preguntaIdHash = window.preguntaIdActualExplicacion;
+        
+        const subrayados = await cargarSubrayadosPreviosResultado(preguntaIdHash);
+        
+        let textoMostrar;
+        let mensajeInfo;
+        
+        if (subrayados) {
+            textoMostrar = subrayados;
+            mensajeInfo = 'âœ… Mostrando tus subrayados guardados';
+        } else {
+            textoMostrar = documentoCompleto;
+            mensajeInfo = 'âœ… Documento cargado';
+        }
+        
+        window.textoDocumentoOriginalResultado = documentoCompleto;
+        
+        contenido.innerHTML = `
+            <div class="contexto-encontrado-header">
+                <p class="contexto-info">${mensajeInfo}</p>
+                <div class="buscador-texto">
+                    <input type="text" id="buscadorInputRes" placeholder="ðŸ” Buscar texto..." class="input-buscador">
+                    <button onclick="buscarEnTextoResultado()" class="btn-buscar">Buscar</button>
+                </div>
+            </div>
+            <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacionRes">
+                ${textoMostrar.replace(/\n/g, '<br>')}
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Error cargando explicaciÃ³n:', error);
+        contenido.innerHTML = '<div class="explicacion-no-encontrado"><p>âš ï¸ Error al cargar la explicaciÃ³n.</p></div>';
+    }
+}
+
 async function buscarTemaConDocumentoEnJerarquiaResultado(temaId) {
     let temaActualId = temaId;
     let intentos = 0;
@@ -6015,7 +5713,7 @@ window.guardarSubrayadoResultado = async function() {
             if (docSnap.exists()) {
                 await deleteDoc(subrayadoRef);
             }
-            alert('✅ Guardado (sin subrayados)');
+            alert('âœ… Guardado (sin subrayados)');
         } else {
             await setDoc(subrayadoRef, {
                 usuarioId: currentUser.uid,
@@ -6025,7 +5723,7 @@ window.guardarSubrayadoResultado = async function() {
                 fecha: new Date()
             }, { merge: true });
             
-            alert('✅ Subrayado guardado correctamente');
+            alert('âœ… Subrayado guardado correctamente');
         }
     } catch (error) {
         console.error('Error:', error);
@@ -6036,7 +5734,7 @@ window.guardarSubrayadoResultado = async function() {
 window.guardarExplicacionGeminiResultado = async function() {
     const textarea = document.getElementById('textoGeminiRes');
     if (!textarea) {
-        alert('Error: No se encontró el área de texto');
+        alert('Error: No se encontrÃ³ el Ã¡rea de texto');
         return;
     }
     
@@ -6061,7 +5759,7 @@ window.guardarExplicacionGeminiResultado = async function() {
             fecha: new Date()
         });
         
-        alert('✅ Explicación guardada correctamente');
+        alert('âœ… ExplicaciÃ³n guardada correctamente');
     } catch (error) {
         console.error('Error:', error);
         alert('Error al guardar: ' + error.message);
@@ -6069,7 +5767,7 @@ window.guardarExplicacionGeminiResultado = async function() {
 };
 
 window.borrarExplicacionGeminiResultado = async function() {
-    if (!confirm('¿Estás seguro de que quieres borrar esta explicación?')) {
+    if (!confirm('Â¿EstÃ¡s seguro de que quieres borrar esta explicaciÃ³n?')) {
         return;
     }
     
@@ -6086,7 +5784,7 @@ window.borrarExplicacionGeminiResultado = async function() {
         }
         
         textarea.value = '';
-        alert('✅ Explicación borrada');
+        alert('âœ… ExplicaciÃ³n borrada');
     } catch (error) {
         console.error('Error:', error);
         alert('Error al borrar: ' + error.message);
@@ -6125,4 +5823,57 @@ window.buscarEnTextoResultado = function() {
     textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
     
     alert(`Se encontraron ${contador} coincidencias`);
+};
+// ================== FUNCIONALIDAD DE EXPLICACIÃ“N EN RESULTADOS ==================
+
+window.abrirExplicacionResultado = async function(preguntaIdHash, preguntaData) {
+    let modal = document.getElementById('modalExplicacionResultado');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalExplicacionResultado';
+        modal.className = 'modal-explicacion-overlay';
+        document.body.appendChild(modal);
+    }
+    
+    window.preguntaActualExplicacion = preguntaData;
+    window.preguntaIdActualExplicacion = preguntaIdHash;
+    
+    modal.innerHTML = `
+        <div class="modal-explicacion-content">
+            <div class="modal-explicacion-header">
+                <div class="tabs-explicacion">
+                    <button class="tab-btn active" id="tabDigitalRes" onclick="cambiarTabResultado('digital')">ðŸ“š Tema Digital</button>
+                    <button class="tab-btn" id="tabGeminiRes" onclick="cambiarTabResultado('gemini')">ðŸ¤– ExplicaciÃ³n Gemini</button>
+                </div>
+                <button class="btn-cerrar-modal-explicacion" onclick="cerrarExplicacionResultado()">âœ•</button>
+            </div>
+            
+            <div class="tab-content active" id="contentDigitalRes">
+                <div class="explicacion-contenido-modal" id="explicacionContenidoRes">
+                    <div class="explicacion-cargando">
+                        <div class="spinner"></div>
+                        <p>Buscando contexto...</p>
+                    </div>
+                </div>
+                <div class="explicacion-acciones-modal" id="accionesDigitalRes">
+                    <button class="btn-subrayar" onclick="subrayarSeleccionResultado()">âœï¸ Subrayar</button>
+                    <button class="btn-borrar-subrayado" onclick="borrarSubrayadoResultado()">ðŸ—‘ï¸ Quitar Subrayado</button>
+                    <button class="btn-guardar-subrayado" onclick="guardarSubrayadoResultado()">ðŸ’¾ Guardar</button>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="contentGeminiRes">
+                <div class="explicacion-contenido-modal">
+                    <textarea id="textoGeminiRes" class="textarea-gemini" placeholder="Pega aquÃ­ tu explicaciÃ³n de Gemini o escribe cualquier anotaciÃ³n personalizada..."></textarea>
+                </div>
+                <div class="explicacion-acciones-modal">
+                    <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiResultado()">ðŸ’¾ Guardar ExplicaciÃ³n</button>
+                    <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiResultado()">ðŸ—‘ï¸ Borrar</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modal.classList.add('mostrar');
+    await cargarExplicacionResultado();
 };
