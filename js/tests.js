@@ -5125,46 +5125,30 @@ progresoData.temas[temaId].ultimaActualizacion = new Date();
 function forzarEventListeners() {
     console.log('=== FORZAR EVENT LISTENERS ===');
     
-    // ESPERAR MÁS TIEMPO para que TODO esté cargado
     setTimeout(() => {
-        // 1. BOTÓN EMPEZAR TEST (este debe existir siempre)
         const btnEmpezar = document.getElementById('empezarTestBtn');
         if (btnEmpezar) {
             btnEmpezar.removeEventListener('click', empezarTest);
             btnEmpezar.addEventListener('click', empezarTest);
             console.log('✅ Botón empezar test configurado');
-        } else {
-            console.log('❌ No se encontró empezarTestBtn');
         }
 
-        // 2. BOTONES DE CANTIDAD (estos se crean dinámicamente)
         const botonesCantidad = document.querySelectorAll('.btn-cantidad');
-        console.log(`Botones cantidad encontrados: ${botonesCantidad.length}`);
+        console.log(`Botones cantidad: ${botonesCantidad.length}`);
         botonesCantidad.forEach(btn => {
             btn.removeEventListener('click', manejarClickCantidad);
             btn.addEventListener('click', manejarClickCantidad);
         });
 
-        // 3. BOTONES DE TIEMPO (estos se crean dinámicamente)  
         const botonesTiempo = document.querySelectorAll('.btn-tiempo');
-        console.log(`Botones tiempo encontrados: ${botonesTiempo.length}`);
+        console.log(`Botones tiempo: ${botonesTiempo.length}`);
         botonesTiempo.forEach(btn => {
             btn.removeEventListener('click', manejarClickTiempo);
             btn.addEventListener('click', manejarClickTiempo);
         });
 
-        // 4. VERIFICAR INPUTS OCULTOS
-        const inputCantidad = document.getElementById('preguntasSeleccionadas');
-        const inputTiempo = document.getElementById('tiempoSeleccionado');
-        console.log('Input cantidad existe:', !!inputCantidad);
-        console.log('Input tiempo existe:', !!inputTiempo);
-
-        // 5. VERIFICAR DROPDOWN
-        const dropdown = document.querySelector('.dropdown-temas');
-        console.log('Dropdown existe:', !!dropdown);
-
         console.log('=== FIN FORZAR EVENT LISTENERS ===');
-    }, 2000); // Aumentar a 2 segundos
+    }, 500);
 }
 // Llamar la función cuando se cambie a la sección aleatorio
 // Variables para recordar estado de subtemas
