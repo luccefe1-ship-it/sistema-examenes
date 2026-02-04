@@ -1253,8 +1253,15 @@ function irACoincidencia(numero) {
         // Agregar clase activa a la actual
         coincidencia.classList.add('coincidencia-activa');
         
-        // Scroll
-        coincidencia.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Scroll SOLO dentro del contenedor de texto
+        const contenedorTexto = document.getElementById('textoExplicacion');
+        if (contenedorTexto) {
+            const offsetTop = coincidencia.offsetTop - contenedorTexto.offsetTop;
+            contenedorTexto.scrollTo({
+                top: offsetTop - 100,
+                behavior: 'smooth'
+            });
+        }
     }
 }
 window.borrarSubrayado = async function() {
