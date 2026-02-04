@@ -1022,6 +1022,17 @@ async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
         <button class="btn-borrar-subrayado" onclick="borrarSubrayado()">🗑️ Borrar Subrayado</button>
         <button class="btn-guardar-subrayado" onclick="guardarSubrayado()" style="display:none;">💾 Guardar Subrayado</button>
     `;
+    
+    // Scroll automático al primer subrayado guardado
+    if (subrayados) {
+        setTimeout(() => {
+            const primerSubrayado = document.querySelector('.subrayado');
+            if (primerSubrayado) {
+                primerSubrayado.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                console.log('✅ Scroll a subrayado guardado');
+            }
+        }, 300);
+    }
 }
 
 function mostrarNoEncontrado(temaId) {
