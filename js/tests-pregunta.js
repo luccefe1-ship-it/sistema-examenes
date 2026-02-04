@@ -1008,7 +1008,6 @@ async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
             <div class="buscador-texto">
                 <input type="text" id="buscadorInput" placeholder="🔍 Buscar texto en el documento..." class="input-buscador">
                 <button onclick="buscarEnTexto()" class="btn-buscar">Buscar</button>
-                <button onclick="limpiarBusqueda()" class="btn-limpiar-busqueda">Limpiar</button>
             </div>
         </div>
         <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacion">
@@ -1095,7 +1094,6 @@ window.abrirTemaCompleto = async function(temaId) {
                 <div class="buscador-texto">
                     <input type="text" id="buscadorInput" placeholder="🔍 Buscar en el documento..." class="input-buscador">
                     <button onclick="buscarEnTexto()" class="btn-buscar">Buscar</button>
-                    <button onclick="limpiarBusqueda()" class="btn-limpiar-busqueda">Limpiar</button>
                 </div>
             </div>
             <div class="explicacion-texto documento-completo" id="textoExplicacion" data-texto-original="${documento.textoExtraido.replace(/"/g, '&quot;')}">
@@ -1294,25 +1292,34 @@ window.borrarSubrayado = function() {
     try {
         const range = selection.getRangeAt(0);
         
-        // Obtener todos los subrayados del documento
-        const todosSubrayados = document.querySelectorAll('.subrayado');
-        let borrados = 0;
+        // Extraer el contenido seleccionado y reemplazarlo sin el span
+        const fragment = range.extractContents();
         
-        todosSubrayados.forEach(span => {
-            // Verificar si el span está completamente dentro de la selección
-            if (selection.containsNode(span, true)) {
-                const parent = span.parentNode;
-                while (span.firstChild) {
-                    parent.insertBefore(span.firstChild, span);
-                }
-                parent.removeChild(span);
-                borrados++;
+        // Remover todos los spans de subrayado dentro del fragmento
+        const spans = fragment.querySelectorAll('.subrayado');
+        spans.forEach(span => {
+            const parent = span.parentNode;
+            while (span.firstChild) {
+                parent.insertBefore(span.firstChild, span);
             }
+            parent.removeChild(span);
         });
         
-        if (borrados === 0) {
-            alert('No hay subrayados en el texto seleccionado');
+        // Si el fragmento mismo es un span de subrayado, quitarlo
+        if (fragment.firstChild && fragment.firstChild.classList && fragment.firstChild.classList.contains('subrayado')) {
+            const span = fragment.firstChild;
+            const tempDiv = document.createElement('div');
+            while (span.firstChild) {
+                tempDiv.appendChild(span.firstChild);
+            }
+            fragment.removeChild(span);
+            while (tempDiv.firstChild) {
+                fragment.appendChild(tempDiv.firstChild);
+            }
         }
+        
+        // Reinsertar el contenido sin subrayado
+        range.insertNode(fragment);
         
         selection.removeAllRanges();
         
