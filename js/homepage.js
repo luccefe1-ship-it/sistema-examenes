@@ -1,4 +1,4 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db } from '/firebase-config.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -789,3 +789,4 @@ async function cargarWidgetPlanning() {
 }
 // Hacer función accesible globalmente
 window.cerrarModalResultado = cerrarModalResultado;
+
