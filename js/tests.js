@@ -3391,16 +3391,12 @@ html += '</div>';
         }
         
         // Botón Ver Explicación
-        const preguntaTextoParaId = detalle.pregunta.texto || '';
-        let hashId = 0;
-        for (let i = 0; i < preguntaTextoParaId.length; i++) {
-            const char = preguntaTextoParaId.charCodeAt(i);
-            hashId = ((hashId << 5) - hashId) + char;
-            hashId = hashId & hashId;
-        }
-        const preguntaIdHash = 'q_' + Math.abs(hashId).toString(36);
-        
-        html += '<button class="btn-ver-explicacion-resultado" onclick="abrirExplicacionResultado(\'' + preguntaIdHash + '\', ' + JSON.stringify(detalle.pregunta).replace(/'/g, "\\'") + ')">📖 Ver Explicación</button>';
+// Botón Ver Explicación
+html += '<button class="btn-ver-explicacion-resultado" onclick="abrirExplicacionResultado(\'' + (detalle.pregunta.temaId || '') + '\', ' + JSON.stringify({
+    texto: detalle.pregunta.texto,
+    temaId: detalle.pregunta.temaId || '',
+    temaNombre: detalle.pregunta.temaNombre || ''
+}).replace(/"/g, '&quot;') + ')">📖 Ver Explicación</button>';
         
         html += '</div>';
     });
@@ -3547,6 +3543,298 @@ async function guardarResultado(resultados) {
 function generarIdTest() {
     return 'test_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9);
 }
+// ================== FUNCIONALIDAD DE EXPLICACIÃ"N EN RESULTADOS ==================
+
+window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
+    console.log('=== ABRIENDO EXPLICACIÃ"N ===');
+    console.log('Pregunta:', pregunta);
+    
+    const overlay = document.getElementById('modalExplicacionResultado');
+    if (!overlay) {
+        console.error('Modal no encontrado');
+        return;
+    }
+    
+    overlay.classList.add('mostrar');
+    
+    const contenido = document.getElementById('contenidoExplicacionModal');
+    contenido.innerHTML = `
+        <div class="explicacion-cargando">
+            <div class="spinner"></div>
+            <p>Buscando contexto...</p>
+        </div>
+    `;
+    
+    let temaId = pregunta.temaId;
+    
+    // Si no hay temaId, intentar buscar por nombre
+    if (!temaId && pregunta.temaNombre) {
+        console.log('Buscando tema por nombre:', pregunta.temaNombre);
+        temaId = await buscarTemaIdPorNombre(pregunta.temaNombre);
+        console.log('TemaId encontrado:', temaId);
+    }
+    
+    if (!temaId) {
+        contenido.innerHTML = `
+            <div class="explicacion-no-encontrado">
+                <p>âš ï¸ No se ha identificado el tema de esta pregunta.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    try {
+        // Buscar tema con documento digital en jerarquÃ­a
+        const temaConDocumento = await buscarTemaConDocumentoEnJerarquia(temaId);
+        
+        if (!temaConDocumento) {
+            contenido.innerHTML = `
+                <div class="explicacion-no-encontrado">
+                    <p>âš ï¸ Ni este tema ni su tema padre tienen documento digital subido.</p>
+                    <p>Sube un documento digital en la secciÃ³n de Temas para habilitar esta funcionalidad.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        console.log('âœ… Tema con documento encontrado:', temaConDocumento);
+        
+        const documentoCompleto = temaConDocumento.documento.textoExtraido;
+        
+        // Cargar subrayados previos si existen
+        const subrayados = await cargarSubrayadosPrevios(preguntaId);
+        
+        let textoMostrar;
+        let mensajeInfo;
+        
+        if (subrayados) {
+            textoMostrar = subrayados;
+            mensajeInfo = 'âœ… Mostrando tus subrayados guardados';
+        } else {
+            textoMostrar = documentoCompleto;
+            mensajeInfo = 'âœ… Documento cargado - Puedes hacer scroll o buscar texto especÃ­fico';
+        }
+        
+        // Guardar variables globales
+        window.textoDocumentoOriginal = documentoCompleto;
+        window.preguntaIdActual = preguntaId;
+        
+        contenido.innerHTML = `
+            <div class="contexto-encontrado-header">
+                <p class="contexto-info">${mensajeInfo}</p>
+                
+                <div class="buscador-texto">
+                    <input type="text" id="buscadorInputModal" placeholder="ðŸ" Buscar texto en el documento..." class="input-buscador">
+                    <button onclick="buscarEnTextoModal()" class="btn-buscar">Buscar</button>
+                </div>
+            </div>
+            <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacionModal">
+                ${textoMostrar.replace(/\n/g, '<br>')}
+            </div>
+            <div class="explicacion-acciones" style="margin-top: 16px;">
+                <button class="btn-subrayar" onclick="subrayarSeleccionModal()">âœï¸ Subrayar</button>
+                <button class="btn-borrar-subrayado" onclick="borrarSubrayadoModal()">ðŸ—'ï¸ Quitar Subrayado</button>
+                <button class="btn-guardar-subrayado" onclick="guardarSubrayadoModal()">ðŸ'¾ Guardar</button>
+            </div>
+        `;
+        
+        // Scroll automÃ¡tico al primer subrayado guardado
+        if (subrayados) {
+            setTimeout(() => {
+                const primerSubrayado = contenido.querySelector('.subrayado');
+                if (primerSubrayado) {
+                    primerSubrayado.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 300);
+        }
+    } catch (error) {
+        console.error('Error cargando explicaciÃ³n:', error);
+        contenido.innerHTML = `
+            <div class="explicacion-no-encontrado">
+                <p>âŒ Error al cargar la explicaciÃ³n.</p>
+            </div>
+        `;
+    }
+};
+
+window.cerrarModalExplicacion = function() {
+    const overlay = document.getElementById('modalExplicacionResultado');
+    if (overlay) {
+        overlay.classList.remove('mostrar');
+    }
+};
+
+// Buscar tema con documento en jerarquÃ­a
+async function buscarTemaConDocumentoEnJerarquia(temaId) {
+    let temaActualId = temaId;
+    let intentos = 0;
+    const maxIntentos = 5;
+    
+    while (temaActualId && intentos < maxIntentos) {
+        const temaRef = doc(db, 'temas', temaActualId);
+        const temaSnap = await getDoc(temaRef);
+        
+        if (!temaSnap.exists()) {
+            return null;
+        }
+        
+        const temaData = temaSnap.data();
+        
+        if (temaData.documentoDigital) {
+            return {
+                id: temaActualId,
+                nombre: temaData.nombre,
+                documento: temaData.documentoDigital
+            };
+        }
+        
+        if (temaData.temaPadreId) {
+            temaActualId = temaData.temaPadreId;
+        } else {
+            return null;
+        }
+        
+        intentos++;
+    }
+    
+    return null;
+}
+
+async function buscarTemaIdPorNombre(nombreTema) {
+    try {
+        const temasRef = collection(db, 'temas');
+        const q = query(temasRef, where('nombre', '==', nombreTema));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+            return querySnapshot.docs[0].id;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error buscando tema por nombre:', error);
+        return null;
+    }
+}
+
+async function cargarSubrayadosPrevios(preguntaId) {
+    try {
+        const subDoc = doc(db, 'subrayados', `${currentUser.uid}_${preguntaId}`);
+        const subSnap = await getDoc(subDoc);
+        
+        if (subSnap.exists()) {
+            return subSnap.data().textoSubrayado;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error cargando subrayados:', error);
+        return null;
+    }
+}
+
+window.buscarEnTextoModal = function() {
+    const input = document.getElementById('buscadorInputModal');
+    const textoBuscar = input.value.trim();
+    
+    if (!textoBuscar) {
+        alert('Escribe algo para buscar');
+        return;
+    }
+    
+    const textoOriginal = window.textoDocumentoOriginal;
+    
+    if (!textoOriginal) {
+        alert('Error: No hay documento cargado');
+        return;
+    }
+    
+    const textoLower = textoOriginal.toLowerCase();
+    const buscarLower = textoBuscar.toLowerCase();
+    
+    let posicion = textoLower.indexOf(buscarLower);
+    
+    if (posicion === -1) {
+        alert('No se encontraron coincidencias');
+        return;
+    }
+    
+    // Contar coincidencias
+    let pos = 0;
+    let coincidencias = 0;
+    while ((pos = textoLower.indexOf(buscarLower, pos)) !== -1) {
+        coincidencias++;
+        pos += buscarLower.length;
+    }
+    
+    // Resaltar coincidencias
+    let textoResaltado = textoOriginal;
+    const regex = new RegExp(textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    
+    let contador = 0;
+    textoResaltado = textoResaltado.replace(regex, (match) => {
+        contador++;
+        return `<mark class="busqueda-highlight" data-coincidencia="${contador}">${match}</mark>`;
+    });
+    
+    const textoExplicacion = document.getElementById('textoExplicacionModal');
+    textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
+    
+    // Ir a la primera coincidencia
+    const primeraMarca = textoExplicacion.querySelector('.busqueda-highlight');
+    if (primeraMarca) {
+        primeraMarca.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+};
+
+window.subrayarSeleccionModal = function() {
+    const selection = window.getSelection();
+    const texto = selection.toString().trim();
+    
+    if (!texto) {
+        alert('Selecciona el texto que quieres subrayar');
+        return;
+    }
+    
+    const range = selection.getRangeAt(0);
+    const span = document.createElement('span');
+    span.className = 'subrayado';
+    span.appendChild(range.extractContents());
+    range.insertNode(span);
+    
+    selection.removeAllRanges();
+};
+
+window.borrarSubrayadoModal = function() {
+    const textoDiv = document.getElementById('textoExplicacionModal');
+    const subrayados = textoDiv.querySelectorAll('.subrayado');
+    
+    subrayados.forEach(sub => {
+        const texto = document.createTextNode(sub.textContent);
+        sub.parentNode.replaceChild(texto, sub);
+    });
+    
+    // Normalizar para unir nodos de texto
+    textoDiv.normalize();
+};
+
+window.guardarSubrayadoModal = async function() {
+    const textoDiv = document.getElementById('textoExplicacionModal');
+    const textoSubrayado = textoDiv.innerHTML;
+    
+    try {
+        const subDoc = doc(db, 'subrayados', `${currentUser.uid}_${window.preguntaIdActual}`);
+        await setDoc(subDoc, {
+            usuarioId: currentUser.uid,
+            preguntaId: window.preguntaIdActual,
+            textoSubrayado: textoSubrayado,
+            fechaGuardado: new Date()
+        });
+        
+        alert('âœ… Subrayado guardado correctamente');
+    } catch (error) {
+        console.error('Error guardando subrayado:', error);
+        alert('Error guardando el subrayado');
+    }
+};
 
 function formatearTiempo(segundos) {
     const horas = Math.floor(segundos / 3600);
