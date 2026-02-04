@@ -962,6 +962,7 @@ async function buscarTemaIdPorNombre(nombreTema) {
 
 async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
     const contenido = document.getElementById('explicacionContenido');
+    const pregunta = testConfig.preguntas[preguntaActual];
     
     // Obtener documento completo
     const temaConDocumento = await buscarTemaConDocumentoEnJerarquia(temaId);
@@ -971,50 +972,54 @@ async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
     }
     
     const documentoCompleto = temaConDocumento.documento.textoExtraido;
-    const pregunta = testConfig.preguntas[preguntaActual];
     
     // Cargar subrayados previos si existen
     const subrayados = await cargarSubrayadosPrevios(preguntaId);
     
-    // Resaltar el contexto encontrado en el documento completo
-    let textoMostrar = documentoCompleto;
+    let textoMostrar;
+    let mensajeInfo;
     
-    // Buscar y marcar el contexto encontrado
-    const contextoLimpio = contexto.replace(/<mark[^>]*>|<\/mark>/gi, '');
-    const indiceContexto = textoMostrar.toLowerCase().indexOf(contextoLimpio.toLowerCase());
-    
-    if (indiceContexto !== -1) {
-        const inicio = textoMostrar.substring(0, indiceContexto);
-        const medio = textoMostrar.substring(indiceContexto, indiceContexto + contextoLimpio.length);
-        const fin = textoMostrar.substring(indiceContexto + contextoLimpio.length);
-        
-        textoMostrar = inicio + '<span id="contextoEncontrado" class="contexto-resaltado">' + medio + '</span>' + fin;
-    }
-    
-    // Aplicar subrayados previos si existen
     if (subrayados) {
+        // Si hay subrayados guardados, mostrarlos
         textoMostrar = subrayados;
+        mensajeInfo = '✅ Mostrando tus subrayados guardados';
+    } else {
+        // Si no hay subrayados, mostrar documento completo con contexto resaltado
+        textoMostrar = documentoCompleto;
+        mensajeInfo = '✅ Contexto encontrado - Puedes hacer scroll por todo el documento';
+        
+        // Intentar resaltar el contexto encontrado
+        const contextoTexto = contexto.replace(/<[^>]*>/g, ''); // Quitar HTML
+        const indice = textoMostrar.toLowerCase().indexOf(contextoTexto.toLowerCase());
+        
+        if (indice !== -1) {
+            const inicio = textoMostrar.substring(0, indice);
+            const medio = textoMostrar.substring(indice, indice + contextoTexto.length);
+            const fin = textoMostrar.substring(indice + contextoTexto.length);
+            
+            textoMostrar = inicio + '<span id="contextoEncontrado" class="contexto-resaltado">' + medio + '</span>' + fin;
+        }
     }
     
     contenido.innerHTML = `
         <div class="contexto-encontrado-header">
-            <p class="contexto-info">✅ Contexto encontrado automáticamente - Puedes hacer scroll por todo el documento</p>
+            <p class="contexto-info">${mensajeInfo}</p>
             
             <!-- Buscador de texto -->
             <div class="buscador-texto">
-                <input type="text" id="buscadorInput" placeholder="🔍 Buscar en el documento..." class="input-buscador">
+                <input type="text" id="buscadorInput" placeholder="🔍 Buscar texto en el documento..." class="input-buscador">
                 <button onclick="buscarEnTexto()" class="btn-buscar">Buscar</button>
                 <button onclick="limpiarBusqueda()" class="btn-limpiar-busqueda">Limpiar</button>
             </div>
         </div>
-        <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacion" data-texto-original="${documentoCompleto.replace(/"/g, '&quot;')}">
+        <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacion" data-texto-original="${documentoCompleto.replace(/"/g, '&quot;')}" data-pregunta-id="${preguntaId}">
             ${textoMostrar.replace(/\n/g, '<br>')}
         </div>
     `;
     
-    // Scroll automático al contexto encontrado
+    // Scroll automático al contexto encontrado o al subrayado
     setTimeout(() => {
-        const elemento = document.getElementById('contextoEncontrado');
+        const elemento = document.getElementById('contextoEncontrado') || document.querySelector('.subrayado');
         if (elemento) {
             elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -1143,14 +1148,14 @@ window.buscarEnDocumento = function() {
     }
 };
 
-window.limpiarBusqueda = function() {
+window.limpiarBusqueda = async function() {
     const input = document.getElementById('buscadorInput');
     const textoExplicacion = document.getElementById('textoExplicacion');
     
     input.value = '';
     
-    const textoOriginal = textoExplicacion.dataset.textoOriginal;
-    textoExplicacion.innerHTML = textoOriginal.replace(/\n/g, '<br>');
+    // Recargar la explicación completa
+    await cargarExplicacion();
 };
 window.buscarEnTexto = function() {
     const input = document.getElementById('buscadorInput');
@@ -1162,6 +1167,7 @@ window.buscarEnTexto = function() {
         return;
     }
     
+    // Restaurar texto original primero
     const textoOriginal = textoExplicacion.dataset.textoOriginal;
     
     // Escapar caracteres especiales para regex
@@ -1177,15 +1183,18 @@ window.buscarEnTexto = function() {
     }
     
     // Resaltar todas las coincidencias
+    let contador = 0;
     let textoResaltado = textoOriginal.replace(regex, (match) => {
-        return `<mark class="busqueda-highlight">${match}</mark>`;
+        contador++;
+        const id = contador === 1 ? ' id="primeraCoincidencia"' : '';
+        return `<mark${id} class="busqueda-highlight">${match}</mark>`;
     });
     
     textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
     
     // Scroll a la primera coincidencia
     setTimeout(() => {
-        const primeraCoincidencia = textoExplicacion.querySelector('.busqueda-highlight');
+        const primeraCoincidencia = document.getElementById('primeraCoincidencia');
         if (primeraCoincidencia) {
             primeraCoincidencia.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -1200,18 +1209,27 @@ window.borrarSubrayado = async function() {
     
     try {
         const pregunta = testConfig.preguntas[preguntaActual];
-        const subrayadoRef = doc(db, 'subrayados', `${currentUser.uid}_${pregunta.id}`);
+        const preguntaTexto = pregunta.texto || pregunta.pregunta || '';
+        const preguntaId = preguntaTexto.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '_');
+        
+        console.log('Borrando subrayado para pregunta:', preguntaId);
+        
+        const subrayadoRef = doc(db, 'subrayados', `${currentUser.uid}_${preguntaId}`);
         await deleteDoc(subrayadoRef);
         
-        // Restaurar texto original
-        const textoExplicacion = document.getElementById('textoExplicacion');
-        const textoOriginal = textoExplicacion.dataset.textoOriginal;
-        textoExplicacion.innerHTML = textoOriginal.replace(/\n/g, '<br>');
+        console.log('Subrayado eliminado');
+        
+        // Recargar explicación sin subrayados
+        await cargarExplicacion();
         
         alert('✅ Subrayados eliminados');
     } catch (error) {
         console.error('Error borrando subrayado:', error);
-        alert('Error al borrar los subrayados');
+        if (error.code === 'not-found') {
+            alert('No hay subrayados guardados para esta pregunta');
+        } else {
+            alert('Error al borrar los subrayados');
+        }
     }
 };
 
@@ -1253,6 +1271,11 @@ window.guardarSubrayado = async function() {
     const btnGuardar = document.querySelector('.btn-guardar-subrayado');
     const pregunta = testConfig.preguntas[preguntaActual];
     
+    if (!textoExplicacion || !btnSubrayar || !btnGuardar) {
+        console.error('Elementos no encontrados');
+        return;
+    }
+    
     // Remover event listener
     document.removeEventListener('mouseup', marcarSeleccion);
     
@@ -1273,36 +1296,49 @@ window.guardarSubrayado = async function() {
     }
     
     try {
-        // Usar el ID correcto de la pregunta
-        const preguntaId = pregunta.id || `pregunta_${preguntaActual}`;
+        // Generar ID único para la pregunta
+        const preguntaTexto = pregunta.texto || pregunta.pregunta || '';
+        const preguntaId = preguntaTexto.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '_');
+        
+        console.log('Guardando subrayado para pregunta:', preguntaId);
         
         // Guardar en Firestore
         const subrayadoRef = doc(db, 'subrayados', `${currentUser.uid}_${preguntaId}`);
         await setDoc(subrayadoRef, {
             usuarioId: currentUser.uid,
             preguntaId: preguntaId,
+            preguntaTexto: preguntaTexto,
             temaId: pregunta.temaId || '',
             subrayados: subrayados,
             htmlCompleto: textoExplicacion.innerHTML,
             fechaGuardado: new Date()
         });
         
+        console.log('Subrayado guardado correctamente');
         alert('✅ Subrayado guardado correctamente');
     } catch (error) {
         console.error('Error guardando subrayado:', error);
-        console.error('Detalles del error:', error.message);
         alert('Error al guardar el subrayado: ' + error.message);
     }
 };
 
 async function cargarSubrayadosPrevios(preguntaId) {
     try {
-        const subrayadoRef = doc(db, 'subrayados', `${currentUser.uid}_${preguntaId}`);
+        const pregunta = testConfig.preguntas[preguntaActual];
+        const preguntaTexto = pregunta.texto || pregunta.pregunta || '';
+        const preguntaIdGenerado = preguntaTexto.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '_');
+        
+        console.log('Buscando subrayados para:', preguntaIdGenerado);
+        
+        const subrayadoRef = doc(db, 'subrayados', `${currentUser.uid}_${preguntaIdGenerado}`);
         const subDoc = await getDoc(subrayadoRef);
         
         if (subDoc.exists()) {
+            console.log('Subrayados encontrados');
             return subDoc.data().htmlCompleto;
         }
+        
+        console.log('No hay subrayados previos');
         return null;
     } catch (error) {
         console.error('Error cargando subrayados:', error);
