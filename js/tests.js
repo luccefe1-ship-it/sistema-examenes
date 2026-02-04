@@ -5787,3 +5787,121 @@ window.buscarEnTextoResultado = function() {
     
     alert(`Se encontraron ${contador} coincidencias`);
 };
+// Cerrar modal de explicación en resultados
+window.cerrarExplicacionResultado = function() {
+    const modal = document.getElementById('modalExplicacionResultado');
+    if (modal) {
+        modal.classList.remove('mostrar');
+        setTimeout(() => modal.remove(), 300);
+    }
+};
+
+// Cambiar tab en modal de resultados
+window.cambiarTabResultado = function(tab) {
+    const tabs = ['digital', 'gemini'];
+    tabs.forEach(t => {
+        const tabBtn = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}Res`);
+        const content = document.getElementById(`content${t.charAt(0).toUpperCase() + t.slice(1)}Res`);
+        
+        if (t === tab) {
+            if (tabBtn) tabBtn.classList.add('active');
+            if (content) content.classList.add('active');
+        } else {
+            if (tabBtn) tabBtn.classList.remove('active');
+            if (content) content.classList.remove('active');
+        }
+    });
+    
+    if (tab === 'gemini') {
+        cargarTextoGeminiResultado();
+    }
+};
+
+// Funciones de subrayado para resultados
+window.subrayarSeleccionResultado = function() {
+    const contenido = document.getElementById('explicacionContenidoRes');
+    if (!contenido) return;
+    
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const span = document.createElement('span');
+        span.className = 'subrayado';
+        span.style.backgroundColor = '#ffeb3b';
+        range.surroundContents(span);
+    }
+};
+
+window.borrarSubrayadoResultado = function() {
+    const subrayados = document.querySelectorAll('#explicacionContenidoRes .subrayado');
+    subrayados.forEach(s => {
+        const parent = s.parentNode;
+        while (s.firstChild) {
+            parent.insertBefore(s.firstChild, s);
+        }
+        parent.removeChild(s);
+    });
+};
+
+window.guardarSubrayadoResultado = async function() {
+    const contenido = document.getElementById('explicacionContenidoRes');
+    if (!contenido || !window.preguntaIdActualExplicacion) return;
+    
+    try {
+        const subrayados = Array.from(contenido.querySelectorAll('.subrayado')).map(s => s.textContent);
+        const docRef = doc(db, `usuarios/${auth.currentUser.uid}/explicaciones`, window.preguntaIdActualExplicacion);
+        await setDoc(docRef, { subrayados }, { merge: true });
+        alert('✅ Subrayado guardado');
+    } catch (error) {
+        console.error('Error guardando subrayado:', error);
+        alert('Error guardando subrayado');
+    }
+};
+
+// Funciones Gemini para resultados
+async function cargarTextoGeminiResultado() {
+    if (!window.preguntaIdActualExplicacion) return;
+    
+    try {
+        const docRef = doc(db, `usuarios/${auth.currentUser.uid}/explicaciones`, window.preguntaIdActualExplicacion);
+        const docSnap = await getDoc(docRef);
+        
+        const textarea = document.getElementById('textoGeminiRes');
+        if (textarea && docSnap.exists() && docSnap.data().gemini) {
+            textarea.value = docSnap.data().gemini;
+        }
+    } catch (error) {
+        console.error('Error cargando explicación Gemini:', error);
+    }
+}
+
+window.guardarExplicacionGeminiResultado = async function() {
+    const textarea = document.getElementById('textoGeminiRes');
+    if (!textarea || !window.preguntaIdActualExplicacion) return;
+    
+    try {
+        const docRef = doc(db, `usuarios/${auth.currentUser.uid}/explicaciones`, window.preguntaIdActualExplicacion);
+        await setDoc(docRef, { gemini: textarea.value }, { merge: true });
+        alert('✅ Explicación guardada');
+    } catch (error) {
+        console.error('Error guardando explicación:', error);
+        alert('Error guardando explicación');
+    }
+};
+
+window.borrarExplicacionGeminiResultado = async function() {
+    if (!confirm('¿Borrar explicación?')) return;
+    
+    const textarea = document.getElementById('textoGeminiRes');
+    if (!textarea || !window.preguntaIdActualExplicacion) return;
+    
+    try {
+        const docRef = doc(db, `usuarios/${auth.currentUser.uid}/explicaciones`, window.preguntaIdActualExplicacion);
+        await setDoc(docRef, { gemini: '' }, { merge: true });
+        textarea.value = '';
+        alert('✅ Explicación borrada');
+    } catch (error) {
+        console.error('Error borrando explicación:', error);
+        alert('Error borrando explicación');
+    }
+};
