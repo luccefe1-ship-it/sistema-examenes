@@ -1120,6 +1120,17 @@ window.abrirTemaCompleto = async function(temaId) {
 
 window.limpiarBusqueda = async function() {
     document.getElementById('buscadorInput').value = '';
+    
+    // Limpiar variables de búsqueda
+    window.coincidenciaActual = 0;
+    window.totalCoincidencias = 0;
+    
+    // Eliminar controles de navegación
+    const controles = document.querySelector('.controles-navegacion');
+    if (controles) {
+        controles.remove();
+    }
+    
     await cargarExplicacion();
 };
 window.buscarEnTexto = function() {
@@ -1169,22 +1180,83 @@ window.buscarEnTexto = function() {
     let contador = 0;
     textoResaltado = textoResaltado.replace(regex, (match) => {
         contador++;
-        const id = contador === 1 ? ' id="primeraCoincidencia"' : '';
-        return `<mark${id} class="busqueda-highlight">${match}</mark>`;
+        return `<mark class="busqueda-highlight" data-coincidencia="${contador}">${match}</mark>`;
     });
     
     const textoExplicacion = document.getElementById('textoExplicacion');
     textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
     
-    setTimeout(() => {
-        const primera = document.getElementById('primeraCoincidencia');
-        if (primera) {
-            primera.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    }, 100);
+    // Guardar info de búsqueda en variables globales
+    window.coincidenciaActual = 1;
+    window.totalCoincidencias = coincidencias;
     
-    alert(`Se encontraron ${coincidencias} coincidencias`);
+    // Mostrar controles de navegación
+    mostrarControlesNavegacion();
+    
+    // Ir a la primera coincidencia
+    irACoincidencia(1);
 };
+
+function mostrarControlesNavegacion() {
+    const header = document.querySelector('.contexto-encontrado-header') || document.querySelector('.documento-completo-header');
+    if (!header) return;
+    
+    // Eliminar controles previos si existen
+    const controlesExistentes = document.querySelector('.controles-navegacion');
+    if (controlesExistentes) {
+        controlesExistentes.remove();
+    }
+    
+    // Crear controles nuevos
+    const controles = document.createElement('div');
+    controles.className = 'controles-navegacion';
+    controles.innerHTML = `
+        <button class="btn-nav" onclick="navegarCoincidencia(-1)" title="Anterior">◄</button>
+        <span class="contador-coincidencias" id="contadorCoincidencias">
+            <span id="numActual">1</span> de <span id="numTotal">${window.totalCoincidencias}</span>
+        </span>
+        <button class="btn-nav" onclick="navegarCoincidencia(1)" title="Siguiente">►</button>
+    `;
+    
+    header.appendChild(controles);
+}
+
+window.navegarCoincidencia = function(direccion) {
+    if (!window.totalCoincidencias) return;
+    
+    // Calcular nueva posición
+    window.coincidenciaActual += direccion;
+    
+    // Loop circular
+    if (window.coincidenciaActual > window.totalCoincidencias) {
+        window.coincidenciaActual = 1;
+    } else if (window.coincidenciaActual < 1) {
+        window.coincidenciaActual = window.totalCoincidencias;
+    }
+    
+    // Actualizar contador
+    document.getElementById('numActual').textContent = window.coincidenciaActual;
+    
+    // Ir a coincidencia
+    irACoincidencia(window.coincidenciaActual);
+};
+
+function irACoincidencia(numero) {
+    const coincidencia = document.querySelector(`[data-coincidencia="${numero}"]`);
+    
+    if (coincidencia) {
+        // Remover clase activa de todas
+        document.querySelectorAll('.busqueda-highlight').forEach(el => {
+            el.classList.remove('coincidencia-activa');
+        });
+        
+        // Agregar clase activa a la actual
+        coincidencia.classList.add('coincidencia-activa');
+        
+        // Scroll
+        coincidencia.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
 window.borrarSubrayado = async function() {
     if (!confirm('¿Eliminar los subrayados?')) {
         return;
