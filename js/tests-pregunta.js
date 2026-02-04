@@ -963,33 +963,62 @@ async function buscarTemaIdPorNombre(nombreTema) {
 async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
     const contenido = document.getElementById('explicacionContenido');
     
-    // Obtener documento completo para buscador
+    // Obtener documento completo
     const temaConDocumento = await buscarTemaConDocumentoEnJerarquia(temaId);
-    const documentoCompleto = temaConDocumento ? temaConDocumento.documento.textoExtraido : '';
+    if (!temaConDocumento) {
+        contenido.innerHTML = '<p>Error al cargar el documento</p>';
+        return;
+    }
+    
+    const documentoCompleto = temaConDocumento.documento.textoExtraido;
+    const pregunta = testConfig.preguntas[preguntaActual];
     
     // Cargar subrayados previos si existen
     const subrayados = await cargarSubrayadosPrevios(preguntaId);
-    let textoFinal = contexto;
     
+    // Resaltar el contexto encontrado en el documento completo
+    let textoMostrar = documentoCompleto;
+    
+    // Buscar y marcar el contexto encontrado
+    const contextoLimpio = contexto.replace(/<mark[^>]*>|<\/mark>/gi, '');
+    const indiceContexto = textoMostrar.toLowerCase().indexOf(contextoLimpio.toLowerCase());
+    
+    if (indiceContexto !== -1) {
+        const inicio = textoMostrar.substring(0, indiceContexto);
+        const medio = textoMostrar.substring(indiceContexto, indiceContexto + contextoLimpio.length);
+        const fin = textoMostrar.substring(indiceContexto + contextoLimpio.length);
+        
+        textoMostrar = inicio + '<span id="contextoEncontrado" class="contexto-resaltado">' + medio + '</span>' + fin;
+    }
+    
+    // Aplicar subrayados previos si existen
     if (subrayados) {
-        textoFinal = aplicarSubrayados(contexto, subrayados);
+        textoMostrar = subrayados;
     }
     
     contenido.innerHTML = `
         <div class="contexto-encontrado-header">
-            <p class="contexto-info">✅ Contexto encontrado automáticamente</p>
+            <p class="contexto-info">✅ Contexto encontrado automáticamente - Puedes hacer scroll por todo el documento</p>
             
             <!-- Buscador de texto -->
             <div class="buscador-texto">
-                <input type="text" id="buscadorInput" placeholder="🔍 Buscar en el documento completo..." class="input-buscador">
-                <button onclick="buscarEnDocumentoCompleto('${temaId}')" class="btn-buscar">Buscar</button>
-                <button onclick="verDocumentoCompleto('${temaId}')" class="btn-ver-completo">📄 Ver Documento Completo</button>
+                <input type="text" id="buscadorInput" placeholder="🔍 Buscar en el documento..." class="input-buscador">
+                <button onclick="buscarEnTexto()" class="btn-buscar">Buscar</button>
+                <button onclick="limpiarBusqueda()" class="btn-limpiar-busqueda">Limpiar</button>
             </div>
         </div>
-        <div class="explicacion-texto contexto-automatico" id="textoExplicacion" data-texto-original="${contexto.replace(/"/g, '&quot;')}" data-documento-completo="${documentoCompleto.replace(/"/g, '&quot;')}">
-            ${textoFinal}
+        <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacion" data-texto-original="${documentoCompleto.replace(/"/g, '&quot;')}">
+            ${textoMostrar.replace(/\n/g, '<br>')}
         </div>
     `;
+    
+    // Scroll automático al contexto encontrado
+    setTimeout(() => {
+        const elemento = document.getElementById('contextoEncontrado');
+        if (elemento) {
+            elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 100);
     
     // Mostrar botones de subrayado
     const accionesDiv = document.querySelector('.explicacion-acciones');
@@ -1123,8 +1152,9 @@ window.limpiarBusqueda = function() {
     const textoOriginal = textoExplicacion.dataset.textoOriginal;
     textoExplicacion.innerHTML = textoOriginal.replace(/\n/g, '<br>');
 };
-window.buscarEnDocumentoCompleto = async function(temaId) {
+window.buscarEnTexto = function() {
     const input = document.getElementById('buscadorInput');
+    const textoExplicacion = document.getElementById('textoExplicacion');
     const textoBuscar = input.value.trim();
     
     if (!textoBuscar) {
@@ -1132,50 +1162,36 @@ window.buscarEnDocumentoCompleto = async function(temaId) {
         return;
     }
     
-    // Cargar documento completo y buscar
-    const temaConDocumento = await buscarTemaConDocumentoEnJerarquia(temaId);
-    if (!temaConDocumento) {
-        alert('No se pudo cargar el documento');
-        return;
-    }
-    
-    const textoCompleto = temaConDocumento.documento.textoExtraido;
-    const textoExplicacion = document.getElementById('textoExplicacion');
+    const textoOriginal = textoExplicacion.dataset.textoOriginal;
     
     // Escapar caracteres especiales para regex
     const textoEscapado = textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(textoEscapado, 'gi');
     
-    // Buscar coincidencias
-    const matches = textoCompleto.match(regex);
+    // Contar coincidencias
+    const matches = textoOriginal.match(regex);
     
     if (!matches || matches.length === 0) {
         alert('No se encontraron coincidencias');
         return;
     }
     
-    // Encontrar contexto de la primera coincidencia
-    const indice = textoCompleto.toLowerCase().indexOf(textoBuscar.toLowerCase());
-    const margen = 300;
-    const inicio = Math.max(0, indice - margen);
-    const fin = Math.min(textoCompleto.length, indice + textoBuscar.length + margen);
-    
-    let contexto = textoCompleto.substring(inicio, fin);
-    
-    // Resaltar coincidencias en el contexto
-    contexto = contexto.replace(regex, (match) => {
+    // Resaltar todas las coincidencias
+    let textoResaltado = textoOriginal.replace(regex, (match) => {
         return `<mark class="busqueda-highlight">${match}</mark>`;
     });
     
-    // Actualizar contenido
-    textoExplicacion.innerHTML = contexto.replace(/\n/g, '<br>');
-    textoExplicacion.dataset.textoOriginal = contexto;
+    textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
     
-    alert(`Se encontraron ${matches.length} coincidencias. Mostrando la primera.`);
-};
-
-window.verDocumentoCompleto = async function(temaId) {
-    await abrirTemaCompleto(temaId);
+    // Scroll a la primera coincidencia
+    setTimeout(() => {
+        const primeraCoincidencia = textoExplicacion.querySelector('.busqueda-highlight');
+        if (primeraCoincidencia) {
+            primeraCoincidencia.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 100);
+    
+    alert(`Se encontraron ${matches.length} coincidencias`);
 };
 window.borrarSubrayado = async function() {
     if (!confirm('¿Eliminar todos los subrayados guardados para esta pregunta?')) {
@@ -1257,12 +1273,15 @@ window.guardarSubrayado = async function() {
     }
     
     try {
+        // Usar el ID correcto de la pregunta
+        const preguntaId = pregunta.id || `pregunta_${preguntaActual}`;
+        
         // Guardar en Firestore
-        const subrayadoRef = doc(db, 'subrayados', `${currentUser.uid}_${pregunta.id}`);
+        const subrayadoRef = doc(db, 'subrayados', `${currentUser.uid}_${preguntaId}`);
         await setDoc(subrayadoRef, {
             usuarioId: currentUser.uid,
-            preguntaId: pregunta.id,
-            temaId: pregunta.temaId,
+            preguntaId: preguntaId,
+            temaId: pregunta.temaId || '',
             subrayados: subrayados,
             htmlCompleto: textoExplicacion.innerHTML,
             fechaGuardado: new Date()
@@ -1271,7 +1290,8 @@ window.guardarSubrayado = async function() {
         alert('✅ Subrayado guardado correctamente');
     } catch (error) {
         console.error('Error guardando subrayado:', error);
-        alert('Error al guardar el subrayado');
+        console.error('Detalles del error:', error.message);
+        alert('Error al guardar el subrayado: ' + error.message);
     }
 };
 
