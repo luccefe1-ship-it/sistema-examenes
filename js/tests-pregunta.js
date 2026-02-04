@@ -1436,3 +1436,142 @@ async function cargarSubrayadosPrevios(preguntaIdHash) {
 function aplicarSubrayados(textoOriginal, htmlConSubrayados) {
     return htmlConSubrayados;
 }
+// ================== FUNCIONALIDAD DE TABS ==================
+
+window.cambiarTab = async function(tab) {
+    // Cambiar botones activos
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    if (tab === 'digital') {
+        document.getElementById('tabDigital').classList.add('active');
+        document.getElementById('contentDigital').classList.add('active');
+    } else if (tab === 'gemini') {
+        document.getElementById('tabGemini').classList.add('active');
+        document.getElementById('contentGemini').classList.add('active');
+        
+        // Cargar explicación Gemini si existe
+        await cargarExplicacionGemini();
+    }
+};
+
+// ================== FUNCIONALIDAD GEMINI ==================
+
+async function cargarExplicacionGemini() {
+    const textarea = document.getElementById('textoGemini');
+    if (!textarea) return;
+    
+    try {
+        const pregunta = testConfig.preguntas[preguntaActual];
+        const preguntaTexto = pregunta.texto || '';
+        
+        // Generar ID de pregunta
+        let hash = 0;
+        for (let i = 0; i < preguntaTexto.length; i++) {
+            const char = preguntaTexto.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        const preguntaIdHash = 'q_' + Math.abs(hash).toString(36);
+        
+        const docId = `${currentUser.uid}_${preguntaIdHash}`;
+        const geminiRef = doc(db, 'explicacionesGemini', docId);
+        const geminiDoc = await getDoc(geminiRef);
+        
+        if (geminiDoc.exists()) {
+            textarea.value = geminiDoc.data().texto;
+            console.log('✅ Explicación Gemini cargada');
+        } else {
+            textarea.value = '';
+            console.log('No hay explicación Gemini previa');
+        }
+        
+    } catch (error) {
+        console.error('Error cargando explicación Gemini:', error);
+    }
+}
+
+window.guardarExplicacionGemini = async function() {
+    const textarea = document.getElementById('textoGemini');
+    if (!textarea) {
+        alert('Error: No se encontró el área de texto');
+        return;
+    }
+    
+    const textoGemini = textarea.value.trim();
+    
+    if (!textoGemini) {
+        alert('Escribe algo antes de guardar');
+        return;
+    }
+    
+    try {
+        const pregunta = testConfig.preguntas[preguntaActual];
+        const preguntaTexto = pregunta.texto || '';
+        
+        // Generar ID de pregunta
+        let hash = 0;
+        for (let i = 0; i < preguntaTexto.length; i++) {
+            const char = preguntaTexto.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        const preguntaIdHash = 'q_' + Math.abs(hash).toString(36);
+        
+        const docId = `${currentUser.uid}_${preguntaIdHash}`;
+        const geminiRef = doc(db, 'explicacionesGemini', docId);
+        
+        await setDoc(geminiRef, {
+            usuarioId: currentUser.uid,
+            preguntaId: preguntaIdHash,
+            preguntaTexto: preguntaTexto,
+            texto: textoGemini,
+            fecha: new Date()
+        });
+        
+        console.log('✅ Explicación Gemini guardada');
+        alert('✅ Explicación guardada correctamente');
+        
+    } catch (error) {
+        console.error('❌ Error guardando:', error);
+        alert('Error al guardar: ' + error.message);
+    }
+};
+
+window.borrarExplicacionGemini = async function() {
+    if (!confirm('¿Estás seguro de que quieres borrar esta explicación?')) {
+        return;
+    }
+    
+    const textarea = document.getElementById('textoGemini');
+    
+    try {
+        const pregunta = testConfig.preguntas[preguntaActual];
+        const preguntaTexto = pregunta.texto || '';
+        
+        // Generar ID de pregunta
+        let hash = 0;
+        for (let i = 0; i < preguntaTexto.length; i++) {
+            const char = preguntaTexto.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        const preguntaIdHash = 'q_' + Math.abs(hash).toString(36);
+        
+        const docId = `${currentUser.uid}_${preguntaIdHash}`;
+        const geminiRef = doc(db, 'explicacionesGemini', docId);
+        
+        const geminiDoc = await getDoc(geminiRef);
+        if (geminiDoc.exists()) {
+            await deleteDoc(geminiRef);
+            console.log('✅ Explicación Gemini eliminada');
+        }
+        
+        textarea.value = '';
+        alert('✅ Explicación borrada');
+        
+    } catch (error) {
+        console.error('❌ Error borrando:', error);
+        alert('Error al borrar: ' + error.message);
+    }
+};
