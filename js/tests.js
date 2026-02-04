@@ -5899,69 +5899,6 @@ window.cambiarTabResultado = async function(tab) {
     }
 };
 
-async function cargarExplicacionResultado() {
-    const contenido = document.getElementById('explicacionContenidoRes');
-    const pregunta = window.preguntaActualExplicacion;
-    
-    contenido.innerHTML = `
-        <div class="explicacion-cargando">
-            <div class="spinner"></div>
-            <p>Buscando contexto...</p>
-        </div>
-    `;
-    
-    let temaId = pregunta.temaId;
-    
-    if (!temaId) {
-        contenido.innerHTML = '<div class="explicacion-no-encontrado"><p>⚠️ No se ha identificado el tema de esta pregunta.</p></div>';
-        return;
-    }
-    
-    try {
-        const temaConDocumento = await buscarTemaConDocumentoEnJerarquiaResultado(temaId);
-        
-        if (!temaConDocumento) {
-            contenido.innerHTML = '<div class="explicacion-no-encontrado"><p>⚠️ Este tema no tiene documento digital.</p></div>';
-            return;
-        }
-        
-        const documentoCompleto = temaConDocumento.documento.textoExtraido;
-        const preguntaIdHash = window.preguntaIdActualExplicacion;
-        
-        const subrayados = await cargarSubrayadosPreviosResultado(preguntaIdHash);
-        
-        let textoMostrar;
-        let mensajeInfo;
-        
-        if (subrayados) {
-            textoMostrar = subrayados;
-            mensajeInfo = '✅ Mostrando tus subrayados guardados';
-        } else {
-            textoMostrar = documentoCompleto;
-            mensajeInfo = '✅ Documento cargado';
-        }
-        
-        window.textoDocumentoOriginalResultado = documentoCompleto;
-        
-        contenido.innerHTML = `
-            <div class="contexto-encontrado-header">
-                <p class="contexto-info">${mensajeInfo}</p>
-                <div class="buscador-texto">
-                    <input type="text" id="buscadorInputRes" placeholder="🔍 Buscar texto..." class="input-buscador">
-                    <button onclick="buscarEnTextoResultado()" class="btn-buscar">Buscar</button>
-                </div>
-            </div>
-            <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacionRes">
-                ${textoMostrar.replace(/\n/g, '<br>')}
-            </div>
-        `;
-        
-    } catch (error) {
-        console.error('Error cargando explicación:', error);
-        contenido.innerHTML = '<div class="explicacion-no-encontrado"><p>⚠️ Error al cargar la explicación.</p></div>';
-    }
-}
-
 async function buscarTemaConDocumentoEnJerarquiaResultado(temaId) {
     let temaActualId = temaId;
     let intentos = 0;
