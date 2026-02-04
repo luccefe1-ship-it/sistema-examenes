@@ -984,21 +984,9 @@ async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
         textoMostrar = subrayados;
         mensajeInfo = '✅ Mostrando tus subrayados guardados';
     } else {
-        // Si no hay subrayados, mostrar documento completo con contexto resaltado
+        // Si no hay subrayados, mostrar documento completo SIN resaltar nada
         textoMostrar = documentoCompleto;
-        mensajeInfo = '✅ Contexto encontrado - Puedes hacer scroll por todo el documento';
-        
-        // Intentar resaltar el contexto encontrado
-        const contextoTexto = contexto.replace(/<[^>]*>/g, ''); // Quitar HTML
-        const indice = textoMostrar.toLowerCase().indexOf(contextoTexto.toLowerCase());
-        
-        if (indice !== -1) {
-            const inicio = textoMostrar.substring(0, indice);
-            const medio = textoMostrar.substring(indice, indice + contextoTexto.length);
-            const fin = textoMostrar.substring(indice + contextoTexto.length);
-            
-            textoMostrar = inicio + '<span id="contextoEncontrado" class="contexto-resaltado">' + medio + '</span>' + fin;
-        }
+        mensajeInfo = '✅ Documento cargado - Puedes hacer scroll o buscar texto específico';
     }
     
     contenido.innerHTML = `
@@ -1136,8 +1124,17 @@ window.buscarEnTexto = function() {
         return;
     }
     
-    // Restaurar texto original primero
-    const textoOriginal = textoExplicacion.dataset.textoOriginal;
+    // Obtener texto original
+    let textoOriginal = textoExplicacion.dataset.textoOriginal;
+    
+    if (!textoOriginal) {
+        // Si no hay dataset, intentar obtener el texto limpio del contenedor
+        textoOriginal = textoExplicacion.textContent || textoExplicacion.innerText || '';
+        console.log('Texto original obtenido del contenido:', textoOriginal.substring(0, 100));
+    }
+    
+    console.log('Buscando:', textoBuscar);
+    console.log('Longitud texto original:', textoOriginal.length);
     
     // Escapar caracteres especiales para regex
     const textoEscapado = textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1145,6 +1142,8 @@ window.buscarEnTexto = function() {
     
     // Contar coincidencias
     const matches = textoOriginal.match(regex);
+    
+    console.log('Coincidencias encontradas:', matches ? matches.length : 0);
     
     if (!matches || matches.length === 0) {
         alert('No se encontraron coincidencias');
@@ -1178,26 +1177,36 @@ window.borrarSubrayado = async function() {
     
     try {
         const pregunta = testConfig.preguntas[preguntaActual];
-        const preguntaTexto = pregunta.texto || pregunta.pregunta || '';
-        const preguntaId = preguntaTexto.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '_');
+        const preguntaTexto = pregunta.texto || '';
         
-        console.log('Borrando subrayado para pregunta:', preguntaId);
+        // Usar mismo hash que en guardar
+        let hash = 0;
+        for (let i = 0; i < preguntaTexto.length; i++) {
+            const char = preguntaTexto.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        const preguntaId = 'q_' + Math.abs(hash).toString(36);
         
-        const subrayadoRef = doc(db, 'subrayados', `${currentUser.uid}_${preguntaId}`);
+        console.log('Borrando subrayado para pregunta ID:', preguntaId);
+        
+        const docId = `${currentUser.uid}_${preguntaId}`;
+        const subrayadoRef = doc(db, 'subrayados', docId);
+        
         await deleteDoc(subrayadoRef);
         
-        console.log('Subrayado eliminado');
+        console.log('✅ Subrayado eliminado');
         
         // Recargar explicación sin subrayados
         await cargarExplicacion();
         
         alert('✅ Subrayados eliminados');
     } catch (error) {
-        console.error('Error borrando subrayado:', error);
+        console.error('❌ Error borrando subrayado:', error);
         if (error.code === 'not-found') {
             alert('No hay subrayados guardados para esta pregunta');
         } else {
-            alert('Error al borrar los subrayados');
+            alert('Error al borrar: ' + error.message);
         }
     }
 };
@@ -1242,6 +1251,7 @@ window.guardarSubrayado = async function() {
     
     if (!textoExplicacion || !btnSubrayar || !btnGuardar) {
         console.error('Elementos no encontrados');
+        alert('Error: No se encontraron los elementos necesarios');
         return;
     }
     
@@ -1265,45 +1275,64 @@ window.guardarSubrayado = async function() {
     }
     
     try {
-        // Generar ID único para la pregunta
-        const preguntaTexto = pregunta.texto || pregunta.pregunta || '';
-        const preguntaId = preguntaTexto.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '_');
+        // Generar ID único para la pregunta usando hash simple
+        const preguntaTexto = pregunta.texto || '';
+        let hash = 0;
+        for (let i = 0; i < preguntaTexto.length; i++) {
+            const char = preguntaTexto.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        const preguntaId = 'q_' + Math.abs(hash).toString(36);
         
-        console.log('Guardando subrayado para pregunta:', preguntaId);
+        console.log('Guardando subrayado para pregunta ID:', preguntaId);
+        console.log('Usuario:', currentUser.uid);
         
         // Guardar en Firestore
-        const subrayadoRef = doc(db, 'subrayados', `${currentUser.uid}_${preguntaId}`);
+        const docId = `${currentUser.uid}_${preguntaId}`;
+        const subrayadoRef = doc(db, 'subrayados', docId);
+        
         await setDoc(subrayadoRef, {
             usuarioId: currentUser.uid,
             preguntaId: preguntaId,
-            preguntaTexto: preguntaTexto,
+            preguntaTextoCompleto: preguntaTexto,
             temaId: pregunta.temaId || '',
-            subrayados: subrayados,
             htmlCompleto: textoExplicacion.innerHTML,
+            cantidadSubrayados: subrayados.length,
             fechaGuardado: new Date()
         });
         
-        console.log('Subrayado guardado correctamente');
+        console.log('✅ Subrayado guardado correctamente');
         alert('✅ Subrayado guardado correctamente');
     } catch (error) {
-        console.error('Error guardando subrayado:', error);
-        alert('Error al guardar el subrayado: ' + error.message);
+        console.error('❌ Error guardando subrayado:', error);
+        console.error('Detalles:', error.code, error.message);
+        alert('Error al guardar: ' + error.message);
     }
 };
 
 async function cargarSubrayadosPrevios(preguntaId) {
     try {
         const pregunta = testConfig.preguntas[preguntaActual];
-        const preguntaTexto = pregunta.texto || pregunta.pregunta || '';
-        const preguntaIdGenerado = preguntaTexto.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '_');
+        const preguntaTexto = pregunta.texto || '';
         
-        console.log('Buscando subrayados para:', preguntaIdGenerado);
+        // Usar mismo hash que en guardar
+        let hash = 0;
+        for (let i = 0; i < preguntaTexto.length; i++) {
+            const char = preguntaTexto.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        const preguntaIdGenerado = 'q_' + Math.abs(hash).toString(36);
         
-        const subrayadoRef = doc(db, 'subrayados', `${currentUser.uid}_${preguntaIdGenerado}`);
+        console.log('Buscando subrayados para ID:', preguntaIdGenerado);
+        
+        const docId = `${currentUser.uid}_${preguntaIdGenerado}`;
+        const subrayadoRef = doc(db, 'subrayados', docId);
         const subDoc = await getDoc(subrayadoRef);
         
         if (subDoc.exists()) {
-            console.log('Subrayados encontrados');
+            console.log('✅ Subrayados encontrados');
             return subDoc.data().htmlCompleto;
         }
         
