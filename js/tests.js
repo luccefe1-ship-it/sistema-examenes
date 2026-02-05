@@ -3648,7 +3648,7 @@ contenido.innerHTML = `
     </div>
 `;
         
-        // Scroll automÃ¡tico al primer subrayado guardado
+        // Scroll automático al primer subrayado guardado
         if (subrayados) {
             setTimeout(() => {
                 const primerSubrayado = contenido.querySelector('.subrayado');
@@ -3657,6 +3657,18 @@ contenido.innerHTML = `
                 }
             }, 300);
         }
+        
+        // Event listener para limpiar búsqueda al borrar input
+        setTimeout(() => {
+            const buscadorInput = document.getElementById('buscadorInputModal');
+            if (buscadorInput) {
+                buscadorInput.addEventListener('input', function() {
+                    if (this.value.trim() === '') {
+                        window.buscarEnTextoModal();
+                    }
+                });
+            }
+        }, 100);
     } catch (error) {
         console.error('Error cargando explicaciÃ³n:', error);
         contenido.innerHTML = `
@@ -3806,17 +3818,7 @@ window.buscarEnTextoModal = function() {
         primeraMarca.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 };
-// Limpiar búsqueda al cambiar el input
-document.addEventListener('DOMContentLoaded', function() {
-    const buscadorInput = document.getElementById('buscadorInputModal');
-    if (buscadorInput) {
-        buscadorInput.addEventListener('input', function() {
-            if (this.value.trim() === '') {
-                window.buscarEnTextoModal();
-            }
-        });
-    }
-});
+
 
 window.subrayarSeleccionModal = function() {
     const selection = window.getSelection();
