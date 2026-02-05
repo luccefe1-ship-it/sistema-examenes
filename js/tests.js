@@ -3758,38 +3758,24 @@ window.buscarEnTextoModal = function() {
     const textoBuscar = input.value.trim();
     const textoExplicacion = document.getElementById('textoExplicacionModal');
     
+    // SIEMPRE limpiar marcas de búsqueda anteriores primero
+    const htmlActual = textoExplicacion.innerHTML;
+    const htmlLimpio = htmlActual.replace(/<mark class="busqueda-highlight"[^>]*>(.*?)<\/mark>/gi, '$1');
+    textoExplicacion.innerHTML = htmlLimpio;
+    
+    // Si no hay texto de búsqueda, terminar aquí (ya limpiamos)
     if (!textoBuscar) {
-        // Si está vacío, restaurar texto original sin marcas de búsqueda
-        const textoOriginal = window.textoDocumentoOriginal;
-        if (textoOriginal) {
-            // Preservar subrayados existentes
-            const subrayados = textoExplicacion.innerHTML;
-            // Solo quitar las marcas de búsqueda
-            const textoLimpio = subrayados.replace(/<mark class="busqueda-highlight">(.*?)<\/mark>/gi, '$1');
-            textoExplicacion.innerHTML = textoLimpio;
-        }
         return;
     }
     
-    const textoOriginal = window.textoDocumentoOriginal;
-    
-    if (!textoOriginal) {
-        alert('Error: No hay documento cargado');
-        return;
-    }
-    
-    // Primero, limpiar marcas de búsqueda anteriores
-    const textoActual = textoExplicacion.innerHTML;
-    const textoLimpio = textoActual.replace(/<mark class="busqueda-highlight">(.*?)<\/mark>/gi, '$1');
-    
-    const textoLower = textoLimpio.toLowerCase();
+    // Buscar coincidencias
+    const textoLower = htmlLimpio.toLowerCase();
     const buscarLower = textoBuscar.toLowerCase();
     
     let posicion = textoLower.indexOf(buscarLower);
     
     if (posicion === -1) {
         alert('No se encontraron coincidencias');
-        textoExplicacion.innerHTML = textoLimpio;
         return;
     }
     
@@ -3801,22 +3787,24 @@ window.buscarEnTextoModal = function() {
         pos += buscarLower.length;
     }
     
-    // Resaltar coincidencias
+    // Resaltar NUEVAS coincidencias
     const regex = new RegExp(textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
     
     let contador = 0;
-    const textoResaltado = textoLimpio.replace(regex, (match) => {
+    const textoResaltado = htmlLimpio.replace(regex, (match) => {
         contador++;
         return `<mark class="busqueda-highlight" data-coincidencia="${contador}">${match}</mark>`;
     });
     
     textoExplicacion.innerHTML = textoResaltado;
     
-    // Ir a la primera coincidencia
-    const primeraMarca = textoExplicacion.querySelector('.busqueda-highlight');
-    if (primeraMarca) {
-        primeraMarca.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    // Scroll a la primera coincidencia
+    setTimeout(() => {
+        const primeraMarca = textoExplicacion.querySelector('.busqueda-highlight');
+        if (primeraMarca) {
+            primeraMarca.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 100);
 };
 
 
