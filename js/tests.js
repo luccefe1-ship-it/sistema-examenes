@@ -3577,7 +3577,7 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
     if (!temaId) {
         contenido.innerHTML = `
             <div class="explicacion-no-encontrado">
-                <p>âš ï¸ No se ha identificado el tema de esta pregunta.</p>
+                <p>⚠️ No se ha identificado el tema de esta pregunta.</p>
             </div>
         `;
         return;
@@ -3590,8 +3590,8 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
         if (!temaConDocumento) {
             contenido.innerHTML = `
                 <div class="explicacion-no-encontrado">
-                    <p>âš ï¸ Ni este tema ni su tema padre tienen documento digital subido.</p>
-                    <p>Sube un documento digital en la secciÃ³n de Temas para habilitar esta funcionalidad.</p>
+                    <p>⚠️ Ni este tema ni su tema padre tienen documento digital subido.</p>
+                    <p>Sube un documento digital en la sección de Temas para habilitar esta funcionalidad.</p>
                 </div>
             `;
             return;
