@@ -29,6 +29,18 @@ const CACHE_DURACION = 5 * 60 * 1000; // 5 minutos
 let cacheResultados = null;
 let cacheResultadosTimestamp = null;
 
+// Función utilitaria para generar hash de pregunta (consistente con tests-pregunta.js)
+function generarHashPregunta(texto) {
+    const preguntaTexto = texto || '';
+    let hash = 0;
+    for (let i = 0; i < preguntaTexto.length; i++) {
+        const char = preguntaTexto.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return 'q_' + Math.abs(hash).toString(36);
+}
+
 // Flags para evitar múltiples cargas simultáneas
 let cargandoBanco = false;
 let cargandoResultados = false;
@@ -1080,6 +1092,7 @@ function crearPreguntaEditable(pregunta, index, temaId) {
                 </button>
                 <button class="btn-icon btn-edit" onclick="editarPregunta('${temaId}', ${index})" title="Editar pregunta">✏️</button>
                 <button class="btn-icon btn-delete" onclick="eliminarPregunta('${temaId}', ${index})" title="Eliminar pregunta">🗑️</button>
+                <button class="btn-icon btn-explicacion" onclick="abrirExplicacionBanco('${temaId}', ${index})" title="Ver/Asignar explicación">📖</button>
             </div>
             <div class="pregunta-texto" id="texto-${temaId}-${index}">${pregunta.texto}</div>
             <div class="opciones-container" id="opciones-${temaId}-${index}">
@@ -3549,13 +3562,14 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
     console.log('=== ABRIENDO EXPLICACIÓN ===');
     console.log('Pregunta:', pregunta);
     
-    // Generar hash único basado en el texto de la pregunta
-    const textoLimpio = pregunta.texto.trim().toLowerCase();
-    const preguntaIdHash = textoLimpio.split('').reduce((hash, char) => {
-        return ((hash << 5) - hash) + char.charCodeAt(0) | 0;
-    }, 0).toString(36);
+    // Generar hash consistente con tests-pregunta.js
+    const preguntaIdHash = generarHashPregunta(pregunta.texto);
     
     console.log('Hash generado:', preguntaIdHash);
+    
+    // Guardar variables globales para uso en tabs
+    window.preguntaActualExplicacion = pregunta;
+    window.preguntaIdActualExplicacion = preguntaIdHash;
     
     const overlay = document.getElementById('modalExplicacionResultado');
     if (!overlay) {
@@ -3597,15 +3611,30 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
         
         if (!temaConDocumento) {
             contenido.innerHTML = `
-                <div class="explicacion-no-encontrado">
-                    <p>⚠️ Ni este tema ni su tema padre tienen documento digital subido.</p>
-                    <p>Sube un documento digital en la sección de Temas para habilitar esta funcionalidad.</p>
+                <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
+                    <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
+                    <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación Gemini</button>
+                </div>
+                <div class="tab-content active" id="contentDigitalModal">
+                    <div class="explicacion-no-encontrado">
+                        <p>⚠️ Ni este tema ni su tema padre tienen documento digital subido.</p>
+                        <p>Sube un documento digital en la sección de Temas para habilitar esta funcionalidad.</p>
+                    </div>
+                </div>
+                <div class="tab-content" id="contentGeminiModal" style="padding: 16px;">
+                    <div class="explicacion-contenido">
+                        <textarea id="textoGeminiModal" class="textarea-gemini" placeholder="Pega aquí tu explicación de Gemini o escribe cualquier anotación personalizada..."></textarea>
+                    </div>
+                    <div class="explicacion-acciones" style="margin-top: 12px;">
+                        <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar Explicación</button>
+                        <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
+                    </div>
                 </div>
             `;
             return;
         }
         
-        console.log('âœ… Tema con documento encontrado:', temaConDocumento);
+        console.log('✅ Tema con documento encontrado:', temaConDocumento);
         
         const documentoCompleto = temaConDocumento.documento.textoExtraido;
         
@@ -3616,7 +3645,6 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
 let mensajeInfo;
 
 if (subrayados) {
-    // LIMPIAR marcas de búsqueda anteriores de los subrayados guardados
     textoMostrar = subrayados.replace(/<mark class="busqueda-highlight"[^>]*>(.*?)<\/mark>/gi, '$1');
     mensajeInfo = '✅ Mostrando tus subrayados guardados';
 } else {
@@ -3626,33 +3654,39 @@ if (subrayados) {
 
 // Guardar variables globales
 window.textoDocumentoOriginal = documentoCompleto;
-window.preguntaIdActual = preguntaIdHash; // Usar el hash único
+window.preguntaIdActual = preguntaIdHash;
 
 contenido.innerHTML = `
-    <div class="explicacion-header-mejorada">
-        <div class="buscador-mejorado">
-            <input type="text" id="buscadorInputModal" placeholder="🔍 Buscar palabra en el documento..." class="input-buscador-mejorado">
-            <button onclick="buscarEnTextoModal()" class="btn-buscar-mejorado">Buscar</button>
-        </div>
-        
-        <div class="botones-accion-superior">
-            <button class="btn-accion btn-subrayar" onclick="subrayarSeleccionModal()">
-                ✏️ Subrayar Selección
-            </button>
-            <button class="btn-accion btn-borrar" onclick="borrarSubrayadoModal()">
-                🗑️ Quitar Subrayado
-            </button>
-            <button class="btn-accion btn-guardar" onclick="guardarSubrayadoModal()">
-                💾 Guardar Cambios
-            </button>
-        </div>
-        
-        ${subrayados ? '<p class="info-subrayados">✅ Mostrando tus subrayados guardados</p>' : '<p class="info-subrayados">📄 Documento sin subrayados previos</p>'}
+    <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
+        <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
+        <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación Gemini</button>
     </div>
-    
-    <div class="contenedor-texto-explicacion">
-        <div class="explicacion-texto" id="textoExplicacionModal">
-            ${textoMostrar.replace(/\n/g, '<br>')}
+    <div class="tab-content active" id="contentDigitalModal">
+        <div class="explicacion-header-mejorada">
+            <div class="buscador-mejorado">
+                <input type="text" id="buscadorInputModal" placeholder="🔍 Buscar palabra en el documento..." class="input-buscador-mejorado">
+                <button onclick="buscarEnTextoModal()" class="btn-buscar-mejorado">Buscar</button>
+            </div>
+            <div class="botones-accion-superior">
+                <button class="btn-accion btn-subrayar" onclick="subrayarSeleccionModal()">✏️ Subrayar Selección</button>
+                <button class="btn-accion btn-borrar" onclick="borrarSubrayadoModal()">🗑️ Quitar Subrayado</button>
+                <button class="btn-accion btn-guardar" onclick="guardarSubrayadoModal()">💾 Guardar Cambios</button>
+            </div>
+            ${subrayados ? '<p class="info-subrayados">✅ Mostrando tus subrayados guardados</p>' : '<p class="info-subrayados">🔄 Documento sin subrayados previos</p>'}
+        </div>
+        <div class="contenedor-texto-explicacion">
+            <div class="explicacion-texto" id="textoExplicacionModal">
+                ${textoMostrar.replace(/\n/g, '<br>')}
+            </div>
+        </div>
+    </div>
+    <div class="tab-content" id="contentGeminiModal" style="padding: 16px;">
+        <div class="explicacion-contenido">
+            <textarea id="textoGeminiModal" class="textarea-gemini" placeholder="Pega aquí tu explicación de Gemini o escribe cualquier anotación personalizada..."></textarea>
+        </div>
+        <div class="explicacion-acciones" style="margin-top: 12px;">
+            <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar Explicación</button>
+            <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
         </div>
     </div>
 `;
@@ -6223,6 +6257,240 @@ window.borrarExplicacionGeminiResultado = async function() {
     } catch (error) {
         console.error('Error borrando explicación:', error);
         alert('Error borrando explicación');
+    }
+};
+
+// ================== TABS MODAL EXPLICACIÓN (compartido resultados + banco) ==================
+
+window.cambiarTabModal = async function(tab) {
+    document.querySelectorAll('#contenidoExplicacionModal .tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('#contenidoExplicacionModal .tab-content').forEach(c => c.classList.remove('active'));
+    
+    if (tab === 'digital') {
+        const tabBtn = document.getElementById('tabDigitalModal');
+        const content = document.getElementById('contentDigitalModal');
+        if (tabBtn) tabBtn.classList.add('active');
+        if (content) content.classList.add('active');
+    } else if (tab === 'gemini') {
+        const tabBtn = document.getElementById('tabGeminiModal');
+        const content = document.getElementById('contentGeminiModal');
+        if (tabBtn) tabBtn.classList.add('active');
+        if (content) content.classList.add('active');
+        await cargarExplicacionGeminiModal();
+    }
+};
+
+async function cargarExplicacionGeminiModal() {
+    const textarea = document.getElementById('textoGeminiModal');
+    if (!textarea || !window.preguntaIdActualExplicacion) return;
+    
+    try {
+        const docId = `${currentUser.uid}_${window.preguntaIdActualExplicacion}`;
+        const geminiRef = doc(db, 'explicacionesGemini', docId);
+        const geminiDoc = await getDoc(geminiRef);
+        
+        if (geminiDoc.exists()) {
+            textarea.value = geminiDoc.data().texto;
+        } else {
+            textarea.value = '';
+        }
+    } catch (error) {
+        console.error('Error cargando explicación Gemini:', error);
+    }
+}
+
+window.guardarExplicacionGeminiModal = async function() {
+    const textarea = document.getElementById('textoGeminiModal');
+    if (!textarea || !window.preguntaIdActualExplicacion) {
+        alert('Error: No se encontró el área de texto');
+        return;
+    }
+    
+    const textoGemini = textarea.value.trim();
+    if (!textoGemini) {
+        alert('Escribe algo antes de guardar');
+        return;
+    }
+    
+    try {
+        const pregunta = window.preguntaActualExplicacion;
+        const preguntaIdHash = window.preguntaIdActualExplicacion;
+        const docId = `${currentUser.uid}_${preguntaIdHash}`;
+        const geminiRef = doc(db, 'explicacionesGemini', docId);
+        
+        await setDoc(geminiRef, {
+            usuarioId: currentUser.uid,
+            preguntaId: preguntaIdHash,
+            preguntaTexto: pregunta.texto || '',
+            texto: textoGemini,
+            fecha: new Date()
+        });
+        
+        alert('✅ Explicación guardada correctamente');
+    } catch (error) {
+        console.error('Error guardando:', error);
+        alert('Error al guardar: ' + error.message);
+    }
+};
+
+window.borrarExplicacionGeminiModal = async function() {
+    if (!confirm('¿Estás seguro de que quieres borrar esta explicación?')) return;
+    
+    const textarea = document.getElementById('textoGeminiModal');
+    
+    try {
+        const preguntaIdHash = window.preguntaIdActualExplicacion;
+        const docId = `${currentUser.uid}_${preguntaIdHash}`;
+        const geminiRef = doc(db, 'explicacionesGemini', docId);
+        
+        const geminiDoc = await getDoc(geminiRef);
+        if (geminiDoc.exists()) {
+            await deleteDoc(geminiRef);
+        }
+        
+        if (textarea) textarea.value = '';
+        alert('✅ Explicación borrada');
+    } catch (error) {
+        console.error('Error borrando:', error);
+        alert('Error al borrar: ' + error.message);
+    }
+};
+
+// ================== EXPLICACIÓN DESDE BANCO DE PREGUNTAS ==================
+
+window.abrirExplicacionBanco = async function(temaId, index) {
+    // Obtener la pregunta del tema
+    const temaRef = doc(db, 'temas', temaId);
+    const temaSnap = await getDoc(temaRef);
+    
+    if (!temaSnap.exists()) {
+        alert('Error: Tema no encontrado');
+        return;
+    }
+    
+    const temaData = temaSnap.data();
+    const pregunta = temaData.preguntas[index];
+    
+    if (!pregunta) {
+        alert('Error: Pregunta no encontrada');
+        return;
+    }
+    
+    // Generar hash consistente
+    const preguntaIdHash = generarHashPregunta(pregunta.texto);
+    
+    // Guardar variables globales
+    window.preguntaActualExplicacion = {
+        texto: pregunta.texto,
+        temaId: temaId,
+        temaNombre: temaData.nombre || ''
+    };
+    window.preguntaIdActualExplicacion = preguntaIdHash;
+    
+    // Abrir modal
+    const overlay = document.getElementById('modalExplicacionResultado');
+    if (!overlay) {
+        console.error('Modal no encontrado');
+        return;
+    }
+    
+    overlay.classList.add('mostrar');
+    
+    const contenido = document.getElementById('contenidoExplicacionModal');
+    contenido.innerHTML = `
+        <div class="explicacion-cargando">
+            <div class="spinner"></div>
+            <p>Buscando contexto...</p>
+        </div>
+    `;
+    
+    try {
+        // Buscar tema con documento digital en jerarquía
+        const temaConDocumento = await buscarTemaConDocumentoEnJerarquia(temaId);
+        
+        let htmlDigital;
+        
+        if (!temaConDocumento) {
+            htmlDigital = `
+                <div class="explicacion-no-encontrado">
+                    <p>⚠️ Ni este tema ni su tema padre tienen documento digital subido.</p>
+                    <p>Sube un documento digital en la sección de Temas para habilitar esta funcionalidad.</p>
+                </div>
+            `;
+        } else {
+            const documentoCompleto = temaConDocumento.documento.textoExtraido;
+            const subrayados = await cargarSubrayadosPrevios(preguntaIdHash);
+            
+            let textoMostrar;
+            if (subrayados) {
+                textoMostrar = subrayados.replace(/<mark class="busqueda-highlight"[^>]*>(.*?)<\/mark>/gi, '$1');
+            } else {
+                textoMostrar = documentoCompleto;
+            }
+            
+            window.textoDocumentoOriginal = documentoCompleto;
+            window.preguntaIdActual = preguntaIdHash;
+            
+            htmlDigital = `
+                <div class="explicacion-header-mejorada">
+                    <div class="buscador-mejorado">
+                        <input type="text" id="buscadorInputModal" placeholder="🔍 Buscar palabra en el documento..." class="input-buscador-mejorado">
+                        <button onclick="buscarEnTextoModal()" class="btn-buscar-mejorado">Buscar</button>
+                    </div>
+                    <div class="botones-accion-superior">
+                        <button class="btn-accion btn-subrayar" onclick="subrayarSeleccionModal()">✏️ Subrayar Selección</button>
+                        <button class="btn-accion btn-borrar" onclick="borrarSubrayadoModal()">🗑️ Quitar Subrayado</button>
+                        <button class="btn-accion btn-guardar" onclick="guardarSubrayadoModal()">💾 Guardar Cambios</button>
+                    </div>
+                    ${subrayados ? '<p class="info-subrayados">✅ Mostrando tus subrayados guardados</p>' : '<p class="info-subrayados">🔄 Documento sin subrayados previos</p>'}
+                </div>
+                <div class="contenedor-texto-explicacion">
+                    <div class="explicacion-texto" id="textoExplicacionModal">
+                        ${textoMostrar.replace(/\n/g, '<br>')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        contenido.innerHTML = `
+            <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
+                <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
+                <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación Gemini</button>
+            </div>
+            <div class="tab-content active" id="contentDigitalModal">
+                ${htmlDigital}
+            </div>
+            <div class="tab-content" id="contentGeminiModal" style="padding: 16px;">
+                <div class="explicacion-contenido">
+                    <textarea id="textoGeminiModal" class="textarea-gemini" placeholder="Pega aquí tu explicación de Gemini o escribe cualquier anotación personalizada..."></textarea>
+                </div>
+                <div class="explicacion-acciones" style="margin-top: 12px;">
+                    <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar Explicación</button>
+                    <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
+                </div>
+            </div>
+        `;
+        
+        // Scroll al primer subrayado si existe
+        if (temaConDocumento) {
+            const subrayados = await cargarSubrayadosPrevios(preguntaIdHash);
+            if (subrayados) {
+                setTimeout(() => {
+                    const primerSubrayado = contenido.querySelector('.subrayado');
+                    if (primerSubrayado) {
+                        primerSubrayado.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 300);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error cargando explicación:', error);
+        contenido.innerHTML = `
+            <div class="explicacion-no-encontrado">
+                <p>❌ Error al cargar la explicación.</p>
+            </div>
+        `;
     }
 };
 
