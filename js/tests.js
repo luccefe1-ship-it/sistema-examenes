@@ -3546,8 +3546,16 @@ function generarIdTest() {
 // ================== FUNCIONALIDAD DE EXPLICACIÃ"N EN RESULTADOS ==================
 
 window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
-    console.log('=== ABRIENDO EXPLICACIÃ"N ===');
+    console.log('=== ABRIENDO EXPLICACIÓN ===');
     console.log('Pregunta:', pregunta);
+    
+    // Generar hash único basado en el texto de la pregunta
+    const textoLimpio = pregunta.texto.trim().toLowerCase();
+    const preguntaIdHash = textoLimpio.split('').reduce((hash, char) => {
+        return ((hash << 5) - hash) + char.charCodeAt(0) | 0;
+    }, 0).toString(36);
+    
+    console.log('Hash generado:', preguntaIdHash);
     
     const overlay = document.getElementById('modalExplicacionResultado');
     if (!overlay) {
@@ -3618,7 +3626,7 @@ if (subrayados) {
 
 // Guardar variables globales
 window.textoDocumentoOriginal = documentoCompleto;
-window.preguntaIdActual = preguntaId;
+window.preguntaIdActual = preguntaIdHash; // Usar el hash único
 
 contenido.innerHTML = `
     <div class="explicacion-header-mejorada">
@@ -6217,3 +6225,4 @@ window.borrarExplicacionGeminiResultado = async function() {
         alert('Error borrando explicación');
     }
 };
+
