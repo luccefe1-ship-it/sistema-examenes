@@ -3608,7 +3608,8 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
 let mensajeInfo;
 
 if (subrayados) {
-    textoMostrar = subrayados;
+    // LIMPIAR marcas de búsqueda anteriores de los subrayados guardados
+    textoMostrar = subrayados.replace(/<mark class="busqueda-highlight"[^>]*>(.*?)<\/mark>/gi, '$1');
     mensajeInfo = '✅ Mostrando tus subrayados guardados';
 } else {
     textoMostrar = documentoCompleto;
