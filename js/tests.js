@@ -3638,8 +3638,8 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
         
         const documentoCompleto = temaConDocumento.documento.textoExtraido;
         
-        // Cargar subrayados previos si existen
-        const subrayados = await cargarSubrayadosPrevios(preguntaId);
+        // Cargar subrayados previos si existen (usar hash, no temaId)
+        const subrayados = await cargarSubrayadosPrevios(preguntaIdHash);
         
         let textoMostrar;
 let mensajeInfo;
@@ -3787,7 +3787,7 @@ async function cargarSubrayadosPrevios(preguntaId) {
         const subSnap = await getDoc(subDoc);
         
         if (subSnap.exists()) {
-            return subSnap.data().textoSubrayado;
+            return subSnap.data().htmlCompleto;
         }
         return null;
     } catch (error) {
@@ -3884,16 +3884,17 @@ window.borrarSubrayadoModal = function() {
 
 window.guardarSubrayadoModal = async function() {
     const textoDiv = document.getElementById('textoExplicacionModal');
-    const textoSubrayado = textoDiv.innerHTML;
+    const elementos = textoDiv.querySelectorAll('.subrayado');
     
     try {
         const subDoc = doc(db, 'subrayados', `${currentUser.uid}_${window.preguntaIdActual}`);
         await setDoc(subDoc, {
             usuarioId: currentUser.uid,
             preguntaId: window.preguntaIdActual,
-            textoSubrayado: textoSubrayado,
-            fechaGuardado: new Date()
-        });
+            htmlCompleto: textoDiv.innerHTML,
+            cantidadSubrayados: elementos.length,
+            fecha: new Date()
+        }, { merge: true });
         
         alert('âœ… Subrayado guardado correctamente');
     } catch (error) {
