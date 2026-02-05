@@ -3605,38 +3605,57 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
         const subrayados = await cargarSubrayadosPrevios(preguntaId);
         
         let textoMostrar;
-        let mensajeInfo;
+let mensajeInfo;
+
+if (subrayados) {
+    textoMostrar = subrayados;
+    mensajeInfo = '✅ Mostrando tus subrayados guardados';
+} else {
+    textoMostrar = documentoCompleto;
+    mensajeInfo = '✅ Documento cargado - Puedes hacer scroll o buscar texto específico';
+}
+
+// Guardar variables globales
+window.textoDocumentoOriginal = documentoCompleto;
+window.preguntaIdActual = preguntaId;
+
+contenido.innerHTML = `
+    <div class="explicacion-header-mejorada">
+        <div class="explicacion-instrucciones">
+            <h4>📖 Cómo usar esta herramienta:</h4>
+            <ol>
+                <li>Selecciona el texto que quieres resaltar</li>
+                <li>Haz clic en "✏️ Subrayar"</li>
+                <li>Cuando termines, haz clic en "💾 Guardar"</li>
+            </ol>
+        </div>
         
-        if (subrayados) {
-            textoMostrar = subrayados;
-            mensajeInfo = 'âœ… Mostrando tus subrayados guardados';
-        } else {
-            textoMostrar = documentoCompleto;
-            mensajeInfo = 'âœ… Documento cargado - Puedes hacer scroll o buscar texto especÃ­fico';
-        }
+        <div class="buscador-mejorado">
+            <input type="text" id="buscadorInputModal" placeholder="🔍 Buscar palabra en el documento..." class="input-buscador-mejorado">
+            <button onclick="buscarEnTextoModal()" class="btn-buscar-mejorado">Buscar</button>
+        </div>
         
-        // Guardar variables globales
-        window.textoDocumentoOriginal = documentoCompleto;
-        window.preguntaIdActual = preguntaId;
+        <div class="botones-accion-superior">
+            <button class="btn-accion btn-subrayar" onclick="subrayarSeleccionModal()">
+                ✏️ Subrayar Selección
+            </button>
+            <button class="btn-accion btn-borrar" onclick="borrarSubrayadoModal()">
+                🗑️ Quitar Subrayado
+            </button>
+            <button class="btn-accion btn-guardar" onclick="guardarSubrayadoModal()">
+                💾 Guardar Cambios
+            </button>
+        </div>
         
-        contenido.innerHTML = `
-            <div class="contexto-encontrado-header">
-                <p class="contexto-info">${mensajeInfo}</p>
-                
-                <div class="buscador-texto">
-                    <input type="text" id="buscadorInputModal" placeholder="ðŸ" Buscar texto en el documento..." class="input-buscador">
-                    <button onclick="buscarEnTextoModal()" class="btn-buscar">Buscar</button>
-                </div>
-            </div>
-            <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacionModal">
-                ${textoMostrar.replace(/\n/g, '<br>')}
-            </div>
-            <div class="explicacion-acciones" style="margin-top: 16px;">
-                <button class="btn-subrayar" onclick="subrayarSeleccionModal()">âœï¸ Subrayar</button>
-                <button class="btn-borrar-subrayado" onclick="borrarSubrayadoModal()">ðŸ—'ï¸ Quitar Subrayado</button>
-                <button class="btn-guardar-subrayado" onclick="guardarSubrayadoModal()">ðŸ'¾ Guardar</button>
-            </div>
-        `;
+        ${subrayados ? '<p class="info-subrayados">✅ Mostrando tus subrayados guardados</p>' : '<p class="info-subrayados">📄 Documento sin subrayados previos</p>'}
+    </div>
+    
+    <div class="contenedor-texto-explicacion">
+        <div class="explicacion-texto" id="textoExplicacionModal">
+            ${textoMostrar.replace(/\n/g, '<br>')}
+        </div>
+    </div>
+`;
         
         // Scroll automÃ¡tico al primer subrayado guardado
         if (subrayados) {
