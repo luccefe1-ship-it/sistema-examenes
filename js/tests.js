@@ -3621,15 +3621,6 @@ window.preguntaIdActual = preguntaId;
 
 contenido.innerHTML = `
     <div class="explicacion-header-mejorada">
-        <div class="explicacion-instrucciones">
-            <h4>📖 Cómo usar esta herramienta:</h4>
-            <ol>
-                <li>Selecciona el texto que quieres resaltar</li>
-                <li>Haz clic en "✏️ Subrayar"</li>
-                <li>Cuando termines, haz clic en "💾 Guardar"</li>
-            </ol>
-        </div>
-        
         <div class="buscador-mejorado">
             <input type="text" id="buscadorInputModal" placeholder="🔍 Buscar palabra en el documento..." class="input-buscador-mejorado">
             <button onclick="buscarEnTextoModal()" class="btn-buscar-mejorado">Buscar</button>
