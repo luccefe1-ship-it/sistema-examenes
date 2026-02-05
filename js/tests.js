@@ -3744,9 +3744,18 @@ async function cargarSubrayadosPrevios(preguntaId) {
 window.buscarEnTextoModal = function() {
     const input = document.getElementById('buscadorInputModal');
     const textoBuscar = input.value.trim();
+    const textoExplicacion = document.getElementById('textoExplicacionModal');
     
     if (!textoBuscar) {
-        alert('Escribe algo para buscar');
+        // Si está vacío, restaurar texto original sin marcas de búsqueda
+        const textoOriginal = window.textoDocumentoOriginal;
+        if (textoOriginal) {
+            // Preservar subrayados existentes
+            const subrayados = textoExplicacion.innerHTML;
+            // Solo quitar las marcas de búsqueda
+            const textoLimpio = subrayados.replace(/<mark class="busqueda-highlight">(.*?)<\/mark>/gi, '$1');
+            textoExplicacion.innerHTML = textoLimpio;
+        }
         return;
     }
     
@@ -3757,13 +3766,18 @@ window.buscarEnTextoModal = function() {
         return;
     }
     
-    const textoLower = textoOriginal.toLowerCase();
+    // Primero, limpiar marcas de búsqueda anteriores
+    const textoActual = textoExplicacion.innerHTML;
+    const textoLimpio = textoActual.replace(/<mark class="busqueda-highlight">(.*?)<\/mark>/gi, '$1');
+    
+    const textoLower = textoLimpio.toLowerCase();
     const buscarLower = textoBuscar.toLowerCase();
     
     let posicion = textoLower.indexOf(buscarLower);
     
     if (posicion === -1) {
         alert('No se encontraron coincidencias');
+        textoExplicacion.innerHTML = textoLimpio;
         return;
     }
     
@@ -3776,17 +3790,15 @@ window.buscarEnTextoModal = function() {
     }
     
     // Resaltar coincidencias
-    let textoResaltado = textoOriginal;
     const regex = new RegExp(textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
     
     let contador = 0;
-    textoResaltado = textoResaltado.replace(regex, (match) => {
+    const textoResaltado = textoLimpio.replace(regex, (match) => {
         contador++;
         return `<mark class="busqueda-highlight" data-coincidencia="${contador}">${match}</mark>`;
     });
     
-    const textoExplicacion = document.getElementById('textoExplicacionModal');
-    textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
+    textoExplicacion.innerHTML = textoResaltado;
     
     // Ir a la primera coincidencia
     const primeraMarca = textoExplicacion.querySelector('.busqueda-highlight');
@@ -3794,6 +3806,17 @@ window.buscarEnTextoModal = function() {
         primeraMarca.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 };
+// Limpiar búsqueda al cambiar el input
+document.addEventListener('DOMContentLoaded', function() {
+    const buscadorInput = document.getElementById('buscadorInputModal');
+    if (buscadorInput) {
+        buscadorInput.addEventListener('input', function() {
+            if (this.value.trim() === '') {
+                window.buscarEnTextoModal();
+            }
+        });
+    }
+});
 
 window.subrayarSeleccionModal = function() {
     const selection = window.getSelection();
