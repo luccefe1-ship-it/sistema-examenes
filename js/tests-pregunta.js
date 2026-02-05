@@ -1270,6 +1270,9 @@ window.subrayarSeleccion = function() {
         return;
     }
     
+    // NUEVO: Limpiar resaltados de búsqueda antes de subrayar
+    limpiarResaltadosBusqueda();
+    
     try {
         const range = selection.getRangeAt(0);
         const span = document.createElement('span');
@@ -1280,6 +1283,27 @@ window.subrayarSeleccion = function() {
         alert('No se puede subrayar texto complejo. Selecciona un fragmento más simple.');
     }
 };
+
+// NUEVA FUNCIÓN: Eliminar todos los <mark> de búsqueda
+function limpiarResaltadosBusqueda() {
+    const textoExplicacion = document.getElementById('textoExplicacion');
+    if (!textoExplicacion) return;
+    
+    const marks = textoExplicacion.querySelectorAll('.busqueda-highlight');
+    marks.forEach(mark => {
+        const texto = mark.textContent;
+        const textNode = document.createTextNode(texto);
+        mark.parentNode.replaceChild(textNode, mark);
+    });
+    
+    // Limpiar variables y controles
+    window.coincidenciaActual = 0;
+    window.totalCoincidencias = 0;
+    const controles = document.querySelector('.controles-navegacion');
+    if (controles) controles.remove();
+    
+    console.log('✅ Resaltados de búsqueda eliminados');
+}
 
 window.borrarSubrayado = function() {
     const selection = window.getSelection();
