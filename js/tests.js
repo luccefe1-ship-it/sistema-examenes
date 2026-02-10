@@ -3469,6 +3469,51 @@ async function guardarResultado(resultados) {
         cacheResultadosTimestamp = null;
         cacheResultados = null;
 
+        // === GESTIÓN DE PREGUNTAS DOMINADAS (ranking de fallos) ===
+        // Acertadas: añadir a dominadas para ocultar del ranking
+        const preguntasAcertadasRanking = resultados.detalleRespuestas.filter(d => d.estado === 'correcta');
+        if (preguntasAcertadasRanking.length > 0) {
+            try {
+                const dominadasRef = doc(db, "preguntasDominadas", currentUser.uid);
+                const dominadasDoc = await getDoc(dominadasRef);
+                let listaDominadas = dominadasDoc.exists() ? (dominadasDoc.data().preguntas || []) : [];
+                
+                preguntasAcertadasRanking.forEach(acertada => {
+                    const texto = acertada.pregunta?.texto?.trim();
+                    if (texto && !listaDominadas.includes(texto)) {
+                        listaDominadas.push(texto);
+                    }
+                });
+                
+                await setDoc(dominadasRef, { preguntas: listaDominadas, ultimaActualizacion: new Date() });
+                console.log(`${preguntasAcertadasRanking.length} preguntas marcadas como dominadas (ocultas del ranking)`);
+            } catch (error) {
+                console.error('Error guardando dominadas:', error);
+            }
+        }
+        
+        // Falladas: quitar de dominadas para que reaparezcan en el ranking
+        const preguntasFalladasRanking = resultados.detalleRespuestas.filter(d => d.estado === 'incorrecta');
+        if (preguntasFalladasRanking.length > 0) {
+            try {
+                const dominadasRef = doc(db, "preguntasDominadas", currentUser.uid);
+                const dominadasDoc = await getDoc(dominadasRef);
+                if (dominadasDoc.exists()) {
+                    let listaDominadas = dominadasDoc.data().preguntas || [];
+                    const cantidadAntes = listaDominadas.length;
+                    listaDominadas = listaDominadas.filter(texto => {
+                        return !preguntasFalladasRanking.some(f => f.pregunta?.texto?.trim() === texto);
+                    });
+                    if (listaDominadas.length < cantidadAntes) {
+                        await setDoc(dominadasRef, { preguntas: listaDominadas, ultimaActualizacion: new Date() });
+                        console.log(`${cantidadAntes - listaDominadas.length} preguntas vuelven al ranking por fallarlas de nuevo`);
+                    }
+                }
+            } catch (error) {
+                console.error('Error actualizando dominadas:', error);
+            }
+        }
+
         // Guardar preguntas falladas para el test de repaso (SOLO si NO es un test de repaso)
         if (!testActual.esRepaso) {
             const preguntasFalladas = resultados.detalleRespuestas.filter(detalle => 
