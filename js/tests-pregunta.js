@@ -680,42 +680,35 @@ async function finalizarTest() {
             }
         }
 
-        // Si es test de ranking, guardar preguntas acertadas como "dominadas" (ocultas del ranking pero sin borrar historial)
-        if (testConfig.esRanking) {
-            const preguntasAcertadas = detalleRespuestas.filter(detalle => 
-                detalle.estado === 'correcta'
-            );
+        // Guardar preguntas acertadas como "dominadas" (ocultas del ranking) - aplica a TODOS los tipos de test
+        const preguntasAcertadasDominadas = detalleRespuestas.filter(detalle => 
+            detalle.estado === 'correcta'
+        );
+        
+        if (preguntasAcertadasDominadas.length > 0) {
+            console.log(`Guardando ${preguntasAcertadasDominadas.length} preguntas como dominadas...`);
             
-            if (preguntasAcertadas.length > 0) {
-                console.log(`Guardando ${preguntasAcertadas.length} preguntas como dominadas...`);
-                
-                // Obtener o crear documento de preguntas dominadas
-                const dominadasRef = doc(db, "preguntasDominadas", currentUser.uid);
-                const dominadasDoc = await getDoc(dominadasRef);
-                
-                let preguntasDominadas = [];
-                if (dominadasDoc.exists()) {
-                    preguntasDominadas = dominadasDoc.data().preguntas || [];
-                }
-                
-                // Añadir las nuevas preguntas acertadas
-                preguntasAcertadas.forEach(acertada => {
-                    const textoNormalizado = acertada.pregunta.texto.trim();
-                    if (!preguntasDominadas.includes(textoNormalizado)) {
-                        preguntasDominadas.push(textoNormalizado);
-                    }
-                });
-                
-                // Guardar
-                await setDoc(dominadasRef, { 
-                    preguntas: preguntasDominadas,
-                    ultimaActualizacion: new Date()
-                });
-                
-                console.log(`${preguntasAcertadas.length} preguntas marcadas como dominadas (ocultas del ranking)`);
+            const dominadasRefAcertadas = doc(db, "preguntasDominadas", currentUser.uid);
+            const dominadasDocAcertadas = await getDoc(dominadasRefAcertadas);
+            
+            let listaDominadas = [];
+            if (dominadasDocAcertadas.exists()) {
+                listaDominadas = dominadasDocAcertadas.data().preguntas || [];
             }
             
-            console.log('Test de ranking finalizado.');
+            preguntasAcertadasDominadas.forEach(acertada => {
+                const textoNormalizado = acertada.pregunta.texto.trim();
+                if (!listaDominadas.includes(textoNormalizado)) {
+                    listaDominadas.push(textoNormalizado);
+                }
+            });
+            
+            await setDoc(dominadasRefAcertadas, { 
+                preguntas: listaDominadas,
+                ultimaActualizacion: new Date()
+            });
+            
+            console.log(`${preguntasAcertadasDominadas.length} preguntas marcadas como dominadas (ocultas del ranking)`);
         }
 
         // Guardar preguntas falladas para el test de repaso (excepto si ya es test de ranking)
@@ -723,9 +716,8 @@ async function finalizarTest() {
             detalle.estado === 'incorrecta'
         );
 
-        // Si NO es test de ranking y hay fallos, verificar si alguna estaba "dominada" y quitarla
-        if (preguntasFalladas.length > 0 && !testConfig.esRanking) {
-            // Quitar de dominadas las preguntas que se han vuelto a fallar
+        // Si hay fallos, quitar de dominadas para que reaparezcan en el ranking (aplica a TODOS los tipos de test)
+        if (preguntasFalladas.length > 0) {
             try {
                 const dominadasRef = doc(db, "preguntasDominadas", currentUser.uid);
                 const dominadasDoc = await getDoc(dominadasRef);
@@ -734,7 +726,6 @@ async function finalizarTest() {
                     let preguntasDominadas = dominadasDoc.data().preguntas || [];
                     const cantidadAntes = preguntasDominadas.length;
                     
-                    // Filtrar: quitar las que se han fallado de nuevo
                     preguntasDominadas = preguntasDominadas.filter(textoDominada => {
                         const seHaFallado = preguntasFalladas.some(fallada => 
                             fallada.pregunta.texto.trim() === textoDominada
@@ -753,6 +744,10 @@ async function finalizarTest() {
             } catch (error) {
                 console.error('Error actualizando dominadas:', error);
             }
+        }
+
+        // Guardar preguntas falladas para repaso (solo si NO es test de ranking)
+        if (preguntasFalladas.length > 0 && !testConfig.esRanking) {
             const promesasGuardado = preguntasFalladas.map(async (detalle) => {
                 // Obtener respuestaCorrecta de forma robusta
                 let respuestaCorrecta = detalle.respuestaCorrecta;
