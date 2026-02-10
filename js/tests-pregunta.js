@@ -1479,7 +1479,15 @@ window.formatearGemini = function(formato) {
     } else if (formato === 'underline') {
         document.execCommand('underline');
     } else if (formato === 'highlight') {
-        document.execCommand('backColor', false, '#fbbf24');
+        const sel = window.getSelection();
+        if (sel.rangeCount) {
+            const parent = sel.anchorNode.parentElement;
+            if (parent && parent.style.backgroundColor && parent.tagName === 'SPAN') {
+                parent.replaceWith(...parent.childNodes);
+            } else {
+                document.execCommand('backColor', false, '#fbbf24');
+            }
+        }
     }
 };
 
