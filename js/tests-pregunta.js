@@ -21,11 +21,11 @@ let respuestas = [];
 let cronometroInterval = null;
 let tiempoRestanteSegundos = 0;
 
-// Esperar a que el DOM estÃ© cargado
+// Esperar a que el DOM esté cargado
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM cargado en tests-pregunta.js');
     
-    // Verificar autenticaciÃ³n
+    // Verificar autenticación
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             currentUser = user;
@@ -40,7 +40,7 @@ function cargarConfiguracion() {
     const configStr = localStorage.getItem('testConfig');
     
     if (!configStr) {
-        alert('No hay configuraciÃ³n de test disponible');
+        alert('No hay configuración de test disponible');
         window.location.href = 'tests.html?section=aleatorio';
         return;
     }
@@ -64,7 +64,7 @@ function cargarConfiguracion() {
     // Mostrar nombre del test
     document.getElementById('nombreTestPregunta').textContent = testConfig.nombreTest || 'Test';
     
-    // Iniciar cronÃ³metro si hay tiempo lÃ­mite
+    // Iniciar cronómetro si hay tiempo límite
     if (testConfig.tiempoLimite && testConfig.tiempoLimite !== 'sin') {
         const minutos = parseInt(testConfig.tiempoLimite);
         iniciarCronometro(minutos * 60);
@@ -76,7 +76,7 @@ function cargarConfiguracion() {
     // Cargar primera pregunta
     mostrarPregunta();
     
-    // Inicializar estadÃ­sticas
+    // Inicializar estadísticas
     actualizarEstadisticas();
 }
 
@@ -169,7 +169,7 @@ function mostrarPregunta() {
         mostrarRespuestaPrevia(respuestaPrevia);
     }
     
-    // Manejar botÃ³n anterior
+    // Manejar botón anterior
     const btnAnterior = document.getElementById('btnAnterior');
     if (btnAnterior) {
         btnAnterior.disabled = preguntaActual === 0;
@@ -177,7 +177,7 @@ function mostrarPregunta() {
     
     // SIEMPRE resetear panel de explicacion al cambiar de pregunta
     document.getElementById('explicacionPanel').classList.remove('activa');
-    document.getElementById('btnVerExplicacion').textContent = 'ðŸ“– Ver ExplicaciÃ³n';
+    document.getElementById('btnVerExplicacion').textContent = '📖 Ver Explicación';
     document.getElementById('explicacionContenido').innerHTML = '';
     document.getElementById('textoGemini').value = '';
     document.getElementById('tabDigital').classList.remove('tiene-contenido');
@@ -227,29 +227,29 @@ function mostrarRespuestaPrevia(respuestaPrevia) {
     
     if (respuestaPrevia.esCorrecta) {
         feedbackContainer.classList.add('correcto');
-        feedbackTitulo.textContent = 'âœ… Â¡Correcto!';
+        feedbackTitulo.textContent = '✅ ¡Correcto!';
         feedbackTexto.textContent = 'Has seleccionado la respuesta correcta.';
     } else {
         feedbackContainer.classList.add('incorrecto');
-        feedbackTitulo.textContent = 'âŒ Incorrecto';
+        feedbackTitulo.textContent = '❌ Incorrecto';
         feedbackTexto.innerHTML = `La respuesta correcta es <span class="respuesta-correcta">${pregunta.respuestaCorrecta}</span>`;
     }
     
     feedbackContainer.classList.add('mostrar');
     
-    // BotÃ³n siguiente con texto apropiado
+    // Botón siguiente con texto apropiado
     const btnSiguiente = document.getElementById('btnSiguiente');
     if (preguntaActual === testConfig.preguntas.length - 1) {
-        btnSiguiente.textContent = 'ðŸ Finalizar';
+        btnSiguiente.textContent = '🏁 Finalizar';
     } else {
-        btnSiguiente.textContent = 'Siguiente â†’';
+        btnSiguiente.textContent = 'Siguiente →';
     }
     btnSiguiente.classList.add('mostrar');
     
-    // Mostrar botÃ³n de explicaciÃ³n
+    // Mostrar botón de explicación
     document.getElementById('btnVerExplicacion').classList.add('mostrar');
     
-    // Actualizar estadÃ­sticas en tiempo real
+    // Actualizar estadísticas en tiempo real
     actualizarEstadisticas();
 }
 function seleccionarRespuesta(letraSeleccionada) {
@@ -281,7 +281,7 @@ function seleccionarRespuesta(letraSeleccionada) {
         opcion.classList.add('deshabilitada');
         opcion.onclick = null;
         
-        // Obtener la letra de esta opciÃ³n
+        // Obtener la letra de esta opción
         const letraOpcion = opcion.querySelector('.opcion-letra').textContent;
         
         // Marcar la correcta en verde
@@ -304,29 +304,29 @@ function seleccionarRespuesta(letraSeleccionada) {
     
     if (esCorrecta) {
         feedbackContainer.classList.add('correcto');
-        feedbackTitulo.textContent = 'âœ… Â¡Correcto!';
+        feedbackTitulo.textContent = '✅ ¡Correcto!';
         feedbackTexto.textContent = 'Has seleccionado la respuesta correcta.';
     } else {
         feedbackContainer.classList.add('incorrecto');
-        feedbackTitulo.textContent = 'âŒ Incorrecto';
+        feedbackTitulo.textContent = '❌ Incorrecto';
         feedbackTexto.innerHTML = `La respuesta correcta es <span class="respuesta-correcta">${pregunta.respuestaCorrecta}</span>`;
     }
     
     feedbackContainer.classList.add('mostrar');
     
-    // BotÃ³n siguiente con texto apropiado
+    // Botón siguiente con texto apropiado
     const btnSiguiente = document.getElementById('btnSiguiente');
     if (preguntaActual === testConfig.preguntas.length - 1) {
-        btnSiguiente.textContent = 'ðŸ Finalizar';
+        btnSiguiente.textContent = '🏁 Finalizar';
     } else {
-        btnSiguiente.textContent = 'Siguiente â†’';
+        btnSiguiente.textContent = 'Siguiente →';
     }
         btnSiguiente.classList.add('mostrar');
     
-    // Mostrar botÃ³n de explicaciÃ³n
+    // Mostrar botón de explicación
     document.getElementById('btnVerExplicacion').classList.add('mostrar');
     
-    // Actualizar estadÃ­sticas en tiempo real
+    // Actualizar estadísticas en tiempo real
     actualizarEstadisticas();
 }
 
@@ -347,9 +347,9 @@ window.intentarSalir = function() {
     const mensajeModal = document.getElementById('mensajeModal');
     
     if (preguntasRestantes > 0) {
-        mensajeModal.textContent = `Si sales ahora, las ${preguntasRestantes} preguntas restantes se marcarÃ¡n como no respondidas.`;
+        mensajeModal.textContent = `Si sales ahora, las ${preguntasRestantes} preguntas restantes se marcarán como no respondidas.`;
     } else {
-        mensajeModal.textContent = 'Has completado todas las preguntas. Â¿Quieres ver los resultados?';
+        mensajeModal.textContent = 'Has completado todas las preguntas. ¿Quieres ver los resultados?';
     }
     
     modal.classList.add('mostrar');
@@ -399,7 +399,7 @@ function detenerCronometro() {
         clearInterval(cronometroInterval);
     }
 }
-// FunciÃ³n para normalizar nombres de temas
+// Función para normalizar nombres de temas
 function normalizarNombreTema(nombre) {
     return nombre
         .toLowerCase()
@@ -418,7 +418,7 @@ function normalizarNombreTema(nombre) {
         .replace(/\bdiez\b/i, '10');
 }
 
-// FunciÃ³n para buscar tema en planning por nombre
+// Función para buscar tema en planning por nombre
 async function buscarTemaEnPlanningPorNombre(nombreBanco) {
     try {
         const planningDoc = await getDoc(doc(db, "planningSimple", currentUser.uid));
@@ -440,7 +440,7 @@ async function buscarTemaEnPlanningPorNombre(nombreBanco) {
         return null;
     }
 }
-// FunciÃ³n para registrar en progresoSimple
+// Función para registrar en progresoSimple
 async function registrarTestEnProgresoSimple(temasUtilizados) {
     try {
         console.log('=== REGISTRANDO TEST EN PROGRESO SIMPLE (PREGUNTA A PREGUNTA) ===');
@@ -471,7 +471,7 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         
         const infoTemas = infoTemasCompleta.filter(t => t !== null);
         
-        console.log('Info temas con vinculaciÃ³n planning:', infoTemas);
+        console.log('Info temas con vinculación planning:', infoTemas);
         
         // Detectar si todos son subtemas del mismo padre
         const padres = infoTemas.map(t => t.padre).filter(p => p !== null);
@@ -534,12 +534,12 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
                 temaIdFinal = temaInfo.temaPlanning.id;
                 nombreFinal = temaInfo.temaPlanning.nombre;
                 hojasTotales = temaInfo.temaPlanning.hojas || 0;
-                console.log('âœ… Vinculado con planning:', nombreFinal);
+                console.log('✅ Vinculado con planning:', nombreFinal);
             } else {
-                // Usar ID del banco (tema no estÃ¡ en planning)
+                // Usar ID del banco (tema no está en planning)
                 temaIdFinal = temaInfo.idBanco;
                 nombreFinal = temaInfo.nombreBanco;
-                console.log('âš ï¸ Tema no encontrado en planning, usando ID banco');
+                console.log('⚠️ Tema no encontrado en planning, usando ID banco');
             }
             
             // Crear tema en progreso si no existe
@@ -556,7 +556,7 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
             progresoData.temas[temaIdFinal].testsRealizados = 
                 (progresoData.temas[temaIdFinal].testsRealizados || 0) + 1;
             
-            // AÃ±adir registro
+            // Añadir registro
             progresoData.registros.push({
                 fecha: fechaHoy,
                 temaId: temaIdFinal,
@@ -566,19 +566,19 @@ async function registrarTestEnProgresoSimple(temasUtilizados) {
         }
         
         await setDoc(progresoRef, progresoData);
-        console.log('âœ… Test registrado en progresoSimple');
+        console.log('✅ Test registrado en progresoSimple');
         
     } catch (error) {
-        console.error('âŒ Error registrando test:', error);
+        console.error('❌ Error registrando test:', error);
     }
 }
 
 function finalizarTestPorTiempo() {
-    alert('Â¡Tiempo agotado! El test se finalizarÃ¡ automÃ¡ticamente.');
+    alert('¡Tiempo agotado! El test se finalizará automáticamente.');
     finalizarTest();
 }
 async function finalizarTest() {
-    // Detener cronÃ³metro
+    // Detener cronómetro
     detenerCronometro();
     
     // Calcular tiempo empleado
@@ -691,42 +691,35 @@ async function finalizarTest() {
             }
         }
 
-        // Si es test de ranking, guardar preguntas acertadas como "dominadas" (ocultas del ranking pero sin borrar historial)
-        if (testConfig.esRanking) {
-            const preguntasAcertadas = detalleRespuestas.filter(detalle => 
-                detalle.estado === 'correcta'
-            );
+        // Guardar preguntas acertadas como "dominadas" (ocultas del ranking) - aplica a TODOS los tipos de test
+        const preguntasAcertadasDominadas = detalleRespuestas.filter(detalle => 
+            detalle.estado === 'correcta'
+        );
+        
+        if (preguntasAcertadasDominadas.length > 0) {
+            console.log(`Guardando ${preguntasAcertadasDominadas.length} preguntas como dominadas...`);
             
-            if (preguntasAcertadas.length > 0) {
-                console.log(`Guardando ${preguntasAcertadas.length} preguntas como dominadas...`);
-                
-                // Obtener o crear documento de preguntas dominadas
-                const dominadasRef = doc(db, "preguntasDominadas", currentUser.uid);
-                const dominadasDoc = await getDoc(dominadasRef);
-                
-                let preguntasDominadas = [];
-                if (dominadasDoc.exists()) {
-                    preguntasDominadas = dominadasDoc.data().preguntas || [];
-                }
-                
-                // AÃ±adir las nuevas preguntas acertadas
-                preguntasAcertadas.forEach(acertada => {
-                    const textoNormalizado = acertada.pregunta.texto.trim();
-                    if (!preguntasDominadas.includes(textoNormalizado)) {
-                        preguntasDominadas.push(textoNormalizado);
-                    }
-                });
-                
-                // Guardar
-                await setDoc(dominadasRef, { 
-                    preguntas: preguntasDominadas,
-                    ultimaActualizacion: new Date()
-                });
-                
-                console.log(`${preguntasAcertadas.length} preguntas marcadas como dominadas (ocultas del ranking)`);
+            const dominadasRefAcertadas = doc(db, "preguntasDominadas", currentUser.uid);
+            const dominadasDocAcertadas = await getDoc(dominadasRefAcertadas);
+            
+            let listaDominadas = [];
+            if (dominadasDocAcertadas.exists()) {
+                listaDominadas = dominadasDocAcertadas.data().preguntas || [];
             }
             
-            console.log('Test de ranking finalizado.');
+            preguntasAcertadasDominadas.forEach(acertada => {
+                const textoNormalizado = acertada.pregunta.texto.trim();
+                if (!listaDominadas.includes(textoNormalizado)) {
+                    listaDominadas.push(textoNormalizado);
+                }
+            });
+            
+            await setDoc(dominadasRefAcertadas, { 
+                preguntas: listaDominadas,
+                ultimaActualizacion: new Date()
+            });
+            
+            console.log(`${preguntasAcertadasDominadas.length} preguntas marcadas como dominadas (ocultas del ranking)`);
         }
 
         // Guardar preguntas falladas para el test de repaso (excepto si ya es test de ranking)
@@ -734,9 +727,8 @@ async function finalizarTest() {
             detalle.estado === 'incorrecta'
         );
 
-        // Si NO es test de ranking y hay fallos, verificar si alguna estaba "dominada" y quitarla
-        if (preguntasFalladas.length > 0 && !testConfig.esRanking) {
-            // Quitar de dominadas las preguntas que se han vuelto a fallar
+        // Si hay fallos, quitar de dominadas para que reaparezcan en el ranking (aplica a TODOS los tipos de test)
+        if (preguntasFalladas.length > 0) {
             try {
                 const dominadasRef = doc(db, "preguntasDominadas", currentUser.uid);
                 const dominadasDoc = await getDoc(dominadasRef);
@@ -745,7 +737,6 @@ async function finalizarTest() {
                     let preguntasDominadas = dominadasDoc.data().preguntas || [];
                     const cantidadAntes = preguntasDominadas.length;
                     
-                    // Filtrar: quitar las que se han fallado de nuevo
                     preguntasDominadas = preguntasDominadas.filter(textoDominada => {
                         const seHaFallado = preguntasFalladas.some(fallada => 
                             fallada.pregunta.texto.trim() === textoDominada
@@ -764,6 +755,10 @@ async function finalizarTest() {
             } catch (error) {
                 console.error('Error actualizando dominadas:', error);
             }
+        }
+
+        // Guardar preguntas falladas para repaso (solo si NO es test de ranking)
+        if (preguntasFalladas.length > 0 && !testConfig.esRanking) {
             const promesasGuardado = preguntasFalladas.map(async (detalle) => {
                 // Obtener respuestaCorrecta de forma robusta
                 let respuestaCorrecta = detalle.respuestaCorrecta;
@@ -804,7 +799,7 @@ async function finalizarTest() {
         console.log('Primera pregunta:', testConfig.preguntas[0]);
         
         const temasUtilizados = [...new Set(testConfig.preguntas.map(p => p.temaIdProgreso || p.temaId).filter(Boolean))];
-        console.log('temasUtilizados extraÃ­dos:', temasUtilizados);
+        console.log('temasUtilizados extraídos:', temasUtilizados);
         
         if (temasUtilizados.length > 0) {
             await registrarTestEnProgresoSimple(temasUtilizados);
@@ -817,18 +812,18 @@ async function finalizarTest() {
     // Limpiar localStorage de config
     localStorage.removeItem('testConfig');
     
-    // Invalidar cachÃ© de resultados para que se recarguen
+    // Invalidar caché de resultados para que se recarguen
     sessionStorage.removeItem('cacheResultados');
     sessionStorage.removeItem('cacheResultadosTimestamp');
     
     // Guardar resultados temporalmente para mostrarlos inmediatamente
     localStorage.setItem('ultimosResultados', JSON.stringify(resultadosCompletos));
     
-    // Redirigir a tests.html con parÃ¡metros para mostrar resultados
+    // Redirigir a tests.html con parámetros para mostrar resultados
    window.location.href = 'tests.html?section=resultados&mostrar=ultimo';
 }
 
-// ================== FUNCIONALIDAD DE EXPLICACIÃ“N ==================
+// ================== FUNCIONALIDAD DE EXPLICACIÓN ==================
 
 window.toggleExplicacion = async function() {
     const panel = document.getElementById('explicacionPanel');
@@ -836,13 +831,13 @@ window.toggleExplicacion = async function() {
     
     if (panel.classList.contains('activa')) {
         panel.classList.remove('activa');
-        btn.textContent = 'ðŸ“– Ver ExplicaciÃ³n';
+        btn.textContent = '📖 Ver Explicación';
         return;
     }
     
     // Activar panel
     panel.classList.add('activa');
-    btn.textContent = 'ðŸ“– Ocultar ExplicaciÃ³n';
+    btn.textContent = '📖 Ocultar Explicación';
     
     // Buscar contexto y verificar indicadores
     await cargarExplicacion();
@@ -854,7 +849,7 @@ window.cerrarExplicacion = function() {
     const panel = document.getElementById('explicacionPanel');
     const btn = document.getElementById('btnVerExplicacion');
     panel.classList.remove('activa');
-    btn.textContent = 'ðŸ“– Ver ExplicaciÃ³n';
+    btn.textContent = '📖 Ver Explicación';
 };
 
 async function cargarExplicacion() {
@@ -869,7 +864,7 @@ async function cargarExplicacion() {
         </div>
     `;
     
-    console.log('=== DEBUG EXPLICACIÃ“N ===');
+    console.log('=== DEBUG EXPLICACIÓN ===');
     console.log('Pregunta completa:', pregunta);
     console.log('temaId:', pregunta.temaId);
     console.log('temaNombre:', pregunta.temaNombre);
@@ -889,7 +884,7 @@ async function cargarExplicacion() {
     }
     
     try {
-        // Buscar tema con documento digital en jerarquÃ­a
+        // Buscar tema con documento digital en jerarquía
         const temaConDocumento = await buscarTemaConDocumentoEnJerarquia(temaId);
         
         if (!temaConDocumento) {
@@ -897,7 +892,7 @@ async function cargarExplicacion() {
             return;
         }
         
-        console.log('âœ… Tema con documento encontrado:', temaConDocumento);
+        console.log('✅ Tema con documento encontrado:', temaConDocumento);
         
         // Buscar contexto en documento digital
         const resultado = await buscarContextoEnDocumento(pregunta, temaConDocumento.id);
@@ -908,12 +903,12 @@ async function cargarExplicacion() {
             mostrarNoEncontrado(temaConDocumento.id);
         }
     } catch (error) {
-        console.error('Error cargando explicaciÃ³n:', error);
-        mostrarNoDisponible('Error al cargar la explicaciÃ³n.');
+        console.error('Error cargando explicación:', error);
+        mostrarNoDisponible('Error al cargar la explicación.');
     }
 }
 
-// Buscar tema con documento en jerarquÃ­a (subir hasta encontrar)
+// Buscar tema con documento en jerarquía (subir hasta encontrar)
 async function buscarTemaConDocumentoEnJerarquia(temaId) {
     let temaActualId = temaId;
     let intentos = 0;
@@ -947,7 +942,7 @@ async function buscarTemaConDocumentoEnJerarquia(temaId) {
             console.log('Subiendo al tema padre:', temaData.temaPadreId);
             temaActualId = temaData.temaPadreId;
         } else {
-            console.log('No hay tema padre, fin de bÃºsqueda');
+            console.log('No hay tema padre, fin de búsqueda');
             return null;
         }
         
@@ -1004,13 +999,13 @@ async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
     
     if (subrayados) {
         textoMostrar = subrayados;
-        mensajeInfo = 'âœ… Mostrando tus subrayados guardados';
+        mensajeInfo = '✅ Mostrando tus subrayados guardados';
     } else {
         textoMostrar = documentoCompleto;
-        mensajeInfo = 'âœ… Documento cargado - Puedes hacer scroll o buscar texto especÃ­fico';
+        mensajeInfo = '✅ Documento cargado - Puedes hacer scroll o buscar texto específico';
     }
     
-    // Guardar texto sin procesar en una variable global para bÃºsqueda
+    // Guardar texto sin procesar en una variable global para búsqueda
     window.textoDocumentoOriginal = documentoCompleto;
     window.preguntaIdActual = preguntaIdHash;
     
@@ -1019,7 +1014,7 @@ async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
             <p class="contexto-info">${mensajeInfo}</p>
             
             <div class="buscador-texto">
-                <input type="text" id="buscadorInput" placeholder="ðŸ” Buscar texto en el documento..." class="input-buscador">
+                <input type="text" id="buscadorInput" placeholder="🔍 Buscar texto en el documento..." class="input-buscador">
                 <button onclick="buscarEnTexto()" class="btn-buscar">Buscar</button>
             </div>
         </div>
@@ -1030,18 +1025,18 @@ async function mostrarContextoEncontrado(contexto, temaId, preguntaId) {
     
     const accionesDiv = document.querySelector('.explicacion-acciones');
     accionesDiv.innerHTML = `
-        <button class="btn-subrayar" onclick="subrayarSeleccion()">âœï¸ Subrayar</button>
-        <button class="btn-borrar-subrayado" onclick="borrarSubrayado()">ðŸ—‘ï¸ Quitar Subrayado</button>
-        <button class="btn-guardar-subrayado" onclick="guardarSubrayado()">ðŸ’¾ Guardar</button>
+        <button class="btn-subrayar" onclick="subrayarSeleccion()">✏️ Subrayar</button>
+        <button class="btn-borrar-subrayado" onclick="borrarSubrayado()">🗑️ Quitar Subrayado</button>
+        <button class="btn-guardar-subrayado" onclick="guardarSubrayado()">💾 Guardar</button>
     `;
     
-    // Scroll automÃ¡tico al primer subrayado guardado
+    // Scroll automático al primer subrayado guardado
     if (subrayados) {
         setTimeout(() => {
             const primerSubrayado = document.querySelector('.subrayado');
             if (primerSubrayado) {
                 primerSubrayado.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                console.log('âœ… Scroll a subrayado guardado');
+                console.log('✅ Scroll a subrayado guardado');
             }
         }, 300);
     }
@@ -1051,10 +1046,10 @@ function mostrarNoEncontrado(temaId) {
     const contenido = document.getElementById('explicacionContenido');
     contenido.innerHTML = `
         <div class="explicacion-no-encontrado">
-            <p>ðŸ“„ No se ha encontrado contexto automÃ¡tico para esta pregunta.</p>
-            <p>Puedes abrir el tema digital completo y subrayar la informaciÃ³n relevante.</p>
+            <p>📄 No se ha encontrado contexto automático para esta pregunta.</p>
+            <p>Puedes abrir el tema digital completo y subrayar la información relevante.</p>
             <button class="btn-abrir-tema" onclick="abrirTemaCompleto('${temaId}')">
-                ðŸ“š Abrir Tema Digital
+                📚 Abrir Tema Digital
             </button>
         </div>
     `;
@@ -1068,15 +1063,15 @@ function mostrarNoDisponible(mensaje) {
     const contenido = document.getElementById('explicacionContenido');
     contenido.innerHTML = `
         <div class="explicacion-no-encontrado">
-            <p>âš ï¸ ${mensaje}</p>
-            <p>Sube un documento digital en la secciÃ³n de Temas para habilitar esta funcionalidad.</p>
+            <p>⚠️ ${mensaje}</p>
+            <p>Sube un documento digital en la sección de Temas para habilitar esta funcionalidad.</p>
         </div>
     `;
 }
 
 window.abrirTemaCompleto = async function(temaId) {
     try {
-        // Buscar tema con documento en jerarquÃ­a
+        // Buscar tema con documento en jerarquía
         const temaConDocumento = await buscarTemaConDocumentoEnJerarquia(temaId);
         
         if (!temaConDocumento) {
@@ -1100,12 +1095,12 @@ window.abrirTemaCompleto = async function(temaId) {
         
         contenido.innerHTML = `
             <div class="documento-completo-header">
-                <h4>ðŸ“„ ${documento.nombre}</h4>
+                <h4>📄 ${documento.nombre}</h4>
                 <p class="documento-info">${Math.round(documento.tamano / 1024)} KB | ${documento.textoExtraido.length.toLocaleString()} caracteres</p>
                 
                 <!-- Buscador de texto -->
                 <div class="buscador-texto">
-                    <input type="text" id="buscadorInput" placeholder="ðŸ” Buscar en el documento..." class="input-buscador">
+                    <input type="text" id="buscadorInput" placeholder="🔍 Buscar en el documento..." class="input-buscador">
                     <button onclick="buscarEnTexto()" class="btn-buscar">Buscar</button>
                 </div>
             </div>
@@ -1117,9 +1112,9 @@ window.abrirTemaCompleto = async function(temaId) {
         // Mostrar botones de subrayado y borrado
         const accionesDiv = document.querySelector('.explicacion-acciones');
         accionesDiv.innerHTML = `
-            <button class="btn-subrayar" onclick="subrayarSeleccion()">âœï¸ Subrayar</button>
-            <button class="btn-borrar-subrayado" onclick="borrarSubrayado()">ðŸ—‘ï¸ Quitar Subrayado</button>
-            <button class="btn-guardar-subrayado" onclick="guardarSubrayado()">ðŸ’¾ Guardar</button>
+            <button class="btn-subrayar" onclick="subrayarSeleccion()">✏️ Subrayar</button>
+            <button class="btn-borrar-subrayado" onclick="borrarSubrayado()">🗑️ Quitar Subrayado</button>
+            <button class="btn-guardar-subrayado" onclick="guardarSubrayado()">💾 Guardar</button>
         `;
         
         actualizarIndicadorDigital();
@@ -1134,11 +1129,11 @@ window.abrirTemaCompleto = async function(temaId) {
 window.limpiarBusqueda = async function() {
     document.getElementById('buscadorInput').value = '';
     
-    // Limpiar variables de bÃºsqueda
+    // Limpiar variables de búsqueda
     window.coincidenciaActual = 0;
     window.totalCoincidencias = 0;
     
-    // Eliminar controles de navegaciÃ³n
+    // Eliminar controles de navegación
     const controles = document.querySelector('.controles-navegacion');
     if (controles) {
         controles.remove();
@@ -1199,11 +1194,11 @@ window.buscarEnTexto = function() {
     const textoExplicacion = document.getElementById('textoExplicacion');
     textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
     
-    // Guardar info de bÃºsqueda en variables globales
+    // Guardar info de búsqueda en variables globales
     window.coincidenciaActual = 1;
     window.totalCoincidencias = coincidencias;
     
-    // Mostrar controles de navegaciÃ³n
+    // Mostrar controles de navegación
     mostrarControlesNavegacion();
     
     // Ir a la primera coincidencia
@@ -1224,11 +1219,11 @@ function mostrarControlesNavegacion() {
     const controles = document.createElement('div');
     controles.className = 'controles-navegacion';
     controles.innerHTML = `
-        <button class="btn-nav" onclick="navegarCoincidencia(-1)" title="Anterior">â—„</button>
+        <button class="btn-nav" onclick="navegarCoincidencia(-1)" title="Anterior">◄</button>
         <span class="contador-coincidencias" id="contadorCoincidencias">
             <span id="numActual">1</span> de <span id="numTotal">${window.totalCoincidencias}</span>
         </span>
-        <button class="btn-nav" onclick="navegarCoincidencia(1)" title="Siguiente">â–º</button>
+        <button class="btn-nav" onclick="navegarCoincidencia(1)" title="Siguiente">►</button>
     `;
     
     header.appendChild(controles);
@@ -1237,7 +1232,7 @@ function mostrarControlesNavegacion() {
 window.navegarCoincidencia = function(direccion) {
     if (!window.totalCoincidencias) return;
     
-    // Calcular nueva posiciÃ³n
+    // Calcular nueva posición
     window.coincidenciaActual += direccion;
     
     // Loop circular
@@ -1285,7 +1280,7 @@ window.subrayarSeleccion = function() {
         return;
     }
     
-    // NUEVO: Limpiar resaltados de bÃºsqueda antes de subrayar
+    // NUEVO: Limpiar resaltados de búsqueda antes de subrayar
     limpiarResaltadosBusqueda();
     
     try {
@@ -1295,11 +1290,11 @@ window.subrayarSeleccion = function() {
         range.surroundContents(span);
         selection.removeAllRanges();
     } catch (e) {
-        alert('No se puede subrayar texto complejo. Selecciona un fragmento mÃ¡s simple.');
+        alert('No se puede subrayar texto complejo. Selecciona un fragmento más simple.');
     }
 };
 
-// NUEVA FUNCIÃ“N: Eliminar todos los <mark> de bÃºsqueda
+// NUEVA FUNCIÓN: Eliminar todos los <mark> de búsqueda
 function limpiarResaltadosBusqueda() {
     const textoExplicacion = document.getElementById('textoExplicacion');
     if (!textoExplicacion) return;
@@ -1317,7 +1312,7 @@ function limpiarResaltadosBusqueda() {
     const controles = document.querySelector('.controles-navegacion');
     if (controles) controles.remove();
     
-    console.log('âœ… Resaltados de bÃºsqueda eliminados');
+    console.log('✅ Resaltados de búsqueda eliminados');
 }
 
 window.borrarSubrayado = function() {
@@ -1368,7 +1363,7 @@ window.borrarSubrayado = function() {
     }
 };
 
-// FunciÃ³n auxiliar para guardar automÃ¡ticamente despuÃ©s de borrar selectivamente
+// Función auxiliar para guardar automáticamente después de borrar selectivamente
 async function guardarSubrayadoAutomatico() {
     const textoExplicacion = document.getElementById('textoExplicacion');
     const preguntaId = window.preguntaIdActual;
@@ -1384,7 +1379,7 @@ async function guardarSubrayadoAutomatico() {
         if (elementos.length === 0) {
             // Si no quedan subrayados, eliminar el documento
             await deleteDoc(subrayadoRef);
-            console.log('âœ… Documento eliminado (no quedan subrayados)');
+            console.log('✅ Documento eliminado (no quedan subrayados)');
         } else {
             // Guardar HTML actualizado
             await setDoc(subrayadoRef, {
@@ -1394,11 +1389,11 @@ async function guardarSubrayadoAutomatico() {
                 cantidadSubrayados: elementos.length,
                 fecha: new Date()
             }, { merge: true });
-            console.log('âœ… Guardado automÃ¡tico actualizado');
+            console.log('✅ Guardado automático actualizado');
         }
         
     } catch (error) {
-        console.error('Error guardando automÃ¡ticamente:', error);
+        console.error('Error guardando automáticamente:', error);
     }
 }
 
@@ -1428,9 +1423,9 @@ window.guardarSubrayado = async function() {
             const docSnap = await getDoc(subrayadoRef);
             if (docSnap.exists()) {
                 await deleteDoc(subrayadoRef);
-                console.log('âœ… Subrayados eliminados (no quedaban)');
+                console.log('✅ Subrayados eliminados (no quedaban)');
             }
-            alert('âœ… Guardado (sin subrayados)');
+            alert('✅ Guardado (sin subrayados)');
         } else {
             // Hay subrayados: guardar
             await setDoc(subrayadoRef, {
@@ -1441,12 +1436,12 @@ window.guardarSubrayado = async function() {
                 fecha: new Date()
             }, { merge: true });
             
-            console.log('âœ… Guardado exitoso');
-            alert('âœ… Subrayado guardado correctamente');
+            console.log('✅ Guardado exitoso');
+            alert('✅ Subrayado guardado correctamente');
         }
         
     } catch (error) {
-        console.error('âŒ Error:', error);
+        console.error('❌ Error:', error);
         alert('Error al guardar: ' + error.message);
     }
 };
@@ -1460,7 +1455,7 @@ async function cargarSubrayadosPrevios(preguntaIdHash) {
         const subDoc = await getDoc(subrayadoRef);
         
         if (subDoc.exists()) {
-            console.log('âœ… Subrayados encontrados');
+            console.log('✅ Subrayados encontrados');
             return subDoc.data().htmlCompleto;
         }
         
@@ -1528,7 +1523,7 @@ window.cambiarTab = async function(tab) {
         document.getElementById('tabGemini').classList.add('active');
         document.getElementById('contentGemini').classList.add('active');
         
-        // Cargar explicaciÃ³n Gemini si existe
+        // Cargar explicación Gemini si existe
         await cargarExplicacionGemini();
     }
 };
@@ -1559,22 +1554,22 @@ async function cargarExplicacionGemini() {
         if (geminiDoc.exists() && geminiDoc.data().texto) {
             textarea.value = geminiDoc.data().texto;
             document.getElementById('tabGemini').classList.add('tiene-contenido');
-            console.log('âœ… ExplicaciÃ³n Gemini cargada');
+            console.log('✅ Explicación Gemini cargada');
         } else {
             textarea.value = '';
             document.getElementById('tabGemini').classList.remove('tiene-contenido');
-            console.log('No hay explicaciÃ³n Gemini previa');
+            console.log('No hay explicación Gemini previa');
         }
         
     } catch (error) {
-        console.error('Error cargando explicaciÃ³n Gemini:', error);
+        console.error('Error cargando explicación Gemini:', error);
     }
 }
 
 window.guardarExplicacionGemini = async function() {
     const textarea = document.getElementById('textoGemini');
     if (!textarea) {
-        alert('Error: No se encontrÃ³ el Ã¡rea de texto');
+        alert('Error: No se encontró el área de texto');
         return;
     }
     
@@ -1609,18 +1604,18 @@ window.guardarExplicacionGemini = async function() {
             fecha: new Date()
         });
         
-        console.log('âœ… ExplicaciÃ³n Gemini guardada');
-        alert('âœ… ExplicaciÃ³n guardada correctamente');
+        console.log('✅ Explicación Gemini guardada');
+        alert('✅ Explicación guardada correctamente');
         document.getElementById('tabGemini').classList.add('tiene-contenido');
         
     } catch (error) {
-        console.error('âŒ Error guardando:', error);
+        console.error('❌ Error guardando:', error);
         alert('Error al guardar: ' + error.message);
     }
 };
 
 window.borrarExplicacionGemini = async function() {
-    if (!confirm('Â¿EstÃ¡s seguro de que quieres borrar esta explicaciÃ³n?')) {
+    if (!confirm('¿Estás seguro de que quieres borrar esta explicación?')) {
         return;
     }
     
@@ -1645,15 +1640,15 @@ window.borrarExplicacionGemini = async function() {
         const geminiDoc = await getDoc(geminiRef);
         if (geminiDoc.exists()) {
             await deleteDoc(geminiRef);
-            console.log('âœ… ExplicaciÃ³n Gemini eliminada');
+            console.log('✅ Explicación Gemini eliminada');
         }
         
         textarea.value = '';
-        alert('âœ… ExplicaciÃ³n borrada');
+        alert('✅ Explicación borrada');
         document.getElementById('tabGemini').classList.remove('tiene-contenido');
         
     } catch (error) {
-        console.error('âŒ Error borrando:', error);
+        console.error('❌ Error borrando:', error);
         alert('Error al borrar: ' + error.message);
     }
 };
