@@ -179,7 +179,7 @@ function mostrarPregunta() {
     document.getElementById('explicacionPanel').classList.remove('activa');
     document.getElementById('btnVerExplicacion').textContent = '📖 Ver Explicación';
     document.getElementById('explicacionContenido').innerHTML = '';
-    document.getElementById('textoGemini').value = '';
+    document.getElementById('textoGemini').innerHTML = '';
     document.getElementById('tabDigital').classList.remove('tiene-contenido');
     document.getElementById('tabGemini').classList.remove('tiene-contenido');
     // Resetear tabs a digital por defecto
@@ -1470,6 +1470,19 @@ async function cargarSubrayadosPrevios(preguntaIdHash) {
 function aplicarSubrayados(textoOriginal, htmlConSubrayados) {
     return htmlConSubrayados;
 }
+// ================== FORMATEO GEMINI ==================
+
+window.formatearGemini = function(formato) {
+    document.getElementById('textoGemini').focus();
+    if (formato === 'bold') {
+        document.execCommand('bold');
+    } else if (formato === 'underline') {
+        document.execCommand('underline');
+    } else if (formato === 'highlight') {
+        document.execCommand('backColor', false, '#fbbf24');
+    }
+};
+
 // ================== INDICADORES DE CONTENIDO EN TABS ==================
 
 function actualizarIndicadorDigital() {
@@ -1552,11 +1565,15 @@ async function cargarExplicacionGemini() {
         const geminiDoc = await getDoc(geminiRef);
         
         if (geminiDoc.exists() && geminiDoc.data().texto) {
-            textarea.value = geminiDoc.data().texto;
+            let texto = geminiDoc.data().texto;
+            if (!texto.includes('<')) {
+                texto = texto.replace(/\n/g, '<br>');
+            }
+            textarea.innerHTML = texto;
             document.getElementById('tabGemini').classList.add('tiene-contenido');
             console.log('✅ Explicación Gemini cargada');
         } else {
-            textarea.value = '';
+            textarea.innerHTML = '';
             document.getElementById('tabGemini').classList.remove('tiene-contenido');
             console.log('No hay explicación Gemini previa');
         }
@@ -1573,9 +1590,9 @@ window.guardarExplicacionGemini = async function() {
         return;
     }
     
-    const textoGemini = textarea.value.trim();
+    const textoGemini = textarea.innerHTML.trim();
     
-    if (!textoGemini) {
+    if (!textoGemini || textoGemini === '<br>') {
         alert('Escribe algo antes de guardar');
         return;
     }
@@ -1643,7 +1660,7 @@ window.borrarExplicacionGemini = async function() {
             console.log('✅ Explicación Gemini eliminada');
         }
         
-        textarea.value = '';
+        textarea.innerHTML = '';
         alert('✅ Explicación borrada');
         document.getElementById('tabGemini').classList.remove('tiene-contenido');
         
