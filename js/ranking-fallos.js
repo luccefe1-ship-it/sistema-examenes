@@ -441,6 +441,7 @@ async function actualizarFirebaseRestaurar(textoDecodificado) {
         
         snapshot.docs.forEach(docSnapshot => {
             const resultado = docSnapshot.data();
+            if (resultado.origen === 'app_movil') return;
             let modificado = false;
             
             const detalleActualizado = resultado.detalleRespuestas.map(detalle => {
