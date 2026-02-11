@@ -2948,7 +2948,7 @@ function generarPreguntasTest() {
             </div>
             <div class="pregunta-texto">${pregunta.texto}</div>
             <div class="opciones-test">
-                ${pregunta.opciones.map(opcion => `
+                ${mezclarArray([...pregunta.opciones]).map(opcion => `
                     <label class="opcion-test" data-pregunta="${index}" data-opcion="${opcion.letra}">
                         <input type="radio" name="pregunta_${index}" value="${opcion.letra}">
                         <span class="opcion-texto">${opcion.letra}) ${opcion.texto}</span>
@@ -4673,15 +4673,11 @@ function descargarJSON(data, filename) {
 function mezclarArray(array) {
     const shuffled = [...array];
     
-    // Algoritmo Fisher-Yates mejorado para mejor aleatoriedad
+    // Fisher-Yates con crypto.getRandomValues para máxima aleatoriedad
     for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    
-    // Segunda pasada para asegurar máxima aleatoriedad
-    for (let i = 0; i < shuffled.length; i++) {
-        const j = Math.floor(Math.random() * shuffled.length);
+        const buf = new Uint32Array(1);
+        crypto.getRandomValues(buf);
+        const j = buf[0] % (i + 1);
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     
