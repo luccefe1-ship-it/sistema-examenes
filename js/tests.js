@@ -4120,6 +4120,7 @@ async function cargarResultados() {
 
         querySnapshot.forEach((doc) => {
             const resultado = doc.data();
+            if (resultado.origen === 'app_movil') return;
             totalTests++;
             sumaPorcentajes += resultado.porcentaje || 0;
             totalCorrectas += resultado.correctas || 0;
