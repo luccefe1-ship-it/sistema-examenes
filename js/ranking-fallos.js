@@ -82,6 +82,7 @@ async function cargarRanking() {
 
         resultadosSnapshot.forEach(doc => {
             const resultado = doc.data();
+            if (resultado.origen === 'app_movil') return;
             const detalleRespuestas = resultado.detalleRespuestas || [];
             const nombreTest = resultado.nombreTest || 'Test';
             
