@@ -150,7 +150,15 @@ function mostrarPregunta() {
     const opcionesContainer = document.getElementById('opcionesLista');
     opcionesContainer.innerHTML = '';
     
-    pregunta.opciones.forEach(opcion => {
+    // Mezclar opciones con crypto para máxima aleatoriedad
+    const opcionesMezcladas = [...pregunta.opciones];
+    for (let i = opcionesMezcladas.length - 1; i > 0; i--) {
+        const buf = new Uint32Array(1);
+        crypto.getRandomValues(buf);
+        const j = buf[0] % (i + 1);
+        [opcionesMezcladas[i], opcionesMezcladas[j]] = [opcionesMezcladas[j], opcionesMezcladas[i]];
+    }
+    opcionesMezcladas.forEach(opcion => {
         const opcionDiv = document.createElement('div');
         opcionDiv.className = 'opcion-item';
         opcionDiv.innerHTML = `
