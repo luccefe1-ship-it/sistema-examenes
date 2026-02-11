@@ -4183,6 +4183,7 @@ listResultados.appendChild(eliminarTodosBtn);
         const resultados = [];
         querySnapshot.forEach((doc) => {
             const resultado = doc.data();
+            if (resultado.origen === 'app_movil') return;
             resultados.push({ id: doc.id, data: resultado });
         });
         
