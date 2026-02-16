@@ -2948,7 +2948,7 @@ function generarPreguntasTest() {
             </div>
             <div class="pregunta-texto">${pregunta.texto}</div>
             <div class="opciones-test">
-                ${mezclarArray([...pregunta.opciones]).map(opcion => `
+                ${pregunta.opciones.map(opcion => `
                     <label class="opcion-test" data-pregunta="${index}" data-opcion="${opcion.letra}">
                         <input type="radio" name="pregunta_${index}" value="${opcion.letra}">
                         <span class="opcion-texto">${opcion.letra}) ${opcion.texto}</span>
