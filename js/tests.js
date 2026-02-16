@@ -4677,16 +4677,21 @@ function registrarPreguntasUsadas(preguntas) {
         const ahora = Date.now();
         let historial = JSON.parse(localStorage.getItem('preguntasUsadasHistorial') || '{}');
         
-        // Registrar cada pregunta con timestamp
+        // Registrar cada pregunta con contador + timestamp
         preguntas.forEach(p => {
             const hash = generarHashPregunta(p.texto);
-            historial[hash] = ahora;
+            if (historial[hash]) {
+                historial[hash].n = (historial[hash].n || 1) + 1;
+                historial[hash].t = ahora;
+            } else {
+                historial[hash] = { n: 1, t: ahora };
+            }
         });
         
         // Limitar a las últimas 1000 entradas para no saturar localStorage
         const entradas = Object.entries(historial);
         if (entradas.length > 1000) {
-            entradas.sort((a, b) => b[1] - a[1]); // más recientes primero
+            entradas.sort((a, b) => b[1].t - a[1].t);
             historial = Object.fromEntries(entradas.slice(0, 1000));
         }
         
@@ -4698,7 +4703,17 @@ function registrarPreguntasUsadas(preguntas) {
 
 function obtenerHistorialPreguntas() {
     try {
-        return JSON.parse(localStorage.getItem('preguntasUsadasHistorial') || '{}');
+        const raw = JSON.parse(localStorage.getItem('preguntasUsadasHistorial') || '{}');
+        // Compatibilidad: migrar formato antiguo (solo timestamp) al nuevo (objeto {n, t})
+        const historial = {};
+        for (const [key, val] of Object.entries(raw)) {
+            if (typeof val === 'number') {
+                historial[key] = { n: 1, t: val };
+            } else {
+                historial[key] = val;
+            }
+        }
+        return historial;
     } catch (e) {
         return {};
     }
@@ -4752,7 +4767,8 @@ function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
         }
         const hash = generarHashPregunta(pregunta.texto);
         if (historial[hash]) {
-            pregunta._ultimoUso = historial[hash];
+            pregunta._veces = historial[hash].n || 1;
+            pregunta._ultimoUso = historial[hash].t || 0;
             preguntasPorTema[tema].yaVistas.push(pregunta);
         } else {
             preguntasPorTema[tema].noVistas.push(pregunta);
@@ -4783,7 +4799,10 @@ function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
         // Prioridad 2: si faltan, completar con las MENOS recientes primero
         const faltanDelTema = cuota - tomadas.length;
         if (faltanDelTema > 0) {
-            grupo.yaVistas.sort((a, b) => (a._ultimoUso || 0) - (b._ultimoUso || 0));
+            grupo.yaVistas.sort((a, b) => {
+                if ((a._veces || 1) !== (b._veces || 1)) return (a._veces || 1) - (b._veces || 1);
+                return (a._ultimoUso || 0) - (b._ultimoUso || 0);
+            });
             preguntasFinales.push(...grupo.yaVistas.slice(0, faltanDelTema));
         }
     });
@@ -4793,12 +4812,15 @@ function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
         const usadas = new Set(preguntasFinales.map(p => p.texto.toLowerCase().trim()));
         const restantes = arrayUnico.filter(p => !usadas.has(p.texto.toLowerCase().trim()));
         
-        // Ordenar: no vistas primero, luego las más antiguas
+        // Ordenar: menos veces primero, ante empate la más antigua
         restantes.sort((a, b) => {
             const hashA = generarHashPregunta(a.texto);
             const hashB = generarHashPregunta(b.texto);
-            const tiempoA = historial[hashA] || 0;
-            const tiempoB = historial[hashB] || 0;
+            const vecesA = historial[hashA] ? historial[hashA].n : 0;
+            const vecesB = historial[hashB] ? historial[hashB].n : 0;
+            if (vecesA !== vecesB) return vecesA - vecesB;
+            const tiempoA = historial[hashA] ? historial[hashA].t : 0;
+            const tiempoB = historial[hashB] ? historial[hashB].t : 0;
             return tiempoA - tiempoB;
         });
         
