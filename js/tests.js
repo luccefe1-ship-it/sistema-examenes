@@ -4669,6 +4669,41 @@ function descargarJSON(data, filename) {
     linkElement.click();
 }
 
+// === SISTEMA DE ROTACIÓN DE PREGUNTAS ===
+// Guarda qué preguntas ya salieron para priorizar las no vistas
+
+function registrarPreguntasUsadas(preguntas) {
+    try {
+        const ahora = Date.now();
+        let historial = JSON.parse(localStorage.getItem('preguntasUsadasHistorial') || '{}');
+        
+        // Registrar cada pregunta con timestamp
+        preguntas.forEach(p => {
+            const hash = generarHashPregunta(p.texto);
+            historial[hash] = ahora;
+        });
+        
+        // Limitar a las últimas 1000 entradas para no saturar localStorage
+        const entradas = Object.entries(historial);
+        if (entradas.length > 1000) {
+            entradas.sort((a, b) => b[1] - a[1]); // más recientes primero
+            historial = Object.fromEntries(entradas.slice(0, 1000));
+        }
+        
+        localStorage.setItem('preguntasUsadasHistorial', JSON.stringify(historial));
+    } catch (e) {
+        console.warn('Error guardando historial de preguntas:', e);
+    }
+}
+
+function obtenerHistorialPreguntas() {
+    try {
+        return JSON.parse(localStorage.getItem('preguntasUsadasHistorial') || '{}');
+    } catch (e) {
+        return {};
+    }
+}
+
 // Funciones auxiliares mejoradas
 function mezclarArray(array) {
     const shuffled = [...array];
@@ -4686,93 +4721,95 @@ function mezclarArray(array) {
 
 // Función para obtener preguntas con distribución proporcional entre temas
 function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
-    console.log('=== DISTRIBUCIÓN PARITARIA DEBUG ===');
-    console.log(`Total preguntas recibidas: ${preguntas.length}`);
-    console.log(`Cantidad solicitada: ${cantidad}`);
+    console.log('=== SELECCIÓN CON ROTACIÓN ===');
+    console.log(`Total recibidas: ${preguntas.length}, Solicitadas: ${cantidad}`);
     
-    // AÑADIR ESTE DEBUG
-    console.log('DETALLE DE PREGUNTAS RECIBIDAS:');
-    preguntas.forEach((p, index) => {
-        console.log(`${index + 1}. ${p.temaNombre || p.temaId} - Verificada: ${p.verificada} - "${p.texto.substring(0, 50)}..."`);
-    });
-    
-    // Crear un Map para asegurar unicidad por texto de pregunta
+    // 1. Eliminar duplicados
     const preguntasUnicas = new Map();
-    
     preguntas.forEach(pregunta => {
         const clave = pregunta.texto.toLowerCase().trim();
         if (!preguntasUnicas.has(clave)) {
             preguntasUnicas.set(clave, pregunta);
-        } else {
-            console.log(`DUPLICADO DETECTADO: ${pregunta.texto.substring(0, 50)}...`);
         }
     });
-    
     const arrayUnico = Array.from(preguntasUnicas.values());
-    console.log(`Preguntas únicas después de filtrar: ${arrayUnico.length}`);
+    console.log(`Únicas: ${arrayUnico.length}`);
     
-    // Agrupar por tema
+    // Si se piden todas, devolver todas mezcladas
+    if (cantidad >= arrayUnico.length) {
+        return mezclarArray(arrayUnico);
+    }
+    
+    // 2. Obtener historial de preguntas ya vistas
+    const historial = obtenerHistorialPreguntas();
+    
+    // 3. Separar en "no vistas" y "ya vistas", por tema
     const preguntasPorTema = {};
     arrayUnico.forEach(pregunta => {
         const tema = pregunta.temaNombre || pregunta.temaId || 'Desconocido';
         if (!preguntasPorTema[tema]) {
-            preguntasPorTema[tema] = [];
+            preguntasPorTema[tema] = { noVistas: [], yaVistas: [] };
         }
-        preguntasPorTema[tema].push(pregunta);
+        const hash = generarHashPregunta(pregunta.texto);
+        if (historial[hash]) {
+            pregunta._ultimoUso = historial[hash];
+            preguntasPorTema[tema].yaVistas.push(pregunta);
+        } else {
+            preguntasPorTema[tema].noVistas.push(pregunta);
+        }
     });
     
     const temas = Object.keys(preguntasPorTema);
-    console.log(`Temas encontrados: ${temas.join(', ')}`);
     
     temas.forEach(tema => {
-        console.log(`${tema}: ${preguntasPorTema[tema].length} preguntas`);
+        console.log(`${tema}: ${preguntasPorTema[tema].noVistas.length} nuevas, ${preguntasPorTema[tema].yaVistas.length} ya vistas`);
     });
     
-    // Si se piden todas las preguntas o hay menos disponibles, devolver todas mezcladas
-    if (cantidad >= arrayUnico.length) {
-        console.log('Devolviendo todas las preguntas mezcladas');
-        return mezclarArray(arrayUnico);
-    }
-    
-    if (temas.length === 1) {
-        console.log('Solo un tema, selección aleatoria normal');
-        return mezclarArray(arrayUnico).slice(0, cantidad);
-    }
-    
-    // RESTO DE LA FUNCIÓN IGUAL...
-    const preguntasPorTemaObjetivo = Math.floor(cantidad / temas.length);
-    const preguntasExtra = cantidad % temas.length;
-    
-    console.log(`Preguntas por tema: ${preguntasPorTemaObjetivo}`);
-    console.log(`Preguntas extra: ${preguntasExtra}`);
+    // 4. Distribución paritaria entre temas
+    const preguntasPorTemaObjetivo = Math.floor(cantidad / Math.max(temas.length, 1));
+    const preguntasExtra = cantidad % Math.max(temas.length, 1);
     
     const preguntasFinales = [];
     
     temas.forEach((tema, index) => {
-        let preguntasATomar = preguntasPorTemaObjetivo;
-        if (index < preguntasExtra) {
-            preguntasATomar += 1;
+        let cuota = preguntasPorTemaObjetivo + (index < preguntasExtra ? 1 : 0);
+        const grupo = preguntasPorTema[tema];
+        
+        // Prioridad 1: preguntas NO vistas (mezcladas al azar)
+        const noVistasMezcladas = mezclarArray([...grupo.noVistas]);
+        const tomadas = noVistasMezcladas.slice(0, cuota);
+        preguntasFinales.push(...tomadas);
+        
+        // Prioridad 2: si faltan, completar con las MENOS recientes primero
+        const faltanDelTema = cuota - tomadas.length;
+        if (faltanDelTema > 0) {
+            grupo.yaVistas.sort((a, b) => (a._ultimoUso || 0) - (b._ultimoUso || 0));
+            preguntasFinales.push(...grupo.yaVistas.slice(0, faltanDelTema));
         }
-        
-        const preguntasDelTema = preguntasPorTema[tema];
-        const preguntasTomadas = Math.min(preguntasATomar, preguntasDelTema.length);
-        
-        const preguntasMezcladas = mezclarArray([...preguntasDelTema]);
-        preguntasFinales.push(...preguntasMezcladas.slice(0, preguntasTomadas));
-        
-        console.log(`${tema}: ${preguntasTomadas} preguntas seleccionadas`);
     });
     
+    // 5. Si aún faltan (algún tema tenía pocas), completar del pool general
     if (preguntasFinales.length < cantidad) {
-        const preguntasUsadas = new Set(preguntasFinales.map(p => p.texto));
-        const preguntasRestantes = arrayUnico.filter(p => !preguntasUsadas.has(p.texto));
-        const faltantes = cantidad - preguntasFinales.length;
+        const usadas = new Set(preguntasFinales.map(p => p.texto.toLowerCase().trim()));
+        const restantes = arrayUnico.filter(p => !usadas.has(p.texto.toLowerCase().trim()));
         
-        preguntasFinales.push(...mezclarArray(preguntasRestantes).slice(0, faltantes));
-        console.log(`Agregadas ${faltantes} preguntas adicionales`);
+        // Ordenar: no vistas primero, luego las más antiguas
+        restantes.sort((a, b) => {
+            const hashA = generarHashPregunta(a.texto);
+            const hashB = generarHashPregunta(b.texto);
+            const tiempoA = historial[hashA] || 0;
+            const tiempoB = historial[hashB] || 0;
+            return tiempoA - tiempoB;
+        });
+        
+        preguntasFinales.push(...restantes.slice(0, cantidad - preguntasFinales.length));
     }
     
-    console.log(`Total final: ${preguntasFinales.length} preguntas`);
+    console.log(`Seleccionadas: ${preguntasFinales.length} preguntas`);
+    
+    // 6. Registrar estas preguntas como usadas
+    registrarPreguntasUsadas(preguntasFinales);
+    
     return mezclarArray(preguntasFinales);
 }
 // ==== FUNCIONALIDAD TEST DE REPASO ====
