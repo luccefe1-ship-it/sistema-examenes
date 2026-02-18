@@ -4120,7 +4120,7 @@ async function cargarResultados() {
 
         querySnapshot.forEach((doc) => {
             const resultado = doc.data();
-            if (resultado.origen === 'app_movil') return;
+            // ← Se eliminó el filtro origen === 'app_movil' para incluir tests de la app
             totalTests++;
             sumaPorcentajes += resultado.porcentaje || 0;
             totalCorrectas += resultado.correctas || 0;
@@ -4184,7 +4184,7 @@ listResultados.appendChild(eliminarTodosBtn);
         const resultados = [];
         querySnapshot.forEach((doc) => {
             const resultado = doc.data();
-            if (resultado.origen === 'app_movil') return;
+            // ← Se eliminó el filtro para mostrar también los tests de la app móvil
             resultados.push({ id: doc.id, data: resultado });
         });
         
