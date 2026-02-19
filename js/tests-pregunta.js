@@ -1641,12 +1641,6 @@ window.guardarExplicacionGemini = async function() {
 };
 // ================== GENERACIÓN CON CLAUDE IA ==================
 
-async function obtenerClaudeApiKey() {
-    const keyDoc = await getDoc(doc(db, 'config', 'keys'));
-    if (!keyDoc.exists()) throw new Error('No se encontró la configuración de IA');
-    return keyDoc.data().claudeApiKey;
-}
-
 window.generarExplicacionIA = async function() {
     if (!currentUser) { alert('Debes estar autenticado'); return; }
 
