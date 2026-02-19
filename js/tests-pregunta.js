@@ -1700,6 +1700,83 @@ Proporciona una explicación pedagógica de 3-5 líneas que ayude a memorizar y 
         if (btnGenerar) { btnGenerar.disabled = false; btnGenerar.textContent = '✨ Generar con IA'; }
     }
 };
+async function obtenerClaudeApiKey() {
+    const keyDoc = await getDoc(doc(db, 'config', 'keys'));
+    if (!keyDoc.exists()) throw new Error('No se encontró la configuración de IA');
+    return keyDoc.data().claudeApiKey;
+}
+
+window.generarExplicacionIA = async function() {
+    const pregunta = testConfig.preguntas[preguntaActual];
+    const preguntaTexto = pregunta.texto || '';
+    const opciones = pregunta.opciones || pregunta.options || [];
+    const correcta = pregunta.respuestaCorrecta ?? pregunta.correctAnswer ?? 0;
+
+    const btn = document.getElementById('btnGenerarIA');
+    const textarea = document.getElementById('textoGemini');
+
+    try {
+        const apiKey = await obtenerClaudeApiKey();
+
+        btn.textContent = '⏳ Generando...';
+        btn.disabled = true;
+        textarea.innerHTML = '';
+
+        const prompt = `Eres un experto en Derecho español y oposiciones judiciales. Explica de forma clara y concisa la siguiente pregunta de examen:
+
+PREGUNTA: ${preguntaTexto}
+
+OPCIONES:
+${opciones.map((op, i) => `${String.fromCharCode(65+i)}) ${op}`).join('\n')}
+
+RESPUESTA CORRECTA: ${String.fromCharCode(65 + correcta)}) ${opciones[correcta]}
+
+Explica por qué esta es la respuesta correcta, con referencias legales si aplica. Máximo 200 palabras.`;
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            body: JSON.stringify({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 500,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(`Error API: ${response.status} - ${err.error?.message || ''}`);
+        }
+
+        const data = await response.json();
+        const texto = data.content[0].text;
+
+        // Efecto typewriter
+        textarea.innerHTML = '';
+        let i = 0;
+        const interval = setInterval(() => {
+            if (i < texto.length) {
+                textarea.innerHTML += texto[i] === '\n' ? '<br>' : texto[i];
+                i++;
+            } else {
+                clearInterval(interval);
+                btn.textContent = '✨ Generar con IA';
+                btn.disabled = false;
+            }
+        }, 10);
+
+    } catch (error) {
+        console.error('Error IA:', error);
+        alert('Error al generar explicación: ' + error.message);
+        btn.textContent = '✨ Generar con IA';
+        btn.disabled = false;
+    }
+};
 window.borrarExplicacionGemini = async function() {
     if (!confirm('¿Estás seguro de que quieres borrar esta explicación?')) {
         return;
