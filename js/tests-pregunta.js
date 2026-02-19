@@ -1642,7 +1642,6 @@ window.guardarExplicacionGemini = async function() {
 // ================== GENERACIÓN CON CLAUDE IA ==================
 
 async function obtenerClaudeApiKey() {
-    const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
     const keyDoc = await getDoc(doc(db, 'config', 'keys'));
     if (!keyDoc.exists()) throw new Error('No se encontró la configuración de IA');
     return keyDoc.data().claudeApiKey;
