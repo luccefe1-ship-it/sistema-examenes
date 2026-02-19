@@ -1697,7 +1697,7 @@ Proporciona una explicación pedagógica de 3-5 líneas que ayude a memorizar y 
 async function obtenerClaudeApiKey() {
     const keyDoc = await getDoc(doc(db, 'config', 'keys'));
     if (!keyDoc.exists()) throw new Error('No se encontró la configuración de IA');
-    return keyDoc.data().claudeApiKey;
+    return keyDoc.data().claudeApiKey.trim();
 }
 
 window.generarExplicacionIA = async function() {
