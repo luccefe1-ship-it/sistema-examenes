@@ -1655,6 +1655,8 @@ window.generarExplicacionIA = async function() {
 
     try {
         const apiKey = await obtenerClaudeApiKey();
+        console.log('API KEY usada:', apiKey.substring(0, 20) + '...' + apiKey.substring(apiKey.length - 5));
+        console.log('Longitud clave:', apiKey.length);
 
         const prompt = `Eres un experto en oposiciones españolas. Explica de forma clara y concisa por qué la respuesta correcta a esta pregunta es la que es.
 
