@@ -3732,7 +3732,8 @@ contenido.innerHTML = `
             <textarea id="textoGeminiModal" class="textarea-gemini" placeholder="Pega aquí tu explicación de Gemini o escribe cualquier anotación personalizada..."></textarea>
         </div>
         <div class="explicacion-acciones" style="margin-top: 12px;">
-            <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar Explicación</button>
+            <button id="btnGenerarIAModal" class="btn-guardar-gemini" onclick="generarExplicacionIAModal()" style="background: linear-gradient(135deg, #7c3aed, #2563eb);">✨ Generar con IA</button>
+            <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar</button>
             <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
         </div>
     </div>
