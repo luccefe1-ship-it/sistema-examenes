@@ -1093,6 +1093,7 @@ function crearPreguntaEditable(pregunta, index, temaId) {
                 <button class="btn-icon btn-edit" onclick="editarPregunta('${temaId}', ${index})" title="Editar pregunta">✏️</button>
                 <button class="btn-icon btn-delete" onclick="eliminarPregunta('${temaId}', ${index})" title="Eliminar pregunta">🗑️</button>
                 <button class="btn-icon btn-explicacion" onclick="abrirExplicacionBanco('${temaId}', ${index})" title="Ver/Asignar explicación">📖</button>
+                <button class="btn-icon btn-mover" onclick="abrirModalMoverPregunta('${temaId}', ${index})" title="Mover pregunta a otro tema" style="background:#6c5ce7;color:white;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:0.85rem;">🔀</button>
             </div>
             <div class="pregunta-texto" id="texto-${temaId}-${index}">${pregunta.texto}</div>
             <div class="opciones-container" id="opciones-${temaId}-${index}">
@@ -6594,6 +6595,193 @@ window.abrirExplicacionBanco = async function(temaId, index) {
                 <p>❌ Error al cargar la explicación.</p>
             </div>
         `;
+    }
+};
+
+// =============================================
+// MOVER PREGUNTA A OTRO TEMA/SUBTEMA
+// =============================================
+
+let _moverPreguntaOrigen = null;
+let _moverPreguntaDestino = null;
+
+window.abrirModalMoverPregunta = async function(temaId, preguntaIndex) {
+    _moverPreguntaOrigen = { temaId, preguntaIndex };
+    _moverPreguntaDestino = null;
+
+    const modal = document.getElementById('modalMoverPregunta');
+    const arbol = document.getElementById('arbolTemasModal');
+    const btnConfirmar = document.getElementById('btnConfirmarMover');
+
+    btnConfirmar.disabled = true;
+    modal.style.display = 'block';
+    arbol.innerHTML = '<p style="color:#aaa;text-align:center;">⏳ Cargando temas...</p>';
+
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const snap = await getDocs(q);
+
+        const temasPrincipales = [];
+        const subtemasPorPadre = {};
+
+        snap.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data.temaPadreId) {
+                if (!subtemasPorPadre[data.temaPadreId]) subtemasPorPadre[data.temaPadreId] = [];
+                subtemasPorPadre[data.temaPadreId].push({ id: docSnap.id, nombre: data.nombre });
+            } else {
+                temasPrincipales.push({ id: docSnap.id, nombre: data.nombre });
+            }
+        });
+
+        const sortNombres = (a, b) => {
+            const na = a.nombre.match(/\d+/), nb = b.nombre.match(/\d+/);
+            return (na && nb) ? parseInt(na[0]) - parseInt(nb[0]) : a.nombre.localeCompare(b.nombre);
+        };
+        temasPrincipales.sort(sortNombres);
+        Object.values(subtemasPorPadre).forEach(arr => arr.sort(sortNombres));
+
+        let html = '';
+        temasPrincipales.forEach(tema => {
+            const esOrigen = tema.id === temaId;
+            html += `
+                <div style="margin-bottom:8px;">
+                    <div class="mover-opcion-tema"
+                         onclick="${esOrigen ? '' : `seleccionarDestinoMover('${tema.id}', this)`}"
+                         style="padding:10px 14px;border-radius:8px;cursor:${esOrigen ? 'default' : 'pointer'};
+                                background:${esOrigen ? '#2d2d3e' : '#2a2a3a'};
+                                border:2px solid ${esOrigen ? '#555' : '#3a3a4a'};
+                                color:${esOrigen ? '#888' : 'white'};
+                                display:flex;align-items:center;gap:8px;">
+                        📚 ${tema.nombre} ${esOrigen ? '<span style="font-size:0.75rem;color:#888;">(origen)</span>' : ''}
+                    </div>
+                    ${subtemasPorPadre[tema.id] ? subtemasPorPadre[tema.id].map(sub => {
+                        const esOrigenSub = sub.id === temaId;
+                        return `
+                        <div class="mover-opcion-tema"
+                             onclick="${esOrigenSub ? '' : `seleccionarDestinoMover('${sub.id}', this)`}"
+                             style="padding:8px 14px 8px 32px;border-radius:8px;cursor:${esOrigenSub ? 'default' : 'pointer'};margin-top:4px;
+                                    background:${esOrigenSub ? '#2d2d3e' : '#252535'};
+                                    border:2px solid ${esOrigenSub ? '#555' : '#3a3a4a'};
+                                    color:${esOrigenSub ? '#888' : '#ddd'};
+                                    display:flex;align-items:center;gap:8px;">
+                            📁 ${sub.nombre} ${esOrigenSub ? '<span style="font-size:0.75rem;color:#888;">(origen)</span>' : ''}
+                        </div>`;
+                    }).join('') : ''}
+                </div>
+            `;
+        });
+
+        arbol.innerHTML = html || '<p style="color:#aaa;">No hay otros temas disponibles.</p>';
+
+    } catch (err) {
+        console.error('Error cargando temas para mover:', err);
+        arbol.innerHTML = '<p style="color:#f55;text-align:center;">❌ Error al cargar temas.</p>';
+    }
+};
+
+window.seleccionarDestinoMover = function(temaId, elemento) {
+    document.querySelectorAll('#arbolTemasModal .mover-opcion-tema').forEach(el => {
+        const esSub = el.style.paddingLeft === '32px' || parseInt(el.style.paddingLeft) >= 32;
+        el.style.borderColor = '#3a3a4a';
+        el.style.background = esSub ? '#252535' : '#2a2a3a';
+    });
+
+    elemento.style.borderColor = '#6c5ce7';
+    elemento.style.background = '#3d3570';
+    _moverPreguntaDestino = temaId;
+
+    document.getElementById('btnConfirmarMover').disabled = false;
+};
+
+window.cerrarModalMoverPregunta = function() {
+    document.getElementById('modalMoverPregunta').style.display = 'none';
+    _moverPreguntaOrigen = null;
+    _moverPreguntaDestino = null;
+};
+
+window.confirmarMoverPregunta = async function() {
+    if (!_moverPreguntaOrigen || !_moverPreguntaDestino) return;
+
+    const { temaId: origenId, preguntaIndex } = _moverPreguntaOrigen;
+    const destinoId = _moverPreguntaDestino;
+
+    const btnConfirmar = document.getElementById('btnConfirmarMover');
+    btnConfirmar.disabled = true;
+    btnConfirmar.textContent = '⏳ Moviendo...';
+
+    try {
+        // 1. Obtener pregunta del origen
+        const origenRef = doc(db, "temas", origenId);
+        const origenDoc = await getDoc(origenRef);
+        const preguntasOrigen = [...origenDoc.data().preguntas];
+        const pregunta = preguntasOrigen[preguntaIndex];
+        if (!pregunta) throw new Error('Pregunta no encontrada');
+
+        // 2. Quitar del origen
+        preguntasOrigen.splice(preguntaIndex, 1);
+        await updateDoc(origenRef, { preguntas: preguntasOrigen });
+
+        // 3. Añadir al destino
+        const destinoRef = doc(db, "temas", destinoId);
+        const destinoDoc = await getDoc(destinoRef);
+        const preguntasDestino = [...(destinoDoc.data().preguntas || []), pregunta];
+        await updateDoc(destinoRef, { preguntas: preguntasDestino });
+
+        // 4. Actualizar DOM origen
+        const preguntaDiv = document.querySelector(`#preguntas-${origenId} [data-pregunta-index="${preguntaIndex}"]`);
+        if (preguntaDiv) preguntaDiv.remove();
+
+        document.querySelectorAll(`#preguntas-${origenId} .pregunta-editable`).forEach((div, newIndex) => {
+            div.dataset.preguntaIndex = newIndex;
+            const btnEdit = div.querySelector('.btn-edit');
+            const btnDelete = div.querySelector('.btn-delete');
+            const btnVerify = div.querySelector('.btn-verify');
+            const btnExpl = div.querySelector('.btn-explicacion');
+            const btnMov = div.querySelector('.btn-mover');
+            if (btnEdit) btnEdit.setAttribute('onclick', `editarPregunta('${origenId}', ${newIndex})`);
+            if (btnDelete) btnDelete.setAttribute('onclick', `eliminarPregunta('${origenId}', ${newIndex})`);
+            if (btnVerify) btnVerify.setAttribute('onclick', `toggleVerificacion('${origenId}', ${newIndex})`);
+            if (btnExpl) btnExpl.setAttribute('onclick', `abrirExplicacionBanco('${origenId}', ${newIndex})`);
+            if (btnMov) btnMov.setAttribute('onclick', `abrirModalMoverPregunta('${origenId}', ${newIndex})`);
+        });
+
+        // Actualizar summary origen
+        const detailsOrigen = document.querySelector(`#preguntas-${origenId}`)?.closest('details');
+        if (detailsOrigen) {
+            const summary = detailsOrigen.querySelector('summary');
+            if (summary) summary.textContent = `Ver y editar preguntas (${preguntasOrigen.length})`;
+        }
+
+        // Actualizar stats header origen
+        const cardOrigen = document.querySelector(`[data-tema-id="${origenId}"], [data-subtema-id="${origenId}"]`);
+        if (cardOrigen) {
+            const statsDiv = cardOrigen.querySelector('.tema-stats, .subtema-stats');
+            if (statsDiv) statsDiv.textContent = statsDiv.textContent.replace(/\d+ preguntas/, `${preguntasOrigen.length} preguntas`);
+        }
+
+        // 5. Actualizar DOM destino si está abierto y cargado
+        const listaDestino = document.getElementById(`preguntas-${destinoId}`);
+        if (listaDestino && listaDestino.dataset.cargado === 'true') {
+            listaDestino.insertAdjacentHTML('beforeend', crearPreguntaEditable(pregunta, preguntasDestino.length - 1, destinoId));
+        }
+
+        const cardDestino = document.querySelector(`[data-tema-id="${destinoId}"], [data-subtema-id="${destinoId}"]`);
+        if (cardDestino) {
+            const statsDiv = cardDestino.querySelector('.tema-stats, .subtema-stats');
+            if (statsDiv) statsDiv.textContent = statsDiv.textContent.replace(/\d+ preguntas/, `${preguntasDestino.length} preguntas`);
+            const summaryDest = document.querySelector(`#preguntas-${destinoId}`)?.closest('details')?.querySelector('summary');
+            if (summaryDest) summaryDest.textContent = `Ver y editar preguntas (${preguntasDestino.length})`;
+        }
+
+        sessionStorage.setItem('cacheSucio', 'true');
+        cerrarModalMoverPregunta();
+
+    } catch (err) {
+        console.error('Error al mover pregunta:', err);
+        alert('❌ Error al mover la pregunta. Inténtalo de nuevo.');
+        btnConfirmar.disabled = false;
+        btnConfirmar.textContent = 'Mover aquí';
     }
 };
 
