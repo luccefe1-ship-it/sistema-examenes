@@ -3659,7 +3659,7 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
             contenido.innerHTML = `
                 <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
                     <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
-                    <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación Gemini</button>
+                    <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación IA</button>
                 </div>
                 <div class="tab-content active" id="contentDigitalModal">
                     <div class="explicacion-no-encontrado">
@@ -3672,7 +3672,8 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
                         <textarea id="textoGeminiModal" class="textarea-gemini" placeholder="Pega aquí tu explicación de Gemini o escribe cualquier anotación personalizada..."></textarea>
                     </div>
                     <div class="explicacion-acciones" style="margin-top: 12px;">
-                        <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar Explicación</button>
+                        <button id="btnGenerarIAModal" class="btn-guardar-gemini" onclick="generarExplicacionIAModal()" style="background: linear-gradient(135deg, #7c3aed, #2563eb);">✨ Generar con IA</button>
+                        <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar</button>
                         <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
                     </div>
                 </div>
@@ -3705,7 +3706,7 @@ window.preguntaIdActual = preguntaIdHash;
 contenido.innerHTML = `
     <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
         <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
-        <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación Gemini</button>
+        <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación IA</button>
     </div>
     <div class="tab-content active" id="contentDigitalModal">
         <div class="explicacion-header-mejorada">
@@ -6436,7 +6437,53 @@ window.guardarExplicacionGeminiModal = async function() {
         alert('Error al guardar: ' + error.message);
     }
 };
+window.generarExplicacionIAModal = async function() {
+    if (!currentUser) { alert('Debes estar autenticado'); return; }
+    const pregunta = window.preguntaActualExplicacion;
+    if (!pregunta) { alert('No hay pregunta seleccionada'); return; }
 
+    const btnGenerar = document.getElementById('btnGenerarIAModal');
+    const textarea = document.getElementById('textoGeminiModal');
+    if (btnGenerar) { btnGenerar.disabled = true; btnGenerar.textContent = '⏳ Generando...'; }
+
+    try {
+        const keyDoc = await getDoc(doc(db, 'config', 'keys'));
+        if (!keyDoc.exists()) throw new Error('No se encontró configuración de IA');
+        const apiKey = keyDoc.data().claudeApiKey;
+
+        const prompt = `Eres un experto en oposiciones españolas. Explica de forma clara y concisa por qué la respuesta a esta pregunta es la correcta.
+
+Pregunta: ${pregunta.texto}
+
+Proporciona una explicación pedagógica de 3-5 líneas que ayude a memorizar y entender la respuesta.`;
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            body: JSON.stringify({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 500,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+
+        if (!response.ok) throw new Error(`Error API: ${response.status}`);
+        const data = await response.json();
+        const texto = data.content?.[0]?.text || '';
+        if (textarea) textarea.value = texto;
+
+    } catch (error) {
+        console.error('Error generando explicación IA:', error);
+        alert('Error al generar explicación: ' + error.message);
+    } finally {
+        if (btnGenerar) { btnGenerar.disabled = false; btnGenerar.textContent = '✨ Generar con IA'; }
+    }
+};
 window.borrarExplicacionGeminiModal = async function() {
     if (!confirm('¿Estás seguro de que quieres borrar esta explicación?')) return;
     
@@ -6559,7 +6606,7 @@ window.abrirExplicacionBanco = async function(temaId, index) {
         contenido.innerHTML = `
             <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
                 <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
-                <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación Gemini</button>
+                <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación IA</button>
             </div>
             <div class="tab-content active" id="contentDigitalModal">
                 ${htmlDigital}
@@ -6569,7 +6616,8 @@ window.abrirExplicacionBanco = async function(temaId, index) {
                     <textarea id="textoGeminiModal" class="textarea-gemini" placeholder="Pega aquí tu explicación de Gemini o escribe cualquier anotación personalizada..."></textarea>
                 </div>
                 <div class="explicacion-acciones" style="margin-top: 12px;">
-                    <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar Explicación</button>
+                    <button id="btnGenerarIAModal" class="btn-guardar-gemini" onclick="generarExplicacionIAModal()" style="background: linear-gradient(135deg, #7c3aed, #2563eb);">✨ Generar con IA</button>
+                    <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar</button>
                     <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
                 </div>
             </div>
