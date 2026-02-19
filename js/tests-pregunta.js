@@ -1658,14 +1658,19 @@ window.generarExplicacionIA = async function() {
         console.log('API KEY usada:', apiKey.substring(0, 20) + '...' + apiKey.substring(apiKey.length - 5));
         console.log('Longitud clave:', apiKey.length);
 
-        const prompt = `Eres un experto en oposiciones españolas. Explica de forma clara y concisa por qué la respuesta correcta a esta pregunta es la que es.
+        const respUsuario = opciones.find(o => o.letra === pregunta.respuestaUsuario || o.letra === respuestas.find(r => r.preguntaIndex === preguntaActual)?.respuestaUsuario);
+
+        const prompt = `Eres un experto en oposiciones españolas. Analiza esta pregunta de oposición y explica:
+1. Por qué la respuesta del alumno es INCORRECTA (si lo es).
+2. Por qué la respuesta CORRECTA es la que es, con base legal si aplica.
 
 Pregunta: ${preguntaTexto}
 Opciones:
 ${opciones.map(o => `${o.letra}) ${o.texto}`).join('\n')}
+Respuesta del alumno: ${respUsuario ? `${respUsuario.letra}) ${respUsuario.texto}` : 'No disponible'}
 Respuesta correcta: ${respCorrecta ? `${respCorrecta.letra}) ${respCorrecta.texto}` : 'No disponible'}
 
-Proporciona una explicación pedagógica de 3-5 líneas que ayude a memorizar y entender la respuesta.`;
+Sé directo y pedagógico. Máximo 6 líneas.`;
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
