@@ -1584,7 +1584,7 @@ async function cargarExplicacionGemini() {
         } else {
             textarea.innerHTML = '';
             document.getElementById('tabGemini').classList.remove('tiene-contenido');
-            console.log('No hay explicación Gemini previa');
+            console.log('No hay explicación IA previa');
         }
         
     } catch (error) {
@@ -1639,7 +1639,68 @@ window.guardarExplicacionGemini = async function() {
         alert('Error al guardar: ' + error.message);
     }
 };
+// ================== GENERACIÓN CON CLAUDE IA ==================
 
+async function obtenerClaudeApiKey() {
+    const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+    const keyDoc = await getDoc(doc(db, 'config', 'keys'));
+    if (!keyDoc.exists()) throw new Error('No se encontró la configuración de IA');
+    return keyDoc.data().claudeApiKey;
+}
+
+window.generarExplicacionIA = async function() {
+    if (!currentUser) { alert('Debes estar autenticado'); return; }
+
+    const pregunta = testConfig.preguntas[preguntaActual];
+    const preguntaTexto = pregunta.texto || '';
+    const opciones = pregunta.opciones || [];
+    const respCorrecta = opciones.find(o => o.esCorrecta || o.letra === pregunta.respuestaCorrecta);
+
+    const btnGenerar = document.getElementById('btnGenerarIA');
+    const textarea = document.getElementById('textoGemini');
+    if (btnGenerar) { btnGenerar.disabled = true; btnGenerar.textContent = '⏳ Generando...'; }
+
+    try {
+        const apiKey = await obtenerClaudeApiKey();
+
+        const prompt = `Eres un experto en oposiciones españolas. Explica de forma clara y concisa por qué la respuesta correcta a esta pregunta es la que es.
+
+Pregunta: ${preguntaTexto}
+Opciones:
+${opciones.map(o => `${o.letra}) ${o.texto}`).join('\n')}
+Respuesta correcta: ${respCorrecta ? `${respCorrecta.letra}) ${respCorrecta.texto}` : 'No disponible'}
+
+Proporciona una explicación pedagógica de 3-5 líneas que ayude a memorizar y entender la respuesta.`;
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            body: JSON.stringify({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 500,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+
+        if (!response.ok) throw new Error(`Error API: ${response.status}`);
+        const data = await response.json();
+        const texto = data.content?.[0]?.text || '';
+
+        textarea.innerHTML = texto.replace(/\n/g, '<br>');
+        document.getElementById('tabGemini').classList.add('tiene-contenido');
+
+    } catch (error) {
+        console.error('Error generando explicación IA:', error);
+        alert('Error al generar explicación: ' + error.message);
+    } finally {
+        if (btnGenerar) { btnGenerar.disabled = false; btnGenerar.textContent = '✨ Generar con IA'; }
+    }
+};
 window.borrarExplicacionGemini = async function() {
     if (!confirm('¿Estás seguro de que quieres borrar esta explicación?')) {
         return;
