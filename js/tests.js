@@ -774,8 +774,14 @@ async function cargarBancoPreguntas() {
                 });
             });
             
-            sessionStorage.setItem('cacheTemas', JSON.stringify(datosParaGuardar));
-            sessionStorage.setItem('cacheTemasTimestamp', Date.now().toString());
+            try {
+                sessionStorage.setItem('cacheTemas', JSON.stringify(datosParaGuardar));
+                sessionStorage.setItem('cacheTemasTimestamp', Date.now().toString());
+            } catch (quotaError) {
+                console.warn('⚠️ sessionStorage lleno (demasiadas preguntas). Caché desactivado, cargando siempre desde Firebase.');
+                sessionStorage.removeItem('cacheTemas');
+                sessionStorage.removeItem('cacheTemasTimestamp');
+            }
             
             cacheTemas = querySnapshot;
             cacheTimestamp = Date.now();
@@ -6833,4 +6839,5 @@ window.confirmarMoverPregunta = async function() {
         btnConfirmar.textContent = 'Mover aquí';
     }
 };
+
 
