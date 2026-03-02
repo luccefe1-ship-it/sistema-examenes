@@ -20,6 +20,7 @@ let preguntaActual = 0;
 let respuestas = [];
 let cronometroInterval = null;
 let tiempoRestanteSegundos = 0;
+let padreNombresMap = {};
 
 // Esperar a que el DOM esté cargado
 document.addEventListener('DOMContentLoaded', () => {
@@ -36,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-function cargarConfiguracion() {
+async function cargarConfiguracion() {
     const configStr = localStorage.getItem('testConfig');
     
     if (!configStr) {
@@ -46,6 +47,21 @@ function cargarConfiguracion() {
     }
     
     testConfig = JSON.parse(configStr);
+
+    // Cargar nombres de temas padre
+    const padreIds = [...new Set(
+        (testConfig.preguntas || [])
+            .map(p => p.temaPadreId)
+            .filter(Boolean)
+    )];
+    if (padreIds.length > 0) {
+        const snapshots = await Promise.all(
+            padreIds.map(id => getDoc(doc(db, 'temas', id)))
+        );
+        snapshots.forEach((snap, i) => {
+            if (snap.exists()) padreNombresMap[padreIds[i]] = snap.data().nombre;
+        });
+    }
     
     // Normalizar preguntas: asegurar que todas tengan respuestaCorrecta
     if (testConfig.preguntas) {
@@ -152,8 +168,11 @@ function mostrarPregunta() {
         const textoEl = document.getElementById('textoPreguntaGrande');
         textoEl.parentNode.insertBefore(temaBadge, textoEl);
     }
-    if (pregunta.temaNombre) {
-        temaBadge.innerHTML = `📁 ${pregunta.temaNombre}`;
+    const nombreBadge = (pregunta.temaPadreId && padreNombresMap[pregunta.temaPadreId])
+        ? padreNombresMap[pregunta.temaPadreId]
+        : pregunta.temaNombre;
+    if (nombreBadge) {
+        temaBadge.innerHTML = `📁 ${nombreBadge}`;
         temaBadge.style.display = 'inline-flex';
     } else {
         temaBadge.style.display = 'none';
