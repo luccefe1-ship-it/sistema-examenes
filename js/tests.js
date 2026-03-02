@@ -2812,6 +2812,10 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
         const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
         const querySnapshot = await getDocs(q);
         
+        // Construir mapa id → nombre para resolver padres
+        const idToNombre = {};
+        querySnapshot.forEach((doc) => { idToNombre[doc.id] = doc.data().nombre; });
+
         querySnapshot.forEach((doc) => {
             const tema = doc.data();
             console.log(`Procesando tema: ${tema.nombre} (ID: ${doc.id})`);
@@ -2833,6 +2837,7 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                             temaIdProgreso: temaIdParaProgreso,
                             temaNombre: tema.nombre,
                             temaPadreId: tema.temaPadreId || null,
+                            temaPadreNombre: tema.temaPadreId ? (idToNombre[tema.temaPadreId] || null) : null,
                             temaEpigrafe: tema.epigrafe || ''
                         });
                         console.log(`  Pregunta verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
@@ -2877,6 +2882,7 @@ documentos.forEach((temaDoc, idx) => {
                                     temaIdProgreso: temaIdParaProgreso,
                                     temaNombre: tema.nombre,
                                     temaPadreId: tema.temaPadreId || null,
+                                    temaPadreNombre: null, // se resuelve después
                                     temaEpigrafe: tema.epigrafe || ''
                                 });
                                 preguntasVerificadasTema++;
@@ -2896,6 +2902,25 @@ documentos.forEach((temaDoc, idx) => {
 });
     } else {
         console.log('❌ Caso no válido - temasSeleccionados:', temasSeleccionados);
+    }
+
+    // Resolver temaPadreNombre para preguntas del caso array
+    const padreIdsUnicos = [...new Set(
+        preguntasVerificadas
+            .filter(p => p.temaPadreId && p.temaPadreNombre === null)
+            .map(p => p.temaPadreId)
+    )];
+    if (padreIdsUnicos.length > 0) {
+        const padreSnaps = await Promise.all(padreIdsUnicos.map(id => getDoc(doc(db, 'temas', id))));
+        const padreNombresResueltos = {};
+        padreSnaps.forEach((snap, i) => {
+            if (snap.exists()) padreNombresResueltos[padreIdsUnicos[i]] = snap.data().nombre;
+        });
+        preguntasVerificadas = preguntasVerificadas.map(p =>
+            p.temaPadreId && p.temaPadreNombre === null
+                ? { ...p, temaPadreNombre: padreNombresResueltos[p.temaPadreId] || null }
+                : p
+        );
     }
 
     console.log(`\n=== RESUMEN FINAL ===`);
@@ -2952,7 +2977,7 @@ function generarPreguntasTest() {
             <div class="pregunta-header">
                 <div class="pregunta-numero">${index + 1}</div>
                 <div class="pregunta-tema-info">
-                    ${pregunta.temaNombre}${pregunta.temaEpigrafe ? ` - ${pregunta.temaEpigrafe}` : ''}
+                    ${(pregunta.temaPadreId && pregunta.temaPadreNombre) ? pregunta.temaPadreNombre : pregunta.temaNombre}${pregunta.temaEpigrafe ? ` - ${pregunta.temaEpigrafe}` : ''}
                 </div>
             </div>
             <div class="pregunta-texto">${pregunta.texto}</div>
@@ -6841,3 +6866,4 @@ window.confirmarMoverPregunta = async function() {
         btnConfirmar.textContent = 'Mover aquí';
     }
 };
+
