@@ -143,6 +143,22 @@ function mostrarPregunta() {
     const contadorEl = document.getElementById('contadorPregunta');
     contadorEl.innerHTML = `Pregunta <span>${preguntaActual + 1}</span> de <span>${total}</span>`;
     
+    // Mostrar badge de tema padre
+    let temaBadge = document.getElementById('temaBadgePregunta');
+    if (!temaBadge) {
+        temaBadge = document.createElement('div');
+        temaBadge.id = 'temaBadgePregunta';
+        temaBadge.style.cssText = 'display:inline-flex;align-items:center;gap:6px;background:rgba(37,99,235,0.1);border:1px solid rgba(37,99,235,0.3);color:#2563eb;font-size:0.78rem;font-weight:600;padding:4px 12px;border-radius:20px;margin-bottom:12px;';
+        const textoEl = document.getElementById('textoPreguntaGrande');
+        textoEl.parentNode.insertBefore(temaBadge, textoEl);
+    }
+    if (pregunta.temaNombre) {
+        temaBadge.innerHTML = `📁 ${pregunta.temaNombre}`;
+        temaBadge.style.display = 'inline-flex';
+    } else {
+        temaBadge.style.display = 'none';
+    }
+
     // Mostrar texto de la pregunta
     document.getElementById('textoPreguntaGrande').textContent = pregunta.texto;
     
