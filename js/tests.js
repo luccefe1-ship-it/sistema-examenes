@@ -2832,6 +2832,7 @@ async function obtenerPreguntasVerificadas(temasSeleccionados) {
                             temaId: doc.id,
                             temaIdProgreso: temaIdParaProgreso,
                             temaNombre: tema.nombre,
+                            temaPadreId: tema.temaPadreId || null,
                             temaEpigrafe: tema.epigrafe || ''
                         });
                         console.log(`  Pregunta verificada ${index}: ${pregunta.texto.substring(0, 50)}...`);
@@ -2875,6 +2876,7 @@ documentos.forEach((temaDoc, idx) => {
                                     temaId: temaId,
                                     temaIdProgreso: temaIdParaProgreso,
                                     temaNombre: tema.nombre,
+                                    temaPadreId: tema.temaPadreId || null,
                                     temaEpigrafe: tema.epigrafe || ''
                                 });
                                 preguntasVerificadasTema++;
@@ -6839,5 +6841,3 @@ window.confirmarMoverPregunta = async function() {
         btnConfirmar.textContent = 'Mover aquí';
     }
 };
-
-
