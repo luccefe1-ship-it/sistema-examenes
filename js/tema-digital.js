@@ -71,9 +71,14 @@ window.cerrarModalTemaDigital = function() {
 // Procesar documento subido
 async function procesarDocumento(archivo) {
     // Validar tipo
-    const tiposPermitidos = ['application/pdf', 'text/plain'];
+    const tiposPermitidos = [
+        'application/pdf',
+        'text/plain',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
     if (!tiposPermitidos.includes(archivo.type)) {
-        alert('Formato no permitido. Solo PDF o TXT.');
+        alert('Formato no permitido. Solo PDF, Word o TXT.');
         return;
     }
     
@@ -95,6 +100,11 @@ async function procesarDocumento(archivo) {
             textoExtraido = await archivo.text();
         } else if (archivo.type === 'application/pdf') {
             textoExtraido = await extraerTextoPDF(archivo);
+        } else if (
+            archivo.type === 'application/msword' ||
+            archivo.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ) {
+            textoExtraido = await extraerTextoWord(archivo);
         }
         
                 // Subir a Firebase Storage
@@ -146,9 +156,27 @@ async function procesarDocumento(archivo) {
             <div class="upload-icon">📁</div>
             <p><strong>Arrastra tu documento aquí</strong></p>
             <p>o haz clic para seleccionar</p>
-            <p class="file-types">Formatos: PDF, TXT (máx. 10MB)</p>
+            <p class="file-types">Formatos: PDF, Word, TXT (máx. 10MB)</p>
         `;
     }
+}
+
+// Extraer texto de Word usando mammoth.js
+async function extraerTextoWord(archivo) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const arrayBuffer = e.target.result;
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                resolve(result.value);
+            } catch (error) {
+                reject(error);
+            }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(archivo);
+    });
 }
 
 // Extraer texto de PDF usando pdf.js
@@ -202,7 +230,9 @@ function mostrarInfoDocumento() {
     document.getElementById('documentoInfo').style.display = 'block';
     
     const tamanoMB = (documentoActual.tamano / (1024 * 1024)).toFixed(2);
-    const tipoTexto = documentoActual.tipo === 'application/pdf' ? 'PDF' : 'TXT';
+    const tipoTexto = documentoActual.tipo === 'application/pdf' ? 'PDF'
+        : (documentoActual.tipo === 'application/msword' || documentoActual.tipo === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') ? 'Word'
+        : 'TXT';
     
     document.getElementById('documentoNombre').textContent = documentoActual.nombre;
     document.getElementById('documentoDetalles').textContent = 
