@@ -4797,7 +4797,7 @@ function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
     // 3. Separar en "no vistas" y "ya vistas", por tema
     const preguntasPorTema = {};
     arrayUnico.forEach(pregunta => {
-        const tema = pregunta.temaNombre || pregunta.temaId || 'Desconocido';
+        const tema = pregunta.temaPadreNombre || pregunta.temaNombre || pregunta.temaId || 'Desconocido';
         if (!preguntasPorTema[tema]) {
             preguntasPorTema[tema] = { noVistas: [], yaVistas: [] };
         }
