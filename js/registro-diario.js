@@ -275,7 +275,7 @@ function calcularObjetivosDia(fecha) {
     
     const hojasTotales = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
     const hojasRestantes = Math.max(0, hojasTotales - hojasLeidas);
-    const hojasPorDia = Math.ceil(hojasRestantes / diasRestantes);
+    const hojasPorDia = Math.round(hojasRestantes / diasRestantes);
     
     return {
         hojas: hojasPorDia,
