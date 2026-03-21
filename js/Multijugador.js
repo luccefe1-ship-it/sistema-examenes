@@ -48,124 +48,177 @@ function generarHashPregunta(texto) {
     return 'q_' + Math.abs(hash).toString(36);
 }
 
-// Buscar y mostrar explicación guardada tras responder
+// Buscar y mostrar explicación guardada o textarea para crear una nueva
 async function buscarYMostrarExplicacion(pregunta) {
     const opcionesPregunta = document.getElementById('opcionesPregunta');
-    if (!opcionesPregunta) return;
+    if (!opcionesPregunta || !pregunta) return;
+    if (opcionesPregunta.querySelector('.seccion-explicacion-multi')) return;
     
     const preguntaHash = generarHashPregunta(pregunta.pregunta);
     const rivalUid = window.rivalUidGlobal;
     
     let explicacionTexto = null;
-    let explicacionDe = null; // 'mia' o 'rival'
+    let explicacionDe = null;
     
     try {
         // 1. Buscar en mis explicaciones
-        const miDocId = `${currentUser.uid}_${preguntaHash}`;
-        const miDoc = await getDoc(doc(db, 'explicacionesGemini', miDocId));
-        if (miDoc.exists() && miDoc.data().texto) {
-            explicacionTexto = miDoc.data().texto;
-            explicacionDe = 'mia';
-        }
-        
-        // 2. Si no tengo, buscar en las del rival (dueño de la pregunta)
-        if (!explicacionTexto && rivalUid) {
-            const rivalDocId = `${rivalUid}_${preguntaHash}`;
-            const rivalDoc = await getDoc(doc(db, 'explicacionesGemini', rivalDocId));
-            if (rivalDoc.exists() && rivalDoc.data().texto) {
-                explicacionTexto = rivalDoc.data().texto;
-                explicacionDe = 'rival';
+        try {
+            const miDoc = await getDoc(doc(db, 'explicacionesGemini', `${currentUser.uid}_${preguntaHash}`));
+            if (miDoc.exists() && miDoc.data().texto) {
+                explicacionTexto = miDoc.data().texto;
+                explicacionDe = 'mia';
             }
+        } catch(e) { console.warn('Error leyendo mi explicación:', e.message); }
+        
+        // 2. Si no tengo, buscar en las del rival
+        if (!explicacionTexto && rivalUid) {
+            try {
+                const rivalDoc = await getDoc(doc(db, 'explicacionesGemini', `${rivalUid}_${preguntaHash}`));
+                if (rivalDoc.exists() && rivalDoc.data().texto) {
+                    explicacionTexto = rivalDoc.data().texto;
+                    explicacionDe = 'rival';
+                }
+            } catch(e) { console.warn('Error leyendo explicación rival:', e.message); }
         }
         
-        if (!explicacionTexto) return;
+        // Verificar que el DOM sigue intacto
+        if (!document.getElementById('opcionesPregunta')) return;
+        if (opcionesPregunta.querySelector('.seccion-explicacion-multi')) return;
         
-        // Mostrar explicación
-        const explicacionDiv = document.createElement('div');
-        explicacionDiv.className = 'explicacion-multijugador';
-        explicacionDiv.style.cssText = `
-            margin-top: 15px;
-            padding: 15px;
-            background: linear-gradient(135deg, #ede9fe, #dbeafe);
-            border-left: 4px solid #7c3aed;
-            border-radius: 8px;
-            font-size: 14px;
-            color: #1e293b;
-            max-height: 200px;
-            overflow-y: auto;
-        `;
+        // CREAR SECCIÓN (siempre, haya o no explicación)
+        const seccion = document.createElement('div');
+        seccion.className = 'seccion-explicacion-multi';
+        seccion.style.cssText = 'margin-top:15px; border-top:2px solid #e2e8f0; padding-top:15px;';
         
-        let textoMostrar = explicacionTexto;
-        if (!textoMostrar.includes('<')) {
-            textoMostrar = textoMostrar.replace(/\n/g, '<br>');
-        }
+        // Checks de propiedad de pregunta
+        const yoTengoLaPregunta = misPreguntasVerificadas.some(p => p.pregunta === pregunta.pregunta);
+        const rivalTieneLaPregunta = preguntasRival.some(p => p.pregunta === pregunta.pregunta);
         
-        explicacionDiv.innerHTML = `
-            <div style="font-weight: 700; margin-bottom: 8px; color: #7c3aed;">
-                💡 Explicación IA ${explicacionDe === 'rival' ? '(del rival)' : ''}
-            </div>
-            <div>${textoMostrar}</div>
-        `;
-        
-        // Insertar ANTES del botón continuar si existe
-        const btnContinuar = opcionesPregunta.querySelector('.btn-continuar-respuesta');
-        if (btnContinuar) {
-            opcionesPregunta.insertBefore(explicacionDiv, btnContinuar);
+        if (explicacionTexto) {
+            // ========== HAY EXPLICACIÓN — MOSTRARLA ==========
+            let textoHTML = explicacionTexto;
+            if (!textoHTML.includes('<')) textoHTML = textoHTML.replace(/\n/g, '<br>');
+            
+            const divExpl = document.createElement('div');
+            divExpl.style.cssText = 'padding:15px; background:linear-gradient(135deg,#ede9fe,#dbeafe); border-left:4px solid #7c3aed; border-radius:8px; font-size:14px; color:#1e293b; max-height:200px; overflow-y:auto;';
+            divExpl.innerHTML = `
+                <div style="font-weight:700; margin-bottom:8px; color:#7c3aed;">
+                    💡 Explicación IA ${explicacionDe === 'rival' ? '(del rival)' : '(tuya)'}
+                </div>
+                <div>${textoHTML}</div>
+            `;
+            seccion.appendChild(divExpl);
+            
+            // Botón guardar si es del rival y yo no la tengo ya
+            if (explicacionDe === 'rival') {
+                const btnGuardar = document.createElement('button');
+                btnGuardar.style.cssText = 'width:100%; padding:10px; margin-top:8px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; color:white;';
+                
+                if (yoTengoLaPregunta) {
+                    btnGuardar.textContent = '💾 Guardar explicación en mi banco';
+                    btnGuardar.style.background = 'linear-gradient(135deg,#7c3aed,#2563eb)';
+                    btnGuardar.onclick = async () => {
+                        try {
+                            await setDoc(doc(db, 'explicacionesGemini', `${currentUser.uid}_${preguntaHash}`), {
+                                usuarioId: currentUser.uid, preguntaId: preguntaHash,
+                                preguntaTexto: pregunta.pregunta, texto: explicacionTexto, fecha: new Date()
+                            });
+                            btnGuardar.textContent = '✅ Guardada en tu banco';
+                            btnGuardar.disabled = true;
+                            btnGuardar.style.background = '#10b981';
+                        } catch(err) { alert('Error al guardar'); }
+                    };
+                } else {
+                    btnGuardar.textContent = '⚠️ No se puede guardar — no tienes esta pregunta en tu banco';
+                    btnGuardar.disabled = true;
+                    btnGuardar.style.background = '#94a3b8';
+                    btnGuardar.style.cursor = 'not-allowed';
+                }
+                seccion.appendChild(btnGuardar);
+            }
+            
         } else {
-            opcionesPregunta.appendChild(explicacionDiv);
-        }
-        
-        // Si la explicación es del rival y yo no la tengo, ofrecer guardar
-        if (explicacionDe === 'rival') {
-            // Verificar si tengo una pregunta idéntica en mi banco
-            const tengoLaPregunta = misPreguntasVerificadas.some(p => p.pregunta === pregunta.pregunta);
+            // ========== NO HAY EXPLICACIÓN — TEXTAREA PARA CREAR ==========
+            const labelDiv = document.createElement('div');
+            labelDiv.style.cssText = 'margin-bottom:8px; font-weight:600; color:#7c3aed; font-size:14px;';
+            labelDiv.textContent = '💡 No hay explicación para esta pregunta. ¿Quieres añadir una?';
+            seccion.appendChild(labelDiv);
+            
+            const textarea = document.createElement('textarea');
+            textarea.id = 'textareaExplicacionMulti';
+            textarea.placeholder = 'Escribe aquí la explicación...';
+            textarea.style.cssText = 'width:100%; min-height:80px; padding:12px; border:2px solid #c4b5fd; border-radius:8px; font-size:14px; resize:vertical; font-family:inherit; box-sizing:border-box;';
+            seccion.appendChild(textarea);
             
             const btnGuardar = document.createElement('button');
-            btnGuardar.style.cssText = `
-                width: 100%;
-                padding: 10px;
-                margin-top: 8px;
-                background: linear-gradient(135deg, #7c3aed, #2563eb);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: 600;
-                cursor: pointer;
-            `;
+            btnGuardar.textContent = '💾 Guardar explicación para ambos';
+            btnGuardar.style.cssText = 'width:100%; padding:12px; margin-top:8px; background:linear-gradient(135deg,#7c3aed,#2563eb); color:white; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;';
             
-            if (tengoLaPregunta) {
-                btnGuardar.textContent = '💾 Guardar explicación en mi banco';
-                btnGuardar.onclick = async () => {
-                    try {
-                        const miDocId = `${currentUser.uid}_${preguntaHash}`;
-                        await setDoc(doc(db, 'explicacionesGemini', miDocId), {
-                            usuarioId: currentUser.uid,
-                            preguntaId: preguntaHash,
-                            preguntaTexto: pregunta.pregunta,
-                            texto: explicacionTexto,
-                            fecha: new Date()
-                        });
-                        btnGuardar.textContent = '✅ Explicación guardada';
-                        btnGuardar.disabled = true;
-                        btnGuardar.style.background = '#10b981';
-                    } catch (err) {
-                        console.error('Error guardando explicación:', err);
-                        alert('Error al guardar la explicación');
-                    }
-                };
-            } else {
-                btnGuardar.textContent = '⚠️ No se puede guardar (no tienes esta pregunta en tu banco)';
+            btnGuardar.onclick = async () => {
+                const texto = document.getElementById('textareaExplicacionMulti')?.value?.trim();
+                if (!texto) { alert('Escribe algo primero'); return; }
+                
                 btnGuardar.disabled = true;
-                btnGuardar.style.background = '#94a3b8';
-                btnGuardar.style.cursor = 'not-allowed';
-            }
-            
-            explicacionDiv.appendChild(btnGuardar);
+                btnGuardar.textContent = '⏳ Guardando...';
+                
+                try {
+                    let mensajes = [];
+                    
+                    // Guardar en MI banco
+                    if (yoTengoLaPregunta) {
+                        await setDoc(doc(db, 'explicacionesGemini', `${currentUser.uid}_${preguntaHash}`), {
+                            usuarioId: currentUser.uid, preguntaId: preguntaHash,
+                            preguntaTexto: pregunta.pregunta, texto: texto, fecha: new Date()
+                        });
+                        mensajes.push('✅ Guardada en tu banco');
+                    } else {
+                        mensajes.push('⚠️ Tú no tienes esta pregunta en tu banco');
+                    }
+                    
+                    // Guardar en banco del RIVAL
+                    if (rivalUid && rivalTieneLaPregunta) {
+                        await setDoc(doc(db, 'explicacionesGemini', `${rivalUid}_${preguntaHash}`), {
+                            usuarioId: rivalUid, preguntaId: preguntaHash,
+                            preguntaTexto: pregunta.pregunta, texto: texto, fecha: new Date()
+                        });
+                        mensajes.push('✅ Guardada en banco del rival');
+                    } else if (rivalUid) {
+                        mensajes.push('⚠️ El rival no tiene esta pregunta exacta en su banco');
+                    }
+                    
+                    // Reemplazar textarea por la explicación guardada
+                    const ta = document.getElementById('textareaExplicacionMulti');
+                    if (ta) {
+                        const savedDiv = document.createElement('div');
+                        savedDiv.style.cssText = 'padding:15px; background:linear-gradient(135deg,#ede9fe,#dbeafe); border-left:4px solid #7c3aed; border-radius:8px; font-size:14px; color:#1e293b;';
+                        savedDiv.innerHTML = `<div style="font-weight:700; margin-bottom:8px; color:#7c3aed;">💡 Explicación guardada</div><div>${texto.replace(/\n/g, '<br>')}</div>`;
+                        ta.replaceWith(savedDiv);
+                    }
+                    labelDiv.textContent = mensajes.join(' | ');
+                    labelDiv.style.color = '#059669';
+                    
+                    btnGuardar.textContent = '✅ Guardada';
+                    btnGuardar.style.background = '#10b981';
+                    
+                } catch(err) {
+                    console.error('Error guardando explicación:', err);
+                    btnGuardar.textContent = '❌ Error al guardar';
+                    btnGuardar.style.background = '#ef4444';
+                    btnGuardar.disabled = false;
+                    setTimeout(() => {
+                        btnGuardar.textContent = '💾 Guardar explicación para ambos';
+                        btnGuardar.style.background = 'linear-gradient(135deg,#7c3aed,#2563eb)';
+                    }, 2000);
+                }
+            };
+            seccion.appendChild(btnGuardar);
         }
         
-    } catch (error) {
-        console.error('Error buscando explicación:', error);
+        // INSERTAR AL FINAL (debajo de Continuar)
+        opcionesPregunta.appendChild(seccion);
+        
+    } catch(error) {
+        console.error('Error en sección explicación:', error);
     }
 }
 
@@ -1033,9 +1086,7 @@ if (salaData.juego?.resultadoVisible || salaData.juego?.cronometroDetenido) {
         opcionesPregunta.appendChild(resultadoDiv);
         
         // Mostrar explicación también para el que pregunta
-        if (!esCorrecta) {
-            buscarYMostrarExplicacion(pregunta);
-        }
+        buscarYMostrarExplicacion(pregunta);
     }
 }
 
