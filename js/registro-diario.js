@@ -45,18 +45,7 @@ window.toggleVistaUnidad = function() {
     if (tituloGrafica) tituloGrafica.textContent = `📊 Progreso de ${getUnidadLabelCap()}`;
     
     // Re-renderizar
-    // Inicializar toggle UI
-        const label = document.getElementById('unidadActualLabel');
-        const btn = document.getElementById('btnToggleUnidad');
-        const tituloGrafica = document.getElementById('tituloGraficaHojas');
-        if (label) label.textContent = getUnidadLabelCap();
-        if (btn) {
-            const alt = getModoConteo() === 'hojas' ? 'caras' : 'hojas';
-            btn.textContent = `👁 Ver en ${alt}`;
-        }
-        if (tituloGrafica) tituloGrafica.textContent = `📊 Progreso de ${getUnidadLabelCap()}`;
-        
-        generarRegistroDiario();
+    generarRegistroDiario();
 };
 // Cargar imágenes para el PDF
 window.imagenMontana = null;
@@ -142,6 +131,17 @@ async function cargarDatos() {
         
         // Debug: actualizar datos accesibles
         window.debugData = { currentUser, planningData, progresoData };
+        
+        // Inicializar toggle UI
+        const labelToggle = document.getElementById('unidadActualLabel');
+        const btnToggle = document.getElementById('btnToggleUnidad');
+        const tituloGrafica = document.getElementById('tituloGraficaHojas');
+        if (labelToggle) labelToggle.textContent = getUnidadLabelCap();
+        if (btnToggle) {
+            const alt = getModoConteo() === 'hojas' ? 'caras' : 'hojas';
+            btnToggle.textContent = `👁 Ver en ${alt}`;
+        }
+        if (tituloGrafica) tituloGrafica.textContent = `📊 Progreso de ${getUnidadLabelCap()}`;
         
         generarRegistroDiario();
         
@@ -499,9 +499,9 @@ function generarGraficaTests() {
         data: {
             labels: datos.labels,
             datasets: [
-                {
+               {
                     label: 'Objetivo',
-                    data: objetivoConvertido,
+                    data: datos.objetivo,
                     borderColor: '#3b82f6',
                     backgroundColor: 'transparent',
                     borderWidth: 1,
@@ -510,7 +510,7 @@ function generarGraficaTests() {
                 },
                 {
                     label: 'Real',
-                    data: realConvertido,
+                    data: datos.real,
                     borderColor: '#ef4444',
                     backgroundColor: 'transparent',
                     borderWidth: 0.8,
