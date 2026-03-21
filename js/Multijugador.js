@@ -175,7 +175,22 @@ async function buscarYMostrarExplicacion(pregunta) {
                         msgs.push('⚠️ Tú no tienes esta pregunta');
                     }
 
-                    // Guardar en banco del RIVAL
+                    // Guardar en banco del RIVAL (siempre — se vincula por hash de texto)
+                    if (rivalUid) {
+                        await setDoc(doc(db, 'explicacionesGemini', `${rivalUid}_${preguntaHash}`), {
+                            usuarioId: rivalUid, preguntaId: preguntaHash,
+                            preguntaTexto: pregunta.pregunta, texto: texto, fecha: new Date()
+                        });
+                        msgs.push('✅ Banco del rival');
+                        // Notificar al rival via sala
+                        try {
+                            const salaRef = doc(db, 'salas', claveActual);
+                            const miNombre = document.getElementById('nombreUsuarioActual')?.textContent || 'Tu rival';
+                            await updateDoc(salaRef, {
+                                'juego.explicacionNotif': { para: rival, deNombre: miNombre, timestamp: Date.now() }
+                            });
+                        } catch(e) { console.warn('No se pudo notificar:', e); }
+                    }// Guardar en banco del RIVAL
                     if (rivalUid && rivalTieneLaPregunta) {
                         await setDoc(doc(db, 'explicacionesGemini', `${rivalUid}_${preguntaHash}`), {
                             usuarioId: rivalUid, preguntaId: preguntaHash,
@@ -515,6 +530,15 @@ function escucharCambiosSala() {
     if (!interfazJuego.classList.contains('hidden')) {
         actualizarTurno(salaData);
         actualizarMarcadores(salaData);
+        
+        // NOTIFICACIÓN DE EXPLICACIÓN GUARDADA POR EL RIVAL
+        if (salaData.juego?.explicacionNotif?.para === jugadorActual) {
+            const notif = salaData.juego.explicacionNotif;
+            mostrarToastExplicacion(notif.deNombre);
+            // Limpiar notificación para que no se repita
+            const salaRefNotif = doc(db, 'salas', claveActual);
+            updateDoc(salaRefNotif, { 'juego.explicacionNotif': null }).catch(() => {});
+        }
     }
     
         // VERIFICAR FIN DE JUEGO - SOLO CUANDO EL BOTÓN CONTINUAR YA NO EXISTE
@@ -1714,7 +1738,43 @@ async function tiempoAgotado() {
         console.error('Error manejando tiempo agotado:', error);
     }
 }
-
+function mostrarToastExplicacion(nombre) {
+    const existente = document.querySelector('.toast-explicacion-rival');
+    if (existente) existente.remove();
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast-explicacion-rival';
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(135deg, #7c3aed, #2563eb);
+        color: white;
+        padding: 14px 24px;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        z-index: 10000;
+        box-shadow: 0 8px 30px rgba(124, 58, 237, 0.4);
+        animation: toastSlide 0.4s ease;
+        max-width: 90vw;
+        text-align: center;
+    `;
+    toast.textContent = `💡 ${nombre} guardó una explicación en tu banco de preguntas`;
+    
+    // Añadir animación
+    const style = document.createElement('style');
+    style.textContent = `@keyframes toastSlide { from { opacity:0; top:-20px; } to { opacity:1; top:20px; } }`;
+    if (!document.querySelector('style[data-toast]')) {
+        style.setAttribute('data-toast', '1');
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; }, 4000);
+    setTimeout(() => toast.remove(), 4500);
+}
 function mostrarMensajeTiempoAgotado() {
     const opcionesPregunta = document.getElementById('opcionesPregunta');
     if (opcionesPregunta) {
