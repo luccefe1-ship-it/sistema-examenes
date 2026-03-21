@@ -34,6 +34,139 @@ let temasSeleccionados = new Set();
 let cronometroDetenidoManualmente = false;  // BANDERA PARA EVITAR REINICIO
 let preguntasIncorrectasPartida = [];  // REGISTRO DE PREGUNTAS FALLADAS PARA TEST DE REPASO
 
+// Helper para generar hash de pregunta (consistente con tests.js y tests-pregunta.js)
+function generarHashPregunta(texto) {
+    const preguntaTexto = texto || '';
+    let hash = 0;
+    for (let i = 0; i < preguntaTexto.length; i++) {
+        const char = preguntaTexto.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return 'q_' + Math.abs(hash).toString(36);
+}
+
+// Buscar y mostrar explicación guardada tras responder
+async function buscarYMostrarExplicacion(pregunta) {
+    const opcionesPregunta = document.getElementById('opcionesPregunta');
+    if (!opcionesPregunta) return;
+    
+    const preguntaHash = generarHashPregunta(pregunta.pregunta);
+    const rivalUid = window.rivalUidGlobal;
+    
+    let explicacionTexto = null;
+    let explicacionDe = null; // 'mia' o 'rival'
+    
+    try {
+        // 1. Buscar en mis explicaciones
+        const miDocId = `${currentUser.uid}_${preguntaHash}`;
+        const miDoc = await getDoc(doc(db, 'explicacionesGemini', miDocId));
+        if (miDoc.exists() && miDoc.data().texto) {
+            explicacionTexto = miDoc.data().texto;
+            explicacionDe = 'mia';
+        }
+        
+        // 2. Si no tengo, buscar en las del rival (dueño de la pregunta)
+        if (!explicacionTexto && rivalUid) {
+            const rivalDocId = `${rivalUid}_${preguntaHash}`;
+            const rivalDoc = await getDoc(doc(db, 'explicacionesGemini', rivalDocId));
+            if (rivalDoc.exists() && rivalDoc.data().texto) {
+                explicacionTexto = rivalDoc.data().texto;
+                explicacionDe = 'rival';
+            }
+        }
+        
+        if (!explicacionTexto) return;
+        
+        // Mostrar explicación
+        const explicacionDiv = document.createElement('div');
+        explicacionDiv.className = 'explicacion-multijugador';
+        explicacionDiv.style.cssText = `
+            margin-top: 15px;
+            padding: 15px;
+            background: linear-gradient(135deg, #ede9fe, #dbeafe);
+            border-left: 4px solid #7c3aed;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #1e293b;
+            max-height: 200px;
+            overflow-y: auto;
+        `;
+        
+        let textoMostrar = explicacionTexto;
+        if (!textoMostrar.includes('<')) {
+            textoMostrar = textoMostrar.replace(/\n/g, '<br>');
+        }
+        
+        explicacionDiv.innerHTML = `
+            <div style="font-weight: 700; margin-bottom: 8px; color: #7c3aed;">
+                💡 Explicación IA ${explicacionDe === 'rival' ? '(del rival)' : ''}
+            </div>
+            <div>${textoMostrar}</div>
+        `;
+        
+        // Insertar ANTES del botón continuar si existe
+        const btnContinuar = opcionesPregunta.querySelector('.btn-continuar-respuesta');
+        if (btnContinuar) {
+            opcionesPregunta.insertBefore(explicacionDiv, btnContinuar);
+        } else {
+            opcionesPregunta.appendChild(explicacionDiv);
+        }
+        
+        // Si la explicación es del rival y yo no la tengo, ofrecer guardar
+        if (explicacionDe === 'rival') {
+            // Verificar si tengo una pregunta idéntica en mi banco
+            const tengoLaPregunta = misPreguntasVerificadas.some(p => p.pregunta === pregunta.pregunta);
+            
+            const btnGuardar = document.createElement('button');
+            btnGuardar.style.cssText = `
+                width: 100%;
+                padding: 10px;
+                margin-top: 8px;
+                background: linear-gradient(135deg, #7c3aed, #2563eb);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+            `;
+            
+            if (tengoLaPregunta) {
+                btnGuardar.textContent = '💾 Guardar explicación en mi banco';
+                btnGuardar.onclick = async () => {
+                    try {
+                        const miDocId = `${currentUser.uid}_${preguntaHash}`;
+                        await setDoc(doc(db, 'explicacionesGemini', miDocId), {
+                            usuarioId: currentUser.uid,
+                            preguntaId: preguntaHash,
+                            preguntaTexto: pregunta.pregunta,
+                            texto: explicacionTexto,
+                            fecha: new Date()
+                        });
+                        btnGuardar.textContent = '✅ Explicación guardada';
+                        btnGuardar.disabled = true;
+                        btnGuardar.style.background = '#10b981';
+                    } catch (err) {
+                        console.error('Error guardando explicación:', err);
+                        alert('Error al guardar la explicación');
+                    }
+                };
+            } else {
+                btnGuardar.textContent = '⚠️ No se puede guardar (no tienes esta pregunta en tu banco)';
+                btnGuardar.disabled = true;
+                btnGuardar.style.background = '#94a3b8';
+                btnGuardar.style.cursor = 'not-allowed';
+            }
+            
+            explicacionDiv.appendChild(btnGuardar);
+        }
+        
+    } catch (error) {
+        console.error('Error buscando explicación:', error);
+    }
+}
+
 // Elementos del DOM
 const pantallaInicial = document.getElementById('pantallaInicial');
 const salaEspera = document.getElementById('salaEspera');
@@ -391,6 +524,11 @@ async function marcarListo() {
     try {
         const preguntasSeleccionadas = filtrarPreguntasPorTemasSeleccionados();
         const temasSeleccionadosArray = Array.from(temasSeleccionados);
+        
+        // Guardar configuración para "repetir configuración anterior"
+        try {
+            localStorage.setItem(`multiConfig_${currentUser.uid}`, JSON.stringify(temasSeleccionadosArray));
+        } catch(e) { console.warn('No se pudo guardar config anterior'); }
         
         const salaRef = doc(db, 'salas', claveActual);
         await updateDoc(salaRef, {
@@ -875,6 +1013,11 @@ if (salaData.juego?.resultadoVisible || salaData.juego?.cronometroDetenido) {
         resultadoDiv.style.fontWeight = 'bold';
         resultadoDiv.style.color = esCorrecta ? '#28a745' : '#dc3545';
         opcionesPregunta.appendChild(resultadoDiv);
+        
+        // Mostrar explicación también para el que pregunta
+        if (!esCorrecta) {
+            buscarYMostrarExplicacion(pregunta);
+        }
     }
 }
 
@@ -936,6 +1079,9 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
         
         // SIEMPRE MOSTRAR BOTÓN CONTINUAR (incluso con 3 errores)
         mostrarBotonContinuar();
+        
+        // Buscar y mostrar explicación si existe
+        buscarYMostrarExplicacion(pregunta);
         
     } catch (error) {
         console.error('Error respondiendo pregunta:', error);
@@ -1201,6 +1347,12 @@ async function mostrarResultado(salaData) {
 
 async function repetirDuelo() {
     try {
+        // RESETEAR flags críticas
+        window.finDeJuegoEnProceso = false;
+        preguntasIncorrectasPartida = [];
+        cronometroDetenidoManualmente = false;
+        detenerCronometroRespuesta();
+        
         const salaRef = doc(db, 'salas', claveActual);
         await updateDoc(salaRef, {
             turno: 'jugador1',
@@ -1208,6 +1360,8 @@ async function repetirDuelo() {
             'juego.respondiendo': null,
             'juego.respuestaSeleccionada': null,
             'juego.resultadoVisible': false,
+            'juego.tiempoInicioPregunta': null,
+            'juego.cronometroDetenido': false,
             'jugadores.jugador1.errores': 0,
             'jugadores.jugador1.aciertos': 0,
             'jugadores.jugador1.preguntasRecibidas': 0,
@@ -1218,7 +1372,9 @@ async function repetirDuelo() {
             'jugadores.jugador2.listo': false
         });
         
-        pantallaResultado.classList.add('hidden');
+        // Resetear clase de resultado (victoria/derrota) 
+        pantallaResultado.className = 'pantalla-resultado hidden';
+        
         await mostrarSalaEspera();
         
         const btnListo = document.getElementById('btnEstoyListo');
@@ -1709,6 +1865,60 @@ async function mostrarSelectorTemas() {
         };
         btnMarcarTodas.onclick = marcarTodasLosTemas;
         container.appendChild(btnMarcarTodas);
+        
+        // BOTÓN CONFIGURACIÓN ANTERIOR
+        try {
+            const configAnterior = localStorage.getItem(`multiConfig_${currentUser.uid}`);
+            if (configAnterior) {
+                const btnConfigAnterior = document.createElement('button');
+                btnConfigAnterior.id = 'btnConfigAnterior';
+                btnConfigAnterior.textContent = '🔄 Repetir selección anterior';
+                btnConfigAnterior.style.cssText = `
+                    width: 100%;
+                    padding: 12px;
+                    margin-bottom: 15px;
+                    background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 15px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                `;
+                btnConfigAnterior.onclick = () => {
+                    const temasAnteriores = JSON.parse(configAnterior);
+                    temasSeleccionados.clear();
+                    
+                    // Desmarcar todos primero
+                    document.querySelectorAll('.tema-checkbox-principal, .tema-checkbox-subtema').forEach(cb => {
+                        cb.checked = false;
+                    });
+                    
+                    // Marcar los que estaban seleccionados
+                    let encontrados = 0;
+                    document.querySelectorAll('.tema-checkbox-principal, .tema-checkbox-subtema').forEach(cb => {
+                        if (temasAnteriores.includes(cb.dataset.tema)) {
+                            cb.checked = true;
+                            temasSeleccionados.add(cb.dataset.tema);
+                            encontrados++;
+                        }
+                    });
+                    
+                    if (encontrados === 0) {
+                        alert('No se encontraron los temas de la configuración anterior');
+                    } else {
+                        // Abrir subtemas que tengan checkboxes marcados
+                        document.querySelectorAll('.subtemas-container-selector').forEach(container => {
+                            const tieneSeleccionados = container.querySelectorAll('.tema-checkbox-subtema:checked').length > 0;
+                            if (tieneSeleccionados) container.style.display = 'block';
+                        });
+                        actualizarTemasSeleccionados();
+                    }
+                };
+                container.appendChild(btnConfigAnterior);
+            }
+        } catch(e) { console.warn('Error cargando config anterior:', e); }
         
         // Renderizar temas principales con sus subtemas
         temasPrincipales.forEach((tema) => {
