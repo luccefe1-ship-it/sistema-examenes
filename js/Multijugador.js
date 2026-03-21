@@ -822,6 +822,10 @@ function actualizarTurno(salaData) {
                 if (!btnContinuarExistente) {
                     mostrarBotonContinuar();
                 }
+                // Mostrar explicación si existe (tras re-render del snapshot)
+                if (!document.querySelector('.explicacion-multijugador')) {
+                    buscarYMostrarExplicacion(salaData.juego.preguntaActual);
+                }
             } else {
                 // NO HAY RESULTADO - INICIAR NORMALMENTE
                 cronometroDetenidoManualmente = false;
@@ -1079,9 +1083,6 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
         
         // SIEMPRE MOSTRAR BOTÓN CONTINUAR (incluso con 3 errores)
         mostrarBotonContinuar();
-        
-        // Buscar y mostrar explicación si existe
-        buscarYMostrarExplicacion(pregunta);
         
     } catch (error) {
         console.error('Error respondiendo pregunta:', error);
