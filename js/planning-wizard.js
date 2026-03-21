@@ -96,15 +96,35 @@ function generarListaTemas() {
     const container = document.getElementById('listaTemas');
     container.innerHTML = '';
     
+    const modo = document.querySelector('input[name="modoConteo"]:checked')?.value || 'hojas';
+    const unidad = modo === 'caras' ? 'Caras' : 'Hojas';
+    document.getElementById('labelHojasTemas').textContent = `Indica el número de ${unidad.toLowerCase()} de cada tema (opcional)`;
+    
     for (let i = 0; i < datosPlanning.numTemas; i++) {
         const div = document.createElement('div');
         div.className = 'tema-input-grupo';
         div.innerHTML = `
             <input type="text" class="tema-nombre" value="Tema ${i + 1}" readonly style="background: #f3f4f6; cursor: not-allowed;" />
-            <input type="number" class="tema-paginas" min="1" placeholder="Hojas" />
+            <input type="number" class="tema-paginas" min="1" placeholder="${unidad}" />
         `;
         container.appendChild(div);
     }
+    
+    // Listener para cambiar placeholder al cambiar modo
+    document.querySelectorAll('input[name="modoConteo"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const nuevoModo = document.querySelector('input[name="modoConteo"]:checked').value;
+            const nuevaUnidad = nuevoModo === 'caras' ? 'Caras' : 'Hojas';
+            document.getElementById('labelHojasTemas').textContent = `Indica el número de ${nuevaUnidad.toLowerCase()} de cada tema (opcional)`;
+            document.querySelectorAll('.tema-paginas').forEach(input => {
+                input.placeholder = nuevaUnidad;
+            });
+            // Actualizar estilo radio seleccionado
+            document.querySelectorAll('input[name="modoConteo"]').forEach(r => {
+                r.closest('label').style.borderColor = r.checked ? '#667eea' : '#ddd';
+            });
+        });
+    });
 }
 
 
@@ -149,6 +169,8 @@ window.finalizarPlanning = async function() {
         // Calcular tests totales necesarios (1 test cada 2 días como mínimo)
         const testsRecomendados = Math.ceil(diasDisponibles * testsDiarios);
         
+        const modoConteo = document.querySelector('input[name="modoConteo"]:checked')?.value || 'hojas';
+        
         await setDoc(doc(db, "planningSimple", currentUser.uid), {
             numTemas: datosPlanning.numTemas,
             fechaObjetivo: datosPlanning.fechaObjetivo,
@@ -156,6 +178,7 @@ window.finalizarPlanning = async function() {
             hojasTotales,
             testsDiarios,
             testsRecomendados,
+            modoConteo,
             fechaCreacion: new Date(),
             usuarioId: currentUser.uid
         });
