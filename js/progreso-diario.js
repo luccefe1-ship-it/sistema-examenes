@@ -5,6 +5,52 @@ import { doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebase
 let currentUser = null;
 let planningData = null;
 let progresoData = null;
+let vistaAlternativa = false;
+
+// Helpers de unidad
+function getModoConteo() {
+    return planningData?.modoConteo || 'hojas';
+}
+
+function getUnidadLabel() {
+    if (vistaAlternativa) return getModoConteo() === 'hojas' ? 'caras' : 'hojas';
+    return getModoConteo();
+}
+
+function getUnidadLabelCap() {
+    const u = getUnidadLabel();
+    return u.charAt(0).toUpperCase() + u.slice(1);
+}
+
+function convertirValorVista(valor) {
+    if (!vistaAlternativa) return valor;
+    return getModoConteo() === 'hojas' ? valor * 2 : Math.round(valor / 2);
+}
+
+window.toggleVistaUnidad = function() {
+    vistaAlternativa = !vistaAlternativa;
+    actualizarToggleUI();
+    actualizarResumenGeneral();
+    renderizarProgresoTemas();
+};
+
+function actualizarToggleUI() {
+    const label = document.getElementById('unidadActualLabel');
+    const btn = document.getElementById('btnToggleUnidad');
+    if (!label || !btn) return;
+    
+    const unidadMostrada = getUnidadLabel();
+    const unidadAlternativa = vistaAlternativa ? getModoConteo() : (getModoConteo() === 'hojas' ? 'caras' : 'hojas');
+    
+    label.textContent = getUnidadLabelCap();
+    btn.textContent = `👁 Ver en ${unidadAlternativa}`;
+    
+    if (vistaAlternativa) {
+        btn.style.background = 'linear-gradient(135deg, #f59e0b, #ef4444)';
+    } else {
+        btn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+    }
+}
 
 // Verificar autenticación
 onAuthStateChanged(auth, async (user) => {
@@ -199,7 +245,7 @@ function actualizarLimiteHojas() {
     const hojasRestantes = Math.max(0, tema.hojas - (progreso.hojasLeidas || 0));
     
     inputHojas.max = hojasRestantes;
-    inputHojas.placeholder = `Máximo: ${hojasRestantes}`;
+    inputHojas.placeholder = `Máximo: ${convertirValorVista(hojasRestantes)}`;
 }
 
 
@@ -235,20 +281,32 @@ function actualizarResumenGeneral() {
     const testsRecomendados = planningData.testsRecomendados || 0;
     const testsRestantes = Math.max(0, testsRecomendados - testsRealizados);
     
-    // Calcular ritmo necesario
+   // Calcular ritmo necesario
+    const unidad = getUnidadLabel();
+    const vLeidas = convertirValorVista(hojasLeidas);
+    const vTotales = convertirValorVista(hojasTotales);
+    const vRestantes = convertirValorVista(hojasRestantes);
+    
     let mensajeRitmo = '';
     if (hojasRestantes > 0 && diasRestantes > 0) {
-        const hojasPorDia = (hojasRestantes / diasRestantes).toFixed(1);
+        const hojasPorDia = (vRestantes / diasRestantes).toFixed(1);
         const testsPorDia = diasRestantes > 0 ? (testsRestantes / diasRestantes).toFixed(1) : 0;
-        mensajeRitmo = `📊 Debes leer ${hojasPorDia} hojas/día y hacer ${testsPorDia} tests/día para llegar a tu objetivo`;
+        mensajeRitmo = `📊 Debes leer ${hojasPorDia} ${unidad}/día y hacer ${testsPorDia} tests/día para llegar a tu objetivo`;
     } else if (hojasRestantes === 0 && testsRestantes === 0) {
         mensajeRitmo = '🎉 ¡Has completado todo el temario y los tests!';
     } else if (diasRestantes === 0) {
         mensajeRitmo = '⚠️ La fecha objetivo ya pasó';
     }
     
-    document.getElementById('paginasTotales').textContent = `${hojasLeidas}/${hojasTotales}`;
-    document.getElementById('paginasRestantes').textContent = hojasRestantes;
+    document.getElementById('paginasTotales').textContent = `${vLeidas}/${vTotales}`;
+    document.getElementById('paginasRestantes').textContent = vRestantes;
+    
+    // Actualizar labels de unidad
+    const cap = getUnidadLabelCap();
+    document.getElementById('labelLeidas').textContent = `${cap} leídas`;
+    document.getElementById('labelRestantes').textContent = `${cap} restantes`;
+    document.getElementById('labelHojasHoy').textContent = `📄 ${cap} leídas hoy:`;
+    actualizarToggleUI();
     document.getElementById('testsTotales').textContent = `${testsRealizados}/${testsRecomendados}`;
     
     // Formatear fecha objetivo
@@ -310,9 +368,9 @@ function renderizarProgresoTemas() {
                 <div class="tema-nombre" id="nombre-${tema.id}">${tema.nombre}</div>
                 <button onclick="editarNombreTema('${tema.id}')" class="btn-editar-tema">✏️</button>
             </div>
-            <div class="tema-stats">
+           <div class="tema-stats">
                 <div class="tema-stat">
-                    📄 Hojas: <strong>${progreso.hojasLeidas || 0} / <span id="hojas-${tema.id}">${tema.hojas}</span></strong>
+                    📄 ${getUnidadLabelCap()}: <strong>${convertirValorVista(progreso.hojasLeidas || 0)} / <span id="hojas-${tema.id}">${convertirValorVista(tema.hojas)}</span></strong>
                     <button onclick="editarHojasTema('${tema.id}')" class="btn-editar-hojas">✏️</button>
                 </div>
                 <div class="tema-stat">
@@ -363,7 +421,8 @@ document.getElementById('formRegistro').addEventListener('submit', async (e) => 
         const hojasRestantes = Math.max(0, tema.hojas - hojasActuales);
         
         if (hojasHoy > hojasRestantes) {
-            alert(`⚠️ Este tema solo tiene ${hojasRestantes} hojas restantes.\nHojas totales: ${tema.hojas}\nYa leídas: ${hojasActuales}`);
+            const u = getUnidadLabelCap();
+            alert(`⚠️ Este tema solo tiene ${hojasRestantes} ${getUnidadLabel()} restantes.\n${u} totales: ${tema.hojas}\nYa leídas: ${hojasActuales}`);
             return;
         }
         
@@ -736,6 +795,7 @@ window.abrirModalModificarPlanning = function() {
     const fechaActual = new Date(planningData.fechaObjetivo);
     document.getElementById('inputNuevaFecha').value = fechaActual.toISOString().split('T')[0];
     document.getElementById('inputNuevosTests').value = planningData.testsDiarios || 0;
+    document.getElementById('inputModoConteo').value = planningData.modoConteo || 'hojas';
     
     modal.style.display = 'flex';
 };
@@ -771,10 +831,13 @@ window.guardarModificacionPlanning = async function() {
         
         // Actualizar planning manteniendo todo el progreso
         const planningRef = doc(db, "planningSimple", currentUser.uid);
+        const nuevoModoConteo = document.getElementById('inputModoConteo').value;
+        
         await updateDoc(planningRef, {
             fechaObjetivo: fechaObjetivoDate.toISOString(),
             testsDiarios: nuevosTestsDiarios,
-            testsRecomendados: testsRecomendados
+            testsRecomendados: testsRecomendados,
+            modoConteo: nuevoModoConteo
         });
         
         // Recargar datos
