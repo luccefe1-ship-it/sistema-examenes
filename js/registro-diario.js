@@ -6,6 +6,58 @@ let currentUser = null;
 let planningData = null;
 let progresoData = null;
 let userName = '';
+let vistaAlternativa = false;
+let chartHojasInstance = null;
+
+// Helpers de unidad
+function getModoConteo() {
+    return planningData?.modoConteo || 'hojas';
+}
+
+function getUnidadLabel() {
+    if (vistaAlternativa) return getModoConteo() === 'hojas' ? 'caras' : 'hojas';
+    return getModoConteo();
+}
+
+function getUnidadLabelCap() {
+    const u = getUnidadLabel();
+    return u.charAt(0).toUpperCase() + u.slice(1);
+}
+
+function convertirValorVista(valor) {
+    if (!vistaAlternativa) return valor;
+    return getModoConteo() === 'hojas' ? valor * 2 : Math.round(valor / 2);
+}
+
+window.toggleVistaUnidad = function() {
+    vistaAlternativa = !vistaAlternativa;
+    
+    const label = document.getElementById('unidadActualLabel');
+    const btn = document.getElementById('btnToggleUnidad');
+    const unidadAlternativa = vistaAlternativa ? getModoConteo() : (getModoConteo() === 'hojas' ? 'caras' : 'hojas');
+    
+    label.textContent = getUnidadLabelCap();
+    btn.textContent = `👁 Ver en ${unidadAlternativa}`;
+    btn.style.background = vistaAlternativa ? 'linear-gradient(135deg, #f59e0b, #ef4444)' : 'linear-gradient(135deg, #667eea, #764ba2)';
+    
+    // Actualizar título gráfica
+    const tituloGrafica = document.getElementById('tituloGraficaHojas');
+    if (tituloGrafica) tituloGrafica.textContent = `📊 Progreso de ${getUnidadLabelCap()}`;
+    
+    // Re-renderizar
+    // Inicializar toggle UI
+        const label = document.getElementById('unidadActualLabel');
+        const btn = document.getElementById('btnToggleUnidad');
+        const tituloGrafica = document.getElementById('tituloGraficaHojas');
+        if (label) label.textContent = getUnidadLabelCap();
+        if (btn) {
+            const alt = getModoConteo() === 'hojas' ? 'caras' : 'hojas';
+            btn.textContent = `👁 Ver en ${alt}`;
+        }
+        if (tituloGrafica) tituloGrafica.textContent = `📊 Progreso de ${getUnidadLabelCap()}`;
+        
+        generarRegistroDiario();
+};
 // Cargar imágenes para el PDF
 window.imagenMontana = null;
 window.imagenPersona = null;
@@ -205,7 +257,8 @@ function calcularDatosDia(fecha) {
             });
             
             // Construir detalle
-            let detalle = `${temaNombre}: ${regAgrupado.hojasLeidas} hoja${regAgrupado.hojasLeidas > 1 ? 's' : ''}`;
+            const vHojas = convertirValorVista(regAgrupado.hojasLeidas);
+            let detalle = `${temaNombre}: ${vHojas} ${getUnidadLabel()}`;
             
             if (regAgrupado.paginaDesde && regAgrupado.paginaHasta) {
                 if (regAgrupado.paginaDesde === regAgrupado.paginaHasta) {
@@ -215,7 +268,7 @@ function calcularDatosDia(fecha) {
                 }
             }
             
-            detalle += ` - Total acumulado: ${acumuladoHasta} hojas`;
+            detalle += ` - Total acumulado: ${convertirValorVista(acumuladoHasta)} ${getUnidadLabel()}`;
             
             detalleHojas.push(detalle);
         }
@@ -322,7 +375,7 @@ function renderizarDia(fecha, datos) {
             ${estadoHTML}
         </div>
         <div class="dia-datos">
-            <div>📄 Hojas leídas: <strong>${datos.hojasLeidas}</strong> / ${datos.objetivoHojas}</div>
+            <div>📄 ${getUnidadLabelCap()} leídas: <strong>${convertirValorVista(datos.hojasLeidas)}</strong> / ${convertirValorVista(datos.objetivoHojas)}</div>
             ${detalleHojasHTML}
             <div style="margin-top: 8px;">✅ Tests realizados: <strong>${datos.testsRealizados}</strong></div>
         </div>
@@ -342,18 +395,24 @@ function generarGraficaHojas() {
     const ctx = document.getElementById('graficaHojas');
     if (!ctx) return;
     
-    const hojasTotales = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
+    const hojasTotalesRaw = planningData.temas.reduce((sum, t) => sum + t.hojas, 0);
+    const hojasTotales = convertirValorVista(hojasTotalesRaw);
     const datos = calcularDatosGrafica('hojas');
-    const realAcumulado = datos.real.filter(v => v !== null).pop() || 0;
+    const realAcumulado = convertirValorVista(datos.real.filter(v => v !== null).pop() || 0);
     
-    new Chart(ctx, {
+    // Convertir datos de la gráfica
+    const objetivoConvertido = datos.objetivo.map(v => convertirValorVista(v));
+    const realConvertido = datos.real.map(v => v !== null ? convertirValorVista(v) : null);
+    
+    if (chartHojasInstance) chartHojasInstance.destroy();
+    chartHojasInstance = new Chart(ctx, {
         type: 'line',
         data: {
             labels: datos.labels,
             datasets: [
                 {
                     label: 'Objetivo',
-                    data: datos.objetivo,
+                    data: objetivoConvertido,
                     borderColor: '#3b82f6',
                     backgroundColor: 'transparent',
                     borderWidth: 1,
@@ -362,7 +421,7 @@ function generarGraficaHojas() {
                 },
                 {
                     label: 'Real',
-                    data: datos.real,
+                    data: realConvertido,
                     borderColor: '#ef4444',
                     backgroundColor: 'transparent',
                     borderWidth: 0.8,
@@ -377,7 +436,7 @@ function generarGraficaHojas() {
             plugins: {
                 title: {
                     display: true,
-                    text: `Objetivo: ${hojasTotales} hojas | Real: ${realAcumulado} hojas`,
+                    text: `Objetivo: ${hojasTotales} ${getUnidadLabel()} | Real: ${realAcumulado} ${getUnidadLabel()}`,
                     align: 'end',
                     font: { size: 13, weight: 'bold' },
                     color: '#333'
@@ -417,7 +476,7 @@ function generarGraficaHojas() {
                     beginAtZero: true,
                     title: {
                         display: true,
-                        text: 'Hojas acumuladas',
+                        text: `${getUnidadLabelCap()} acumuladas`,
                         font: { size: 12, weight: 'bold' }
                     }
                 }
@@ -440,9 +499,9 @@ function generarGraficaTests() {
         data: {
             labels: datos.labels,
             datasets: [
-               {
+                {
                     label: 'Objetivo',
-                    data: datos.objetivo,
+                    data: objetivoConvertido,
                     borderColor: '#3b82f6',
                     backgroundColor: 'transparent',
                     borderWidth: 1,
@@ -451,7 +510,7 @@ function generarGraficaTests() {
                 },
                 {
                     label: 'Real',
-                    data: datos.real,
+                    data: realConvertido,
                     borderColor: '#ef4444',
                     backgroundColor: 'transparent',
                     borderWidth: 0.8,
