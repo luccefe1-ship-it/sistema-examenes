@@ -33,6 +33,8 @@ let preguntaCargadaParaAmbos = false;
 let temasSeleccionados = new Set();
 let cronometroDetenidoManualmente = false;  // BANDERA PARA EVITAR REINICIO
 let preguntasIncorrectasPartida = [];  // REGISTRO DE PREGUNTAS FALLADAS PARA TEST DE REPASO
+let resultadoYaRenderizado = false;  // EVITAR RE-RENDER DEL MISMO RESULTADO
+let preguntaResultadoActualId = null;  // ID DE LA PREGUNTA YA RENDERIZADA
 
 // Helper para generar hash de pregunta (consistente con tests.js y tests-pregunta.js)
 function generarHashPregunta(texto) {
@@ -812,20 +814,21 @@ function actualizarTurno(salaData) {
             
             // SI HAY RESULTADO VISIBLE, NO REINICIAR CRONÓMETRO
             if (salaData.juego?.resultadoVisible && salaData.juego?.respuestaSeleccionada !== undefined) {
+                // GUARD: no re-renderizar si ya mostramos este resultado
+                const pregId = salaData.juego.preguntaActual?.pregunta || '';
+                if (resultadoYaRenderizado && preguntaResultadoActualId === pregId) {
+                    return;
+                }
+                resultadoYaRenderizado = true;
+                preguntaResultadoActualId = pregId;
+                
                 cronometroDetenidoManualmente = true;
                 mostrarPreguntaParaResponder(salaData.juego.preguntaActual);
                 console.log('Aplicando colores porque hay resultado visible');
                 mostrarResultadoRespuesta(salaData.juego.respuestaSeleccionada, salaData.juego.preguntaActual.respuestaCorrecta);
                 detenerCronometroRespuesta();
-                
-                const btnContinuarExistente = document.querySelector('.btn-continuar-respuesta');
-                if (!btnContinuarExistente) {
-                    mostrarBotonContinuar();
-                }
-                // Mostrar explicación si existe (tras re-render del snapshot)
-                if (!document.querySelector('.explicacion-multijugador')) {
-                    buscarYMostrarExplicacion(salaData.juego.preguntaActual);
-                }
+                mostrarBotonContinuar();
+                buscarYMostrarExplicacion(salaData.juego.preguntaActual);
             } else {
                 // NO HAY RESULTADO - INICIAR NORMALMENTE
                 cronometroDetenidoManualmente = false;
@@ -833,6 +836,15 @@ function actualizarTurno(salaData) {
             }
         } else {
             textoTurno.textContent = 'ESPERANDO RESPUESTA DEL RIVAL';
+            // GUARD: no re-renderizar si ya mostramos resultado de esta pregunta
+            if (salaData.juego?.resultadoVisible) {
+                const pregId = salaData.juego.preguntaActual?.pregunta || '';
+                if (resultadoYaRenderizado && preguntaResultadoActualId === pregId) {
+                    return;
+                }
+                resultadoYaRenderizado = true;
+                preguntaResultadoActualId = pregId;
+            }
             mostrarPreguntaEsperando(salaData.juego.preguntaActual, salaData);
         }
     } else {
@@ -893,6 +905,8 @@ function limpiarVentanaCentral() {
     }
     
     cronometroDetenidoManualmente = false;  // RESETEAR BANDERA
+    resultadoYaRenderizado = false;  // RESETEAR GUARD
+    preguntaResultadoActualId = null;
     detenerCronometroRespuesta();
     console.log('🧹 Ventana central limpiada - bandera reseteada');
 }
@@ -1029,6 +1043,9 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
     try {
         // DETENER CRONÓMETRO INMEDIATAMENTE AL RESPONDER
         detenerCronometroRespuesta();
+        // Marcar como renderizado para que el snapshot no borre lo que vamos a insertar
+        resultadoYaRenderizado = true;
+        preguntaResultadoActualId = pregunta.pregunta || '';
         console.log('Respuesta seleccionada:', indiceSeleccionado);
         console.log('⏸️ Cronómetro detenido');
         
@@ -1083,6 +1100,9 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
         
         // SIEMPRE MOSTRAR BOTÓN CONTINUAR (incluso con 3 errores)
         mostrarBotonContinuar();
+        
+        // Buscar y mostrar explicación si existe
+        buscarYMostrarExplicacion(pregunta);
         
     } catch (error) {
         console.error('Error respondiendo pregunta:', error);
@@ -1352,6 +1372,8 @@ async function repetirDuelo() {
         window.finDeJuegoEnProceso = false;
         preguntasIncorrectasPartida = [];
         cronometroDetenidoManualmente = false;
+        resultadoYaRenderizado = false;
+        preguntaResultadoActualId = null;
         detenerCronometroRespuesta();
         
         const salaRef = doc(db, 'salas', claveActual);
