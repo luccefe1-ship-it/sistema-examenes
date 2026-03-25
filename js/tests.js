@@ -6664,6 +6664,27 @@ async function verificarIndicadoresModal() {
 
 // ================== EXPORTAR / IMPORTAR EXPLICACIONES ==================
 
+// Helper: convertir archivo de Storage a base64 usando Firebase SDK (evita CORS)
+async function storageTarjetaToBase64(storagePath) {
+    const storageRef = ref(storage, storagePath);
+    const url = await getDownloadURL(storageRef);
+    
+    // Usar XMLHttpRequest que funciona con tokens de Firebase
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.responseType = 'blob';
+        xhr.onload = () => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(xhr.response);
+        };
+        xhr.onerror = reject;
+        xhr.open('GET', url);
+        xhr.send();
+    });
+}
+
 window.exportarExplicacionModal = async function() {
     const preguntaId = window.preguntaIdActualExplicacion;
     const pregunta = window.preguntaActualExplicacion;
@@ -6687,19 +6708,45 @@ window.exportarExplicacionModal = async function() {
             exportData.explicacion = geminiDoc.data().texto;
         }
         
-        // Obtener tarjetas
+        // Obtener tarjetas como base64
         const q = query(
             collection(db, `usuarios/${currentUser.uid}/tarjetas`),
             where('preguntaId', '==', preguntaId)
         );
         const snap = await getDocs(q);
-        snap.forEach(docSnap => {
-            const data = docSnap.data();
-            exportData.tarjetas.push({
-                nombre: data.nombre,
-                url: data.url
-            });
-        });
+        
+        if (snap.size > 0) {
+            for (const docSnap of snap.docs) {
+                const data = docSnap.data();
+                try {
+                    let base64;
+                    if (data.storagePath) {
+                        base64 = await storageTarjetaToBase64(data.storagePath);
+                    } else {
+                        // Fallback: intentar con URL directa via XHR
+                        base64 = await new Promise((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.responseType = 'blob';
+                            xhr.onload = () => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => resolve(reader.result);
+                                reader.onerror = reject;
+                                reader.readAsDataURL(xhr.response);
+                            };
+                            xhr.onerror = reject;
+                            xhr.open('GET', data.url);
+                            xhr.send();
+                        });
+                    }
+                    exportData.tarjetas.push({
+                        nombre: data.nombre,
+                        base64: base64
+                    });
+                } catch (e) {
+                    console.warn('No se pudo convertir tarjeta:', data.nombre, e);
+                }
+            }
+        }
         
         if (!exportData.explicacion && exportData.tarjetas.length === 0) {
             alert('No hay explicación ni tarjetas que exportar para esta pregunta');
@@ -6758,12 +6805,25 @@ window.importarExplicacionModal = async function(event) {
         
         // Importar tarjetas
         if (data.tarjetas && data.tarjetas.length > 0) {
+            let tarjetasOk = 0;
             for (const tarjeta of data.tarjetas) {
                 try {
-                    // Descargar imagen desde URL
-                    const response = await fetch(tarjeta.url);
-                    if (!response.ok) throw new Error('No se pudo descargar la imagen');
-                    const blob = await response.blob();
+                    let blob;
+                    if (tarjeta.base64) {
+                        // Convertir base64 a blob
+                        const byteString = atob(tarjeta.base64.split(',')[1]);
+                        const mimeMatch = tarjeta.base64.match(/data:([^;]+);/);
+                        const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+                        const ab = new ArrayBuffer(byteString.length);
+                        const ia = new Uint8Array(ab);
+                        for (let i = 0; i < byteString.length; i++) {
+                            ia[i] = byteString.charCodeAt(i);
+                        }
+                        blob = new Blob([ab], { type: mimeType });
+                    } else {
+                        alert('Formato de tarjeta no compatible. Exporta de nuevo desde la versión actual.');
+                        continue;
+                    }
                     
                     // Subir a mi Storage
                     const timestamp = Date.now();
@@ -6781,11 +6841,12 @@ window.importarExplicacionModal = async function(event) {
                         creadoEn: new Date().toISOString(),
                         importado: true
                     });
+                    tarjetasOk++;
                 } catch (imgErr) {
                     console.warn('Error importando tarjeta:', tarjeta.nombre, imgErr);
                 }
             }
-            importados.push(`${data.tarjetas.length} tarjeta(s)`);
+            if (tarjetasOk > 0) importados.push(`${tarjetasOk} tarjeta(s)`);
         }
         
         if (importados.length === 0) {
