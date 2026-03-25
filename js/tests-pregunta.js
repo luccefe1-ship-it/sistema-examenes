@@ -1,4 +1,5 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db, storage } from './firebase-config.js';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
     addDoc, 
@@ -1582,6 +1583,11 @@ window.cambiarTab = async function(tab) {
         
         // Cargar explicación Gemini si existe
         await cargarExplicacionGemini();
+    } else if (tab === 'tarjetas') {
+        document.getElementById('tabTarjetas').classList.add('active');
+        document.getElementById('contentTarjetas').classList.add('active');
+        
+        await cargarTarjetas();
     }
 };
 
@@ -1779,4 +1785,148 @@ window.borrarExplicacionGemini = async function() {
         console.error('❌ Error borrando:', error);
         alert('Error al borrar: ' + error.message);
     }
+};
+
+// ================== TARJETAS VISUALES POR PREGUNTA ==================
+
+function obtenerPreguntaIdHash() {
+    const pregunta = testConfig.preguntas[preguntaActual];
+    const preguntaTexto = pregunta.texto || '';
+    let hash = 0;
+    for (let i = 0; i < preguntaTexto.length; i++) {
+        const char = preguntaTexto.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return 'q_' + Math.abs(hash).toString(36);
+}
+
+window.subirTarjeta = async function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+        alert('Solo se permiten imágenes JPG o PNG');
+        return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+        alert('La imagen no puede superar 5MB');
+        return;
+    }
+    
+    const preguntaId = obtenerPreguntaIdHash();
+    if (!preguntaId || !currentUser) {
+        alert('Error: no se pudo identificar la pregunta');
+        return;
+    }
+    
+    try {
+        const galeria = document.getElementById('tarjetasGaleria');
+        galeria.innerHTML = '<p style="color:#94a3b8; text-align:center;">⏳ Subiendo imagen...</p>';
+        
+        const timestamp = Date.now();
+        const storagePath = `tarjetas/${currentUser.uid}/${preguntaId}/${timestamp}_${file.name}`;
+        const storageRef = ref(storage, storagePath);
+        
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        
+        await addDoc(collection(db, `usuarios/${currentUser.uid}/tarjetas`), {
+            preguntaId: preguntaId,
+            url: downloadURL,
+            storagePath: storagePath,
+            nombre: file.name,
+            creadoEn: new Date().toISOString()
+        });
+        
+        await cargarTarjetas();
+        event.target.value = '';
+        
+    } catch (error) {
+        console.error('Error subiendo tarjeta:', error);
+        alert('❌ Error al subir la imagen');
+        await cargarTarjetas();
+    }
+};
+
+async function cargarTarjetas() {
+    const galeria = document.getElementById('tarjetasGaleria');
+    if (!galeria) return;
+    
+    const preguntaId = obtenerPreguntaIdHash();
+    if (!preguntaId || !currentUser) {
+        galeria.innerHTML = '<p style="color:#94a3b8; text-align:center;">No hay tarjetas adjuntas</p>';
+        return;
+    }
+    
+    try {
+        const q = query(
+            collection(db, `usuarios/${currentUser.uid}/tarjetas`),
+            where('preguntaId', '==', preguntaId)
+        );
+        const snap = await getDocs(q);
+        
+        if (snap.empty) {
+            galeria.innerHTML = '<p style="color:#94a3b8; text-align:center;">No hay tarjetas adjuntas</p>';
+            const tabBtn = document.getElementById('tabTarjetas');
+            if (tabBtn) tabBtn.classList.remove('tiene-contenido');
+            return;
+        }
+        
+        let html = '';
+        snap.forEach(docSnap => {
+            const data = docSnap.data();
+            html += `
+                <div class="tarjeta-item">
+                    <img src="${data.url}" alt="${data.nombre}" class="tarjeta-img" onclick="ampliarTarjeta('${data.url}')">
+                    <button class="btn-eliminar-tarjeta" onclick="eliminarTarjeta('${docSnap.id}', '${data.storagePath}')" title="Eliminar">🗑️</button>
+                </div>
+            `;
+        });
+        
+        galeria.innerHTML = html;
+        
+        const tabBtn = document.getElementById('tabTarjetas');
+        if (tabBtn) tabBtn.classList.add('tiene-contenido');
+        
+    } catch (error) {
+        console.error('Error cargando tarjetas:', error);
+        galeria.innerHTML = '<p style="color:#ef4444; text-align:center;">Error al cargar tarjetas</p>';
+    }
+}
+
+window.eliminarTarjeta = async function(docId, storagePath) {
+    if (!confirm('¿Eliminar esta tarjeta?')) return;
+    
+    try {
+        try {
+            const storageRef = ref(storage, storagePath);
+            await deleteObject(storageRef);
+        } catch (e) {
+            console.warn('No se pudo eliminar de Storage:', e);
+        }
+        
+        await deleteDoc(doc(db, `usuarios/${currentUser.uid}/tarjetas`, docId));
+        await cargarTarjetas();
+        
+    } catch (error) {
+        console.error('Error eliminando tarjeta:', error);
+        alert('❌ Error al eliminar la tarjeta');
+    }
+};
+
+window.ampliarTarjeta = function(url) {
+    const overlay = document.createElement('div');
+    overlay.className = 'tarjeta-overlay';
+    overlay.innerHTML = `
+        <div class="tarjeta-ampliada-container">
+            <button class="btn-cerrar-tarjeta" onclick="this.parentElement.parentElement.remove()">✕</button>
+            <img src="${url}" class="tarjeta-ampliada-img">
+        </div>
+    `;
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+    document.body.appendChild(overlay);
 };
