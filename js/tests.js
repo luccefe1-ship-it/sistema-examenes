@@ -3694,7 +3694,7 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
                 <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
                     <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
                     <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación</button>
-                    <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjetas</button>
+                    <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjeta</button>
                     <div style="margin-left:auto;display:flex;gap:4px;">
                         <button class="btn-export-explicacion" onclick="exportarExplicacionModal()" title="Exportar explicación">⬆️</button>
                         <button class="btn-export-explicacion" onclick="document.getElementById('importExplicacionInput').click()" title="Importar explicación">⬇️</button>
@@ -3769,7 +3769,7 @@ contenido.innerHTML = `
     <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
         <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
         <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación</button>
-        <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjetas</button>
+        <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjeta</button>
                     <div style="margin-left:auto;display:flex;gap:4px;">
                         <button class="btn-export-explicacion" onclick="exportarExplicacionModal()" title="Exportar explicación">⬆️</button>
                         <button class="btn-export-explicacion" onclick="document.getElementById('importExplicacionInput').click()" title="Importar explicación">⬇️</button>
@@ -7010,7 +7010,7 @@ window.abrirExplicacionBanco = async function(temaId, index) {
             <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
                 <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
                 <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación</button>
-                <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjetas</button>
+                <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjeta</button>
                     <div style="margin-left:auto;display:flex;gap:4px;">
                         <button class="btn-export-explicacion" onclick="exportarExplicacionModal()" title="Exportar explicación">⬆️</button>
                         <button class="btn-export-explicacion" onclick="document.getElementById('importExplicacionInput').click()" title="Importar explicación">⬇️</button>
