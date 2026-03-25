@@ -224,6 +224,57 @@ async function buscarYMostrarExplicacion(pregunta) {
             seccion.appendChild(btnG);
         }
 
+        // ===== TARJETAS VISUALES =====
+        try {
+            const preguntaHash = generarHashPregunta(pregunta.pregunta);
+            // Buscar mis tarjetas
+            let tarjetasHTML = [];
+            try {
+                const qMias = query(
+                    collection(db, `usuarios/${currentUser.uid}/tarjetas`),
+                    where('preguntaId', '==', preguntaHash)
+                );
+                const snapMias = await getDocs(qMias);
+                snapMias.forEach(d => tarjetasHTML.push({ url: d.data().url, de: 'tuya' }));
+            } catch(e) {}
+            
+            // Buscar tarjetas del rival
+            if (rivalUid) {
+                try {
+                    const qRival = query(
+                        collection(db, `usuarios/${rivalUid}/tarjetas`),
+                        where('preguntaId', '==', preguntaHash)
+                    );
+                    const snapRival = await getDocs(qRival);
+                    snapRival.forEach(d => {
+                        if (!tarjetasHTML.some(t => t.url === d.data().url)) {
+                            tarjetasHTML.push({ url: d.data().url, de: 'rival' });
+                        }
+                    });
+                } catch(e) {}
+            }
+            
+            if (tarjetasHTML.length > 0) {
+                const tarjetasDiv = document.createElement('div');
+                tarjetasDiv.style.cssText = 'margin-top:8px; display:flex; flex-wrap:wrap; gap:8px; justify-content:center;';
+                tarjetasHTML.forEach(t => {
+                    const img = document.createElement('img');
+                    img.src = t.url;
+                    img.style.cssText = 'max-width:100%; max-height:250px; border-radius:8px; border:2px solid #e2e8f0; cursor:pointer; object-fit:contain;';
+                    img.title = `Tarjeta (${t.de === 'rival' ? 'del rival' : 'tuya'})`;
+                    img.onclick = () => {
+                        const overlay = document.createElement('div');
+                        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:100000;display:flex;align-items:center;justify-content:center;cursor:pointer;';
+                        overlay.innerHTML = `<img src="${t.url}" style="max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px;">`;
+                        overlay.onclick = () => overlay.remove();
+                        document.body.appendChild(overlay);
+                    };
+                    tarjetasDiv.appendChild(img);
+                });
+                seccion.appendChild(tarjetasDiv);
+            }
+        } catch(e) { console.warn('Error cargando tarjetas multi:', e); }
+
         opcionesPregunta.appendChild(seccion);
 
     } catch(error) {
