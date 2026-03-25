@@ -3695,6 +3695,11 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
                     <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
                     <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación</button>
                     <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjetas</button>
+                    <div style="margin-left:auto;display:flex;gap:4px;">
+                        <button class="btn-export-explicacion" onclick="exportarExplicacionModal()" title="Exportar explicación">⬆️</button>
+                        <button class="btn-export-explicacion" onclick="document.getElementById('importExplicacionInput').click()" title="Importar explicación">⬇️</button>
+                        <input type="file" id="importExplicacionInput" accept=".json" style="display:none" onchange="importarExplicacionModal(event)">
+                    </div>
                 </div>
                 <div class="tab-content active" id="contentDigitalModal">
                     <div class="explicacion-no-encontrado">
@@ -3731,6 +3736,7 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
                     </div>
                 </div>
             `;
+            verificarIndicadoresModal();
             return;
         }
         
@@ -3761,6 +3767,11 @@ contenido.innerHTML = `
         <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
         <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación</button>
         <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjetas</button>
+                    <div style="margin-left:auto;display:flex;gap:4px;">
+                        <button class="btn-export-explicacion" onclick="exportarExplicacionModal()" title="Exportar explicación">⬆️</button>
+                        <button class="btn-export-explicacion" onclick="document.getElementById('importExplicacionInput').click()" title="Importar explicación">⬇️</button>
+                        <input type="file" id="importExplicacionInput" accept=".json" style="display:none" onchange="importarExplicacionModal(event)">
+                    </div>
     </div>
     <div class="tab-content active" id="contentDigitalModal">
         <div class="explicacion-header-mejorada">
@@ -3832,6 +3843,8 @@ contenido.innerHTML = `
                 });
             }
         }, 100);
+        
+        verificarIndicadoresModal();
     } catch (error) {
         console.error('Error cargando explicaciÃ³n:', error);
         contenido.innerHTML = `
@@ -6610,6 +6623,199 @@ window.formatearGeminiModal = function(formato) {
     }
 };
 
+// ================== INDICADORES DE CONTENIDO EN TABS MODAL ==================
+
+async function verificarIndicadoresModal() {
+    const preguntaId = window.preguntaIdActualExplicacion;
+    if (!preguntaId || !currentUser) return;
+    
+    // Verificar explicación Gemini
+    try {
+        const docId = `${currentUser.uid}_${preguntaId}`;
+        const geminiRef = doc(db, 'explicacionesGemini', docId);
+        const geminiDoc = await getDoc(geminiRef);
+        const tabGemini = document.getElementById('tabGeminiModal');
+        if (tabGemini) {
+            if (geminiDoc.exists() && geminiDoc.data().texto) {
+                tabGemini.classList.add('tiene-contenido');
+            } else {
+                tabGemini.classList.remove('tiene-contenido');
+            }
+        }
+    } catch (e) { console.warn('Error verificando indicador Gemini:', e); }
+    
+    // Verificar tarjetas
+    try {
+        const q = query(
+            collection(db, `usuarios/${currentUser.uid}/tarjetas`),
+            where('preguntaId', '==', preguntaId)
+        );
+        const snap = await getDocs(q);
+        const tabTarjetas = document.getElementById('tabTarjetasModal');
+        if (tabTarjetas) {
+            if (!snap.empty) {
+                tabTarjetas.classList.add('tiene-contenido');
+            } else {
+                tabTarjetas.classList.remove('tiene-contenido');
+            }
+        }
+    } catch (e) { console.warn('Error verificando indicador Tarjetas:', e); }
+}
+
+// ================== EXPORTAR / IMPORTAR EXPLICACIONES ==================
+
+window.exportarExplicacionModal = async function() {
+    const preguntaId = window.preguntaIdActualExplicacion;
+    const pregunta = window.preguntaActualExplicacion;
+    if (!preguntaId || !currentUser) { alert('No hay pregunta seleccionada'); return; }
+    
+    try {
+        const exportData = {
+            version: 'explanation_export_1.0',
+            exportDate: new Date().toISOString(),
+            preguntaTexto: pregunta.texto || pregunta.preguntaTexto || '',
+            preguntaHash: preguntaId,
+            explicacion: null,
+            tarjetas: []
+        };
+        
+        // Obtener explicación
+        const docId = `${currentUser.uid}_${preguntaId}`;
+        const geminiRef = doc(db, 'explicacionesGemini', docId);
+        const geminiDoc = await getDoc(geminiRef);
+        if (geminiDoc.exists() && geminiDoc.data().texto) {
+            exportData.explicacion = geminiDoc.data().texto;
+        }
+        
+        // Obtener tarjetas
+        const q = query(
+            collection(db, `usuarios/${currentUser.uid}/tarjetas`),
+            where('preguntaId', '==', preguntaId)
+        );
+        const snap = await getDocs(q);
+        snap.forEach(docSnap => {
+            const data = docSnap.data();
+            exportData.tarjetas.push({
+                nombre: data.nombre,
+                url: data.url
+            });
+        });
+        
+        if (!exportData.explicacion && exportData.tarjetas.length === 0) {
+            alert('No hay explicación ni tarjetas que exportar para esta pregunta');
+            return;
+        }
+        
+        // Descargar JSON
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `explicacion_${preguntaId}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        alert('✅ Explicación exportada correctamente');
+        
+    } catch (error) {
+        console.error('Error exportando explicación:', error);
+        alert('❌ Error al exportar');
+    }
+};
+
+window.importarExplicacionModal = async function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const preguntaId = window.preguntaIdActualExplicacion;
+    if (!preguntaId || !currentUser) { alert('No hay pregunta seleccionada'); return; }
+    
+    try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        
+        if (!data.version || !data.version.startsWith('explanation_export')) {
+            alert('Archivo no válido. Usa un archivo exportado desde esta plataforma.');
+            return;
+        }
+        
+        let importados = [];
+        
+        // Importar explicación
+        if (data.explicacion) {
+            const docId = `${currentUser.uid}_${preguntaId}`;
+            const geminiRef = doc(db, 'explicacionesGemini', docId);
+            await setDoc(geminiRef, {
+                usuarioId: currentUser.uid,
+                preguntaId: preguntaId,
+                preguntaTexto: data.preguntaTexto || '',
+                texto: data.explicacion,
+                fecha: new Date(),
+                importado: true
+            });
+            importados.push('Explicación');
+        }
+        
+        // Importar tarjetas
+        if (data.tarjetas && data.tarjetas.length > 0) {
+            for (const tarjeta of data.tarjetas) {
+                try {
+                    // Descargar imagen desde URL
+                    const response = await fetch(tarjeta.url);
+                    if (!response.ok) throw new Error('No se pudo descargar la imagen');
+                    const blob = await response.blob();
+                    
+                    // Subir a mi Storage
+                    const timestamp = Date.now();
+                    const storagePath = `tarjetas/${currentUser.uid}/${preguntaId}/${timestamp}_${tarjeta.nombre}`;
+                    const storageRef = ref(storage, storagePath);
+                    const snapshot = await uploadBytes(storageRef, blob);
+                    const downloadURL = await getDownloadURL(snapshot.ref);
+                    
+                    // Guardar referencia en Firestore
+                    await addDoc(collection(db, `usuarios/${currentUser.uid}/tarjetas`), {
+                        preguntaId: preguntaId,
+                        url: downloadURL,
+                        storagePath: storagePath,
+                        nombre: tarjeta.nombre,
+                        creadoEn: new Date().toISOString(),
+                        importado: true
+                    });
+                } catch (imgErr) {
+                    console.warn('Error importando tarjeta:', tarjeta.nombre, imgErr);
+                }
+            }
+            importados.push(`${data.tarjetas.length} tarjeta(s)`);
+        }
+        
+        if (importados.length === 0) {
+            alert('El archivo no contenía explicación ni tarjetas');
+        } else {
+            alert('✅ Importado: ' + importados.join(' + '));
+            // Actualizar indicadores
+            await verificarIndicadoresModal();
+            // Si está en tab gemini, recargar
+            const tabGemini = document.getElementById('tabGeminiModal');
+            if (tabGemini && tabGemini.classList.contains('active')) {
+                await cargarExplicacionGeminiModal();
+            }
+            // Si está en tab tarjetas, recargar
+            const tabTarjetas = document.getElementById('tabTarjetasModal');
+            if (tabTarjetas && tabTarjetas.classList.contains('active')) {
+                await cargarTarjetasModal();
+            }
+        }
+        
+        // Limpiar input
+        event.target.value = '';
+        
+    } catch (error) {
+        console.error('Error importando explicación:', error);
+        alert('❌ Error al importar: ' + error.message);
+        event.target.value = '';
+    }
+};
+
 // ================== EXPLICACIÓN DESDE BANCO DE PREGUNTAS ==================
 
 window.abrirExplicacionBanco = async function(temaId, index) {
@@ -6711,6 +6917,11 @@ window.abrirExplicacionBanco = async function(temaId, index) {
                 <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
                 <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación</button>
                 <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjetas</button>
+                    <div style="margin-left:auto;display:flex;gap:4px;">
+                        <button class="btn-export-explicacion" onclick="exportarExplicacionModal()" title="Exportar explicación">⬆️</button>
+                        <button class="btn-export-explicacion" onclick="document.getElementById('importExplicacionInput').click()" title="Importar explicación">⬇️</button>
+                        <input type="file" id="importExplicacionInput" accept=".json" style="display:none" onchange="importarExplicacionModal(event)">
+                    </div>
             </div>
             <div class="tab-content active" id="contentDigitalModal">
                 ${htmlDigital}
@@ -6757,6 +6968,8 @@ window.abrirExplicacionBanco = async function(temaId, index) {
                 }, 300);
             }
         }
+        
+        verificarIndicadoresModal();
         
     } catch (error) {
         console.error('Error cargando explicación:', error);
