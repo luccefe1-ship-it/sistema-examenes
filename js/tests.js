@@ -1,4 +1,5 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db, storage } from './firebase-config.js';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 import { inicializarTemaDigital, abrirModalTemaDigital } from './tema-digital.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
@@ -3692,7 +3693,8 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
             contenido.innerHTML = `
                 <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
                     <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
-                    <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación IA</button>
+                    <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación</button>
+                    <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjetas</button>
                 </div>
                 <div class="tab-content active" id="contentDigitalModal">
                     <div class="explicacion-no-encontrado">
@@ -3702,12 +3704,30 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
                 </div>
                 <div class="tab-content" id="contentGeminiModal" style="padding: 16px;">
                     <div class="explicacion-contenido">
-                        <textarea id="textoGeminiModal" class="textarea-gemini" placeholder="Pega aquí tu explicación de Gemini o escribe cualquier anotación personalizada..."></textarea>
+                        <div class="gemini-toolbar">
+                            <button type="button" class="toolbar-btn" onclick="formatearGeminiModal('bold')" title="Negrita"><b>N</b></button>
+                            <button type="button" class="toolbar-btn" onclick="formatearGeminiModal('underline')" title="Subrayar"><u>S</u></button>
+                            <button type="button" class="toolbar-btn toolbar-btn-highlight" onclick="formatearGeminiModal('highlight')" title="Resaltar">🖍️</button>
+                        </div>
+                        <div id="textoGeminiModal" class="textarea-gemini" contenteditable="true" data-placeholder="Escribe tu explicación o anotación personalizada..."></div>
                     </div>
                     <div class="explicacion-acciones" style="margin-top: 12px;">
                         <button id="btnGenerarIAModal" class="btn-guardar-gemini" onclick="generarExplicacionIAModal()" style="background: linear-gradient(135deg, #7c3aed, #2563eb);">✨ Generar con IA</button>
                         <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar</button>
                         <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
+                    </div>
+                </div>
+                <div class="tab-content" id="contentTarjetasModal" style="padding: 16px;">
+                    <div class="tarjetas-container">
+                        <div class="tarjetas-upload-area" id="tarjetasUploadAreaModal">
+                            <label class="btn-subir-tarjeta">
+                                📷 Subir Imagen (JPG/PNG)
+                                <input type="file" accept="image/jpeg,image/png,image/jpg" style="display:none" onchange="subirTarjetaModal(event)">
+                            </label>
+                        </div>
+                        <div class="tarjetas-galeria" id="tarjetasGaleriaModal">
+                            <p style="color:#94a3b8; text-align:center;">No hay tarjetas adjuntas</p>
+                        </div>
                     </div>
                 </div>
             `;
@@ -3739,7 +3759,8 @@ window.preguntaIdActual = preguntaIdHash;
 contenido.innerHTML = `
     <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
         <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
-        <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación IA</button>
+        <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación</button>
+        <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjetas</button>
     </div>
     <div class="tab-content active" id="contentDigitalModal">
         <div class="explicacion-header-mejorada">
@@ -3762,12 +3783,30 @@ contenido.innerHTML = `
     </div>
     <div class="tab-content" id="contentGeminiModal" style="padding: 16px;">
         <div class="explicacion-contenido">
-            <textarea id="textoGeminiModal" class="textarea-gemini" placeholder="Pega aquí tu explicación de Gemini o escribe cualquier anotación personalizada..."></textarea>
+            <div class="gemini-toolbar">
+                            <button type="button" class="toolbar-btn" onclick="formatearGeminiModal('bold')" title="Negrita"><b>N</b></button>
+                            <button type="button" class="toolbar-btn" onclick="formatearGeminiModal('underline')" title="Subrayar"><u>S</u></button>
+                            <button type="button" class="toolbar-btn toolbar-btn-highlight" onclick="formatearGeminiModal('highlight')" title="Resaltar">🖍️</button>
+                        </div>
+                        <div id="textoGeminiModal" class="textarea-gemini" contenteditable="true" data-placeholder="Escribe tu explicación o anotación personalizada..."></div>
         </div>
         <div class="explicacion-acciones" style="margin-top: 12px;">
             <button id="btnGenerarIAModal" class="btn-guardar-gemini" onclick="generarExplicacionIAModal()" style="background: linear-gradient(135deg, #7c3aed, #2563eb);">✨ Generar con IA</button>
             <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar</button>
             <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
+        </div>
+    </div>
+    <div class="tab-content" id="contentTarjetasModal" style="padding: 16px;">
+        <div class="tarjetas-container">
+            <div class="tarjetas-upload-area" id="tarjetasUploadAreaModal">
+                <label class="btn-subir-tarjeta">
+                    📷 Subir Imagen (JPG/PNG)
+                    <input type="file" accept="image/jpeg,image/png,image/jpg" style="display:none" onchange="subirTarjetaModal(event)">
+                </label>
+            </div>
+            <div class="tarjetas-galeria" id="tarjetasGaleriaModal">
+                <p style="color:#94a3b8; text-align:center;">Cargando tarjetas...</p>
+            </div>
         </div>
     </div>
 `;
@@ -6416,6 +6455,12 @@ window.cambiarTabModal = async function(tab) {
         if (tabBtn) tabBtn.classList.add('active');
         if (content) content.classList.add('active');
         await cargarExplicacionGeminiModal();
+    } else if (tab === 'tarjetas') {
+        const tabBtn = document.getElementById('tabTarjetasModal');
+        const content = document.getElementById('contentTarjetasModal');
+        if (tabBtn) tabBtn.classList.add('active');
+        if (content) content.classList.add('active');
+        await cargarTarjetasModal();
     }
 };
 
@@ -6428,10 +6473,14 @@ async function cargarExplicacionGeminiModal() {
         const geminiRef = doc(db, 'explicacionesGemini', docId);
         const geminiDoc = await getDoc(geminiRef);
         
-        if (geminiDoc.exists()) {
-            textarea.value = geminiDoc.data().texto;
+        if (geminiDoc.exists() && geminiDoc.data().texto) {
+            let texto = geminiDoc.data().texto;
+            if (!texto.includes('<')) {
+                texto = texto.replace(/\n/g, '<br>');
+            }
+            textarea.innerHTML = texto;
         } else {
-            textarea.value = '';
+            textarea.innerHTML = '';
         }
     } catch (error) {
         console.error('Error cargando explicación Gemini:', error);
@@ -6445,8 +6494,8 @@ window.guardarExplicacionGeminiModal = async function() {
         return;
     }
     
-    const textoGemini = textarea.value.trim();
-    if (!textoGemini) {
+    const textoGemini = textarea.innerHTML.trim();
+    if (!textoGemini || textoGemini === '<br>') {
         alert('Escribe algo antes de guardar');
         return;
     }
@@ -6509,7 +6558,7 @@ Proporciona una explicación pedagógica de 3-5 líneas que ayude a memorizar y 
         if (!response.ok) throw new Error(`Error API: ${response.status}`);
         const data = await response.json();
         const texto = data.content?.[0]?.text || '';
-        if (textarea) textarea.value = texto;
+        if (textarea) textarea.innerHTML = texto.replace(/\n/g, '<br>');
 
     } catch (error) {
         console.error('Error generando explicación IA:', error);
@@ -6533,11 +6582,31 @@ window.borrarExplicacionGeminiModal = async function() {
             await deleteDoc(geminiRef);
         }
         
-        if (textarea) textarea.value = '';
+        if (textarea) textarea.innerHTML = '';
         alert('✅ Explicación borrada');
     } catch (error) {
         console.error('Error borrando:', error);
         alert('Error al borrar: ' + error.message);
+    }
+};
+
+// Formatear texto en el modal de explicación
+window.formatearGeminiModal = function(formato) {
+    document.getElementById('textoGeminiModal').focus();
+    if (formato === 'bold') {
+        document.execCommand('bold');
+    } else if (formato === 'underline') {
+        document.execCommand('underline');
+    } else if (formato === 'highlight') {
+        const sel = window.getSelection();
+        if (sel.rangeCount) {
+            const parent = sel.anchorNode.parentElement;
+            if (parent && parent.style.backgroundColor && parent.tagName === 'SPAN') {
+                parent.replaceWith(...parent.childNodes);
+            } else {
+                document.execCommand('backColor', false, '#fbbf24');
+            }
+        }
     }
 };
 
@@ -6640,19 +6709,38 @@ window.abrirExplicacionBanco = async function(temaId, index) {
         contenido.innerHTML = `
             <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
                 <button class="tab-btn active" id="tabDigitalModal" onclick="cambiarTabModal('digital')">📚 Tema Digital</button>
-                <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación IA</button>
+                <button class="tab-btn" id="tabGeminiModal" onclick="cambiarTabModal('gemini')">🤖 Explicación</button>
+                <button class="tab-btn" id="tabTarjetasModal" onclick="cambiarTabModal('tarjetas')">🖼️ Tarjetas</button>
             </div>
             <div class="tab-content active" id="contentDigitalModal">
                 ${htmlDigital}
             </div>
             <div class="tab-content" id="contentGeminiModal" style="padding: 16px;">
                 <div class="explicacion-contenido">
-                    <textarea id="textoGeminiModal" class="textarea-gemini" placeholder="Pega aquí tu explicación de Gemini o escribe cualquier anotación personalizada..."></textarea>
+                    <div class="gemini-toolbar">
+                            <button type="button" class="toolbar-btn" onclick="formatearGeminiModal('bold')" title="Negrita"><b>N</b></button>
+                            <button type="button" class="toolbar-btn" onclick="formatearGeminiModal('underline')" title="Subrayar"><u>S</u></button>
+                            <button type="button" class="toolbar-btn toolbar-btn-highlight" onclick="formatearGeminiModal('highlight')" title="Resaltar">🖍️</button>
+                        </div>
+                        <div id="textoGeminiModal" class="textarea-gemini" contenteditable="true" data-placeholder="Escribe tu explicación o anotación personalizada..."></div>
                 </div>
                 <div class="explicacion-acciones" style="margin-top: 12px;">
                     <button id="btnGenerarIAModal" class="btn-guardar-gemini" onclick="generarExplicacionIAModal()" style="background: linear-gradient(135deg, #7c3aed, #2563eb);">✨ Generar con IA</button>
                     <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar</button>
                     <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
+                </div>
+            </div>
+            <div class="tab-content" id="contentTarjetasModal" style="padding: 16px;">
+                <div class="tarjetas-container">
+                    <div class="tarjetas-upload-area" id="tarjetasUploadAreaModal">
+                        <label class="btn-subir-tarjeta">
+                            📷 Subir Imagen (JPG/PNG)
+                            <input type="file" accept="image/jpeg,image/png,image/jpg" style="display:none" onchange="subirTarjetaModal(event)">
+                        </label>
+                    </div>
+                    <div class="tarjetas-galeria" id="tarjetasGaleriaModal">
+                        <p style="color:#94a3b8; text-align:center;">Cargando tarjetas...</p>
+                    </div>
                 </div>
             </div>
         `;
@@ -6867,3 +6955,155 @@ window.confirmarMoverPregunta = async function() {
     }
 };
 
+// =============================================
+// TARJETAS VISUALES POR PREGUNTA
+// =============================================
+
+window.subirTarjetaModal = async function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+        alert('Solo se permiten imágenes JPG o PNG');
+        return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+        alert('La imagen no puede superar 5MB');
+        return;
+    }
+    
+    const preguntaId = window.preguntaIdActualExplicacion;
+    if (!preguntaId || !currentUser) {
+        alert('Error: no se pudo identificar la pregunta');
+        return;
+    }
+    
+    try {
+        const galeria = document.getElementById('tarjetasGaleriaModal');
+        galeria.innerHTML = '<p style="color:#94a3b8; text-align:center;">⏳ Subiendo imagen...</p>';
+        
+        const timestamp = Date.now();
+        const storagePath = `tarjetas/${currentUser.uid}/${preguntaId}/${timestamp}_${file.name}`;
+        const storageRef = ref(storage, storagePath);
+        
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        
+        // Guardar referencia en Firestore
+        await addDoc(collection(db, `usuarios/${currentUser.uid}/tarjetas`), {
+            preguntaId: preguntaId,
+            url: downloadURL,
+            storagePath: storagePath,
+            nombre: file.name,
+            creadoEn: new Date().toISOString()
+        });
+        
+        // Recargar galería
+        await cargarTarjetasModal();
+        
+        // Limpiar input
+        event.target.value = '';
+        
+    } catch (error) {
+        console.error('Error subiendo tarjeta:', error);
+        alert('❌ Error al subir la imagen');
+        await cargarTarjetasModal();
+    }
+};
+
+async function cargarTarjetasModal() {
+    const galeria = document.getElementById('tarjetasGaleriaModal');
+    if (!galeria) return;
+    
+    const preguntaId = window.preguntaIdActualExplicacion;
+    if (!preguntaId || !currentUser) {
+        galeria.innerHTML = '<p style="color:#94a3b8; text-align:center;">No hay tarjetas adjuntas</p>';
+        return;
+    }
+    
+    try {
+        const q = query(
+            collection(db, `usuarios/${currentUser.uid}/tarjetas`),
+            where('preguntaId', '==', preguntaId)
+        );
+        const snap = await getDocs(q);
+        
+        if (snap.empty) {
+            galeria.innerHTML = '<p style="color:#94a3b8; text-align:center;">No hay tarjetas adjuntas</p>';
+            return;
+        }
+        
+        let html = '';
+        snap.forEach(docSnap => {
+            const data = docSnap.data();
+            html += `
+                <div class="tarjeta-item">
+                    <img src="${data.url}" alt="${data.nombre}" class="tarjeta-img" onclick="ampliarTarjeta('${data.url}')">
+                    <button class="btn-eliminar-tarjeta" onclick="eliminarTarjetaModal('${docSnap.id}', '${data.storagePath}')" title="Eliminar">🗑️</button>
+                </div>
+            `;
+        });
+        
+        galeria.innerHTML = html;
+        
+        // Actualizar indicador del tab
+        const tabBtn = document.getElementById('tabTarjetasModal');
+        if (tabBtn) tabBtn.classList.add('tiene-contenido');
+        
+    } catch (error) {
+        console.error('Error cargando tarjetas:', error);
+        galeria.innerHTML = '<p style="color:#ef4444; text-align:center;">Error al cargar tarjetas</p>';
+    }
+}
+
+window.eliminarTarjetaModal = async function(docId, storagePath) {
+    if (!confirm('¿Eliminar esta tarjeta?')) return;
+    
+    try {
+        // Eliminar de Storage
+        try {
+            const storageRef = ref(storage, storagePath);
+            await deleteObject(storageRef);
+        } catch (e) {
+            console.warn('No se pudo eliminar de Storage:', e);
+        }
+        
+        // Eliminar de Firestore
+        await deleteDoc(doc(db, `usuarios/${currentUser.uid}/tarjetas`, docId));
+        
+        // Recargar
+        await cargarTarjetasModal();
+        
+        // Verificar si quedan tarjetas para el indicador
+        const preguntaId = window.preguntaIdActualExplicacion;
+        const q = query(
+            collection(db, `usuarios/${currentUser.uid}/tarjetas`),
+            where('preguntaId', '==', preguntaId)
+        );
+        const snap = await getDocs(q);
+        if (snap.empty) {
+            const tabBtn = document.getElementById('tabTarjetasModal');
+            if (tabBtn) tabBtn.classList.remove('tiene-contenido');
+        }
+        
+    } catch (error) {
+        console.error('Error eliminando tarjeta:', error);
+        alert('❌ Error al eliminar la tarjeta');
+    }
+};
+
+window.ampliarTarjeta = function(url) {
+    const overlay = document.createElement('div');
+    overlay.className = 'tarjeta-overlay';
+    overlay.innerHTML = `
+        <div class="tarjeta-ampliada-container">
+            <button class="btn-cerrar-tarjeta" onclick="this.parentElement.parentElement.remove()">✕</button>
+            <img src="${url}" class="tarjeta-ampliada-img">
+        </div>
+    `;
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+    document.body.appendChild(overlay);
+};
