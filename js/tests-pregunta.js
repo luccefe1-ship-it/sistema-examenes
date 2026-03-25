@@ -880,6 +880,7 @@ window.toggleExplicacion = async function() {
     await cargarExplicacion();
     actualizarIndicadorDigital();
     verificarIndicadorGemini();
+    verificarIndicadorTarjetas();
 };
 
 window.cerrarExplicacion = function() {
@@ -1564,6 +1565,26 @@ async function verificarIndicadorGemini() {
         }
     } catch (error) {
         console.error('Error verificando Gemini:', error);
+    }
+}
+
+async function verificarIndicadorTarjetas() {
+    const tab = document.getElementById('tabTarjetas');
+    if (!tab) return;
+    try {
+        const preguntaId = obtenerPreguntaIdHash();
+        const q = query(
+            collection(db, `usuarios/${currentUser.uid}/tarjetas`),
+            where('preguntaId', '==', preguntaId)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+            tab.classList.add('tiene-contenido');
+        } else {
+            tab.classList.remove('tiene-contenido');
+        }
+    } catch (error) {
+        console.error('Error verificando Tarjetas:', error);
     }
 }
 
