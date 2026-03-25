@@ -1,5 +1,5 @@
 import { auth, db, storage } from './firebase-config.js';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 import { inicializarTemaDigital, abrirModalTemaDigital } from './tema-digital.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
@@ -3718,7 +3718,7 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
                     </div>
                     <div class="explicacion-acciones" style="margin-top: 12px;">
                         <button id="btnGenerarIAModal" class="btn-guardar-gemini" onclick="generarExplicacionIAModal()" style="background: linear-gradient(135deg, #7c3aed, #2563eb);">✨ Generar con IA</button>
-                        <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar</button>
+                        <button class="btn-guardar-gemini" onclick="guardarTodoModal()">💾 Guardar</button>
                         <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
                     </div>
                 </div>
@@ -3732,6 +3732,9 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
                         </div>
                         <div class="tarjetas-galeria" id="tarjetasGaleriaModal">
                             <p style="color:#94a3b8; text-align:center;">No hay tarjetas adjuntas</p>
+                        </div>
+                        <div class="explicacion-acciones" style="margin-top: 12px;">
+                            <button class="btn-guardar-gemini" onclick="guardarTodoModal()">💾 Guardar</button>
                         </div>
                     </div>
                 </div>
@@ -3782,7 +3785,7 @@ contenido.innerHTML = `
             <div class="botones-accion-superior">
                 <button class="btn-accion btn-subrayar" onclick="subrayarSeleccionModal()">✏️ Subrayar Selección</button>
                 <button class="btn-accion btn-borrar" onclick="borrarSubrayadoModal()">🗑️ Quitar Subrayado</button>
-                <button class="btn-accion btn-guardar" onclick="guardarSubrayadoModal()">💾 Guardar Cambios</button>
+                <button class="btn-accion btn-guardar" onclick="guardarTodoModal()">💾 Guardar Cambios</button>
             </div>
             ${subrayados ? '<p class="info-subrayados">✅ Mostrando tus subrayados guardados</p>' : '<p class="info-subrayados">🔄 Documento sin subrayados previos</p>'}
         </div>
@@ -3803,7 +3806,7 @@ contenido.innerHTML = `
         </div>
         <div class="explicacion-acciones" style="margin-top: 12px;">
             <button id="btnGenerarIAModal" class="btn-guardar-gemini" onclick="generarExplicacionIAModal()" style="background: linear-gradient(135deg, #7c3aed, #2563eb);">✨ Generar con IA</button>
-            <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar</button>
+            <button class="btn-guardar-gemini" onclick="guardarTodoModal()">💾 Guardar</button>
             <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
         </div>
     </div>
@@ -3817,6 +3820,9 @@ contenido.innerHTML = `
             </div>
             <div class="tarjetas-galeria" id="tarjetasGaleriaModal">
                 <p style="color:#94a3b8; text-align:center;">Cargando tarjetas...</p>
+            </div>
+            <div class="explicacion-acciones" style="margin-top: 12px;">
+                <button class="btn-guardar-gemini" onclick="guardarTodoModal()">💾 Guardar</button>
             </div>
         </div>
     </div>
@@ -6500,6 +6506,64 @@ async function cargarExplicacionGeminiModal() {
     }
 }
 
+window.guardarTodoModal = async function() {
+    let msgs = [];
+    
+    // 1. Guardar explicación (texto, incluso vacío)
+    const textarea = document.getElementById('textoGeminiModal');
+    if (textarea && window.preguntaIdActualExplicacion) {
+        try {
+            const pregunta = window.preguntaActualExplicacion;
+            const preguntaIdHash = window.preguntaIdActualExplicacion;
+            const docId = `${currentUser.uid}_${preguntaIdHash}`;
+            const geminiRef = doc(db, 'explicacionesGemini', docId);
+            const textoGemini = textarea.innerHTML.trim();
+            
+            if (textoGemini && textoGemini !== '<br>') {
+                await setDoc(geminiRef, {
+                    usuarioId: currentUser.uid,
+                    preguntaId: preguntaIdHash,
+                    preguntaTexto: pregunta.texto || pregunta.preguntaTexto || '',
+                    texto: textoGemini,
+                    fecha: new Date()
+                });
+                msgs.push('Explicación');
+            } else {
+                // Guardar vacío = borrar
+                const geminiDoc = await getDoc(geminiRef);
+                if (geminiDoc.exists()) {
+                    await deleteDoc(geminiRef);
+                }
+                msgs.push('Explicación (vaciada)');
+            }
+        } catch (e) { console.error('Error guardando explicación:', e); }
+    }
+    
+    // 2. Guardar subrayados si hay contenido en el tema digital
+    const textoExplicacion = document.getElementById('textoExplicacionModal');
+    if (textoExplicacion && window.preguntaIdActualExplicacion) {
+        try {
+            const contenidoHTML = textoExplicacion.innerHTML;
+            if (contenidoHTML.includes('class="subrayado"')) {
+                const docId = `${currentUser.uid}_${window.preguntaIdActualExplicacion}`;
+                const subrayadoRef = doc(db, 'subrayados', docId);
+                await setDoc(subrayadoRef, {
+                    contenido: contenidoHTML,
+                    fecha: new Date()
+                });
+                msgs.push('Subrayados');
+            }
+        } catch (e) { console.error('Error guardando subrayados:', e); }
+    }
+    
+    // 3. Tarjetas ya se guardan automáticamente al subir
+    
+    // Actualizar indicadores
+    await verificarIndicadoresModal();
+    
+    alert('✅ Guardado: ' + (msgs.length > 0 ? msgs.join(' + ') : 'Sin cambios'));
+};
+
 window.guardarExplicacionGeminiModal = async function() {
     const textarea = document.getElementById('textoGeminiModal');
     if (!textarea || !window.preguntaIdActualExplicacion) {
@@ -6508,10 +6572,6 @@ window.guardarExplicacionGeminiModal = async function() {
     }
     
     const textoGemini = textarea.innerHTML.trim();
-    if (!textoGemini || textoGemini === '<br>') {
-        alert('Escribe algo antes de guardar');
-        return;
-    }
     
     try {
         const pregunta = window.preguntaActualExplicacion;
@@ -6667,21 +6727,12 @@ async function verificarIndicadoresModal() {
 // Helper: convertir archivo de Storage a base64 usando Firebase SDK (evita CORS)
 async function storageTarjetaToBase64(storagePath) {
     const storageRef = ref(storage, storagePath);
-    const url = await getDownloadURL(storageRef);
-    
-    // Usar XMLHttpRequest que funciona con tokens de Firebase
+    const blob = await getBlob(storageRef);
     return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.responseType = 'blob';
-        xhr.onload = () => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(xhr.response);
-        };
-        xhr.onerror = reject;
-        xhr.open('GET', url);
-        xhr.send();
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
     });
 }
 
@@ -6719,25 +6770,7 @@ window.exportarExplicacionModal = async function() {
             for (const docSnap of snap.docs) {
                 const data = docSnap.data();
                 try {
-                    let base64;
-                    if (data.storagePath) {
-                        base64 = await storageTarjetaToBase64(data.storagePath);
-                    } else {
-                        // Fallback: intentar con URL directa via XHR
-                        base64 = await new Promise((resolve, reject) => {
-                            const xhr = new XMLHttpRequest();
-                            xhr.responseType = 'blob';
-                            xhr.onload = () => {
-                                const reader = new FileReader();
-                                reader.onloadend = () => resolve(reader.result);
-                                reader.onerror = reject;
-                                reader.readAsDataURL(xhr.response);
-                            };
-                            xhr.onerror = reject;
-                            xhr.open('GET', data.url);
-                            xhr.send();
-                        });
-                    }
+                    const base64 = await storageTarjetaToBase64(data.storagePath);
                     exportData.tarjetas.push({
                         nombre: data.nombre,
                         base64: base64
@@ -6961,7 +6994,7 @@ window.abrirExplicacionBanco = async function(temaId, index) {
                     <div class="botones-accion-superior">
                         <button class="btn-accion btn-subrayar" onclick="subrayarSeleccionModal()">✏️ Subrayar Selección</button>
                         <button class="btn-accion btn-borrar" onclick="borrarSubrayadoModal()">🗑️ Quitar Subrayado</button>
-                        <button class="btn-accion btn-guardar" onclick="guardarSubrayadoModal()">💾 Guardar Cambios</button>
+                        <button class="btn-accion btn-guardar" onclick="guardarTodoModal()">💾 Guardar Cambios</button>
                     </div>
                     ${subrayados ? '<p class="info-subrayados">✅ Mostrando tus subrayados guardados</p>' : '<p class="info-subrayados">🔄 Documento sin subrayados previos</p>'}
                 </div>
@@ -6998,7 +7031,7 @@ window.abrirExplicacionBanco = async function(temaId, index) {
                 </div>
                 <div class="explicacion-acciones" style="margin-top: 12px;">
                     <button id="btnGenerarIAModal" class="btn-guardar-gemini" onclick="generarExplicacionIAModal()" style="background: linear-gradient(135deg, #7c3aed, #2563eb);">✨ Generar con IA</button>
-                    <button class="btn-guardar-gemini" onclick="guardarExplicacionGeminiModal()">💾 Guardar</button>
+                    <button class="btn-guardar-gemini" onclick="guardarTodoModal()">💾 Guardar</button>
                     <button class="btn-borrar-gemini" onclick="borrarExplicacionGeminiModal()">🗑️ Borrar</button>
                 </div>
             </div>
@@ -7012,6 +7045,9 @@ window.abrirExplicacionBanco = async function(temaId, index) {
                     </div>
                     <div class="tarjetas-galeria" id="tarjetasGaleriaModal">
                         <p style="color:#94a3b8; text-align:center;">Cargando tarjetas...</p>
+                    </div>
+                    <div class="explicacion-acciones" style="margin-top: 12px;">
+                        <button class="btn-guardar-gemini" onclick="guardarTodoModal()">💾 Guardar</button>
                     </div>
                 </div>
             </div>
