@@ -174,7 +174,6 @@ function abrirModoCine(temaNombre, tarjetas) {
         <div class="cine-imagen-container">
             <img class="cine-imagen" id="cineImagen" src="${tarjetas[0].url}" alt="Tarjeta">
         </div>
-        <div class="cine-pregunta-texto" id="cinePregunta">${tarjetas[0].preguntaTexto || ''}</div>
         <button class="cine-nav prev" id="cinePrev" onclick="navegarCine(-1)">‹</button>
         <button class="cine-nav next" id="cineNext" onclick="navegarCine(1)">›</button>
         <div class="cine-dots" id="cineDots">
@@ -213,7 +212,6 @@ function actualizarVistaCine() {
     const tarjeta = cineTarjetas[cineIndex];
     document.getElementById('cineImagen').src = tarjeta.url;
     document.getElementById('cineContador').textContent = `${cineIndex + 1} / ${cineTarjetas.length}`;
-    document.getElementById('cinePregunta').textContent = tarjeta.preguntaTexto || '';
     
     // Dots
     document.querySelectorAll('.cine-dot').forEach((dot, i) => {
