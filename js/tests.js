@@ -833,41 +833,53 @@ async function cargarBancoPreguntas() {
             }
         });
 
-// ORDENAR TEMAS CON ORDEN NUMÉRICO INTELIGENTE
+// ORDENAR TEMAS: primero por campo 'orden' guardado (drag & drop), luego por nombre como fallback
 temasPrincipales.sort((a, b) => {
+    const ordenA = a.data.orden;
+    const ordenB = b.data.orden;
+    
+    if (ordenA !== undefined && ordenB !== undefined) {
+        return ordenA - ordenB;
+    }
+    if (ordenA !== undefined) return -1;
+    if (ordenB !== undefined) return 1;
+    
+    // Fallback: ordenamiento numérico inteligente por nombre
     const nombreA = a.data.nombre;
     const nombreB = b.data.nombre;
-    
-    // Extraer números del nombre si existen
     const numeroA = nombreA.match(/\d+/);
     const numeroB = nombreB.match(/\d+/);
     
     if (numeroA && numeroB) {
-        // Si ambos tienen números, ordenar por número
         return parseInt(numeroA[0]) - parseInt(numeroB[0]);
-    } else {
-        // Si no tienen números, orden alfabético normal
-        return nombreA.localeCompare(nombreB);
     }
+    return nombreA.localeCompare(nombreB);
 });
 
-// ORDENAR SUBTEMAS CON ORDENAMIENTO NUMÉRICO INTELIGENTE (IGUAL QUE TEMAS PRINCIPALES)
+// ORDENAR SUBTEMAS: primero por campo 'orden' guardado, luego por nombre como fallback
 Object.keys(subtemasPorPadre).forEach(padreId => {
     subtemasPorPadre[padreId].sort((a, b) => {
+        const ordenA = a.data.orden;
+        const ordenB = b.data.orden;
+        
+        // Si ambos tienen orden definido, usar ese orden
+        if (ordenA !== undefined && ordenB !== undefined) {
+            return ordenA - ordenB;
+        }
+        // Si solo uno tiene orden, ese va primero
+        if (ordenA !== undefined) return -1;
+        if (ordenB !== undefined) return 1;
+        
+        // Fallback: ordenamiento numérico inteligente por nombre
         const nombreA = a.data.nombre;
         const nombreB = b.data.nombre;
-        
-        // Extraer números del nombre si existen
         const numeroA = nombreA.match(/\d+/);
         const numeroB = nombreB.match(/\d+/);
         
         if (numeroA && numeroB) {
-            // Si ambos tienen números, ordenar por número
             return parseInt(numeroA[0]) - parseInt(numeroB[0]);
-        } else {
-            // Si no tienen números, orden alfabético normal
-            return nombreA.localeCompare(nombreB);
         }
+        return nombreA.localeCompare(nombreB);
     });
 });
 // NUEVA SECCIÓN: Sumar preguntas de subtemas a los temas principales
@@ -1219,7 +1231,23 @@ function configurarDragAndDrop() {
             console.error('Error guardando orden:', error);
         }
     }
-    
+    // Función para guardar orden de subtemas en Firebase
+    async function guardarOrdenSubtemas(container) {
+        try {
+            const subtemas = container.querySelectorAll('.subtema-container');
+            const promesas = [];
+            subtemas.forEach((el, index) => {
+                const subtemaId = el.dataset.subtemaId;
+                if (subtemaId) {
+                    promesas.push(updateDoc(doc(db, "temas", subtemaId), { orden: index }));
+                }
+            });
+            await Promise.all(promesas);
+            console.log('Orden de subtemas guardado');
+        } catch (error) {
+            console.error('Error guardando orden de subtemas:', error);
+        }
+    }
     // Configurar drag and drop para temas principales
     temaCards.forEach(card => {
         card.addEventListener('dragstart', (e) => {
@@ -1287,7 +1315,7 @@ function configurarDragAndDrop() {
             e.stopPropagation();
         });
 
-        subtema.addEventListener('drop', (e) => {
+        subtema.addEventListener('drop', async (e) => {
             e.preventDefault();
             e.stopPropagation();
             
@@ -1306,6 +1334,9 @@ function configurarDragAndDrop() {
                     } else {
                         dropTarget.parentNode.insertBefore(draggedElement, dropTarget);
                     }
+                    
+                    // Guardar el nuevo orden de subtemas en Firebase
+                    await guardarOrdenSubtemas(dropTarget.parentNode);
                 }
             }
         });
@@ -6095,8 +6126,7 @@ window.toggleOficialBloque = async function(temaId) {
         
         // Recargar las preguntas si están visibles
         const container = document.getElementById(`preguntas-${temaId}`);
-        if (container && container.dataset.cargado === 'true') {
-            container.dataset.cargado = 'false';
+        if (container) {
             container.innerHTML = preguntas.map((pregunta, index) => 
                 crearPreguntaEditable(pregunta, index, temaId)
             ).join('');
