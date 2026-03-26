@@ -800,22 +800,32 @@ async function cargarBancoPreguntas() {
         controlesDiv.className = 'controles-generales';
         controlesDiv.innerHTML = `
             <input type="text" id="buscadorPreguntas" placeholder="Buscar preguntas..." />
-            <span id="contadorTotalPreguntas" style="
-                background: linear-gradient(135deg, #6366f1, #8b5cf6);
-                color: white;
-                padding: 6px 14px;
-                border-radius: 20px;
-                font-size: 13px;
-                font-weight: 600;
-                white-space: nowrap;
-                box-shadow: 0 2px 6px rgba(99,102,241,0.3);
-                display: inline-flex;
-                align-items: center;
-                gap: 4px;
-            ">📊 Calculando...</span>
             <button id="detectarDuplicadasBtn" class="btn-warning">🔍 Detectar Duplicadas</button>
             <button class="btn-danger" onclick="eliminarTodosTemas()">🗑️ Eliminar Todos los Temas</button>
         `;
+        // Contador total de preguntas (centrado, grande, arriba de controles)
+        const contadorDiv = document.createElement('div');
+        contadorDiv.id = 'contadorTotalPreguntas';
+        contadorDiv.style.cssText = `
+            text-align: center;
+            padding: 18px 0 14px;
+        `;
+        contadorDiv.innerHTML = `
+            <span style="
+                background: linear-gradient(135deg, #4f46e5, #7c3aed);
+                color: white;
+                padding: 10px 28px;
+                border-radius: 30px;
+                font-size: 18px;
+                font-weight: 700;
+                box-shadow: 0 4px 12px rgba(79,70,229,0.35);
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                letter-spacing: 0.3px;
+            ">📊 Calculando...</span>
+        `;
+        listaTemas.appendChild(contadorDiv);
         listaTemas.appendChild(controlesDiv);
 
         // Configurar eventos del buscador
@@ -902,7 +912,7 @@ temasPrincipales.forEach(tema => {
         }, 0);
         const contadorEl = document.getElementById('contadorTotalPreguntas');
         if (contadorEl) {
-            contadorEl.textContent = `📊 Total: ${totalPreguntasPlataforma.toLocaleString('es-ES')} preguntas`;
+            contadorEl.querySelector('span').textContent = `📊 Total: ${totalPreguntasPlataforma.toLocaleString('es-ES')} preguntas`;
         }
 
         // Renderizar temas principales con sus subtemas
