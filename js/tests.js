@@ -800,6 +800,19 @@ async function cargarBancoPreguntas() {
         controlesDiv.className = 'controles-generales';
         controlesDiv.innerHTML = `
             <input type="text" id="buscadorPreguntas" placeholder="Buscar preguntas..." />
+            <span id="contadorTotalPreguntas" style="
+                background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                color: white;
+                padding: 6px 14px;
+                border-radius: 20px;
+                font-size: 13px;
+                font-weight: 600;
+                white-space: nowrap;
+                box-shadow: 0 2px 6px rgba(99,102,241,0.3);
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+            ">📊 Calculando...</span>
             <button id="detectarDuplicadasBtn" class="btn-warning">🔍 Detectar Duplicadas</button>
             <button class="btn-danger" onclick="eliminarTodosTemas()">🗑️ Eliminar Todos los Temas</button>
         `;
@@ -882,6 +895,16 @@ temasPrincipales.forEach(tema => {
         tema.data.preguntasTotal = tema.data.preguntas?.length || 0;
     }
 });
+
+        // Calcular y mostrar total de preguntas en toda la plataforma
+        const totalPreguntasPlataforma = temasPrincipales.reduce((total, tema) => {
+            return total + (tema.data.preguntasTotal || 0);
+        }, 0);
+        const contadorEl = document.getElementById('contadorTotalPreguntas');
+        if (contadorEl) {
+            contadorEl.textContent = `📊 Total: ${totalPreguntasPlataforma.toLocaleString('es-ES')} preguntas`;
+        }
+
         // Renderizar temas principales con sus subtemas
         temasPrincipales.forEach(({ id, data: tema }) => {
             const temaDiv = document.createElement('div');
