@@ -930,6 +930,7 @@ temasPrincipales.forEach(tema => {
     <button class="btn-exportar" onclick="exportarTema('${id}')">📤 Exportar</button>
     <button class="btn-warning" onclick="vaciarTema('${id}')">🧹 Vaciar Tema</button>
     <button class="btn-secondary" onclick="editarTema('${id}')">✏️ Editar</button>
+    <button class="btn-oficial-bloque" onclick="toggleOficialBloque('${id}')" title="Marcar/desmarcar todas como oficiales">📋 Oficial</button>
     <button class="btn-danger" onclick="eliminarTema('${id}')">🗑️ Eliminar</button>
 </div>
                 </div>
@@ -1100,13 +1101,19 @@ window.manejarToggleSubtemas = function(event, temaId) {
 // Crear HTML para pregunta editable
 function crearPreguntaEditable(pregunta, index, temaId) {
     const verificada = pregunta.verificada || false;
+    const oficial = pregunta.esOficial || false;
     return `
-        <div class="pregunta-item pregunta-editable ${verificada ? 'pregunta-verificada' : ''}" data-pregunta-index="${index}">
+        <div class="pregunta-item pregunta-editable ${verificada ? 'pregunta-verificada' : ''} ${oficial ? 'pregunta-oficial' : ''}" data-pregunta-index="${index}">
             <div class="pregunta-controls">
                 <button class="btn-icon btn-verify ${verificada ? 'verified' : ''}" 
                         onclick="toggleVerificacion('${temaId}', ${index})" 
                         title="${verificada ? 'Pregunta verificada' : 'Marcar como verificada'}">
                     ${verificada ? '⭐' : '☆'}
+                </button>
+                <button class="btn-icon btn-oficial ${oficial ? 'oficial-activa' : ''}" 
+                        onclick="toggleOficial('${temaId}', ${index})" 
+                        title="${oficial ? 'Pregunta oficial de examen' : 'Marcar como oficial de examen'}">
+                    ${oficial ? '📋' : '📄'}
                 </button>
                 <button class="btn-icon btn-edit" onclick="editarPregunta('${temaId}', ${index})" title="Editar pregunta">✏️</button>
                 <button class="btn-icon btn-delete" onclick="eliminarPregunta('${temaId}', ${index})" title="Eliminar pregunta">🗑️</button>
@@ -1146,6 +1153,7 @@ function crearSubtemaHTML(subtemaId, subtema) {
 <div class="subtema-acciones">
     <button class="btn-importar btn-sm" onclick="importarATema('${subtemaId}')">📥 Importar</button>
     <button class="btn-exportar btn-sm" onclick="exportarTema('${subtemaId}')">📤 Exportar</button>
+    <button class="btn-oficial-bloque btn-sm" onclick="toggleOficialBloque('${subtemaId}')" title="Marcar/desmarcar todas como oficiales">📋</button>
     <button class="btn-secondary btn-sm" onclick="editarTema('${subtemaId}')">✏️</button>
     <button class="btn-danger btn-sm" onclick="eliminarTema('${subtemaId}')">🗑️</button>
 </div>
@@ -2988,6 +2996,7 @@ function generarPreguntasTest() {
         preguntaDiv.innerHTML = `
             <div class="pregunta-header">
                 <div class="pregunta-numero">${index + 1}</div>
+                ${pregunta.esOficial ? '<span class="badge-oficial">📋 Oficial</span>' : ''}
                 <div class="pregunta-tema-info">
                     ${(pregunta.temaPadreId && pregunta.temaPadreNombre) ? pregunta.temaPadreNombre : pregunta.temaNombre}${pregunta.temaEpigrafe ? ` - ${pregunta.temaEpigrafe}` : ''}
                 </div>
@@ -3405,6 +3414,9 @@ html += '</div>';
         html += '<div class="pregunta-revision ' + detalle.estado + '">';
         html += '<div class="revision-pregunta-header">';
         html += '<strong>Pregunta ' + detalle.indice + '</strong>';
+        if (detalle.pregunta.esOficial) {
+            html += '<span class="badge-oficial">📋 Oficial</span>';
+        }
         html += '<span class="revision-estado ' + detalle.estado + '">';
         if (detalle.estado === 'correcta') {
             html += 'Correcta';
@@ -3495,6 +3507,7 @@ async function guardarResultado(resultados) {
                     temaNombre: detalle.pregunta?.temaNombre || '',
                     temaEpigrafe: detalle.pregunta?.temaEpigrafe || '',
                     temaId: detalle.pregunta?.temaId || '',
+                    esOficial: detalle.pregunta?.esOficial || false,
                     opciones: (detalle.pregunta?.opciones || []).map(opcion => ({
                         letra: opcion.letra || 'A',
                         texto: opcion.texto || '',
@@ -4742,6 +4755,7 @@ window.exportarTema = async function(temaId) {
                 correctAnswer: pregunta.opciones.findIndex(op => op.esCorrecta),
                 explanation: "",
                 isVerified: pregunta.verificada || false,
+                isOficial: pregunta.esOficial || false,
                 originalTopicId: Date.now(),
                 createdAt: new Date().toISOString()
             })),
@@ -5341,6 +5355,7 @@ function procesarPreguntasImportadas(datos) {
             })),
             respuestaCorrecta: ['A', 'B', 'C', 'D'][indiceCorrecta] || 'A',
             verificada: Boolean(q.isVerified),
+            esOficial: Boolean(q.isOficial),
             fechaCreacion: new Date()
         };
     }).filter(p => p !== null);
@@ -5866,6 +5881,9 @@ function generarHTMLResultadosDetalle(resultado) {
             html += '<div class="pregunta-revision ' + detalle.estado + '">';
             html += '<div class="revision-pregunta-header">';
             html += '<strong>Pregunta ' + detalle.indice + '</strong>';
+            if (detalle.pregunta.esOficial) {
+                html += '<span class="badge-oficial">📋 Oficial</span>';
+            }
             html += '<span class="revision-estado ' + detalle.estado + '">';
             if (detalle.estado === 'correcta') {
                 html += 'Correcta';
@@ -5998,6 +6016,99 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
     listResultados.appendChild(panelEstadisticas);
 }
 // Cargar preguntas solo cuando se abre el desplegable
+// ========== SISTEMA DE PREGUNTAS OFICIALES ==========
+
+// Toggle individual
+window.toggleOficial = async function(temaId, preguntaIndex) {
+    try {
+        const temaRef = doc(db, "temas", temaId);
+        const temaDoc2 = await getDoc(temaRef);
+        if (!temaDoc2.exists()) return;
+        
+        const preguntas = temaDoc2.data().preguntas || [];
+        if (preguntaIndex >= preguntas.length) return;
+        
+        preguntas[preguntaIndex].esOficial = !preguntas[preguntaIndex].esOficial;
+        
+        await updateDoc(temaRef, { preguntas });
+        
+        // Actualizar UI sin recargar todo
+        const container = document.getElementById(`preguntas-${temaId}`);
+        if (container) {
+            const preguntaDiv = container.querySelectorAll('.pregunta-editable')[preguntaIndex];
+            if (preguntaDiv) {
+                preguntaDiv.classList.toggle('pregunta-oficial', preguntas[preguntaIndex].esOficial);
+                const btnOficial = preguntaDiv.querySelector('.btn-oficial');
+                if (btnOficial) {
+                    btnOficial.classList.toggle('oficial-activa', preguntas[preguntaIndex].esOficial);
+                    btnOficial.innerHTML = preguntas[preguntaIndex].esOficial ? '📋' : '📄';
+                    btnOficial.title = preguntas[preguntaIndex].esOficial ? 'Pregunta oficial de examen' : 'Marcar como oficial de examen';
+                }
+            }
+        }
+        
+        // Invalidar caché
+        cacheTemas = null;
+        cacheTimestamp = null;
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+        
+    } catch (error) {
+        console.error('Error toggling oficial:', error);
+        alert('Error al cambiar estado oficial');
+    }
+};
+
+// Toggle en bloque (todo un tema/subtema)
+window.toggleOficialBloque = async function(temaId) {
+    try {
+        const temaRef = doc(db, "temas", temaId);
+        const temaDoc2 = await getDoc(temaRef);
+        if (!temaDoc2.exists()) return;
+        
+        const tema = temaDoc2.data();
+        const preguntas = tema.preguntas || [];
+        
+        if (preguntas.length === 0) {
+            alert('Este tema no tiene preguntas');
+            return;
+        }
+        
+        // Determinar si marcar o desmarcar: si la mayoría ya son oficiales, desmarcar
+        const oficiales = preguntas.filter(p => p.esOficial).length;
+        const nuevasMarcadas = oficiales < preguntas.length;
+        
+        const accion = nuevasMarcadas ? 'marcar' : 'desmarcar';
+        if (!confirm(`¿${nuevasMarcadas ? 'Marcar' : 'Desmarcar'} las ${preguntas.length} preguntas de "${tema.nombre}" como oficiales de examen?`)) return;
+        
+        preguntas.forEach(p => p.esOficial = nuevasMarcadas);
+        
+        await updateDoc(temaRef, { preguntas });
+        
+        alert(`${preguntas.length} preguntas ${nuevasMarcadas ? 'marcadas' : 'desmarcadas'} como oficiales`);
+        
+        // Invalidar caché y recargar
+        cacheTemas = null;
+        cacheTimestamp = null;
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+        
+        // Recargar las preguntas si están visibles
+        const container = document.getElementById(`preguntas-${temaId}`);
+        if (container && container.dataset.cargado === 'true') {
+            container.dataset.cargado = 'false';
+            container.innerHTML = preguntas.map((pregunta, index) => 
+                crearPreguntaEditable(pregunta, index, temaId)
+            ).join('');
+            container.dataset.cargado = 'true';
+        }
+        
+    } catch (error) {
+        console.error('Error toggling oficial en bloque:', error);
+        alert('Error al cambiar estado oficial en bloque');
+    }
+};
+
 window.cargarPreguntasLazy = async function(event, temaId) {
     const container = document.getElementById(`preguntas-${temaId}`);
     if (!container || container.dataset.cargado === 'true') return;
