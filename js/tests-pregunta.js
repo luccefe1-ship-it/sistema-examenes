@@ -179,6 +179,23 @@ function mostrarPregunta() {
         temaBadge.style.display = 'none';
     }
 
+    // Badge oficial
+    let oficialBadge = document.getElementById('oficialBadgePregunta');
+    if (!oficialBadge) {
+        oficialBadge = document.createElement('div');
+        oficialBadge.id = 'oficialBadgePregunta';
+        oficialBadge.className = 'badge-oficial';
+        oficialBadge.style.cssText = 'margin-bottom:12px;';
+        const textoEl = document.getElementById('textoPreguntaGrande');
+        textoEl.parentNode.insertBefore(oficialBadge, textoEl);
+    }
+    if (pregunta.esOficial) {
+        oficialBadge.textContent = '📋 Pregunta oficial de examen';
+        oficialBadge.style.display = 'inline-flex';
+    } else {
+        oficialBadge.style.display = 'none';
+    }
+
     // Mostrar texto de la pregunta
     document.getElementById('textoPreguntaGrande').textContent = pregunta.texto;
     
@@ -660,7 +677,8 @@ async function finalizarTest() {
                 respuestaCorrecta: respuestaCorrecta,
                 temaId: pregunta.temaId || '',
                 temaNombre: pregunta.temaNombre || '',
-                temaEpigrafe: pregunta.temaEpigrafe || ''
+                temaEpigrafe: pregunta.temaEpigrafe || '',
+                esOficial: pregunta.esOficial || false
             },
             respuestaUsuario: respuestaLetra,
             respuestaCorrecta: respuestaCorrecta,
