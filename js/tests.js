@@ -803,29 +803,6 @@ async function cargarBancoPreguntas() {
             <button id="detectarDuplicadasBtn" class="btn-warning">🔍 Detectar Duplicadas</button>
             <button class="btn-danger" onclick="eliminarTodosTemas()">🗑️ Eliminar Todos los Temas</button>
         `;
-        // Contador total de preguntas (centrado, grande, arriba de controles)
-        const contadorDiv = document.createElement('div');
-        contadorDiv.id = 'contadorTotalPreguntas';
-        contadorDiv.style.cssText = `
-            text-align: center;
-            padding: 18px 0 14px;
-        `;
-        contadorDiv.innerHTML = `
-            <span style="
-                background: linear-gradient(135deg, #4f46e5, #7c3aed);
-                color: white;
-                padding: 10px 28px;
-                border-radius: 30px;
-                font-size: 18px;
-                font-weight: 700;
-                box-shadow: 0 4px 12px rgba(79,70,229,0.35);
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                letter-spacing: 0.3px;
-            ">📊 Calculando...</span>
-        `;
-        listaTemas.appendChild(contadorDiv);
         listaTemas.appendChild(controlesDiv);
 
         // Configurar eventos del buscador
@@ -912,7 +889,8 @@ temasPrincipales.forEach(tema => {
         }, 0);
         const contadorEl = document.getElementById('contadorTotalPreguntas');
         if (contadorEl) {
-            contadorEl.querySelector('span').textContent = `📊 Total: ${totalPreguntasPlataforma.toLocaleString('es-ES')} preguntas`;
+            contadorEl.textContent = `📊 Total: ${totalPreguntasPlataforma.toLocaleString('es-ES')} preguntas`;
+            contadorEl.style.visibility = 'visible';
         }
 
         // Renderizar temas principales con sus subtemas
