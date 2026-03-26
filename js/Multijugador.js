@@ -337,6 +337,7 @@ async function cargarPreguntasVerificadas() {
                                 pregunta: pregunta.texto,
                                 opciones: pregunta.opciones.map(op => op.texto),
                                 respuestaCorrecta: respuestaCorrecta,
+                                esOficial: pregunta.esOficial || false,
                                 esSubtema: false
                             });
                         }
@@ -365,6 +366,7 @@ async function cargarPreguntasVerificadas() {
                                         pregunta: pregunta.texto,
                                         opciones: pregunta.opciones.map(op => op.texto),
                                         respuestaCorrecta: respuestaCorrecta,
+                                        esOficial: pregunta.esOficial || false,
                                         esSubtema: true,
                                         subtemaOriginal: subtema.nombre // Guardar referencia al subtema original
                                     });
@@ -1062,6 +1064,21 @@ async function mostrarPreguntaParaResponder(pregunta) {
     const opcionesPregunta = document.getElementById('opcionesPregunta');
     
     textoPregunta.textContent = pregunta.pregunta;
+    // Badge oficial en multijugador
+    let oficialBadgeMulti = document.getElementById('oficialBadgeMulti');
+    if (!oficialBadgeMulti) {
+        oficialBadgeMulti = document.createElement('span');
+        oficialBadgeMulti.id = 'oficialBadgeMulti';
+        oficialBadgeMulti.className = 'badge-oficial';
+        oficialBadgeMulti.style.cssText = 'margin-bottom:8px;display:none;';
+        textoPregunta.parentNode.insertBefore(oficialBadgeMulti, textoPregunta.nextSibling);
+    }
+    if (pregunta.esOficial) {
+        oficialBadgeMulti.textContent = '📋 Oficial';
+        oficialBadgeMulti.style.display = 'inline-flex';
+    } else {
+        oficialBadgeMulti.style.display = 'none';
+    }
     opcionesPregunta.innerHTML = '';
     
     pregunta.opciones.forEach((opcion, index) => {
@@ -1890,6 +1907,7 @@ async function cargarPreguntasRival(rivalUid, temasPermitidos = null) {
                                     pregunta: pregunta.texto,
                                     opciones: pregunta.opciones.map(op => op.texto),
                                     respuestaCorrecta: respuestaCorrecta,
+                                    esOficial: pregunta.esOficial || false,
                                     esSubtema: false
                                 });
                             }
@@ -1928,6 +1946,7 @@ async function cargarPreguntasRival(rivalUid, temasPermitidos = null) {
                                             pregunta: pregunta.texto,
                                             opciones: pregunta.opciones.map(op => op.texto),
                                             respuestaCorrecta: respuestaCorrecta,
+                                            esOficial: pregunta.esOficial || false,
                                             esSubtema: true,
                                             subtemaOriginal: subtema.nombre
                                         });
