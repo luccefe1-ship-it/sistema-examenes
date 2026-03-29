@@ -2019,14 +2019,15 @@ async function detectarPreguntasDuplicadas() {
                 
                 tema.preguntas.forEach((pregunta, index) => {
                     // Crear una firma única: enunciado + todas las opciones ordenadas
-                    const opcionesOrdenadas = pregunta.opciones
-                        ? pregunta.opciones
-                            .map(op => op.texto.toLowerCase().trim())
-                            .sort()
-                            .join('|||')
-                        : '';
+                    const textoNormalizado = (pregunta.texto || pregunta.question || '').toLowerCase().trim();
+                    const opcionesArray = pregunta.opciones
+                        ? pregunta.opciones.map(op => (op.texto || '').toLowerCase().trim())
+                        : (pregunta.options
+                            ? pregunta.options.map(op => (typeof op === 'string' ? op : op.texto || '').toLowerCase().trim())
+                            : []);
+                    const opcionesOrdenadas = opcionesArray.sort().join('|||');
                     
-                    const firmaCompleta = pregunta.texto.toLowerCase().trim() + '###' + opcionesOrdenadas;
+                    const firmaCompleta = textoNormalizado + '###' + opcionesOrdenadas;
                     
                     todasLasPreguntas.push({
                         firma: firmaCompleta,
