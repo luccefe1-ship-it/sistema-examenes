@@ -2018,12 +2018,13 @@ async function detectarPreguntasDuplicadas() {
                 }
                 
                 tema.preguntas.forEach((pregunta, index) => {
-                    // Crear una firma única: enunciado + todas las opciones ordenadas
-                    const textoNormalizado = (pregunta.texto || pregunta.question || '').toLowerCase().trim();
+                    // Crear una firma única normalizada agresivamente
+                    const normTexto = (t) => (t || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,;:¿?¡!()""''«»]/g, '');
+                    const textoNormalizado = normTexto(pregunta.texto || pregunta.question || '');
                     const opcionesArray = pregunta.opciones
-                        ? pregunta.opciones.map(op => (op.texto || '').toLowerCase().trim())
+                        ? pregunta.opciones.map(op => normTexto(typeof op === 'string' ? op : op.texto || ''))
                         : (pregunta.options
-                            ? pregunta.options.map(op => (typeof op === 'string' ? op : op.texto || '').toLowerCase().trim())
+                            ? pregunta.options.map(op => normTexto(typeof op === 'string' ? op : op.texto || ''))
                             : []);
                     const opcionesOrdenadas = opcionesArray.sort().join('|||');
                     
