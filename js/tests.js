@@ -2128,7 +2128,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
         duplicadaItem.style.borderRadius = '8px';
         duplicadaItem.style.background = '#fff';
         
-        let html = '<h4 style="margin-top: 0; color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;">Duplicado ' + (index + 1) + ': <span style="color: #dc3545;">' + grupo.preguntas.length + ' apariciones</span></h4>';
+        let html = '';
         
         grupo.preguntas.forEach((p, pIndex) => {
             const pregunta = p.preguntaCompleta;
@@ -2192,6 +2192,8 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     dropdownMantener += '</select>';
     
     modalActions.innerHTML = 
+        dropdownEliminar +
+        dropdownMantener +
         dropdownEliminar +
         dropdownMantener +
         '<button class="btn-info" onclick="seleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☑️ Seleccionar Todas</button>' +
