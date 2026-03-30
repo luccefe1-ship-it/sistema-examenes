@@ -2180,16 +2180,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     modalActions.style.paddingTop = '15px';
     modalActions.style.textAlign = 'center';
     
-    // Dropdown 1: Seleccionar por tema (para eliminar)
-    let dropdownEliminar = '<select id="filtroTemasDuplicadas" onchange="seleccionarPorTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px; border: 2px solid #007bff; background: white; color: #333; min-width: 220px; cursor: pointer;">';
-    dropdownEliminar += '<option value="">🎯 Seleccionar por tema...</option>';
-    temasArray.forEach(tema => {
-        const displayText = tema.padre ? `${tema.nombre} (${tema.padre})` : tema.nombre;
-        dropdownEliminar += `<option value="${tema.nombre}">${displayText}</option>`;
-    });
-    dropdownEliminar += '</select>';
-    
-    // Dropdown 2: Mantener solo en tema
+    // Dropdown: Mantener solo en tema
     let dropdownMantener = '<select id="filtroTemaMantener" onchange="seleccionarExceptoTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px; border: 2px solid #28a745; background: white; color: #333; min-width: 220px; cursor: pointer;">';
     dropdownMantener += '<option value="">🛡️ Mantener solo en tema...</option>';
     temasArray.forEach(tema => {
@@ -2198,10 +2189,10 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     });
     dropdownMantener += '</select>';
     
-    // Dropdowns en su propio contenedor ANTES de los botones
+    // Dropdown en su propio contenedor ANTES de los botones
     const dropdownsDiv = document.createElement('div');
     dropdownsDiv.style.cssText = 'text-align: center; margin-bottom: 10px; padding: 0 15px;';
-    dropdownsDiv.innerHTML = dropdownEliminar + dropdownMantener;
+    dropdownsDiv.innerHTML = dropdownMantener;
     modalContent.appendChild(dropdownsDiv);
     
     modalActions.innerHTML = 
@@ -2285,25 +2276,6 @@ window.deseleccionarTodas = function() {
     actualizarContadorDuplicadas();
 };
 
-// Seleccionar preguntas DE un tema (para eliminarlas)
-window.seleccionarPorTema = function() {
-    const select = document.getElementById('filtroTemasDuplicadas');
-    const temaSeleccionado = select.value;
-    
-    if (!temaSeleccionado) {
-        deseleccionarTodas();
-        return;
-    }
-    
-    document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = false);
-    document.querySelectorAll('.checkbox-pregunta[data-tema-nombre="' + temaSeleccionado + '"]').forEach(cb => {
-        cb.checked = true;
-    });
-    
-    // Resetear el otro dropdown
-    document.getElementById('filtroTemaMantener').value = '';
-    actualizarContadorDuplicadas();
-};
 
 // Seleccionar todo EXCEPTO UNA del tema elegido (para mantenerlo)
 window.seleccionarExceptoTema = function() {
@@ -2342,8 +2314,6 @@ window.seleccionarExceptoTema = function() {
         }
     });
     
-    // Resetear el otro dropdown
-    document.getElementById('filtroTemasDuplicadas').value = '';
     actualizarContadorDuplicadas();
 };
 // Eliminar preguntas NO seleccionadas (las seleccionadas se mantienen)
