@@ -2267,12 +2267,16 @@ window.cerrarModalDuplicadas = function() {
 // Seleccionar todas las duplicadas EXCEPTO la primera aparición de cada grupo
 window.seleccionarTodas = function() {
     document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = true);
+    const dropdown = document.getElementById('filtroTemaMantener');
+    if (dropdown) dropdown.value = '';
     actualizarContadorDuplicadas();
 };
 
 // Deseleccionar todas las preguntas
 window.deseleccionarTodas = function() {
     document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = false);
+    const dropdown = document.getElementById('filtroTemaMantener');
+    if (dropdown) dropdown.value = '';
     actualizarContadorDuplicadas();
 };
 
