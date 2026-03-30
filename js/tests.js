@@ -2044,15 +2044,21 @@ async function detectarPreguntasDuplicadas() {
             }
         });
         
-        // Encontrar duplicadas EXACTAS (mismo enunciado + mismas opciones)
-        for (let i = 0; i < todasLasPreguntas.length; i++) {
-            for (let j = i + 1; j < todasLasPreguntas.length; j++) {
-                if (todasLasPreguntas[i].firma === todasLasPreguntas[j].firma) {
-                    duplicadas.push({
-                        pregunta1: todasLasPreguntas[i],
-                        pregunta2: todasLasPreguntas[j]
-                    });
-                }
+        // Encontrar duplicadas EXACTAS - AGRUPAR por firma (soporta 3+ temas)
+        const gruposPorFirma = {};
+        todasLasPreguntas.forEach(p => {
+            if (!gruposPorFirma[p.firma]) {
+                gruposPorFirma[p.firma] = [];
+            }
+            gruposPorFirma[p.firma].push(p);
+        });
+        
+        for (const firma in gruposPorFirma) {
+            if (gruposPorFirma[firma].length >= 2) {
+                duplicadas.push({
+                    firma: firma,
+                    preguntas: gruposPorFirma[firma]
+                });
             }
         }
         
@@ -2069,7 +2075,7 @@ async function detectarPreguntasDuplicadas() {
     }
 }
 
-// Mostrar preguntas duplicadas - VERSION CON CHECKBOXES Y FILTRO POR TEMA
+// Mostrar preguntas duplicadas - VERSION AGRUPADA CON CHECKBOXES Y FILTRO POR TEMA
 function mostrarPreguntasDuplicadas(duplicadas) {
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -2085,15 +2091,18 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     modalContent.style.flexDirection = 'column';
     modalContent.style.margin = '2vh auto';
     
+    const totalSobrantes = duplicadas.reduce((sum, g) => sum + (g.preguntas.length - 1), 0);
+    
     const titulo = document.createElement('h3');
-    titulo.textContent = 'Preguntas Duplicadas Encontradas (' + duplicadas.length + ')';
+    titulo.id = 'tituloDuplicadas';
+    titulo.textContent = 'Preguntas Duplicadas: ' + duplicadas.length + ' grupos (' + totalSobrantes + ' sobrantes)';
     titulo.style.marginBottom = '15px';
     modalContent.appendChild(titulo);
     
     // Extraer temas únicos con información del padre
     const temasInfo = {};
-    duplicadas.forEach(dup => {
-        [dup.pregunta1, dup.pregunta2].forEach(p => {
+    duplicadas.forEach(grupo => {
+        grupo.preguntas.forEach(p => {
             if (!temasInfo[p.temaNombre]) {
                 temasInfo[p.temaNombre] = {
                     nombre: p.temaNombre,
@@ -2110,7 +2119,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     listaDuplicadas.style.flexGrow = '1';
     listaDuplicadas.style.marginBottom = '20px';
     
-    duplicadas.forEach((dup, index) => {
+    duplicadas.forEach((grupo, index) => {
         const duplicadaItem = document.createElement('div');
         duplicadaItem.className = 'duplicada-item';
         duplicadaItem.style.border = '2px solid #dee2e6';
@@ -2119,59 +2128,39 @@ function mostrarPreguntasDuplicadas(duplicadas) {
         duplicadaItem.style.borderRadius = '8px';
         duplicadaItem.style.background = '#fff';
         
-        // Generar HTML de opciones para pregunta 1
-        const opciones1HTML = dup.pregunta1.preguntaCompleta.opciones
-            ? dup.pregunta1.preguntaCompleta.opciones.map(op => {
-                const esCorrecta = op.esCorrecta || op.letra === dup.pregunta1.preguntaCompleta.respuestaCorrecta;
-                return `<div style="margin: 5px 0; padding: 8px; background: ${esCorrecta ? '#d4edda' : '#f8f9fa'}; border-radius: 4px; border-left: 3px solid ${esCorrecta ? '#28a745' : '#6c757d'};">
-                    <strong>${op.letra})</strong> ${op.texto} ${esCorrecta ? '✓' : ''}
-                </div>`;
-            }).join('')
-            : '<p style="color: #6c757d;">Sin opciones</p>';
+        let html = '<h4 style="margin-top: 0; color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;">Duplicado ' + (index + 1) + ': <span style="color: #dc3545;">' + grupo.preguntas.length + ' apariciones</span></h4>';
         
-        // Generar HTML de opciones para pregunta 2
-        const opciones2HTML = dup.pregunta2.preguntaCompleta.opciones
-            ? dup.pregunta2.preguntaCompleta.opciones.map(op => {
-                const esCorrecta = op.esCorrecta || op.letra === dup.pregunta2.preguntaCompleta.respuestaCorrecta;
-                return `<div style="margin: 5px 0; padding: 8px; background: ${esCorrecta ? '#d4edda' : '#f8f9fa'}; border-radius: 4px; border-left: 3px solid ${esCorrecta ? '#28a745' : '#6c757d'};">
-                    <strong>${op.letra})</strong> ${op.texto} ${esCorrecta ? '✓' : ''}
-                </div>`;
-            }).join('')
-            : '<p style="color: #6c757d;">Sin opciones</p>';
-        
-        duplicadaItem.innerHTML = 
-            '<h4 style="margin-top: 0; color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 10px;">Duplicado ' + (index + 1) + ':</h4>' +
+        grupo.preguntas.forEach((p, pIndex) => {
+            const pregunta = p.preguntaCompleta;
             
-            '<div style="background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; position: relative; border: 2px solid #6c757d;">' +
+            let opcionesHTML = '';
+            if (pregunta.opciones) {
+                opcionesHTML = pregunta.opciones.map(op => {
+                    const esCorrecta = op.esCorrecta || op.letra === pregunta.respuestaCorrecta;
+                    return '<div style="margin: 5px 0; padding: 8px; background: ' + (esCorrecta ? '#d4edda' : '#f8f9fa') + '; border-radius: 4px; border-left: 3px solid ' + (esCorrecta ? '#28a745' : '#6c757d') + ';"><strong>' + op.letra + ')</strong> ' + op.texto + ' ' + (esCorrecta ? '✓' : '') + '</div>';
+                }).join('');
+            } else {
+                opcionesHTML = '<p style="color: #6c757d;">Sin opciones</p>';
+            }
+            
+            html += '<div style="background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; position: relative; border: 2px solid ' + (pIndex === 0 ? '#28a745' : '#6c757d') + ';">' +
                 '<div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 10px; align-items: center;">' +
-                    '<input type="checkbox" class="checkbox-pregunta" data-tema-id="' + dup.pregunta1.temaId + '" data-pregunta-index="' + dup.pregunta1.preguntaIndex + '" data-tema-nombre="' + dup.pregunta1.temaNombre + '" style="width: 20px; height: 20px; cursor: pointer;">' +
+                    (pIndex === 0 ? '<span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">1ª aparición</span>' : '') +
+                    '<input type="checkbox" class="checkbox-pregunta" data-tema-id="' + p.temaId + '" data-pregunta-index="' + p.preguntaIndex + '" data-tema-nombre="' + p.temaNombre + '" style="width: 20px; height: 20px; cursor: pointer;">' +
                 '</div>' +
                 '<div style="background: #e9ecef; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; display: inline-block; font-weight: bold; color: #495057;">' +
-                    '📁 ' + dup.pregunta1.temaNombre +
+                    '📁 ' + p.temaNombre +
                 '</div>' +
                 '<div style="font-weight: bold; margin: 10px 0; font-size: 16px; color: #212529;">' +
-                    dup.pregunta1.preguntaCompleta.texto +
+                    (pregunta.texto || pregunta.question || '') +
                 '</div>' +
                 '<div style="margin-top: 10px;">' +
-                    opciones1HTML +
-                '</div>' +
-            '</div>' +
-            
-            '<div style="background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; position: relative; border: 2px solid #6c757d;">' +
-                '<div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 10px; align-items: center;">' +
-                    '<input type="checkbox" class="checkbox-pregunta" data-tema-id="' + dup.pregunta2.temaId + '" data-pregunta-index="' + dup.pregunta2.preguntaIndex + '" data-tema-nombre="' + dup.pregunta2.temaNombre + '" style="width: 20px; height: 20px; cursor: pointer;">' +
-                '</div>' +
-                '<div style="background: #e9ecef; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; display: inline-block; font-weight: bold; color: #495057;">' +
-                    '📁 ' + dup.pregunta2.temaNombre +
-                '</div>' +
-                '<div style="font-weight: bold; margin: 10px 0; font-size: 16px; color: #212529;">' +
-                    dup.pregunta2.preguntaCompleta.texto +
-                '</div>' +
-                '<div style="margin-top: 10px;">' +
-                    opciones2HTML +
+                    opcionesHTML +
                 '</div>' +
             '</div>';
+        });
         
+        duplicadaItem.innerHTML = html;
         listaDuplicadas.appendChild(duplicadaItem);
     });
     
@@ -2184,17 +2173,27 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     modalActions.style.paddingTop = '15px';
     modalActions.style.textAlign = 'center';
     
-    // Crear dropdown de temas
-    let dropdownHTML = '<select id="filtroTemasDuplicadas" onchange="seleccionarPorTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px;">';
-    dropdownHTML += '<option value="">🎯 Seleccionar por tema...</option>';
+    // Dropdown 1: Seleccionar por tema (para eliminar)
+    let dropdownEliminar = '<select id="filtroTemasDuplicadas" onchange="seleccionarPorTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px;">';
+    dropdownEliminar += '<option value="">🎯 Seleccionar por tema...</option>';
     temasArray.forEach(tema => {
         const displayText = tema.padre ? `${tema.nombre} (${tema.padre})` : tema.nombre;
-        dropdownHTML += `<option value="${tema.nombre}">${displayText}</option>`;
+        dropdownEliminar += `<option value="${tema.nombre}">${displayText}</option>`;
     });
-    dropdownHTML += '</select>';
+    dropdownEliminar += '</select>';
+    
+    // Dropdown 2: Mantener solo en tema
+    let dropdownMantener = '<select id="filtroTemaMantener" onchange="seleccionarExceptoTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px; border: 2px solid #28a745;">';
+    dropdownMantener += '<option value="">🛡️ Mantener solo en tema...</option>';
+    temasArray.forEach(tema => {
+        const displayText = tema.padre ? `${tema.nombre} (${tema.padre})` : tema.nombre;
+        dropdownMantener += `<option value="${tema.nombre}">${displayText}</option>`;
+    });
+    dropdownMantener += '</select>';
     
     modalActions.innerHTML = 
-        dropdownHTML +
+        dropdownEliminar +
+        dropdownMantener +
         '<button class="btn-info" onclick="seleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☑️ Seleccionar Todas</button>' +
         '<button class="btn-info" onclick="deseleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☐ Deseleccionar Todas</button>' +
         '<button class="btn-danger" onclick="eliminarSeleccionadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">🗑️ Eliminar Seleccionadas</button>' +
@@ -2243,17 +2242,14 @@ window.cerrarModalDuplicadas = function() {
     }
 };
 
-// Seleccionar UNA pregunta de cada par de duplicados
+// Seleccionar todas las duplicadas EXCEPTO la primera aparición de cada grupo
 window.seleccionarTodas = function() {
     const items = document.querySelectorAll('.duplicada-item');
     items.forEach(item => {
         const checkboxes = item.querySelectorAll('.checkbox-pregunta');
-        // Deseleccionar todo primero
-        checkboxes.forEach(cb => cb.checked = false);
-        // Seleccionar solo la segunda de cada par (para conservar la primera)
-        if (checkboxes.length >= 2) {
-            checkboxes[1].checked = true;
-        }
+        checkboxes.forEach((cb, i) => {
+            cb.checked = (i > 0);
+        });
     });
 };
 
@@ -2261,7 +2257,8 @@ window.seleccionarTodas = function() {
 window.deseleccionarTodas = function() {
     document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = false);
 };
-// Seleccionar preguntas por tema
+
+// Seleccionar preguntas DE un tema (para eliminarlas)
 window.seleccionarPorTema = function() {
     const select = document.getElementById('filtroTemasDuplicadas');
     const temaSeleccionado = select.value;
@@ -2271,13 +2268,41 @@ window.seleccionarPorTema = function() {
         return;
     }
     
-    // Deseleccionar todas primero
     document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = false);
-    
-    // Seleccionar solo las del tema elegido
-    document.querySelectorAll(`.checkbox-pregunta[data-tema-nombre="${temaSeleccionado}"]`).forEach(cb => {
+    document.querySelectorAll('.checkbox-pregunta[data-tema-nombre="' + temaSeleccionado + '"]').forEach(cb => {
         cb.checked = true;
     });
+    
+    // Resetear el otro dropdown
+    document.getElementById('filtroTemaMantener').value = '';
+};
+
+// Seleccionar todo EXCEPTO el tema elegido (para mantenerlo)
+window.seleccionarExceptoTema = function() {
+    const select = document.getElementById('filtroTemaMantener');
+    const temaMantener = select.value;
+    
+    if (!temaMantener) {
+        deseleccionarTodas();
+        return;
+    }
+    
+    const items = document.querySelectorAll('.duplicada-item');
+    items.forEach(item => {
+        const checkboxes = item.querySelectorAll('.checkbox-pregunta');
+        const tieneDelTema = Array.from(checkboxes).some(cb => cb.dataset.temaNombre === temaMantener);
+        
+        if (tieneDelTema) {
+            checkboxes.forEach(cb => {
+                cb.checked = (cb.dataset.temaNombre !== temaMantener);
+            });
+        } else {
+            checkboxes.forEach(cb => cb.checked = false);
+        }
+    });
+    
+    // Resetear el otro dropdown
+    document.getElementById('filtroTemasDuplicadas').value = '';
 };
 // Eliminar preguntas seleccionadas
 window.eliminarSeleccionadas = async function() {
