@@ -2311,7 +2311,7 @@ window.seleccionarPorTema = function() {
     actualizarContadorDuplicadas();
 };
 
-// Seleccionar todo EXCEPTO el tema elegido (para mantenerlo)
+// Seleccionar todo EXCEPTO UNA del tema elegido (para mantenerlo)
 window.seleccionarExceptoTema = function() {
     const select = document.getElementById('filtroTemaMantener');
     const temaMantener = select.value;
@@ -2324,13 +2324,26 @@ window.seleccionarExceptoTema = function() {
     const items = document.querySelectorAll('.duplicada-item');
     items.forEach(item => {
         const checkboxes = item.querySelectorAll('.checkbox-pregunta');
-        const tieneDelTema = Array.from(checkboxes).some(cb => cb.dataset.temaNombre === temaMantener);
+        const delTema = [];
+        const deOtroTema = [];
         
-        if (tieneDelTema) {
-            checkboxes.forEach(cb => {
-                cb.checked = (cb.dataset.temaNombre !== temaMantener);
+        checkboxes.forEach(cb => {
+            if (cb.dataset.temaNombre === temaMantener) {
+                delTema.push(cb);
+            } else {
+                deOtroTema.push(cb);
+            }
+        });
+        
+        if (delTema.length > 0) {
+            // Mantener solo la PRIMERA del tema elegido, marcar el resto para eliminar
+            delTema.forEach((cb, i) => {
+                cb.checked = (i > 0); // la primera se queda, las demás se marcan
             });
+            // Marcar TODAS las de otros temas para eliminar
+            deOtroTema.forEach(cb => cb.checked = true);
         } else {
+            // Este grupo no tiene del tema elegido, no tocar
             checkboxes.forEach(cb => cb.checked = false);
         }
     });
