@@ -2283,42 +2283,65 @@ window.deseleccionarTodas = function() {
 
 // Seleccionar todo EXCEPTO UNA del tema elegido (para mantenerlo)
 window.seleccionarExceptoTema = function() {
-    const select = document.getElementById('filtroTemaMantener');
-    const temaMantener = select.value;
-    
-    if (!temaMantener) {
-        deseleccionarTodas();
-        return;
-    }
-    
-    const items = document.querySelectorAll('.duplicada-item');
-    items.forEach(item => {
-        const checkboxes = item.querySelectorAll('.checkbox-pregunta');
-        const delTema = [];
-        const deOtroTema = [];
+    try {
+        const select = document.getElementById('filtroTemaMantener');
+        const temaMantener = select.value;
         
-        checkboxes.forEach(cb => {
-            if (cb.dataset.temaNombre === temaMantener) {
-                delTema.push(cb);
+        console.log('=== MANTENER EN TEMA ===');
+        console.log('Tema elegido:', JSON.stringify(temaMantener));
+        
+        if (!temaMantener) {
+            deseleccionarTodas();
+            return;
+        }
+        
+        const items = document.querySelectorAll('.duplicada-item');
+        console.log('Grupos encontrados:', items.length);
+        
+        let gruposConTema = 0;
+        let totalMarcadas = 0;
+        
+        items.forEach((item, idx) => {
+            const checkboxes = item.querySelectorAll('.checkbox-pregunta');
+            const delTema = [];
+            const deOtroTema = [];
+            
+            checkboxes.forEach(cb => {
+                const nombre = cb.getAttribute('data-tema-nombre');
+                if (nombre === temaMantener) {
+                    delTema.push(cb);
+                } else {
+                    deOtroTema.push(cb);
+                }
+            });
+            
+            if (delTema.length > 0) {
+                gruposConTema++;
+                // Mantener solo la PRIMERA del tema elegido, marcar el resto para eliminar
+                delTema.forEach((cb, i) => {
+                    cb.checked = (i > 0);
+                    if (i > 0) totalMarcadas++;
+                });
+                // Marcar TODAS las de otros temas para eliminar
+                deOtroTema.forEach(cb => {
+                    cb.checked = true;
+                    totalMarcadas++;
+                });
             } else {
-                deOtroTema.push(cb);
+                // Este grupo no tiene del tema elegido, no tocar
+                checkboxes.forEach(cb => cb.checked = false);
             }
         });
         
-        if (delTema.length > 0) {
-            // Mantener solo la PRIMERA del tema elegido, marcar el resto para eliminar
-            delTema.forEach((cb, i) => {
-                cb.checked = (i > 0); // la primera se queda, las demás se marcan
-            });
-            // Marcar TODAS las de otros temas para eliminar
-            deOtroTema.forEach(cb => cb.checked = true);
-        } else {
-            // Este grupo no tiene del tema elegido, no tocar
-            checkboxes.forEach(cb => cb.checked = false);
-        }
-    });
-    
-    actualizarContadorDuplicadas();
+        console.log('Grupos con ese tema:', gruposConTema);
+        console.log('Total marcadas para eliminar:', totalMarcadas);
+        
+        actualizarContadorDuplicadas();
+        
+    } catch (error) {
+        console.error('ERROR en seleccionarExceptoTema:', error);
+        alert('Error: ' + error.message);
+    }
 };
 // Eliminar preguntas NO seleccionadas (las seleccionadas se mantienen)
 window.eliminarNoSeleccionadas = async function() {
