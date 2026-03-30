@@ -2174,7 +2174,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     modalActions.style.textAlign = 'center';
     
     // Dropdown 1: Seleccionar por tema (para eliminar)
-    let dropdownEliminar = '<select id="filtroTemasDuplicadas" onchange="seleccionarPorTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px;">';
+    let dropdownEliminar = '<select id="filtroTemasDuplicadas" onchange="seleccionarPorTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px; border: 2px solid #007bff; background: white; color: #333; min-width: 220px; cursor: pointer;">';
     dropdownEliminar += '<option value="">🎯 Seleccionar por tema...</option>';
     temasArray.forEach(tema => {
         const displayText = tema.padre ? `${tema.nombre} (${tema.padre})` : tema.nombre;
@@ -2183,7 +2183,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     dropdownEliminar += '</select>';
     
     // Dropdown 2: Mantener solo en tema
-    let dropdownMantener = '<select id="filtroTemaMantener" onchange="seleccionarExceptoTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px; border: 2px solid #28a745;">';
+    let dropdownMantener = '<select id="filtroTemaMantener" onchange="seleccionarExceptoTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px; border: 2px solid #28a745; background: white; color: #333; min-width: 220px; cursor: pointer;">';
     dropdownMantener += '<option value="">🛡️ Mantener solo en tema...</option>';
     temasArray.forEach(tema => {
         const displayText = tema.padre ? `${tema.nombre} (${tema.padre})` : tema.nombre;
