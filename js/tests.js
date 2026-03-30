@@ -2194,8 +2194,6 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     modalActions.innerHTML = 
         dropdownEliminar +
         dropdownMantener +
-        dropdownEliminar +
-        dropdownMantener +
         '<button class="btn-info" onclick="seleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☑️ Seleccionar Todas</button>' +
         '<button class="btn-info" onclick="deseleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☐ Deseleccionar Todas</button>' +
         '<button class="btn-danger" onclick="eliminarSeleccionadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">🗑️ Eliminar Seleccionadas</button>' +
