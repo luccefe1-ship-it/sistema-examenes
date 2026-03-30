@@ -2275,13 +2275,7 @@ window.cerrarModalDuplicadas = function() {
 
 // Seleccionar todas las duplicadas EXCEPTO la primera aparición de cada grupo
 window.seleccionarTodas = function() {
-    const items = document.querySelectorAll('.duplicada-item');
-    items.forEach(item => {
-        const checkboxes = item.querySelectorAll('.checkbox-pregunta');
-        checkboxes.forEach((cb, i) => {
-            cb.checked = (i > 0);
-        });
-    });
+    document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = true);
     actualizarContadorDuplicadas();
 };
 
