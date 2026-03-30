@@ -2099,6 +2099,13 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     titulo.style.marginBottom = '15px';
     modalContent.appendChild(titulo);
     
+    // Contador en vivo de seleccionadas
+    const contadorDiv = document.createElement('div');
+    contadorDiv.id = 'contadorSeleccionadas';
+    contadorDiv.style.cssText = 'text-align:center;padding:8px 12px;background:#1e293b;border-radius:6px;margin-bottom:12px;color:#94a3b8;font-size:14px;font-weight:500;';
+    contadorDiv.textContent = '0 preguntas seleccionadas para eliminar';
+    modalContent.appendChild(contadorDiv);
+    
     // Extraer temas únicos con información del padre
     const temasInfo = {};
     duplicadas.forEach(grupo => {
@@ -2209,8 +2216,27 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
     
+    // Event delegation para actualizar contador en vivo
+    modal.addEventListener('change', function(e) {
+        if (e.target.classList.contains('checkbox-pregunta')) {
+            actualizarContadorDuplicadas();
+        }
+    });
+    
     window.modalDuplicadas = modal;
     window.duplicadasData = duplicadas;
+}
+
+// Actualizar contador de preguntas seleccionadas en modal de duplicadas
+function actualizarContadorDuplicadas() {
+    const total = document.querySelectorAll('.checkbox-pregunta').length;
+    const seleccionadas = document.querySelectorAll('.checkbox-pregunta:checked').length;
+    const contador = document.getElementById('contadorSeleccionadas');
+    if (contador) {
+        contador.textContent = `${seleccionadas} de ${total} preguntas seleccionadas para eliminar`;
+        contador.style.color = seleccionadas > 0 ? '#f59e0b' : '#94a3b8';
+        contador.style.background = seleccionadas > 0 ? '#2d2416' : '#1e293b';
+    }
 }
 
 // Eliminar pregunta especifica
@@ -2256,11 +2282,13 @@ window.seleccionarTodas = function() {
             cb.checked = (i > 0);
         });
     });
+    actualizarContadorDuplicadas();
 };
 
 // Deseleccionar todas las preguntas
 window.deseleccionarTodas = function() {
     document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = false);
+    actualizarContadorDuplicadas();
 };
 
 // Seleccionar preguntas DE un tema (para eliminarlas)
@@ -2280,6 +2308,7 @@ window.seleccionarPorTema = function() {
     
     // Resetear el otro dropdown
     document.getElementById('filtroTemaMantener').value = '';
+    actualizarContadorDuplicadas();
 };
 
 // Seleccionar todo EXCEPTO el tema elegido (para mantenerlo)
@@ -2308,31 +2337,59 @@ window.seleccionarExceptoTema = function() {
     
     // Resetear el otro dropdown
     document.getElementById('filtroTemasDuplicadas').value = '';
+    actualizarContadorDuplicadas();
 };
-// Eliminar preguntas NO seleccionadas (invertir selección y eliminar)
+// Eliminar preguntas NO seleccionadas (las seleccionadas se mantienen)
 window.eliminarNoSeleccionadas = async function() {
-    // Contar no seleccionadas
     const todas = document.querySelectorAll('.checkbox-pregunta');
-    const noSeleccionadas = document.querySelectorAll('.checkbox-pregunta:not(:checked)');
+    const noSeleccionadas = Array.from(document.querySelectorAll('.checkbox-pregunta:not(:checked)'));
+    const seleccionadasCount = todas.length - noSeleccionadas.length;
     
     if (noSeleccionadas.length === 0) {
         alert('Todas las preguntas están seleccionadas, no hay nada que eliminar con este botón');
         return;
     }
     
-    if (noSeleccionadas.length === todas.length) {
+    if (seleccionadasCount === 0) {
         alert('No hay ninguna pregunta seleccionada. Selecciona las que quieres MANTENER primero.');
         return;
     }
     
-    const confirmacion = confirm(`¿Eliminar las ${noSeleccionadas.length} pregunta(s) NO seleccionadas? Las ${todas.length - noSeleccionadas.length} seleccionadas se MANTIENEN.`);
-    if (!confirmacion) return;
+    if (!confirm(`¿Eliminar las ${noSeleccionadas.length} pregunta(s) NO seleccionadas?\n\nSe MANTIENEN las ${seleccionadasCount} seleccionadas (marcadas con ☑).`)) return;
     
-    // Marcar las no seleccionadas y desmarcar las seleccionadas (invertir)
-    todas.forEach(cb => cb.checked = !cb.checked);
-    
-    // Ahora eliminar las que quedaron marcadas (las que antes NO estaban seleccionadas)
-    await eliminarSeleccionadas();
+    try {
+        // Agrupar eliminaciones por tema
+        const eliminacionesPorTema = {};
+        noSeleccionadas.forEach(cb => {
+            const temaId = cb.dataset.temaId;
+            const idx = parseInt(cb.dataset.preguntaIndex);
+            if (!eliminacionesPorTema[temaId]) eliminacionesPorTema[temaId] = [];
+            eliminacionesPorTema[temaId].push(idx);
+        });
+        
+        let totalEliminadas = 0;
+        for (const temaId in eliminacionesPorTema) {
+            const indices = eliminacionesPorTema[temaId].sort((a, b) => b - a);
+            const temaRef = doc(db, "temas", temaId);
+            const temaDoc2 = await getDoc(temaRef);
+            let preguntas = [...temaDoc2.data().preguntas];
+            indices.forEach(index => { preguntas.splice(index, 1); totalEliminadas++; });
+            await updateDoc(temaRef, { preguntas });
+        }
+        
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+        cacheTimestamp = null;
+        cacheTemas = null;
+        
+        alert(`Se eliminaron ${totalEliminadas} pregunta(s). Se mantuvieron ${seleccionadasCount}.`);
+        cerrarModalDuplicadas();
+        cargarBancoPreguntas();
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al eliminar las preguntas');
+    }
 };
 // Eliminar preguntas seleccionadas
 window.eliminarSeleccionadas = async function() {
