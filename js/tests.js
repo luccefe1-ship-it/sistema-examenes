@@ -2019,7 +2019,7 @@ async function detectarPreguntasDuplicadas() {
                 
                 tema.preguntas.forEach((pregunta, index) => {
                     // Crear una firma única normalizada agresivamente
-                    const normTexto = (t) => (t || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,;:¿?¡!()""''«»]/g, '');
+                    const normTexto = (t) => (t || '').normalize('NFC').toLowerCase().trim().replace(/\s+/g, ' ').replace(/[^a-záéíóúüñ0-9 ]/g, '');
                     const textoNormalizado = normTexto(pregunta.texto || pregunta.question || '');
                     const opcionesArray = pregunta.opciones
                         ? pregunta.opciones.map(op => normTexto(typeof op === 'string' ? op : op.texto || ''))
