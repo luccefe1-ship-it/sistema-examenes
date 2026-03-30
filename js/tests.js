@@ -800,7 +800,7 @@ async function cargarBancoPreguntas() {
         controlesDiv.className = 'controles-generales';
         controlesDiv.innerHTML = `
             <input type="text" id="buscadorPreguntas" placeholder="Buscar preguntas..." />
-            <button id="detectarDuplicadasBtn" class="btn-warning">🔍 Detectar Duplicadas</button>
+            <button id="detectarDuplicadasBtn" class="btn-warning">🔍 Detectar Repetidas</button>
             <button class="btn-danger" onclick="eliminarTodosTemas()">🗑️ Eliminar Todos los Temas</button>
         `;
         listaTemas.appendChild(controlesDiv);
@@ -2095,7 +2095,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     
     const titulo = document.createElement('h3');
     titulo.id = 'tituloDuplicadas';
-    titulo.textContent = 'Preguntas Duplicadas: ' + duplicadas.length + ' grupos (' + totalSobrantes + ' sobrantes)';
+    titulo.textContent = 'Preguntas Repetidas: ' + duplicadas.length + ' grupos (' + totalSobrantes + ' sobrantes)';
     titulo.style.marginBottom = '15px';
     modalContent.appendChild(titulo);
     
@@ -2197,6 +2197,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
         '<button class="btn-info" onclick="seleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☑️ Seleccionar Todas</button>' +
         '<button class="btn-info" onclick="deseleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☐ Deseleccionar Todas</button>' +
         '<button class="btn-danger" onclick="eliminarSeleccionadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">🗑️ Eliminar Seleccionadas</button>' +
+        '<button class="btn-warning" onclick="eliminarNoSeleccionadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">⚠️ Eliminar No Seleccionadas</button>' +
         '<button class="btn-secondary" onclick="cerrarModalDuplicadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">Cerrar</button>' +
         '<button class="btn-primary" onclick="volverADetectar()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">🔄 Volver a Detectar</button>';
     
@@ -2303,6 +2304,31 @@ window.seleccionarExceptoTema = function() {
     
     // Resetear el otro dropdown
     document.getElementById('filtroTemasDuplicadas').value = '';
+};
+// Eliminar preguntas NO seleccionadas (invertir selección y eliminar)
+window.eliminarNoSeleccionadas = async function() {
+    // Contar no seleccionadas
+    const todas = document.querySelectorAll('.checkbox-pregunta');
+    const noSeleccionadas = document.querySelectorAll('.checkbox-pregunta:not(:checked)');
+    
+    if (noSeleccionadas.length === 0) {
+        alert('Todas las preguntas están seleccionadas, no hay nada que eliminar con este botón');
+        return;
+    }
+    
+    if (noSeleccionadas.length === todas.length) {
+        alert('No hay ninguna pregunta seleccionada. Selecciona las que quieres MANTENER primero.');
+        return;
+    }
+    
+    const confirmacion = confirm(`¿Eliminar las ${noSeleccionadas.length} pregunta(s) NO seleccionadas? Las ${todas.length - noSeleccionadas.length} seleccionadas se MANTIENEN.`);
+    if (!confirmacion) return;
+    
+    // Marcar las no seleccionadas y desmarcar las seleccionadas (invertir)
+    todas.forEach(cb => cb.checked = !cb.checked);
+    
+    // Ahora eliminar las que quedaron marcadas (las que antes NO estaban seleccionadas)
+    await eliminarSeleccionadas();
 };
 // Eliminar preguntas seleccionadas
 window.eliminarSeleccionadas = async function() {
