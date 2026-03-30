@@ -2031,7 +2031,7 @@ async function detectarPreguntasDuplicadas() {
                     
                     todasLasPreguntas.push({
                         firma: firmaCompleta,
-                        texto: textoNorm,
+                        texto: textoNormalizado,
                         temaId: doc.id,
                         temaNombre: tema.nombre,
                         temaPadreNombre: temaPadreNombre,
