@@ -2191,11 +2191,13 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     });
     dropdownMantener += '</select>';
     
+    // Dropdowns en su propio contenedor ANTES de los botones
+    const dropdownsDiv = document.createElement('div');
+    dropdownsDiv.style.cssText = 'text-align: center; margin-bottom: 10px; padding: 0 15px;';
+    dropdownsDiv.innerHTML = dropdownEliminar + dropdownMantener;
+    modalContent.appendChild(dropdownsDiv);
+    
     modalActions.innerHTML = 
-        '<div style="margin-bottom: 10px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">' +
-            dropdownEliminar +
-            dropdownMantener +
-        '</div>' +
         '<button class="btn-info" onclick="seleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☑️ Seleccionar Todas</button>' +
         '<button class="btn-info" onclick="deseleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☐ Deseleccionar Todas</button>' +
         '<button class="btn-danger" onclick="eliminarSeleccionadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">🗑️ Eliminar Seleccionadas</button>' +
