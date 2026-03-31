@@ -4932,25 +4932,8 @@ window.exportarTema = async function(temaId) {
             });
         }
         
-        // Ordenar subcarpetas alfanuméricamente
-        subcarpetas.sort((a, b) => {
-            const nombreA = a.nombre;
-            const nombreB = b.nombre;
-            const numeroA = nombreA.match(/^\d+/);
-            const numeroB = nombreB.match(/^\d+/);
-            
-            if (numeroA && numeroB) {
-                const diff = parseInt(numeroA[0]) - parseInt(numeroB[0]);
-                if (diff !== 0) return diff;
-                return nombreA.localeCompare(nombreB, 'es', { numeric: true, sensitivity: 'base' });
-            }
-            if (numeroA) return -1;
-            if (numeroB) return 1;
-            return nombreA.localeCompare(nombreB, 'es', { numeric: true, sensitivity: 'base' });
-        });
-        
-        // Reasignar orden según posición
-        subcarpetas.forEach((sub, idx) => { sub.orden = idx; });
+        // Ordenar subcarpetas por su orden original en la plataforma
+        subcarpetas.sort((a, b) => a.orden - b.orden);
 
         const preguntasPropias = tema.preguntas || [];
         const totalPreguntasSubcarpetas = subcarpetas.reduce((t, s) => t + s.questionsData.length, 0);
@@ -5580,31 +5563,6 @@ async function importarConSubcarpetas(datos, temaId) {
         const temaData = temaDoc.data();
         const nombreTema = temaData.nombre;
         const subcarpetas = datos.subcarpetas;
-        
-        // Ordenar subcarpetas alfanuméricamente (números primero, luego texto)
-        subcarpetas.sort((a, b) => {
-            const nombreA = a.nombre;
-            const nombreB = b.nombre;
-            const numeroA = nombreA.match(/^\d+/);
-            const numeroB = nombreB.match(/^\d+/);
-            
-            // Si ambos empiezan por número, ordenar numéricamente primero
-            if (numeroA && numeroB) {
-                const diff = parseInt(numeroA[0]) - parseInt(numeroB[0]);
-                if (diff !== 0) return diff;
-                // Mismo número: ordenar por el texto restante
-                return nombreA.localeCompare(nombreB, 'es', { numeric: true, sensitivity: 'base' });
-            }
-            // Los que tienen número van primero
-            if (numeroA) return -1;
-            if (numeroB) return 1;
-            // Sin números: orden alfanumérico
-            return nombreA.localeCompare(nombreB, 'es', { numeric: true, sensitivity: 'base' });
-        });
-        
-        // Reasignar orden según la posición ordenada
-        subcarpetas.forEach((sub, idx) => { sub.orden = idx; });
-        
         const preguntasPropias = datos.questionsData || [];
         const totalPreguntasSubcarpetas = subcarpetas.reduce((t, s) => t + (s.questionsData?.length || 0), 0);
         const totalPreguntas = preguntasPropias.length + totalPreguntasSubcarpetas;
