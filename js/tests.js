@@ -2079,13 +2079,32 @@ async function detectarPreguntasDuplicadas() {
 function mostrarPreguntasDuplicadas(duplicadas) {
     const modal = document.createElement('div');
     modal.className = 'modal';
-    modal.style.cssText = 'display:block;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;';
+    modal.style.display = 'block';
     
     const modalContent = document.createElement('div');
     modalContent.className = 'modal-content';
-    modalContent.style.cssText = 'width:96vw;height:94vh;max-width:none;max-height:none;margin:3vh auto;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;padding:0;background:#f8f9fa;color:#1a1a2e;';
+    modalContent.style.maxWidth = '90vw';
+    modalContent.style.width = '1000px';
+    modalContent.style.height = 'auto';
+    modalContent.style.maxHeight = '85vh';
+    modalContent.style.display = 'flex';
+    modalContent.style.flexDirection = 'column';
+    modalContent.style.margin = '2vh auto';
     
     const totalSobrantes = duplicadas.reduce((sum, g) => sum + (g.preguntas.length - 1), 0);
+    
+    const titulo = document.createElement('h3');
+    titulo.id = 'tituloDuplicadas';
+    titulo.textContent = 'Preguntas Repetidas: ' + duplicadas.length + ' grupos (' + totalSobrantes + ' sobrantes)';
+    titulo.style.marginBottom = '15px';
+    modalContent.appendChild(titulo);
+    
+    // Contador en vivo de seleccionadas
+    const contadorDiv = document.createElement('div');
+    contadorDiv.id = 'contadorSeleccionadas';
+    contadorDiv.style.cssText = 'text-align:center;padding:8px 12px;background:#1e293b;border-radius:6px;margin-bottom:12px;color:#94a3b8;font-size:14px;font-weight:500;';
+    contadorDiv.textContent = '0 preguntas seleccionadas para eliminar';
+    modalContent.appendChild(contadorDiv);
     
     // Extraer temas únicos con información del padre
     const temasInfo = {};
@@ -2100,77 +2119,23 @@ function mostrarPreguntasDuplicadas(duplicadas) {
         });
     });
     const temasArray = Object.values(temasInfo).sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-    // ===== HEADER FIJO =====
-    const headerDiv = document.createElement('div');
-    headerDiv.style.cssText = 'padding:16px 24px;background:#fff;border-bottom:2px solid #e2e8f0;flex-shrink:0;';
-    headerDiv.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-            <h3 id="tituloDuplicadas" style="margin:0;color:#1e293b;">Preguntas Repetidas: ${duplicadas.length} grupos (${totalSobrantes} sobrantes)</h3>
-            <button onclick="cerrarModalDuplicadas()" style="background:none;border:none;color:#64748b;font-size:28px;cursor:pointer;line-height:1;">&times;</button>
-        </div>
-        <div id="contadorSeleccionadas" style="text-align:center;padding:6px 12px;background:#e2e8f0;border-radius:6px;margin-top:10px;color:#64748b;font-size:14px;font-weight:500;">
-            0 preguntas seleccionadas para eliminar
-        </div>
-    `;
-    modalContent.appendChild(headerDiv);
-
-    // ===== CUERPO: SIDEBAR + LISTA =====
-    const bodyDiv = document.createElement('div');
-    bodyDiv.style.cssText = 'display:flex;flex:1;overflow:hidden;';
-
-    // --- SIDEBAR: Filtro de temas con checkboxes ---
-    const sidebar = document.createElement('div');
-    sidebar.style.cssText = 'width:260px;min-width:220px;background:#fff;border-right:2px solid #e2e8f0;overflow-y:auto;padding:14px;flex-shrink:0;';
     
-    let sidebarHTML = '<div style="font-weight:700;color:#1e293b;margin-bottom:10px;font-size:14px;">📁 Seleccionar por Tema</div>';
-    sidebarHTML += `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;cursor:pointer;color:#4338ca;font-weight:600;margin-bottom:6px;background:#eef2ff;">
-        <input type="checkbox" id="filtroTodosTemas" onchange="filtrarDuplicadasPorTema(this)" style="width:18px;height:18px;cursor:pointer;">
-        Todos los temas
-    </label>`;
-    sidebarHTML += '<div style="border-top:1px solid #e2e8f0;margin:6px 0;"></div>';
-    
-    temasArray.forEach((tema, i) => {
-        const displayText = tema.padre ? `↳ ${tema.nombre}` : tema.nombre;
-        const colorIcon = tema.padre ? '📁' : '📚';
-        sidebarHTML += `<label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;color:#334155;font-size:13px;margin-bottom:3px;" 
-            onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
-            <input type="checkbox" class="filtro-tema-dup" value="${tema.nombre}" onchange="filtrarDuplicadasPorTema(this)" style="width:16px;height:16px;cursor:pointer;">
-            ${colorIcon} ${displayText}
-        </label>`;
-    });
-    
-    // Acciones rápidas en sidebar
-    sidebarHTML += '<div style="border-top:1px solid #e2e8f0;margin:10px 0;"></div>';
-    sidebarHTML += '<div style="font-weight:700;color:#1e293b;margin-bottom:8px;font-size:14px;">🛡️ Mantener solo en:</div>';
-    
-    let dropdownMantener = '<select id="filtroTemaMantener" onchange="seleccionarExceptoTema()" style="width:100%;padding:8px;font-size:13px;border-radius:6px;border:2px solid #28a745;background:#fff;color:#1e293b;cursor:pointer;">';
-    dropdownMantener += '<option value="">Seleccionar tema...</option>';
-    temasArray.forEach(tema => {
-        const displayText = tema.padre ? `${tema.nombre} (${tema.padre})` : tema.nombre;
-        dropdownMantener += `<option value="${tema.nombre}">${displayText}</option>`;
-    });
-    dropdownMantener += '</select>';
-    sidebarHTML += dropdownMantener;
-    
-    sidebar.innerHTML = sidebarHTML;
-    bodyDiv.appendChild(sidebar);
-
-    // --- LISTA DE DUPLICADAS ---
     const listaDuplicadas = document.createElement('div');
     listaDuplicadas.id = 'listaDuplicadas';
-    listaDuplicadas.style.cssText = 'flex:1;overflow-y:auto;padding:20px;background:#f1f5f9;';
+    listaDuplicadas.style.overflowY = 'auto';
+    listaDuplicadas.style.flexGrow = '1';
+    listaDuplicadas.style.marginBottom = '20px';
     
     duplicadas.forEach((grupo, index) => {
-        // Recopilar nombres de temas del grupo para el atributo de filtrado
-        const temasDelGrupo = [...new Set(grupo.preguntas.map(p => p.temaNombre))];
-        
         const duplicadaItem = document.createElement('div');
         duplicadaItem.className = 'duplicada-item';
-        duplicadaItem.setAttribute('data-temas-grupo', JSON.stringify(temasDelGrupo));
-        duplicadaItem.style.cssText = 'border:2px solid #e2e8f0;margin:0 0 16px;padding:16px;border-radius:10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.08);';
+        duplicadaItem.style.border = '2px solid #dee2e6';
+        duplicadaItem.style.margin = '15px 0';
+        duplicadaItem.style.padding = '15px';
+        duplicadaItem.style.borderRadius = '8px';
+        duplicadaItem.style.background = '#fff';
         
-        let html = '<div style="font-size:12px;color:#64748b;margin-bottom:8px;">Grupo ' + (index + 1) + ' — ' + grupo.preguntas.length + ' apariciones</div>';
+        let html = '';
         
         grupo.preguntas.forEach((p, pIndex) => {
             const pregunta = p.preguntaCompleta;
@@ -2179,20 +2144,26 @@ function mostrarPreguntasDuplicadas(duplicadas) {
             if (pregunta.opciones) {
                 opcionesHTML = pregunta.opciones.map(op => {
                     const esCorrecta = op.esCorrecta || op.letra === pregunta.respuestaCorrecta;
-                    return '<div style="margin:4px 0;padding:6px 10px;background:' + (esCorrecta ? '#d1fae5' : '#f8fafc') + ';border-radius:4px;border-left:3px solid ' + (esCorrecta ? '#16a34a' : '#cbd5e1') + ';color:#1e293b;font-size:13px;"><strong>' + op.letra + ')</strong> ' + op.texto + ' ' + (esCorrecta ? '✓' : '') + '</div>';
+                    return '<div style="margin: 5px 0; padding: 8px; background: ' + (esCorrecta ? '#d4edda' : '#f8f9fa') + '; border-radius: 4px; border-left: 3px solid ' + (esCorrecta ? '#28a745' : '#6c757d') + ';"><strong>' + op.letra + ')</strong> ' + op.texto + ' ' + (esCorrecta ? '✓' : '') + '</div>';
                 }).join('');
             } else {
-                opcionesHTML = '<p style="color:#6c757d;">Sin opciones</p>';
+                opcionesHTML = '<p style="color: #6c757d;">Sin opciones</p>';
             }
             
-            html += '<div style="background:#f8fafc;padding:14px;margin:8px 0;border-radius:8px;position:relative;border:2px solid ' + (pIndex === 0 ? '#16a34a' : '#cbd5e1') + ';" data-tema-pregunta="' + p.temaNombre + '">' +
-                '<div style="position:absolute;top:10px;right:12px;display:flex;gap:10px;align-items:center;">' +
-                    (pIndex === 0 ? '<span style="background:#16a34a;color:white;padding:2px 8px;border-radius:4px;font-size:11px;">1ª aparición</span>' : '') +
-                    '<input type="checkbox" class="checkbox-pregunta" data-tema-id="' + p.temaId + '" data-pregunta-index="' + p.preguntaIndex + '" data-tema-nombre="' + p.temaNombre + '" style="width:20px;height:20px;cursor:pointer;accent-color:#4f46e5;">' +
+            html += '<div style="background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; position: relative; border: 2px solid ' + (pIndex === 0 ? '#28a745' : '#6c757d') + ';">' +
+                '<div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 10px; align-items: center;">' +
+                    (pIndex === 0 ? '<span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">1ª aparición</span>' : '') +
+                    '<input type="checkbox" class="checkbox-pregunta" data-tema-id="' + p.temaId + '" data-pregunta-index="' + p.preguntaIndex + '" data-tema-nombre="' + p.temaNombre + '" style="width: 20px; height: 20px; cursor: pointer;">' +
                 '</div>' +
-                '<div style="background:#eef2ff;padding:6px 12px;border-radius:4px;margin-bottom:8px;display:inline-block;font-weight:bold;color:#4338ca;font-size:13px;">📁 ' + p.temaNombre + '</div>' +
-                '<div style="font-weight:bold;margin:8px 0;font-size:15px;color:#1e293b;">' + (pregunta.texto || pregunta.question || '') + '</div>' +
-                '<div style="margin-top:8px;">' + opcionesHTML + '</div>' +
+                '<div style="background: #e9ecef; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; display: inline-block; font-weight: bold; color: #495057;">' +
+                    '📁 ' + p.temaNombre +
+                '</div>' +
+                '<div style="font-weight: bold; margin: 10px 0; font-size: 16px; color: #212529;">' +
+                    (pregunta.texto || pregunta.question || '') +
+                '</div>' +
+                '<div style="margin-top: 10px;">' +
+                    opcionesHTML +
+                '</div>' +
             '</div>';
         });
         
@@ -2200,21 +2171,39 @@ function mostrarPreguntasDuplicadas(duplicadas) {
         listaDuplicadas.appendChild(duplicadaItem);
     });
     
-    bodyDiv.appendChild(listaDuplicadas);
-    modalContent.appendChild(bodyDiv);
-
-    // ===== FOOTER FIJO: BOTONES =====
-    const footerDiv = document.createElement('div');
-    footerDiv.style.cssText = 'padding:12px 24px;background:#fff;border-top:2px solid #e2e8f0;flex-shrink:0;text-align:center;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;';
-    footerDiv.innerHTML = 
-        '<button class="btn-info" onclick="seleccionarTodas()" style="padding:8px 16px;font-size:13px;">☑️ Seleccionar Todas</button>' +
-        '<button class="btn-info" onclick="deseleccionarTodas()" style="padding:8px 16px;font-size:13px;">☐ Deseleccionar</button>' +
-        '<button class="btn-danger" onclick="eliminarSeleccionadas()" style="padding:8px 16px;font-size:13px;">🗑️ Eliminar Seleccionadas</button>' +
-        '<button class="btn-warning" onclick="eliminarNoSeleccionadas()" style="padding:8px 16px;font-size:13px;">⚠️ Eliminar No Seleccionadas</button>' +
-        '<button class="btn-primary" onclick="volverADetectar()" style="padding:8px 16px;font-size:13px;">🔄 Volver a Detectar</button>' +
-        '<button class="btn-secondary" onclick="cerrarModalDuplicadas()" style="padding:8px 16px;font-size:13px;">Cerrar</button>';
-    modalContent.appendChild(footerDiv);
-
+    modalContent.appendChild(listaDuplicadas);
+    
+    const modalActions = document.createElement('div');
+    modalActions.className = 'modal-actions';
+    modalActions.style.flexShrink = '0';
+    modalActions.style.borderTop = '1px solid #dee2e6';
+    modalActions.style.paddingTop = '15px';
+    modalActions.style.textAlign = 'center';
+    
+    // Dropdown: Mantener solo en tema
+    let dropdownMantener = '<select id="filtroTemaMantener" onchange="seleccionarExceptoTema()" style="padding: 10px; font-size: 14px; margin: 5px; border-radius: 4px; border: 2px solid #28a745; background: white; color: #333; min-width: 220px; cursor: pointer;">';
+    dropdownMantener += '<option value="">🛡️ Mantener solo en tema...</option>';
+    temasArray.forEach(tema => {
+        const displayText = tema.padre ? `${tema.nombre} (${tema.padre})` : tema.nombre;
+        dropdownMantener += `<option value="${tema.nombre}">${displayText}</option>`;
+    });
+    dropdownMantener += '</select>';
+    
+    // Dropdown en su propio contenedor ANTES de los botones
+    const dropdownsDiv = document.createElement('div');
+    dropdownsDiv.style.cssText = 'text-align: center; margin-bottom: 10px; padding: 0 15px;';
+    dropdownsDiv.innerHTML = dropdownMantener;
+    modalContent.appendChild(dropdownsDiv);
+    
+    modalActions.innerHTML = 
+        '<button class="btn-info" onclick="seleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☑️ Seleccionar Todas</button>' +
+        '<button class="btn-info" onclick="deseleccionarTodas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">☐ Deseleccionar Todas</button>' +
+        '<button class="btn-danger" onclick="eliminarSeleccionadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">🗑️ Eliminar Seleccionadas</button>' +
+        '<button class="btn-warning" onclick="eliminarNoSeleccionadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">⚠️ Eliminar No Seleccionadas</button>' +
+        '<button class="btn-secondary" onclick="cerrarModalDuplicadas()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">Cerrar</button>' +
+        '<button class="btn-primary" onclick="volverADetectar()" style="padding: 10px 20px; font-size: 14px; margin: 5px;">🔄 Volver a Detectar</button>';
+    
+    modalContent.appendChild(modalActions);
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
     
@@ -2228,85 +2217,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     window.modalDuplicadas = modal;
     window.duplicadasData = duplicadas;
 }
-       
-// Filtrar grupos de duplicadas por temas seleccionados en sidebar
-window.filtrarDuplicadasPorTema = function(checkboxClicado) {
-    const checkAll = document.getElementById('filtroTodosTemas');
-    const checksTema = document.querySelectorAll('.filtro-tema-dup');
-    
-    // Si se clicó "Todos los temas"
-    if (checkboxClicado && checkboxClicado.id === 'filtroTodosTemas') {
-        if (checkAll.checked) {
-            // Marcar todos los individuales también
-            checksTema.forEach(cb => cb.checked = true);
-            // Seleccionar TODAS las preguntas excepto la primera de cada grupo
-            document.querySelectorAll('.duplicada-item').forEach(grupo => {
-                const checkboxes = grupo.querySelectorAll('.checkbox-pregunta');
-                checkboxes.forEach((cb, i) => {
-                    cb.checked = (i > 0); // primera = no marcada, resto = marcadas
-                });
-            });
-        } else {
-            // Desmarcar todos los individuales
-            checksTema.forEach(cb => cb.checked = false);
-            // Deseleccionar TODAS las preguntas
-            document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = false);
-        }
-        actualizarContadorDuplicadas();
-        return;
-    }
-    
-    // Si se clicó un tema individual
-    if (checkboxClicado) {
-        const temaNombre = checkboxClicado.value;
-        
-        if (checkboxClicado.checked) {
-            // SELECCIONAR preguntas de este tema, dejando una sin marcar por grupo
-            document.querySelectorAll('.duplicada-item').forEach(grupo => {
-                const checkboxesDelTema = grupo.querySelectorAll(`.checkbox-pregunta[data-tema-nombre="${temaNombre}"]`);
-                let primeraEncontrada = false;
-                
-                checkboxesDelTema.forEach(cb => {
-                    if (!primeraEncontrada) {
-                        // Dejar la primera sin marcar (para mantenerla)
-                        primeraEncontrada = true;
-                        // No tocar: cb.checked queda como está
-                    } else {
-                        cb.checked = true;
-                    }
-                });
-                
-                // Si solo hay UNA pregunta de este tema en el grupo, 
-                // marcarla (porque la "original" está en otro tema)
-                if (checkboxesDelTema.length === 1) {
-                    // Verificar si hay otra pregunta NO de este tema sin marcar en el grupo
-                    const todasDelGrupo = grupo.querySelectorAll('.checkbox-pregunta');
-                    const hayOtraSinMarcar = Array.from(todasDelGrupo).some(cb => 
-                        cb.getAttribute('data-tema-nombre') !== temaNombre && !cb.checked
-                    );
-                    if (hayOtraSinMarcar) {
-                        checkboxesDelTema[0].checked = true;
-                    }
-                }
-            });
-        } else {
-            // DESELECCIONAR preguntas de este tema
-            document.querySelectorAll(`.checkbox-pregunta[data-tema-nombre="${temaNombre}"]`).forEach(cb => {
-                cb.checked = false;
-            });
-        }
-        
-        // Actualizar estado de "Todos los temas"
-        const todosChecked = Array.from(checksTema).every(cb => cb.checked);
-        const ningunoChecked = Array.from(checksTema).every(cb => !cb.checked);
-        if (checkAll) {
-            checkAll.checked = todosChecked;
-            checkAll.indeterminate = !todosChecked && !ningunoChecked;
-        }
-    }
-    
-    actualizarContadorDuplicadas();
-};
+
 // Actualizar contador de preguntas seleccionadas en modal de duplicadas
 function actualizarContadorDuplicadas() {
     const total = document.querySelectorAll('.checkbox-pregunta').length;
@@ -2314,8 +2225,8 @@ function actualizarContadorDuplicadas() {
     const contador = document.getElementById('contadorSeleccionadas');
     if (contador) {
         contador.textContent = `${seleccionadas} de ${total} preguntas seleccionadas para eliminar`;
-        contador.style.color = seleccionadas > 0 ? '#b45309' : '#64748b';
-        contador.style.background = seleccionadas > 0 ? '#fef3c7' : '#e2e8f0';
+        contador.style.color = seleccionadas > 0 ? '#f59e0b' : '#94a3b8';
+        contador.style.background = seleccionadas > 0 ? '#2d2416' : '#1e293b';
     }
 }
 
@@ -3476,22 +3387,12 @@ function calcularResultados() {
     const total = testActual.preguntas.length;
     const porcentaje = total > 0 ? Math.round((correctas / total) * 100) : 0;
     
-    // Sistema de puntuación con penalización (igual que app móvil)
-    const penalizacion = incorrectas / 3;
-    const aciertosNetos = correctas - penalizacion;
-    const puntuacion = total > 0 ? Math.max(0, Math.min(100, Math.round(aciertosNetos / total * 100))) : 0;
-    const notaExamen = total > 0 ? Math.max(0, Math.min(60, parseFloat((aciertosNetos / total * 60).toFixed(2)))) : 0;
-    
     return {
         correctas,
         incorrectas,
         sinResponder,
         total,
         porcentaje,
-        penalizacion,
-        aciertosNetos,
-        puntuacion,
-        notaExamen,
         detalleRespuestas,
         test: testActual,
         tiempoEmpleado: testActual.tiempoLimite !== 'sin' ? 
@@ -3586,18 +3487,18 @@ function generarHTMLResultados(resultados) {
         console.log('resultados.test:', resultados.test);
     }
     
-    const { correctas, incorrectas, sinResponder, total, porcentaje, penalizacion, aciertosNetos, puntuacion, notaExamen, detalleRespuestas, tiempoEmpleado } = resultados;
+    const { correctas, incorrectas, sinResponder, total, porcentaje, detalleRespuestas, tiempoEmpleado } = resultados;
     
-    // Determinar mensaje según puntuación con penalización
+    // Determinar mensaje según porcentaje
     let mensaje = '';
     let icono = '';
-    if (puntuacion >= 90) {
+    if (porcentaje >= 90) {
         mensaje = 'Excelente trabajo!';
         icono = '🏆';
-    } else if (puntuacion >= 75) {
+    } else if (porcentaje >= 75) {
         mensaje = 'Muy bien!';
         icono = '⭐';
-    } else if (puntuacion >= 50) {
+    } else if (porcentaje >= 60) {
         mensaje = 'Buen trabajo';
         icono = '📈';
     } else {
@@ -3610,71 +3511,48 @@ function generarHTMLResultados(resultados) {
         new Date(resultados.test.fechaInicio.seconds * 1000).toLocaleDateString('es-ES') : 
         new Date().toLocaleDateString('es-ES');
 
-    // Color según puntuación con penalización
-    let colorPuntuacion = '';
-    if (puntuacion >= 50) {
-        colorPuntuacion = '#28a745';
-    } else if (puntuacion >= 35) {
-        colorPuntuacion = '#ffc107';
-    } else {
-        colorPuntuacion = '#dc3545';
-    }
-
     let html = '<div class="resultado-header">';
+    // Botón hacer otro test arriba
     html += '<div style="text-align: center; margin-bottom: 20px;">';
     html += '<button onclick="volverAConfigurarTest()" class="btn-empezar-test">Hacer Otro Test</button>';
     html += '</div>';
     html += '<div class="resultado-icono">' + icono + '</div>';
+    // Determinar color según aciertos
+    let colorPuntuacion = '';
+    if (correctas > total / 2) {
+        colorPuntuacion = '#28a745'; // Verde - más de la mitad correctas
+    } else if (correctas === total / 2) {
+        colorPuntuacion = '#ffc107'; // Amarillo - exactamente la mitad
+    } else {
+        colorPuntuacion = '#dc3545'; // Rojo - menos de la mitad correctas
+    }
 
-    // Puntuación grande (sobre 100, con penalización)
-    html += '<div class="resultado-porcentaje" style="color: ' + colorPuntuacion + '">' + puntuacion + '</div>';
-    html += '<div class="resultado-sobre-cien">sobre 100</div>';
+html += '<div class="resultado-porcentaje" style="color: ' + colorPuntuacion + '">' + correctas + '/' + total + '</div>';
 
-    // Nota examen (sobre 60)
-    html += '<div class="resultado-nota-examen">';
-    html += 'Nota examen: <strong>' + notaExamen.toFixed(2) + '</strong> / 60';
-    html += '</div>';
+html += '<div class="resultado-mensaje">' + mensaje + '</div>';
+html += '<div class="resultado-detalles">';
+html += testActual.nombre + ' - ' + new Date().toLocaleDateString('es-ES') + ' ' + new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+html += '<br>Tiempo empleado: ' + tiempoFormateado;
+html += '</div>';
+html += '</div>';
 
-    html += '<div class="resultado-mensaje">' + mensaje + '</div>';
-    html += '<div class="resultado-detalles">';
-    html += testActual.nombre + ' - ' + new Date().toLocaleDateString('es-ES') + ' ' + new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
-    html += '<br>Tiempo empleado: ' + tiempoFormateado;
-    html += '</div>';
-    html += '</div>';
-
-    // Tarjetas de estadísticas (6 tarjetas como en la app)
-    html += '<div class="estadisticas-grid">';
-    html += '<div class="estadistica-card correctas">';
-    html += '<div class="estadistica-icono">✅</div>';
-    html += '<div class="estadistica-numero">' + correctas + '</div>';
-    html += '<div class="estadistica-label">Correctas</div>';
-    html += '</div>';
-    html += '<div class="estadistica-card incorrectas">';
-    html += '<div class="estadistica-icono">❌</div>';
-    html += '<div class="estadistica-numero">' + incorrectas + '</div>';
-    html += '<div class="estadistica-label">Incorrectas</div>';
-    html += '</div>';
-    html += '<div class="estadistica-card sin-responder">';
-    html += '<div class="estadistica-icono">⭕</div>';
-    html += '<div class="estadistica-numero">' + sinResponder + '</div>';
-    html += '<div class="estadistica-label">Sin responder</div>';
-    html += '</div>';
-    html += '<div class="estadistica-card penalizacion">';
-    html += '<div class="estadistica-icono">⚖️</div>';
-    html += '<div class="estadistica-numero">-' + penalizacion.toFixed(2) + '</div>';
-    html += '<div class="estadistica-label">Penalización</div>';
-    html += '</div>';
-    html += '<div class="estadistica-card netos">';
-    html += '<div class="estadistica-icono">🎯</div>';
-    html += '<div class="estadistica-numero">' + aciertosNetos.toFixed(2) + '</div>';
-    html += '<div class="estadistica-label">Aciertos Netos</div>';
-    html += '</div>';
-    html += '<div class="estadistica-card total">';
-    html += '<div class="estadistica-icono">📋</div>';
-    html += '<div class="estadistica-numero">' + total + '</div>';
-    html += '<div class="estadistica-label">Total</div>';
-    html += '</div>';
-    html += '</div>';
+html += '<div class="estadisticas-grid">';
+html += '<div class="estadistica-card correctas">';
+html += '<div class="estadistica-icono">✅</div>';
+html += '<div class="estadistica-numero">' + correctas + '</div>';
+html += '<div class="estadistica-label">Correctas</div>';
+html += '</div>';
+html += '<div class="estadistica-card incorrectas">';
+html += '<div class="estadistica-icono">❌</div>';
+html += '<div class="estadistica-numero">' + incorrectas + '</div>';
+html += '<div class="estadistica-label">Incorrectas</div>';
+html += '</div>';
+html += '<div class="estadistica-card sin-responder">';
+html += '<div class="estadistica-icono">⭕</div>';
+html += '<div class="estadistica-numero">' + sinResponder + '</div>';
+html += '<div class="estadistica-label">Sin responder</div>';
+html += '</div>';
+html += '</div>';
 
 html += '<div class="revision-respuestas">';
 html += '<div class="revision-header">';
@@ -3761,17 +3639,12 @@ async function guardarResultado(resultados) {
             sinResponder: resultados.sinResponder || 0,
             total: resultados.total || 0,
             porcentaje: resultados.porcentaje || 0,
-            penalizacion: resultados.penalizacion || 0,
-            aciertosNetos: resultados.aciertosNetos || 0,
-            puntuacion: resultados.puntuacion || 0,
-            notaExamen: resultados.notaExamen || 0,
             tiempoEmpleado: resultados.tiempoEmpleado || 0,
             test: {
                 id: resultados.test.id || '',
                 nombre: resultados.test.nombre || '',
                 tema: resultados.test.tema || 'todos',
-                fechaInicio: resultados.test.fechaInicio || new Date(),
-                total: resultados.total || 0
+                fechaInicio: resultados.test.fechaInicio || new Date()
             },
             detalleRespuestas: (resultados.detalleRespuestas || []).map(detalle => ({
                 indice: detalle.indice || 0,
@@ -4628,13 +4501,6 @@ listResultados.appendChild(eliminarTodosBtn);
     const fecha = fechaObj.toLocaleDateString('es-ES');
     const hora = fechaObj.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
             
-            // Recalcular puntuación para resultados antiguos que no la tienen guardada
-            const resPenalizacion = resultado.penalizacion ?? (resultado.incorrectas || 0) / 3;
-            const resAciertosNetos = resultado.aciertosNetos ?? ((resultado.correctas || 0) - resPenalizacion);
-            const resPuntuacion = resultado.puntuacion ?? (resultado.total > 0 ? Math.max(0, Math.min(100, Math.round(resAciertosNetos / resultado.total * 100))) : 0);
-            const resNotaExamen = resultado.notaExamen ?? (resultado.total > 0 ? Math.max(0, Math.min(60, parseFloat((resAciertosNetos / resultado.total * 60).toFixed(2)))) : 0);
-            const colorHistorial = resPuntuacion >= 50 ? 'aprobado' : 'suspenso';
-
             const resultadoDiv = document.createElement('div');
             resultadoDiv.className = 'resultado-historial';
             resultadoDiv.innerHTML = `
@@ -4653,8 +4519,7 @@ listResultados.appendChild(eliminarTodosBtn);
             </div>
         </div>
         <div class="resultado-stats">
-    <span class="fraccion-principal ${colorHistorial}">${resPuntuacion}<small>/100</small></span>
-    <span class="nota-examen-mini">Nota: ${resNotaExamen.toFixed(2)}/60</span>
+    <span class="fraccion-principal ${resultado.correctas >= resultado.total/2 ? 'aprobado' : 'suspenso'}">${resultado.correctas}/${resultado.total}</span>
 </div>
         <div class="resultado-acciones" onclick="event.stopPropagation()">
             <button class="btn-eliminar-resultado" onclick="eliminarResultado('${id}')" title="Eliminar resultado">
@@ -5006,7 +4871,7 @@ async function importarPreguntasDirecto(preguntasConvertidas, modal) {
     }
 }
 
-// Exportar preguntas de un tema
+// Exportar preguntas de un tema (incluye subcarpetas recursivamente)
 window.exportarTema = async function(temaId) {
     try {
         const temaDoc = await getDoc(doc(db, "temas", temaId));
@@ -5016,23 +4881,59 @@ window.exportarTema = async function(temaId) {
         }
         
         const tema = temaDoc.data();
-        if (!tema.preguntas || tema.preguntas.length === 0) {
-            alert('Este tema no tiene preguntas para exportar');
+        
+        // Buscar subcarpetas de este tema
+        const qSubtemas = query(collection(db, "temas"), 
+            where("usuarioId", "==", currentUser.uid),
+            where("temaPadreId", "==", temaId));
+        const subtemasSnapshot = await getDocs(qSubtemas);
+        
+        const subcarpetas = [];
+        for (const subDoc of subtemasSnapshot.docs) {
+            const subData = subDoc.data();
+            const subPreguntas = (subData.preguntas || []).map((pregunta) => ({
+                id: Date.now() + Math.random(),
+                question: pregunta.texto,
+                options: pregunta.opciones.map(op => op.texto),
+                correctAnswer: pregunta.opciones.findIndex(op => op.esCorrecta),
+                explanation: "",
+                isVerified: pregunta.verificada || false,
+                isOficial: pregunta.esOficial || false,
+                createdAt: new Date().toISOString()
+            }));
+            
+            subcarpetas.push({
+                nombre: subData.nombre,
+                descripcion: subData.descripcion || '',
+                orden: subData.orden || 0,
+                questionsData: subPreguntas
+            });
+        }
+        
+        // Ordenar subcarpetas por orden
+        subcarpetas.sort((a, b) => a.orden - b.orden);
+
+        const preguntasPropias = tema.preguntas || [];
+        const totalPreguntasSubcarpetas = subcarpetas.reduce((t, s) => t + s.questionsData.length, 0);
+        const totalPreguntas = preguntasPropias.length + totalPreguntasSubcarpetas;
+        
+        if (totalPreguntas === 0) {
+            alert('Este tema no tiene preguntas para exportar (ni en subcarpetas)');
             return;
         }
         
         // Crear objeto JSON en el formato requerido
         const exportData = {
-            version: "questions_export_1.0",
+            version: "questions_export_2.0",
             exportDate: new Date().toISOString(),
             exportTimestamp: Date.now(),
-            exportType: "questions_by_topic",
+            exportType: "questions_by_topic_with_subfolders",
             originalUser: currentUser.displayName || currentUser.email,
             originalTopic: {
                 id: Date.now(),
                 name: tema.nombre
             },
-            questionsData: tema.preguntas.map((pregunta, index) => ({
+            questionsData: preguntasPropias.map((pregunta, index) => ({
                 id: Date.now() + Math.random(),
                 question: pregunta.texto,
                 options: pregunta.opciones.map(op => op.texto),
@@ -5043,15 +4944,25 @@ window.exportarTema = async function(temaId) {
                 originalTopicId: Date.now(),
                 createdAt: new Date().toISOString()
             })),
+            subcarpetas: subcarpetas,
             stats: {
-                totalQuestions: tema.preguntas.length,
-                verifiedQuestions: tema.preguntas.filter(p => p.verificada).length,
+                totalQuestions: totalPreguntas,
+                questionsInTopic: preguntasPropias.length,
+                questionsInSubfolders: totalPreguntasSubcarpetas,
+                totalSubfolders: subcarpetas.length,
+                verifiedQuestions: preguntasPropias.filter(p => p.verificada).length,
                 originalTopicName: tema.nombre
             }
         };
         
         // Descargar archivo
-        descargarJSON(exportData, `preguntas_${tema.nombre}_${new Date().toISOString().split('T')[0]}.json`);
+        const suffix = subcarpetas.length > 0 ? `_con_${subcarpetas.length}_subcarpetas` : '';
+        descargarJSON(exportData, `preguntas_${tema.nombre}${suffix}_${new Date().toISOString().split('T')[0]}.json`);
+        
+        // Mensaje informativo
+        if (subcarpetas.length > 0) {
+            alert(`✅ Exportado: ${preguntasPropias.length} preguntas del tema + ${subcarpetas.length} subcarpeta(s) con ${totalPreguntasSubcarpetas} preguntas`);
+        }
         
     } catch (error) {
         console.error('Error exportando tema:', error);
@@ -5582,16 +5493,23 @@ window.importarATema = function(temaId) {
             const datos = JSON.parse(texto);
             
             if (validarFormatoJSON(datos)) {
-                // Procesar preguntas
-                const preguntasConvertidas = procesarPreguntasImportadas(datos);
+                // Comprobar si tiene subcarpetas
+                const tieneSubcarpetas = datos.subcarpetas && Array.isArray(datos.subcarpetas) && datos.subcarpetas.length > 0;
                 
-                if (preguntasConvertidas.length === 0) {
-                    alert('No se pudieron procesar las preguntas del archivo');
-                    return;
+                if (tieneSubcarpetas) {
+                    // Importación completa con subcarpetas
+                    await importarConSubcarpetas(datos, temaId);
+                } else {
+                    // Importación simple (solo preguntas)
+                    const preguntasConvertidas = procesarPreguntasImportadasDesdeArray(datos.questionsData);
+                    
+                    if (preguntasConvertidas.length === 0) {
+                        alert('No se pudieron procesar las preguntas del archivo');
+                        return;
+                    }
+                    
+                    await importarPreguntasDirectoATema(preguntasConvertidas, temaId);
                 }
-                
-                // Importar directamente al tema seleccionado
-                await importarPreguntasDirectoATema(preguntasConvertidas, temaId);
                 
             } else {
                 alert('El archivo no tiene el formato correcto de preguntas');
@@ -5610,15 +5528,135 @@ window.importarATema = function(temaId) {
     fileInput.click();
 };
 
-// Función auxiliar para procesar preguntas importadas
-function procesarPreguntasImportadas(datos) {
-    const preguntasConvertidas = datos.questionsData.map((q, index) => {
-        // Validar campos obligatorios
+// Importar un archivo con subcarpetas: crea subtemas automáticamente
+async function importarConSubcarpetas(datos, temaId) {
+    try {
+        // Obtener info del tema destino
+        const temaDoc = await getDoc(doc(db, "temas", temaId));
+        if (!temaDoc.exists()) {
+            alert('El tema seleccionado no existe');
+            return;
+        }
+        
+        const temaData = temaDoc.data();
+        const nombreTema = temaData.nombre;
+        const subcarpetas = datos.subcarpetas;
+        const preguntasPropias = datos.questionsData || [];
+        const totalPreguntasSubcarpetas = subcarpetas.reduce((t, s) => t + (s.questionsData?.length || 0), 0);
+        const totalPreguntas = preguntasPropias.length + totalPreguntasSubcarpetas;
+        
+        // Mensaje de confirmación detallado
+        let mensajeConfirm = `📦 Importar al tema "${nombreTema}":\n\n`;
+        if (preguntasPropias.length > 0) {
+            mensajeConfirm += `• ${preguntasPropias.length} preguntas directas al tema\n`;
+        }
+        mensajeConfirm += `• ${subcarpetas.length} subcarpeta(s) a crear:\n`;
+        subcarpetas.forEach(sub => {
+            mensajeConfirm += `   📁 "${sub.nombre}" → ${sub.questionsData?.length || 0} preguntas\n`;
+        });
+        mensajeConfirm += `\nTotal: ${totalPreguntas} preguntas\n\n¿Continuar?`;
+        
+        if (!confirm(mensajeConfirm)) {
+            return;
+        }
+        
+        let preguntasImportadasTotal = 0;
+        let subcarpetasCreadas = 0;
+        
+        // 1. Importar preguntas propias al tema padre (si las hay)
+        if (preguntasPropias.length > 0) {
+            const preguntasConvertidas = procesarPreguntasImportadasDesdeArray(preguntasPropias);
+            const preguntasExistentes = temaData.preguntas || [];
+            const todasLasPreguntas = [...preguntasExistentes, ...preguntasConvertidas];
+            
+            await updateDoc(doc(db, "temas", temaId), {
+                preguntas: todasLasPreguntas,
+                ultimaActualizacion: new Date()
+            });
+            
+            preguntasImportadasTotal += preguntasConvertidas.length;
+        }
+        
+        // 2. Crear subcarpetas como subtemas y añadir sus preguntas
+        for (let i = 0; i < subcarpetas.length; i++) {
+            const subcarpeta = subcarpetas[i];
+            
+            // Comprobar si ya existe un subtema con ese nombre bajo este padre
+            const qExiste = query(collection(db, "temas"), 
+                where("usuarioId", "==", currentUser.uid),
+                where("temaPadreId", "==", temaId),
+                where("nombre", "==", subcarpeta.nombre));
+            const existeSnapshot = await getDocs(qExiste);
+            
+            let subtemaId;
+            
+            if (!existeSnapshot.empty) {
+                // Ya existe: añadir preguntas al subtema existente
+                subtemaId = existeSnapshot.docs[0].id;
+                const subtemaExistente = existeSnapshot.docs[0].data();
+                const preguntasExistentes = subtemaExistente.preguntas || [];
+                const nuevasPreguntas = procesarPreguntasImportadasDesdeArray(subcarpeta.questionsData || []);
+                
+                await updateDoc(doc(db, "temas", subtemaId), {
+                    preguntas: [...preguntasExistentes, ...nuevasPreguntas],
+                    ultimaActualizacion: new Date()
+                });
+                
+                preguntasImportadasTotal += nuevasPreguntas.length;
+            } else {
+                // Crear nuevo subtema
+                const nuevasPreguntas = procesarPreguntasImportadasDesdeArray(subcarpeta.questionsData || []);
+                
+                const nuevoSubtema = {
+                    nombre: subcarpeta.nombre,
+                    descripcion: subcarpeta.descripcion || '',
+                    fechaCreacion: new Date(),
+                    usuarioId: currentUser.uid,
+                    preguntas: nuevasPreguntas,
+                    temaPadreId: temaId,
+                    orden: subcarpeta.orden || i
+                };
+                
+                await addDoc(collection(db, "temas"), nuevoSubtema);
+                subcarpetasCreadas++;
+                preguntasImportadasTotal += nuevasPreguntas.length;
+            }
+        }
+        
+        // Resumen final
+        let resumen = `✅ Importación completada:\n`;
+        resumen += `• ${preguntasImportadasTotal} preguntas importadas\n`;
+        if (subcarpetasCreadas > 0) {
+            resumen += `• ${subcarpetasCreadas} subcarpeta(s) creadas\n`;
+        }
+        if (subcarpetas.length - subcarpetasCreadas > 0) {
+            resumen += `• ${subcarpetas.length - subcarpetasCreadas} subcarpeta(s) ya existían (preguntas añadidas)\n`;
+        }
+        alert(resumen);
+        
+        // Invalidar caché y recargar
+        cacheTemas = null;
+        cacheTimestamp = null;
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+        
+        if (document.getElementById('banco-section').classList.contains('active')) {
+            cargarBancoPreguntas();
+        }
+        
+    } catch (error) {
+        console.error('Error importando con subcarpetas:', error);
+        alert(`Error al importar: ${error.message}`);
+    }
+}
+
+// Procesar preguntas desde un array questionsData (formato export)
+function procesarPreguntasImportadasDesdeArray(questionsArray) {
+    return questionsArray.map((q) => {
         if (!q.question || !q.options || !Array.isArray(q.options) || q.options.length < 4) {
             return null;
         }
         
-        // Obtener índice de respuesta correcta
         let indiceCorrecta = 0;
         if (typeof q.correctAnswer === 'number') {
             indiceCorrecta = q.correctAnswer;
@@ -5643,8 +5681,6 @@ function procesarPreguntasImportadas(datos) {
             fechaCreacion: new Date()
         };
     }).filter(p => p !== null);
-    
-    return preguntasConvertidas;
 }
 
 // Función para importar preguntas directamente a un tema específico
