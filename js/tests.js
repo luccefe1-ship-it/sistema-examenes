@@ -4927,13 +4927,42 @@ window.exportarTema = async function(temaId) {
             subcarpetas.push({
                 nombre: subData.nombre,
                 descripcion: subData.descripcion || '',
-                orden: subData.orden || 0,
+                orden: 0, // Se reasigna después del ordenamiento
+                _ordenOriginal: subData.orden, // Temporal para ordenar igual que la plataforma
                 questionsData: subPreguntas
             });
         }
         
-        // Ordenar subcarpetas por su orden original en la plataforma
-        subcarpetas.sort((a, b) => a.orden - b.orden);
+        // Ordenar subcarpetas con la MISMA lógica que usa la plataforma al renderizar
+        subcarpetas.sort((a, b) => {
+            const ordenA = a._ordenOriginal;
+            const ordenB = b._ordenOriginal;
+            
+            // Si ambos tienen orden definido, usar ese orden
+            if (ordenA !== undefined && ordenB !== undefined) {
+                return ordenA - ordenB;
+            }
+            // Si solo uno tiene orden, ese va primero
+            if (ordenA !== undefined) return -1;
+            if (ordenB !== undefined) return 1;
+            
+            // Fallback: ordenamiento numérico inteligente por nombre
+            const nombreA = a.nombre;
+            const nombreB = b.nombre;
+            const numeroA = nombreA.match(/\d+/);
+            const numeroB = nombreB.match(/\d+/);
+            
+            if (numeroA && numeroB) {
+                return parseInt(numeroA[0]) - parseInt(numeroB[0]);
+            }
+            return nombreA.localeCompare(nombreB);
+        });
+        
+        // Asignar orden secuencial basado en la posición visual final
+        subcarpetas.forEach((sub, idx) => {
+            sub.orden = idx;
+            delete sub._ordenOriginal; // Limpiar campo temporal
+        });
 
         const preguntasPropias = tema.preguntas || [];
         const totalPreguntasSubcarpetas = subcarpetas.reduce((t, s) => t + s.questionsData.length, 0);
