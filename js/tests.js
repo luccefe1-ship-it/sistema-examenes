@@ -3387,12 +3387,22 @@ function calcularResultados() {
     const total = testActual.preguntas.length;
     const porcentaje = total > 0 ? Math.round((correctas / total) * 100) : 0;
     
+    // Sistema de puntuación con penalización (igual que app móvil)
+    const penalizacion = incorrectas / 3;
+    const aciertosNetos = correctas - penalizacion;
+    const puntuacion = total > 0 ? Math.max(0, Math.min(100, Math.round(aciertosNetos / total * 100))) : 0;
+    const notaExamen = total > 0 ? Math.max(0, Math.min(60, parseFloat((aciertosNetos / total * 60).toFixed(2)))) : 0;
+    
     return {
         correctas,
         incorrectas,
         sinResponder,
         total,
         porcentaje,
+        penalizacion,
+        aciertosNetos,
+        puntuacion,
+        notaExamen,
         detalleRespuestas,
         test: testActual,
         tiempoEmpleado: testActual.tiempoLimite !== 'sin' ? 
@@ -3487,18 +3497,18 @@ function generarHTMLResultados(resultados) {
         console.log('resultados.test:', resultados.test);
     }
     
-    const { correctas, incorrectas, sinResponder, total, porcentaje, detalleRespuestas, tiempoEmpleado } = resultados;
+    const { correctas, incorrectas, sinResponder, total, porcentaje, penalizacion, aciertosNetos, puntuacion, notaExamen, detalleRespuestas, tiempoEmpleado } = resultados;
     
-    // Determinar mensaje según porcentaje
+    // Determinar mensaje según puntuación con penalización
     let mensaje = '';
     let icono = '';
-    if (porcentaje >= 90) {
+    if (puntuacion >= 90) {
         mensaje = 'Excelente trabajo!';
         icono = '🏆';
-    } else if (porcentaje >= 75) {
+    } else if (puntuacion >= 75) {
         mensaje = 'Muy bien!';
         icono = '⭐';
-    } else if (porcentaje >= 60) {
+    } else if (puntuacion >= 50) {
         mensaje = 'Buen trabajo';
         icono = '📈';
     } else {
@@ -3511,48 +3521,71 @@ function generarHTMLResultados(resultados) {
         new Date(resultados.test.fechaInicio.seconds * 1000).toLocaleDateString('es-ES') : 
         new Date().toLocaleDateString('es-ES');
 
+    // Color según puntuación con penalización
+    let colorPuntuacion = '';
+    if (puntuacion >= 50) {
+        colorPuntuacion = '#28a745';
+    } else if (puntuacion >= 35) {
+        colorPuntuacion = '#ffc107';
+    } else {
+        colorPuntuacion = '#dc3545';
+    }
+
     let html = '<div class="resultado-header">';
-    // Botón hacer otro test arriba
     html += '<div style="text-align: center; margin-bottom: 20px;">';
     html += '<button onclick="volverAConfigurarTest()" class="btn-empezar-test">Hacer Otro Test</button>';
     html += '</div>';
     html += '<div class="resultado-icono">' + icono + '</div>';
-    // Determinar color según aciertos
-    let colorPuntuacion = '';
-    if (correctas > total / 2) {
-        colorPuntuacion = '#28a745'; // Verde - más de la mitad correctas
-    } else if (correctas === total / 2) {
-        colorPuntuacion = '#ffc107'; // Amarillo - exactamente la mitad
-    } else {
-        colorPuntuacion = '#dc3545'; // Rojo - menos de la mitad correctas
-    }
 
-html += '<div class="resultado-porcentaje" style="color: ' + colorPuntuacion + '">' + correctas + '/' + total + '</div>';
+    // Puntuación grande (sobre 100, con penalización)
+    html += '<div class="resultado-porcentaje" style="color: ' + colorPuntuacion + '">' + puntuacion + '</div>';
+    html += '<div class="resultado-sobre-cien">sobre 100</div>';
 
-html += '<div class="resultado-mensaje">' + mensaje + '</div>';
-html += '<div class="resultado-detalles">';
-html += testActual.nombre + ' - ' + new Date().toLocaleDateString('es-ES') + ' ' + new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
-html += '<br>Tiempo empleado: ' + tiempoFormateado;
-html += '</div>';
-html += '</div>';
+    // Nota examen (sobre 60)
+    html += '<div class="resultado-nota-examen">';
+    html += 'Nota examen: <strong>' + notaExamen.toFixed(2) + '</strong> / 60';
+    html += '</div>';
 
-html += '<div class="estadisticas-grid">';
-html += '<div class="estadistica-card correctas">';
-html += '<div class="estadistica-icono">✅</div>';
-html += '<div class="estadistica-numero">' + correctas + '</div>';
-html += '<div class="estadistica-label">Correctas</div>';
-html += '</div>';
-html += '<div class="estadistica-card incorrectas">';
-html += '<div class="estadistica-icono">❌</div>';
-html += '<div class="estadistica-numero">' + incorrectas + '</div>';
-html += '<div class="estadistica-label">Incorrectas</div>';
-html += '</div>';
-html += '<div class="estadistica-card sin-responder">';
-html += '<div class="estadistica-icono">⭕</div>';
-html += '<div class="estadistica-numero">' + sinResponder + '</div>';
-html += '<div class="estadistica-label">Sin responder</div>';
-html += '</div>';
-html += '</div>';
+    html += '<div class="resultado-mensaje">' + mensaje + '</div>';
+    html += '<div class="resultado-detalles">';
+    html += testActual.nombre + ' - ' + new Date().toLocaleDateString('es-ES') + ' ' + new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+    html += '<br>Tiempo empleado: ' + tiempoFormateado;
+    html += '</div>';
+    html += '</div>';
+
+    // Tarjetas de estadísticas (6 tarjetas como en la app)
+    html += '<div class="estadisticas-grid">';
+    html += '<div class="estadistica-card correctas">';
+    html += '<div class="estadistica-icono">✅</div>';
+    html += '<div class="estadistica-numero">' + correctas + '</div>';
+    html += '<div class="estadistica-label">Correctas</div>';
+    html += '</div>';
+    html += '<div class="estadistica-card incorrectas">';
+    html += '<div class="estadistica-icono">❌</div>';
+    html += '<div class="estadistica-numero">' + incorrectas + '</div>';
+    html += '<div class="estadistica-label">Incorrectas</div>';
+    html += '</div>';
+    html += '<div class="estadistica-card sin-responder">';
+    html += '<div class="estadistica-icono">⭕</div>';
+    html += '<div class="estadistica-numero">' + sinResponder + '</div>';
+    html += '<div class="estadistica-label">Sin responder</div>';
+    html += '</div>';
+    html += '<div class="estadistica-card penalizacion">';
+    html += '<div class="estadistica-icono">⚖️</div>';
+    html += '<div class="estadistica-numero">-' + penalizacion.toFixed(2) + '</div>';
+    html += '<div class="estadistica-label">Penalización</div>';
+    html += '</div>';
+    html += '<div class="estadistica-card netos">';
+    html += '<div class="estadistica-icono">🎯</div>';
+    html += '<div class="estadistica-numero">' + aciertosNetos.toFixed(2) + '</div>';
+    html += '<div class="estadistica-label">Aciertos Netos</div>';
+    html += '</div>';
+    html += '<div class="estadistica-card total">';
+    html += '<div class="estadistica-icono">📋</div>';
+    html += '<div class="estadistica-numero">' + total + '</div>';
+    html += '<div class="estadistica-label">Total</div>';
+    html += '</div>';
+    html += '</div>';
 
 html += '<div class="revision-respuestas">';
 html += '<div class="revision-header">';
@@ -3639,12 +3672,17 @@ async function guardarResultado(resultados) {
             sinResponder: resultados.sinResponder || 0,
             total: resultados.total || 0,
             porcentaje: resultados.porcentaje || 0,
+            penalizacion: resultados.penalizacion || 0,
+            aciertosNetos: resultados.aciertosNetos || 0,
+            puntuacion: resultados.puntuacion || 0,
+            notaExamen: resultados.notaExamen || 0,
             tiempoEmpleado: resultados.tiempoEmpleado || 0,
             test: {
                 id: resultados.test.id || '',
                 nombre: resultados.test.nombre || '',
                 tema: resultados.test.tema || 'todos',
-                fechaInicio: resultados.test.fechaInicio || new Date()
+                fechaInicio: resultados.test.fechaInicio || new Date(),
+                total: resultados.total || 0
             },
             detalleRespuestas: (resultados.detalleRespuestas || []).map(detalle => ({
                 indice: detalle.indice || 0,
@@ -4501,6 +4539,13 @@ listResultados.appendChild(eliminarTodosBtn);
     const fecha = fechaObj.toLocaleDateString('es-ES');
     const hora = fechaObj.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
             
+            // Recalcular puntuación para resultados antiguos que no la tienen guardada
+            const resPenalizacion = resultado.penalizacion ?? (resultado.incorrectas || 0) / 3;
+            const resAciertosNetos = resultado.aciertosNetos ?? ((resultado.correctas || 0) - resPenalizacion);
+            const resPuntuacion = resultado.puntuacion ?? (resultado.total > 0 ? Math.max(0, Math.min(100, Math.round(resAciertosNetos / resultado.total * 100))) : 0);
+            const resNotaExamen = resultado.notaExamen ?? (resultado.total > 0 ? Math.max(0, Math.min(60, parseFloat((resAciertosNetos / resultado.total * 60).toFixed(2)))) : 0);
+            const colorHistorial = resPuntuacion >= 50 ? 'aprobado' : 'suspenso';
+
             const resultadoDiv = document.createElement('div');
             resultadoDiv.className = 'resultado-historial';
             resultadoDiv.innerHTML = `
@@ -4519,7 +4564,8 @@ listResultados.appendChild(eliminarTodosBtn);
             </div>
         </div>
         <div class="resultado-stats">
-    <span class="fraccion-principal ${resultado.correctas >= resultado.total/2 ? 'aprobado' : 'suspenso'}">${resultado.correctas}/${resultado.total}</span>
+    <span class="fraccion-principal ${colorHistorial}">${resPuntuacion}<small>/100</small></span>
+    <span class="nota-examen-mini">Nota: ${resNotaExamen.toFixed(2)}/60</span>
 </div>
         <div class="resultado-acciones" onclick="event.stopPropagation()">
             <button class="btn-eliminar-resultado" onclick="eliminarResultado('${id}')" title="Eliminar resultado">
