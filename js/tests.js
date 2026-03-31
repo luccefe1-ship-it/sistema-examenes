@@ -2123,9 +2123,9 @@ function mostrarPreguntasDuplicadas(duplicadas) {
     const sidebar = document.createElement('div');
     sidebar.style.cssText = 'width:260px;min-width:220px;background:#fff;border-right:2px solid #e2e8f0;overflow-y:auto;padding:14px;flex-shrink:0;';
     
-    let sidebarHTML = '<div style="font-weight:700;color:#1e293b;margin-bottom:10px;font-size:14px;">📁 Filtrar por Tema</div>';
+    let sidebarHTML = '<div style="font-weight:700;color:#1e293b;margin-bottom:10px;font-size:14px;">📁 Seleccionar por Tema</div>';
     sidebarHTML += `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;cursor:pointer;color:#4338ca;font-weight:600;margin-bottom:6px;background:#eef2ff;">
-        <input type="checkbox" id="filtroTodosTemas" onchange="filtrarDuplicadasPorTema()" style="width:18px;height:18px;cursor:pointer;">
+        <input type="checkbox" id="filtroTodosTemas" onchange="filtrarDuplicadasPorTema(this)" style="width:18px;height:18px;cursor:pointer;">
         Todos los temas
     </label>`;
     sidebarHTML += '<div style="border-top:1px solid #e2e8f0;margin:6px 0;"></div>';
@@ -2135,7 +2135,7 @@ function mostrarPreguntasDuplicadas(duplicadas) {
         const colorIcon = tema.padre ? '📁' : '📚';
         sidebarHTML += `<label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;color:#334155;font-size:13px;margin-bottom:3px;" 
             onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
-            <input type="checkbox" class="filtro-tema-dup" value="${tema.nombre}" onchange="filtrarDuplicadasPorTema()" style="width:16px;height:16px;cursor:pointer;">
+            <input type="checkbox" class="filtro-tema-dup" value="${tema.nombre}" onchange="filtrarDuplicadasPorTema(this)" style="width:16px;height:16px;cursor:pointer;">
             ${colorIcon} ${displayText}
         </label>`;
     });
@@ -2230,67 +2230,78 @@ function mostrarPreguntasDuplicadas(duplicadas) {
 }
        
 // Filtrar grupos de duplicadas por temas seleccionados en sidebar
-window.filtrarDuplicadasPorTema = function() {
+window.filtrarDuplicadasPorTema = function(checkboxClicado) {
     const checkAll = document.getElementById('filtroTodosTemas');
     const checksTema = document.querySelectorAll('.filtro-tema-dup');
-    const algunoIndividualChecked = Array.from(checksTema).some(cb => cb.checked);
     
-    // Si "Todos" se acaba de marcar, desmarcar todos los individuales y mostrar todo
-    if (checkAll && checkAll.checked) {
-        checksTema.forEach(cb => cb.checked = false);
-    }
-    
-    // Si se marca un tema individual, desmarcar "Todos"
-    if (algunoIndividualChecked && checkAll) {
-        checkAll.checked = false;
-    }
-    
-    // Determinar si hay filtro activo
-    const temasSeleccionados = new Set();
-    checksTema.forEach(cb => {
-        if (cb.checked) temasSeleccionados.add(cb.value);
-    });
-    
-    const sinFiltro = temasSeleccionados.size === 0; // ningún tema individual marcado = mostrar todos
-    
-    // Mostrar/ocultar grupos
-    const grupos = document.querySelectorAll('.duplicada-item');
-    let visibles = 0;
-    
-    grupos.forEach(grupo => {
-        const temasGrupo = JSON.parse(grupo.getAttribute('data-temas-grupo') || '[]');
-        
-        if (sinFiltro) {
-            // Sin filtro: mostrar todo
-            grupo.style.display = 'block';
-            visibles++;
-            grupo.querySelectorAll('[data-tema-pregunta]').forEach(div => div.style.display = 'block');
-        } else {
-            // Con filtro: mostrar solo grupos que contengan algún tema seleccionado
-            const tieneAlgunoVisible = temasGrupo.some(t => temasSeleccionados.has(t));
-            
-            if (tieneAlgunoVisible) {
-                grupo.style.display = 'block';
-                visibles++;
-                
-                grupo.querySelectorAll('[data-tema-pregunta]').forEach(div => {
-                    const temaPregunta = div.getAttribute('data-tema-pregunta');
-                    div.style.display = temasSeleccionados.has(temaPregunta) ? 'block' : 'none';
+    // Si se clicó "Todos los temas"
+    if (checkboxClicado && checkboxClicado.id === 'filtroTodosTemas') {
+        if (checkAll.checked) {
+            // Marcar todos los individuales también
+            checksTema.forEach(cb => cb.checked = true);
+            // Seleccionar TODAS las preguntas excepto la primera de cada grupo
+            document.querySelectorAll('.duplicada-item').forEach(grupo => {
+                const checkboxes = grupo.querySelectorAll('.checkbox-pregunta');
+                checkboxes.forEach((cb, i) => {
+                    cb.checked = (i > 0); // primera = no marcada, resto = marcadas
                 });
-            } else {
-                grupo.style.display = 'none';
-            }
-        }
-    });
-    
-    // Actualizar título
-    const titulo = document.getElementById('tituloDuplicadas');
-    if (titulo) {
-        const totalGrupos = grupos.length;
-        if (sinFiltro) {
-            titulo.textContent = `Preguntas Repetidas: ${totalGrupos} grupos`;
+            });
         } else {
-            titulo.textContent = `Preguntas Repetidas: ${visibles}/${totalGrupos} grupos (filtrado)`;
+            // Desmarcar todos los individuales
+            checksTema.forEach(cb => cb.checked = false);
+            // Deseleccionar TODAS las preguntas
+            document.querySelectorAll('.checkbox-pregunta').forEach(cb => cb.checked = false);
+        }
+        actualizarContadorDuplicadas();
+        return;
+    }
+    
+    // Si se clicó un tema individual
+    if (checkboxClicado) {
+        const temaNombre = checkboxClicado.value;
+        
+        if (checkboxClicado.checked) {
+            // SELECCIONAR preguntas de este tema, dejando una sin marcar por grupo
+            document.querySelectorAll('.duplicada-item').forEach(grupo => {
+                const checkboxesDelTema = grupo.querySelectorAll(`.checkbox-pregunta[data-tema-nombre="${temaNombre}"]`);
+                let primeraEncontrada = false;
+                
+                checkboxesDelTema.forEach(cb => {
+                    if (!primeraEncontrada) {
+                        // Dejar la primera sin marcar (para mantenerla)
+                        primeraEncontrada = true;
+                        // No tocar: cb.checked queda como está
+                    } else {
+                        cb.checked = true;
+                    }
+                });
+                
+                // Si solo hay UNA pregunta de este tema en el grupo, 
+                // marcarla (porque la "original" está en otro tema)
+                if (checkboxesDelTema.length === 1) {
+                    // Verificar si hay otra pregunta NO de este tema sin marcar en el grupo
+                    const todasDelGrupo = grupo.querySelectorAll('.checkbox-pregunta');
+                    const hayOtraSinMarcar = Array.from(todasDelGrupo).some(cb => 
+                        cb.getAttribute('data-tema-nombre') !== temaNombre && !cb.checked
+                    );
+                    if (hayOtraSinMarcar) {
+                        checkboxesDelTema[0].checked = true;
+                    }
+                }
+            });
+        } else {
+            // DESELECCIONAR preguntas de este tema
+            document.querySelectorAll(`.checkbox-pregunta[data-tema-nombre="${temaNombre}"]`).forEach(cb => {
+                cb.checked = false;
+            });
+        }
+        
+        // Actualizar estado de "Todos los temas"
+        const todosChecked = Array.from(checksTema).every(cb => cb.checked);
+        const ningunoChecked = Array.from(checksTema).every(cb => !cb.checked);
+        if (checkAll) {
+            checkAll.checked = todosChecked;
+            checkAll.indeterminate = !todosChecked && !ningunoChecked;
         }
     }
     
