@@ -4606,6 +4606,19 @@ async function manejarArchivoSeleccionado(event) {
         const datos = JSON.parse(texto);
         
         if (validarFormatoJSON(datos)) {
+            // Si tiene subcarpetas, avisar que use el botón de importar del tema
+            const tieneSubcarpetas = datos.subcarpetas && Array.isArray(datos.subcarpetas) && datos.subcarpetas.length > 0;
+            const sinPreguntasPropias = !datos.questionsData || datos.questionsData.length === 0;
+            
+            if (tieneSubcarpetas && sinPreguntasPropias) {
+                alert('Este archivo contiene subcarpetas pero no tiene preguntas directas.\n\nUsa el botón 📥 Importar del tema donde quieras importar las subcarpetas.');
+                return;
+            }
+            
+            if (tieneSubcarpetas) {
+                alert('⚠️ Este archivo contiene subcarpetas. Las preguntas directas se importarán aquí, pero para importar también las subcarpetas usa el botón 📥 Importar del tema correspondiente.');
+            }
+            
             procesarArchivoImportado(datos);
         } else {
             alert('El archivo no tiene el formato correcto de preguntas');
@@ -4628,10 +4641,19 @@ function leerArchivo(archivo) {
 }
 
 function validarFormatoJSON(datos) {
-    return datos && 
-           datos.questionsData && 
-           Array.isArray(datos.questionsData) &&
-           datos.questionsData.length > 0;
+    if (!datos) return false;
+    
+    // Formato con preguntas directas (v1.0 y v2.0)
+    const tienePreguntas = datos.questionsData && 
+                           Array.isArray(datos.questionsData) && 
+                           datos.questionsData.length > 0;
+    
+    // Formato con subcarpetas (v2.0) - puede no tener preguntas propias
+    const tieneSubcarpetas = datos.subcarpetas && 
+                             Array.isArray(datos.subcarpetas) && 
+                             datos.subcarpetas.length > 0;
+    
+    return tienePreguntas || tieneSubcarpetas;
 }
 
 function procesarArchivoImportado(datos) {
