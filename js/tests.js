@@ -196,6 +196,157 @@ if (crearTemaBancoBtn) {
     });
 }
 
+// Botón importar tema completo (padre + subtemas) en banco de preguntas
+const importarTemaBancoBtn = document.getElementById('importarTemaBancoBtn');
+const importarTemaBancoInput = document.getElementById('importarTemaBancoInput');
+if (importarTemaBancoBtn && importarTemaBancoInput) {
+    importarTemaBancoBtn.addEventListener('click', () => {
+        importarTemaBancoInput.value = '';
+        importarTemaBancoInput.click();
+    });
+
+    importarTemaBancoInput.addEventListener('change', async (event) => {
+        const archivo = event.target.files[0];
+        if (!archivo) return;
+
+        if (!archivo.name.toLowerCase().endsWith('.json')) {
+            alert('⚠️ El archivo debe tener extensión .json (minúsculas)');
+            return;
+        }
+
+        try {
+            const texto = await archivo.text();
+            const datos = JSON.parse(texto);
+            await importarTemaCompletoConSubtemas(datos);
+        } catch (error) {
+            console.error('Error leyendo archivo:', error);
+            alert(`❌ Error al leer el archivo: ${error.message}`);
+        }
+    });
+}
+
+// Importar un tema padre completo con sus subtemas desde JSON
+async function importarTemaCompletoConSubtemas(datos) {
+    try {
+        // Detectar nombre del tema padre (varios formatos posibles)
+        let nombrePadre = datos.nombre
+            || datos.originalTopic?.name
+            || datos.temaPadre?.name
+            || datos.temaPadre?.nombre
+            || '';
+
+        // Pedir confirmación/edición del nombre
+        const nombreEditado = prompt('Nombre del tema padre a crear (puedes editarlo):', nombrePadre);
+        if (nombreEditado === null) return; // cancelado
+        nombrePadre = nombreEditado.trim();
+
+        if (!nombrePadre) {
+            alert('El nombre del tema padre es obligatorio');
+            return;
+        }
+
+        // Verificar que no exista ya un tema padre con ese nombre
+        const qExiste = query(
+            collection(db, "temas"),
+            where("usuarioId", "==", currentUser.uid),
+            where("nombre", "==", nombrePadre)
+        );
+        const existeSnapshot = await getDocs(qExiste);
+        if (!existeSnapshot.empty) {
+            alert(`⚠️ Ya existe un tema llamado "${nombrePadre}". Elige otro nombre o elimina el existente.`);
+            return;
+        }
+
+        // Normalizar subcarpetas/subtemas y ordenarlas alfabéticamente
+        const subcarpetasRaw = datos.subcarpetas || datos.subtemas || [];
+        if (!Array.isArray(subcarpetasRaw)) {
+            alert('El archivo no contiene una lista válida de subtemas.');
+            return;
+        }
+
+        const subcarpetas = subcarpetasRaw
+            .map(s => ({
+                nombre: (s.nombre || s.name || '').trim(),
+                descripcion: s.descripcion || '',
+                questionsData: Array.isArray(s.questionsData) ? s.questionsData : []
+            }))
+            .filter(s => s.nombre)
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+
+        const preguntasPropias = Array.isArray(datos.questionsData) ? datos.questionsData : [];
+        const totalSub = subcarpetas.reduce((t, s) => t + s.questionsData.length, 0);
+        const totalPreg = preguntasPropias.length + totalSub;
+
+        // Mensaje de confirmación
+        let mensaje = `📦 Crear tema "${nombrePadre}" con:\n\n`;
+        if (preguntasPropias.length > 0) {
+            mensaje += `• ${preguntasPropias.length} preguntas directas al tema padre\n`;
+        }
+        mensaje += `• ${subcarpetas.length} subtema(s) (orden alfabético):\n`;
+        subcarpetas.forEach(s => {
+            mensaje += `   📁 "${s.nombre}" → ${s.questionsData.length} preguntas\n`;
+        });
+        mensaje += `\nTotal: ${totalPreg} preguntas\n\n¿Continuar?`;
+
+        if (!confirm(mensaje)) return;
+
+        // 1. Crear tema padre
+        const preguntasPadreConvertidas = procesarPreguntasImportadasDesdeArray(preguntasPropias);
+        const temaPadreData = {
+            nombre: nombrePadre,
+            descripcion: datos.descripcion || '',
+            fechaCreacion: new Date(),
+            usuarioId: currentUser.uid,
+            preguntas: preguntasPadreConvertidas,
+            esSubtema: false,
+            temaPadreId: null
+        };
+        const padreRef = await addDoc(collection(db, "temas"), temaPadreData);
+        const padreId = padreRef.id;
+
+        // 2. Crear subtemas en orden alfabético
+        let subtemasCreados = 0;
+        let preguntasImportadas = preguntasPadreConvertidas.length;
+
+        for (let i = 0; i < subcarpetas.length; i++) {
+            const sub = subcarpetas[i];
+            const preguntasConvertidas = procesarPreguntasImportadasDesdeArray(sub.questionsData);
+
+            const nuevoSubtema = {
+                nombre: sub.nombre,
+                descripcion: sub.descripcion || '',
+                fechaCreacion: new Date(),
+                usuarioId: currentUser.uid,
+                preguntas: preguntasConvertidas,
+                esSubtema: true,
+                temaPadreId: padreId,
+                orden: i
+            };
+
+            await addDoc(collection(db, "temas"), nuevoSubtema);
+            subtemasCreados++;
+            preguntasImportadas += preguntasConvertidas.length;
+        }
+
+        // Invalidar caché
+        cacheTemas = null;
+        cacheTimestamp = null;
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+
+        alert(`✅ Importación completada:\n• Tema padre: "${nombrePadre}"\n• ${subtemasCreados} subtema(s) creados (orden alfabético)\n• ${preguntasImportadas} preguntas importadas`);
+
+        // Recargar banco si está activo
+        if (document.getElementById('banco-section').classList.contains('active')) {
+            cargarBancoPreguntas();
+        }
+
+    } catch (error) {
+        console.error('Error importando tema con subtemas:', error);
+        alert(`❌ Error al importar: ${error.message}`);
+    }
+}
+
     seleccionarTemaBtn.addEventListener('click', async () => {
         await cargarTemasEnSelect();
         modalSeleccionarTema.style.display = 'block';
