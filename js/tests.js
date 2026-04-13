@@ -304,6 +304,42 @@ async function importarTemaCompletoConSubtemas(datos) {
         const padreRef = await addDoc(collection(db, "temas"), temaPadreData);
         const padreId = padreRef.id;
 
+        // 1.b Reordenar alfabéticamente TODOS los temas principales (incluyendo el recién creado)
+        // para que el nuevo tema se ubique en su posición alfabética correcta
+        try {
+            const qPrincipales = query(
+                collection(db, "temas"),
+                where("usuarioId", "==", currentUser.uid)
+            );
+            const snapPrincipales = await getDocs(qPrincipales);
+            const temasPrincipales = [];
+            snapPrincipales.forEach(docSnap => {
+                const d = docSnap.data();
+                if (!d.temaPadreId) {
+                    temasPrincipales.push({ id: docSnap.id, nombre: d.nombre });
+                }
+            });
+
+            // Ordenamiento numérico inteligente (igual que el banco): prioriza números si todos los tienen,
+            // si no, fallback a alfabético español
+            temasPrincipales.sort((a, b) => {
+                const numA = a.nombre.match(/\d+/);
+                const numB = b.nombre.match(/\d+/);
+                if (numA && numB) {
+                    return parseInt(numA[0]) - parseInt(numB[0]);
+                }
+                return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+            });
+
+            // Reasignar orden secuencial a todos
+            const promesasOrden = temasPrincipales.map((t, idx) =>
+                updateDoc(doc(db, "temas", t.id), { orden: idx })
+            );
+            await Promise.all(promesasOrden);
+        } catch (errOrden) {
+            console.warn('No se pudo reordenar alfabéticamente:', errOrden);
+        }
+
         // 2. Crear subtemas en orden alfabético
         let subtemasCreados = 0;
         let preguntasImportadas = preguntasPadreConvertidas.length;
