@@ -1165,7 +1165,8 @@ temasPrincipales.forEach(tema => {
             temaDiv.innerHTML = `
                 <div class="tema-header">
                     <div class="tema-info">
-                        <div class="tema-nombre">
+                        <div class="tema-info-textos">
+                            <div class="tema-nombre">
     <input type="checkbox" class="tema-select-all" data-target-tema="${id}" draggable="false" onchange="event.stopPropagation(); toggleSeleccionTodasPreguntas('${id}', this.checked)" title="Seleccionar todas las preguntas de este tema">
     📚 ${tema.nombre}
     ${subtemasPorPadre[id] && subtemasPorPadre[id].length > 0 ? 
@@ -1174,7 +1175,9 @@ temasPrincipales.forEach(tema => {
         </button>` : ''
     }
 </div>
-                        <div class="tema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
+                            <div class="tema-fecha">Creado: ${fechaCreacion}</div>
+                        </div>
+                        <div class="tema-stats">${numPreguntas} preguntas</div>
                     </div>
                   <div class="tema-acciones">
     <div class="acciones-dropdown">
@@ -1409,11 +1412,14 @@ function crearSubtemaHTML(subtemaId, subtema) {
         <div class="subtema-container" draggable="true" data-subtema-id="${subtemaId}">
             <div class="subtema-header">
                 <div class="subtema-info">
-                    <div class="subtema-nombre">
-                        <input type="checkbox" class="subtema-select-all" data-target-tema="${subtemaId}" draggable="false" onchange="event.stopPropagation(); toggleSeleccionTodasPreguntas('${subtemaId}', this.checked)" title="Seleccionar todas las preguntas de este subtema">
-                        📁 ${subtema.nombre}
+                    <div class="subtema-info-textos">
+                        <div class="subtema-nombre">
+                            <input type="checkbox" class="subtema-select-all" data-target-tema="${subtemaId}" draggable="false" onchange="event.stopPropagation(); toggleSeleccionTodasPreguntas('${subtemaId}', this.checked)" title="Seleccionar todas las preguntas de este subtema">
+                            📁 ${subtema.nombre}
+                        </div>
+                        <div class="subtema-fecha">Creado: ${fechaCreacion}</div>
                     </div>
-                    <div class="subtema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
+                    <div class="subtema-stats">${numPreguntas} preguntas</div>
                 </div>
                 
 <div class="subtema-acciones">
