@@ -608,6 +608,14 @@ function escucharCambiosSala() {
             !btnContinuarExiste) {
             window.finDeJuegoEnProceso = true;
             setTimeout(() => {
+                // 🆕 FIX: re-verificar que no haya aparecido un botón continuar mientras tanto.
+                // Si el usuario local falló y el botón apareció después de programar el timeout,
+                // dejamos que el click del botón gestione mostrar la pantalla de derrota.
+                const btnAhora = document.querySelector('.btn-continuar-respuesta');
+                if (btnAhora) {
+                    window.finDeJuegoEnProceso = false;
+                    return;
+                }
                 mostrarResultado(salaData);
             }, 500);
         }
@@ -1199,6 +1207,11 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
         const preguntasRecibidasActuales = salaData.jugadores[jugadorActual].preguntasRecibidas || 0;
         const aciertosActuales = salaData.jugadores[jugadorActual].aciertos || 0;
         
+        // 🆕 FIX: Mostrar botón continuar ANTES de updateDoc para evitar race condition.
+        // El snapshot listener detecta errores>=3 y, si no encuentra el botón en DOM,
+        // muestra la pantalla de derrota antes de que el usuario lea la respuesta fallada.
+        mostrarBotonContinuar();
+        
         if (!esCorrecta) {
             const erroresActuales = salaData.jugadores[jugadorActual].errores || 0;
             const nuevosErrores = erroresActuales + 1;
@@ -1234,9 +1247,6 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
                 'juego.cronometroDetenido': true
             });
         }
-        
-        // SIEMPRE MOSTRAR BOTÓN CONTINUAR (incluso con 3 errores)
-        mostrarBotonContinuar();
         
         // Buscar y mostrar explicación si existe
         buscarYMostrarExplicacion(pregunta);
