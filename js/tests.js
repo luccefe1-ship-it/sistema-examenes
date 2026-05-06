@@ -8376,11 +8376,23 @@ window.actualizarBarraSeleccion = function() {
                 const closest = cb.closest('.subtema-container') || cb.closest('.tema-card');
                 return closest === card;
             });
+        
+        // 🆕 Si NO hay preguntas propias, reflejar estado de TODAS las preguntas del card
+        // (incluidas las de subcarpetas) para que el check del padre permanezca marcado
         if (directos.length === 0) {
-            cbTema.checked = false;
-            cbTema.indeterminate = false;
+            const todasDelCard = Array.from(card.querySelectorAll('.pregunta-seleccion-checkbox'));
+            if (todasDelCard.length === 0) {
+                cbTema.checked = false;
+                cbTema.indeterminate = false;
+                return;
+            }
+            const todosMarcadosCard = todasDelCard.every(cb => cb.checked);
+            const algunoMarcadoCard = todasDelCard.some(cb => cb.checked);
+            cbTema.checked = todosMarcadosCard;
+            cbTema.indeterminate = !todosMarcadosCard && algunoMarcadoCard;
             return;
         }
+        
         const todosMarcados = directos.every(cb => cb.checked);
         const algunoMarcado = directos.some(cb => cb.checked);
         cbTema.checked = todosMarcados;
