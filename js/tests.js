@@ -1417,9 +1417,8 @@ function crearSubtemaHTML(subtemaId, subtema) {
                             <input type="checkbox" class="subtema-select-all" data-target-tema="${subtemaId}" draggable="false" onclick="manejarClickCheckPadre(event, '${subtemaId}')" title="Seleccionar todas las preguntas de este subtema">
                             📁 ${subtema.nombre}
                         </div>
-                        <div class="subtema-fecha">Creado: ${fechaCreacion}</div>
+                        <div class="subtema-fecha">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
                     </div>
-                    <div class="subtema-stats">${numPreguntas} preguntas</div>
                 </div>
                 
 <div class="subtema-acciones">
