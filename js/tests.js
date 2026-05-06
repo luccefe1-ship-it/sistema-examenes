@@ -1167,7 +1167,7 @@ temasPrincipales.forEach(tema => {
                     <div class="tema-info">
                         <div class="tema-info-textos">
                             <div class="tema-nombre">
-    <input type="checkbox" class="tema-select-all" data-target-tema="${id}" draggable="false" onchange="event.stopPropagation(); toggleSeleccionTodasPreguntas('${id}', this.checked)" title="Seleccionar todas las preguntas de este tema">
+    <input type="checkbox" class="tema-select-all" data-target-tema="${id}" draggable="false" onclick="manejarClickCheckPadre(event, '${id}')" title="Seleccionar todas las preguntas de este tema">
     📚 ${tema.nombre}
     ${subtemasPorPadre[id] && subtemasPorPadre[id].length > 0 ? 
         `<button class="btn-toggle-subtemas" onclick="toggleSubtemasVisibilidad('${id}')" title="Mostrar/Ocultar subtemas">
@@ -1414,7 +1414,7 @@ function crearSubtemaHTML(subtemaId, subtema) {
                 <div class="subtema-info">
                     <div class="subtema-info-textos">
                         <div class="subtema-nombre">
-                            <input type="checkbox" class="subtema-select-all" data-target-tema="${subtemaId}" draggable="false" onchange="event.stopPropagation(); toggleSeleccionTodasPreguntas('${subtemaId}', this.checked)" title="Seleccionar todas las preguntas de este subtema">
+                            <input type="checkbox" class="subtema-select-all" data-target-tema="${subtemaId}" draggable="false" onclick="manejarClickCheckPadre(event, '${subtemaId}')" title="Seleccionar todas las preguntas de este subtema">
                             📁 ${subtema.nombre}
                         </div>
                         <div class="subtema-fecha">Creado: ${fechaCreacion}</div>
@@ -8309,6 +8309,29 @@ document.addEventListener('keydown', (e) => {
 // ==========================================================
 // 🆕 SELECCIÓN MÚLTIPLE DE PREGUNTAS PARA ELIMINACIÓN EN BLOQUE
 // ==========================================================
+
+// 🆕 Maneja el clic del check de tema padre/subtema con lógica toggle robusta:
+// si hay alguna pregunta marcada en el card → desmarca todo; si no hay ninguna → marca todo.
+// Resuelve el problema del estado "indeterminate" donde el navegador no permite desmarcar de un solo clic.
+window.manejarClickCheckPadre = async function(event, temaId) {
+    event.stopPropagation();
+    const checkbox = event.currentTarget;
+    
+    const card = document.querySelector(`.tema-card[data-tema-id="${temaId}"]`)
+              || document.querySelector(`.subtema-container[data-subtema-id="${temaId}"]`);
+    if (!card) return;
+    
+    // Decidir basándose en el estado real de las preguntas, no en el checkbox
+    const todasPreguntas = Array.from(card.querySelectorAll('.pregunta-seleccion-checkbox'));
+    const algunaMarcada = todasPreguntas.some(cb => cb.checked);
+    const debeMarcar = !algunaMarcada;
+    
+    // Forzar el estado del checkbox al decidido
+    checkbox.checked = debeMarcar;
+    checkbox.indeterminate = false;
+    
+    await toggleSeleccionTodasPreguntas(temaId, debeMarcar);
+};
 
 window.toggleSeleccionTodasPreguntas = async function(temaId, checked) {
     if (checked) {
