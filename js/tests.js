@@ -8320,13 +8320,33 @@ window.toggleSeleccionTodasPreguntas = async function(temaId, checked) {
         return;
     }
     
-    const checkboxes = card.querySelectorAll('.pregunta-seleccion-checkbox');
-    checkboxes.forEach(cb => {
-        const closestContainer = cb.closest('.subtema-container') || cb.closest('.tema-card');
-        if (closestContainer === card) {
-            cb.checked = checked;
+    // 🆕 Identificar preguntas DIRECTAS (no las de subcarpetas)
+    const directas = Array.from(card.querySelectorAll('.pregunta-seleccion-checkbox'))
+        .filter(cb => {
+            const closest = cb.closest('.subtema-container') || cb.closest('.tema-card');
+            return closest === card;
+        });
+    
+    if (directas.length > 0) {
+        // Hay preguntas propias → marcar SOLO las propias
+        directas.forEach(cb => cb.checked = checked);
+    } else {
+        // 🆕 NO hay preguntas propias → cascada a TODAS las subcarpetas
+        // Abrir el wrapper de subcarpetas si está oculto
+        const wrapper = card.querySelector('.subtemas-wrapper');
+        if (wrapper && wrapper.style.display === 'none' && checked) {
+            wrapper.style.display = 'block';
+            const icon = card.querySelector(`#toggle-icon-${temaId}`);
+            if (icon) icon.textContent = '📂';
         }
-    });
+        // Recursivamente para cada subcarpeta hija
+        const subtemasIds = Array.from(card.querySelectorAll('.subtema-container'))
+            .map(c => c.dataset.subtemaId)
+            .filter(id => id);
+        for (const subtemaId of subtemasIds) {
+            await window.toggleSeleccionTodasPreguntas(subtemaId, checked);
+        }
+    }
     
     actualizarBarraSeleccion();
 };
