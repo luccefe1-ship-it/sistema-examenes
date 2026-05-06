@@ -1053,54 +1053,74 @@ async function cargarBancoPreguntas() {
             }
         });
 
-// ORDENAR TEMAS: primero por campo 'orden' guardado (drag & drop), luego por nombre como fallback
-temasPrincipales.sort((a, b) => {
-    const ordenA = a.data.orden;
-    const ordenB = b.data.orden;
+// 🆕 MIGRACIÓN SILENCIOSA: si hay temas sin 'orden' (recién creados o importados),
+// los intercala alfabéticamente entre los que sí lo tienen y guarda los nuevos órdenes.
+// Así no rompe el drag&drop existente y los nuevos aparecen en su sitio alfabético.
+const sinOrdenP = temasPrincipales.filter(t => t.data.orden === undefined || t.data.orden === null);
+if (sinOrdenP.length > 0) {
+    const conOrdenP = temasPrincipales.filter(t => t.data.orden !== undefined && t.data.orden !== null);
+    conOrdenP.sort((a, b) => a.data.orden - b.data.orden);
     
-    if (ordenA !== undefined && ordenB !== undefined) {
-        return ordenA - ordenB;
-    }
-    if (ordenA !== undefined) return -1;
-    if (ordenB !== undefined) return 1;
-    
-    // Fallback: ordenamiento numérico inteligente por nombre
-    const nombreA = a.data.nombre;
-    const nombreB = b.data.nombre;
-    const numeroA = nombreA.match(/\d+/);
-    const numeroB = nombreB.match(/\d+/);
-    
-    if (numeroA && numeroB) {
-        return parseInt(numeroA[0]) - parseInt(numeroB[0]);
-    }
-    return nombreA.localeCompare(nombreB);
-});
-
-// ORDENAR SUBTEMAS: primero por campo 'orden' guardado, luego por nombre como fallback
-Object.keys(subtemasPorPadre).forEach(padreId => {
-    subtemasPorPadre[padreId].sort((a, b) => {
-        const ordenA = a.data.orden;
-        const ordenB = b.data.orden;
-        
-        // Si ambos tienen orden definido, usar ese orden
-        if (ordenA !== undefined && ordenB !== undefined) {
-            return ordenA - ordenB;
+    sinOrdenP.forEach(t => {
+        const nombre = t.data.nombre;
+        let insertado = false;
+        for (let i = 0; i < conOrdenP.length; i++) {
+            if (nombre.localeCompare(conOrdenP[i].data.nombre, 'es', { sensitivity: 'base' }) < 0) {
+                conOrdenP.splice(i, 0, t);
+                insertado = true;
+                break;
+            }
         }
-        // Si solo uno tiene orden, ese va primero
-        if (ordenA !== undefined) return -1;
-        if (ordenB !== undefined) return 1;
-        
-        // Fallback: ordenamiento numérico inteligente por nombre
-        const nombreA = a.data.nombre;
-        const nombreB = b.data.nombre;
-        const numeroA = nombreA.match(/\d+/);
-        const numeroB = nombreB.match(/\d+/);
-        
-        if (numeroA && numeroB) {
-            return parseInt(numeroA[0]) - parseInt(numeroB[0]);
-        }
-        return nombreA.localeCompare(nombreB);
+        if (!insertado) conOrdenP.push(t);
     });
+    
+    // Persistir nuevos órdenes en Firebase (en background, no bloquea el render)
+    const promesasMig = conOrdenP.map((t, idx) => {
+        t.data.orden = idx;
+        return updateDoc(doc(db, "temas", t.id), { orden: idx });
+    });
+    Promise.all(promesasMig).catch(e => console.warn('Error migración orden:', e));
+    
+    temasPrincipales.length = 0;
+    temasPrincipales.push(...conOrdenP);
+}
+
+// ORDENAR TEMAS por campo 'orden' (ya garantizado para todos tras la migración)
+temasPrincipales.sort((a, b) => (a.data.orden || 0) - (b.data.orden || 0));
+
+// 🆕 MIGRACIÓN SILENCIOSA SUBTEMAS: intercalar alfabéticamente los que no tengan 'orden'
+Object.keys(subtemasPorPadre).forEach(padreId => {
+    const arr = subtemasPorPadre[padreId];
+    const sinOrdenS = arr.filter(t => t.data.orden === undefined || t.data.orden === null);
+    
+    if (sinOrdenS.length > 0) {
+        const conOrdenS = arr.filter(t => t.data.orden !== undefined && t.data.orden !== null);
+        conOrdenS.sort((a, b) => a.data.orden - b.data.orden);
+        
+        sinOrdenS.forEach(t => {
+            const nombre = t.data.nombre;
+            let insertado = false;
+            for (let i = 0; i < conOrdenS.length; i++) {
+                if (nombre.localeCompare(conOrdenS[i].data.nombre, 'es', { sensitivity: 'base' }) < 0) {
+                    conOrdenS.splice(i, 0, t);
+                    insertado = true;
+                    break;
+                }
+            }
+            if (!insertado) conOrdenS.push(t);
+        });
+        
+        const promesasMigS = conOrdenS.map((t, idx) => {
+            t.data.orden = idx;
+            return updateDoc(doc(db, "temas", t.id), { orden: idx });
+        });
+        Promise.all(promesasMigS).catch(e => console.warn('Error migración orden subtemas:', e));
+        
+        arr.length = 0;
+        arr.push(...conOrdenS);
+    } else {
+        arr.sort((a, b) => (a.data.orden || 0) - (b.data.orden || 0));
+    }
 });
 // NUEVA SECCIÓN: Sumar preguntas de subtemas a los temas principales
 temasPrincipales.forEach(tema => {
