@@ -567,6 +567,39 @@ async function crearTema() {
             ...temaData
         };
 
+        // 🆕 Reordenar alfabéticamente para que el nuevo tema aparezca en su posición correcta
+        try {
+            const qReorden = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+            const snapReorden = await getDocs(qReorden);
+            const itemsReorden = [];
+            snapReorden.forEach(docSnap => {
+                const d = docSnap.data();
+                if (esSubtema) {
+                    if (d.temaPadreId === temaPadreId) {
+                        itemsReorden.push({ id: docSnap.id, nombre: d.nombre });
+                    }
+                } else {
+                    if (!d.temaPadreId) {
+                        itemsReorden.push({ id: docSnap.id, nombre: d.nombre });
+                    }
+                }
+            });
+            itemsReorden.sort((a, b) => {
+                const numA = a.nombre.match(/\d+/);
+                const numB = b.nombre.match(/\d+/);
+                if (numA && numB) {
+                    return parseInt(numA[0]) - parseInt(numB[0]);
+                }
+                return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+            });
+            const promesasReorden = itemsReorden.map((t, idx) =>
+                updateDoc(doc(db, "temas", t.id), { orden: idx })
+            );
+            await Promise.all(promesasReorden);
+        } catch (errReorden) {
+            console.warn('No se pudo reordenar alfabéticamente:', errReorden);
+        }
+
         actualizarTemaSeleccionado();
         cerrarModal(modalCrearTema);
 
@@ -1113,6 +1146,7 @@ temasPrincipales.forEach(tema => {
                 <div class="tema-header">
                     <div class="tema-info">
                         <div class="tema-nombre">
+    <input type="checkbox" class="tema-select-all" data-target-tema="${id}" draggable="false" onchange="event.stopPropagation(); toggleSeleccionTodasPreguntas('${id}', this.checked)" title="Seleccionar todas las preguntas de este tema">
     📚 ${tema.nombre}
     ${subtemasPorPadre[id] && subtemasPorPadre[id].length > 0 ? 
         `<button class="btn-toggle-subtemas" onclick="toggleSubtemasVisibilidad('${id}')" title="Mostrar/Ocultar subtemas">
@@ -1123,14 +1157,19 @@ temasPrincipales.forEach(tema => {
                         <div class="tema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
                     </div>
                   <div class="tema-acciones">
-    <button class="btn-tema-digital ${tema.documentoDigital ? 'has-document' : ''}" onclick="abrirModalTemaDigital('${id}')" data-tema-id="${id}">${tema.documentoDigital ? '✅' : '📄'} Tema Digital</button>
-    <button class="btn-secondary" onclick="crearSubtema('${id}')">📂 Crear Subtema</button>
-    <button class="btn-importar" onclick="importarATema('${id}')">📥 Importar</button>
-    <button class="btn-exportar" onclick="exportarTema('${id}')">📤 Exportar</button>
-    <button class="btn-warning" onclick="vaciarTema('${id}')">🧹 Vaciar Tema</button>
-    <button class="btn-secondary" onclick="editarTema('${id}')">✏️ Editar</button>
-    <button class="btn-oficial-bloque" onclick="toggleOficialBloque('${id}')" title="Marcar/desmarcar todas como oficiales">📋 Oficial</button>
-    <button class="btn-danger" onclick="eliminarTema('${id}')">🗑️ Eliminar</button>
+    <div class="acciones-dropdown">
+        <button class="btn-acciones-trigger" onclick="toggleAccionesDropdown(event)">⚙️ Acciones <span class="dropdown-arrow">▾</span></button>
+        <div class="acciones-menu">
+            <button class="menu-item btn-tema-digital ${tema.documentoDigital ? 'has-document' : ''}" onclick="abrirModalTemaDigital('${id}')">${tema.documentoDigital ? '✅' : '📄'} Tema Digital</button>
+            <button class="menu-item" onclick="crearSubtema('${id}')">📂 Crear Subtema</button>
+            <button class="menu-item" onclick="importarATema('${id}')">📥 Importar</button>
+            <button class="menu-item" onclick="exportarTema('${id}')">📤 Exportar</button>
+            <button class="menu-item" onclick="vaciarTema('${id}')">🧹 Vaciar Tema</button>
+            <button class="menu-item" onclick="editarTema('${id}')">✏️ Editar</button>
+            <button class="menu-item" onclick="toggleOficialBloque('${id}')">📋 Oficial</button>
+            <button class="menu-item menu-item-danger" onclick="eliminarTema('${id}')">🗑️ Eliminar</button>
+        </div>
+    </div>
 </div>
                 </div>
                 ${tema.descripcion ? `<div class="tema-descripcion">${tema.descripcion}</div>` : ''}
@@ -1331,6 +1370,11 @@ function crearPreguntaEditable(pregunta, index, temaId) {
                     </div>
                 `).join('')}
             </div>
+            <div class="pregunta-seleccion-container">
+                <label class="pregunta-seleccion-label">
+                    <input type="checkbox" class="pregunta-seleccion-checkbox" data-tema-id="${temaId}" data-pregunta-index="${index}" onchange="actualizarBarraSeleccion()">
+                    <span>Seleccionar</span>
+                </label></div>
         </div>
     `;
 }
@@ -1345,16 +1389,24 @@ function crearSubtemaHTML(subtemaId, subtema) {
         <div class="subtema-container" draggable="true" data-subtema-id="${subtemaId}">
             <div class="subtema-header">
                 <div class="subtema-info">
-                    <div class="subtema-nombre">📁 ${subtema.nombre}</div>
+                    <div class="subtema-nombre">
+                        <input type="checkbox" class="subtema-select-all" data-target-tema="${subtemaId}" draggable="false" onchange="event.stopPropagation(); toggleSeleccionTodasPreguntas('${subtemaId}', this.checked)" title="Seleccionar todas las preguntas de este subtema">
+                        📁 ${subtema.nombre}
+                    </div>
                     <div class="subtema-stats">${numPreguntas} preguntas • Creado: ${fechaCreacion}</div>
                 </div>
                 
 <div class="subtema-acciones">
-    <button class="btn-importar btn-sm" onclick="importarATema('${subtemaId}')">📥 Importar</button>
-    <button class="btn-exportar btn-sm" onclick="exportarTema('${subtemaId}')">📤 Exportar</button>
-    <button class="btn-oficial-bloque btn-sm" onclick="toggleOficialBloque('${subtemaId}')" title="Marcar/desmarcar todas como oficiales">📋</button>
-    <button class="btn-secondary btn-sm" onclick="editarTema('${subtemaId}')">✏️</button>
-    <button class="btn-danger btn-sm" onclick="eliminarTema('${subtemaId}')">🗑️</button>
+    <div class="acciones-dropdown dropdown-sm">
+        <button class="btn-acciones-trigger btn-sm" onclick="toggleAccionesDropdown(event)">⚙️ Acciones <span class="dropdown-arrow">▾</span></button>
+        <div class="acciones-menu">
+            <button class="menu-item" onclick="importarATema('${subtemaId}')">📥 Importar</button>
+            <button class="menu-item" onclick="exportarTema('${subtemaId}')">📤 Exportar</button>
+            <button class="menu-item" onclick="toggleOficialBloque('${subtemaId}')">📋 Oficial</button>
+            <button class="menu-item" onclick="editarTema('${subtemaId}')">✏️ Editar</button>
+            <button class="menu-item menu-item-danger" onclick="eliminarTema('${subtemaId}')">🗑️ Eliminar</button>
+        </div>
+    </div>
 </div>
             </div>
             ${subtema.descripcion ? `<div class="subtema-descripcion">${subtema.descripcion}</div>` : ''}
@@ -1747,7 +1799,12 @@ window.eliminarPregunta = async function(temaId, preguntaIndex) {
                 if (btnEdit) btnEdit.setAttribute('onclick', `editarPregunta('${temaId}', ${newIndex})`);
                 if (btnDelete) btnDelete.setAttribute('onclick', `eliminarPregunta('${temaId}', ${newIndex})`);
                 if (btnVerify) btnVerify.setAttribute('onclick', `toggleVerificacion('${temaId}', ${newIndex})`);
+                // 🆕 Reindexar también el checkbox de selección múltiple
+                const cbSel = div.querySelector('.pregunta-seleccion-checkbox');
+                if (cbSel) cbSel.dataset.preguntaIndex = newIndex;
             });
+            // 🆕 Refrescar contador de la barra de selección
+            if (typeof actualizarBarraSeleccion === 'function') actualizarBarraSeleccion();
             
             // Actualizar contador en el summary
             const details = document.querySelector(`#preguntas-${temaId}`)?.closest('details');
@@ -8187,4 +8244,157 @@ window.ampliarTarjeta = function(url) {
         if (e.target === overlay) overlay.remove();
     });
     document.body.appendChild(overlay);
+};
+
+// ==========================================================
+// 🆕 DROPDOWN DE ACCIONES DE TEMAS / SUBTEMAS
+// ==========================================================
+window.toggleAccionesDropdown = function(event) {
+    event.stopPropagation();
+    const trigger = event.currentTarget;
+    const dropdown = trigger.closest('.acciones-dropdown');
+    const menu = dropdown ? dropdown.querySelector('.acciones-menu') : null;
+    if (!menu) return;
+    
+    document.querySelectorAll('.acciones-menu.show').forEach(m => {
+        if (m !== menu) m.classList.remove('show');
+    });
+    document.querySelectorAll('.acciones-dropdown.open').forEach(d => {
+        if (d !== dropdown) d.classList.remove('open');
+    });
+    
+    menu.classList.toggle('show');
+    dropdown.classList.toggle('open');
+};
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.btn-acciones-trigger')) {
+        document.querySelectorAll('.acciones-menu.show').forEach(m => m.classList.remove('show'));
+        document.querySelectorAll('.acciones-dropdown.open').forEach(d => d.classList.remove('open'));
+    }
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.acciones-menu.show').forEach(m => m.classList.remove('show'));
+        document.querySelectorAll('.acciones-dropdown.open').forEach(d => d.classList.remove('open'));
+    }
+});
+
+// ==========================================================
+// 🆕 SELECCIÓN MÚLTIPLE DE PREGUNTAS PARA ELIMINACIÓN EN BLOQUE
+// ==========================================================
+
+window.toggleSeleccionTodasPreguntas = async function(temaId, checked) {
+    if (checked) {
+        const details = document.querySelector(`#preguntas-${temaId}`)?.closest('details');
+        if (details && !details.open) {
+            details.open = true;
+            await new Promise(resolve => setTimeout(resolve, 400));
+        }
+    }
+    
+    const card = document.querySelector(`.tema-card[data-tema-id="${temaId}"]`)
+              || document.querySelector(`.subtema-container[data-subtema-id="${temaId}"]`);
+    if (!card) {
+        actualizarBarraSeleccion();
+        return;
+    }
+    
+    const checkboxes = card.querySelectorAll('.pregunta-seleccion-checkbox');
+    checkboxes.forEach(cb => {
+        const closestContainer = cb.closest('.subtema-container') || cb.closest('.tema-card');
+        if (closestContainer === card) {
+            cb.checked = checked;
+        }
+    });
+    
+    actualizarBarraSeleccion();
+};
+
+window.actualizarBarraSeleccion = function() {
+    const seleccionadas = document.querySelectorAll('.pregunta-seleccion-checkbox:checked');
+    const total = seleccionadas.length;
+    const barra = document.getElementById('barraSeleccion');
+    if (!barra) return;
+    
+    if (total > 0) {
+        barra.style.display = 'flex';
+        const countEl = barra.querySelector('.barra-seleccion-count');
+        if (countEl) countEl.textContent = `${total} pregunta(s) seleccionada(s)`;
+    } else {
+        barra.style.display = 'none';
+    }
+    
+    document.querySelectorAll('.tema-select-all, .subtema-select-all').forEach(cbTema => {
+        const targetId = cbTema.dataset.targetTema;
+        if (!targetId) return;
+        const card = document.querySelector(`.tema-card[data-tema-id="${targetId}"]`)
+                  || document.querySelector(`.subtema-container[data-subtema-id="${targetId}"]`);
+        if (!card) return;
+        const directos = Array.from(card.querySelectorAll('.pregunta-seleccion-checkbox'))
+            .filter(cb => {
+                const closest = cb.closest('.subtema-container') || cb.closest('.tema-card');
+                return closest === card;
+            });
+        if (directos.length === 0) {
+            cbTema.checked = false;
+            cbTema.indeterminate = false;
+            return;
+        }
+        const todosMarcados = directos.every(cb => cb.checked);
+        const algunoMarcado = directos.some(cb => cb.checked);
+        cbTema.checked = todosMarcados;
+        cbTema.indeterminate = !todosMarcados && algunoMarcado;
+    });
+};
+
+window.cancelarSeleccion = function() {
+    document.querySelectorAll('.pregunta-seleccion-checkbox:checked').forEach(cb => cb.checked = false);
+    document.querySelectorAll('.tema-select-all, .subtema-select-all').forEach(cb => {
+        cb.checked = false;
+        cb.indeterminate = false;
+    });
+    actualizarBarraSeleccion();
+};
+
+window.eliminarPreguntasSeleccionadas = async function() {
+    const seleccionadas = document.querySelectorAll('.pregunta-seleccion-checkbox:checked');
+    const total = seleccionadas.length;
+    if (total === 0) return;
+    
+    if (!confirm(`¿Eliminar ${total} pregunta(s) seleccionada(s)?\nEsta acción no se puede deshacer.`)) return;
+    
+    try {
+        const porTema = {};
+        seleccionadas.forEach(cb => {
+            const temaId = cb.dataset.temaId;
+            const idx = parseInt(cb.dataset.preguntaIndex, 10);
+            if (!porTema[temaId]) porTema[temaId] = new Set();
+            porTema[temaId].add(idx);
+        });
+        
+        for (const [temaId, indicesSet] of Object.entries(porTema)) {
+            const temaRef = doc(db, "temas", temaId);
+            const temaDoc = await getDoc(temaRef);
+            if (!temaDoc.exists()) continue;
+            const preguntas = temaDoc.data().preguntas || [];
+            const nuevasPreguntas = preguntas.filter((_, idx) => !indicesSet.has(idx));
+            await updateDoc(temaRef, { preguntas: nuevasPreguntas });
+        }
+        
+        sessionStorage.setItem('cacheSucio', 'true');
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+        cacheTemas = null;
+        cacheTimestamp = null;
+        
+        alert(`✅ ${total} pregunta(s) eliminada(s) correctamente`);
+        
+        if (document.getElementById('banco-section')?.classList.contains('active')) {
+            cargarBancoPreguntas();
+        }
+    } catch (error) {
+        console.error('Error eliminando preguntas seleccionadas:', error);
+        alert('Error al eliminar las preguntas seleccionadas');
+    }
 };
