@@ -4792,14 +4792,14 @@ const notaMedia = totalTests > 0 ? Math.round(sumaPorcentajes / totalTests) : 0;
 // En ese caso, recuperar el último conteo guardado. Si sí venían, actualizar el caché del conteo.
 let preguntasUnicasFinal = preguntasUnicas.size;
 if (preguntasUnicasFinal === 0 && totalTests > 0) {
-    const cacheCount = sessionStorage.getItem('cachePreguntasUnicasCount');
+    const cacheCount = localStorage.getItem('cachePreguntasUnicasCount');
     if (cacheCount) {
         preguntasUnicasFinal = parseInt(cacheCount, 10) || 0;
     }
 } else if (preguntasUnicasFinal > 0) {
     try {
-        sessionStorage.setItem('cachePreguntasUnicasCount', String(preguntasUnicasFinal));
-    } catch (e) { /* sessionStorage lleno: se ignora silenciosamente */ }
+        localStorage.setItem('cachePreguntasUnicasCount', String(preguntasUnicasFinal));
+    } catch (e) { /* localStorage lleno: se ignora silenciosamente */ }
 }
 
 const panelEstadisticas = document.createElement('div');
@@ -5069,11 +5069,11 @@ window.eliminarResultado = async function(resultadoId) {
         try {
             await deleteDoc(doc(db, "resultados", resultadoId));
             
-            // Invalidar caché
+            // Invalidar caché de resultados, pero CONSERVAR el contador de preguntas únicas
+            // (si el recálculo en Firebase da 0 por cualquier estructura no reconocida, se mantiene el último valor válido)
             cacheResultados = null;
 sessionStorage.removeItem('cacheResultados');
 sessionStorage.removeItem('cacheResultadosTimestamp');
-sessionStorage.removeItem('cachePreguntasUnicasCount');
             
             // Recargar la lista de resultados
             cargarResultados();
@@ -5100,11 +5100,11 @@ window.eliminarTodosResultados = async function() {
             
             await Promise.all(promises);
             
-            // Invalidar caché
+            // Invalidar caché completo: si se borran TODOS los tests, también el contador
             cacheResultados = null;
 sessionStorage.removeItem('cacheResultados');
 sessionStorage.removeItem('cacheResultadosTimestamp');
-sessionStorage.removeItem('cachePreguntasUnicasCount');
+localStorage.removeItem('cachePreguntasUnicasCount');
             
             alert('Todos los resultados han sido eliminados');
             cargarResultados();
