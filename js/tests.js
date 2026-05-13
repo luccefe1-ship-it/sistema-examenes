@@ -4914,7 +4914,7 @@ listResultados.appendChild(eliminarTodosBtn);
     <span class="nota-examen-resultado ${notaExamen >= (notaMaximaExamen / 2) ? 'aprobado' : 'suspenso'}" title="Nota con penalización por fallo (fórmula examen oficial sobre ${notaMaximaExamen})">Nota: ${notaExamen}/${notaMaximaExamen}</span>
 </div>
         <div class="resultado-acciones" onclick="event.stopPropagation()">
-            <button class="btn-word-aseveraciones" onclick="generarWordAseveraciones('${id}')" title="Descargar Word con aseveraciones de las preguntas falladas">
+            <button class="btn-word-aseveraciones" onclick="generarWordAseveraciones('${id}')" title="Descargar Word con NOTAS de las preguntas falladas">
                 📄
             </button>
             <button class="btn-eliminar-resultado" onclick="eliminarResultado('${id}')" title="Eliminar resultado">
