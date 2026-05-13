@@ -4890,7 +4890,7 @@ listResultados.appendChild(eliminarTodosBtn);
         </div>
         <div class="resultado-stats">
     <span class="fraccion-principal ${resultado.correctas >= resultado.total/2 ? 'aprobado' : 'suspenso'}">${resultado.correctas}/${resultado.total}</span>
-    <span class="nota-examen-resultado ${notaExamen >= (notaMaximaExamen / 2) ? 'aprobado' : 'suspenso'}" title="Nota con penalización por fallo (fórmula examen oficial sobre ${notaMaximaExamen})">${notaExamen}/${notaMaximaExamen}</span>
+    <span class="nota-examen-resultado ${notaExamen >= (notaMaximaExamen / 2) ? 'aprobado' : 'suspenso'}" title="Nota con penalización por fallo (fórmula examen oficial sobre ${notaMaximaExamen})">Nota: ${notaExamen}/${notaMaximaExamen}</span>
 </div>
         <div class="resultado-acciones" onclick="event.stopPropagation()">
             <button class="btn-eliminar-resultado" onclick="eliminarResultado('${id}')" title="Eliminar resultado">
@@ -6587,6 +6587,18 @@ function generarHTMLResultadosDetalle(resultado) {
     }
 
     html += '<div class="resultado-porcentaje" style="color: ' + colorPuntuacion + '">' + correctas + '/' + total + '</div>';
+
+    // Nota fórmula examen oficial (penalización por fallo, sobre 60)
+    const numOpcionesModal = 4;
+    const notaMaximaModal = 60;
+    const penalizacionModal = (incorrectas || 0) / (numOpcionesModal - 1);
+    const aciertosNetosModal = (correctas || 0) - penalizacionModal;
+    const notaExamenModal = total > 0
+        ? Math.max(0, Math.min(notaMaximaModal, Math.round((aciertosNetosModal / total) * notaMaximaModal)))
+        : 0;
+    const colorNotaModal = notaExamenModal >= (notaMaximaModal / 2) ? '#28a745' : '#dc3545';
+    html += '<div class="resultado-nota-examen" style="color: ' + colorNotaModal + '; font-size: 1.6rem; font-weight: 700; margin-top: 6px;">Nota: ' + notaExamenModal + '/' + notaMaximaModal + '</div>';
+
     html += '<div class="resultado-mensaje">' + mensaje + '</div>';
     html += '<div class="resultado-detalles">';
     html += (resultado.test.nombre || 'Test sin nombre') + ' - ' + fechaTest;
