@@ -4914,6 +4914,9 @@ listResultados.appendChild(eliminarTodosBtn);
     <span class="nota-examen-resultado ${notaExamen >= (notaMaximaExamen / 2) ? 'aprobado' : 'suspenso'}" title="Nota con penalización por fallo (fórmula examen oficial sobre ${notaMaximaExamen})">Nota: ${notaExamen}/${notaMaximaExamen}</span>
 </div>
         <div class="resultado-acciones" onclick="event.stopPropagation()">
+            <button class="btn-word-aseveraciones" onclick="generarWordAseveraciones('${id}')" title="Descargar Word con aseveraciones de las preguntas falladas">
+                📄
+            </button>
             <button class="btn-eliminar-resultado" onclick="eliminarResultado('${id}')" title="Eliminar resultado">
                 🗑️
             </button>
@@ -4929,6 +4932,113 @@ listResultados.appendChild(eliminarTodosBtn);
         cargandoResultados = false;
     }
 }
+// Generar Word con aseveraciones de las preguntas falladas de un test concreto
+window.generarWordAseveraciones = async function(resultadoId) {
+    try {
+        if (typeof docx === 'undefined') {
+            alert('La librería para generar Word aún no se ha cargado. Recarga la página e inténtalo de nuevo.');
+            return;
+        }
+
+        const docSnap = await getDoc(doc(db, "resultados", resultadoId));
+        if (!docSnap.exists()) {
+            alert('No se ha encontrado el resultado.');
+            return;
+        }
+        const resultado = docSnap.data();
+        const detalles = resultado.detalleRespuestas || [];
+
+        // Filtrar solo falladas (respondidas y no acertadas)
+        const falladas = detalles.filter(d => {
+            const userAns = d.respuestaUsuario;
+            const correctAns = (d.pregunta && (d.pregunta.respuestaCorrecta ?? d.pregunta.correctAnswer)) ?? d.respuestaCorrecta;
+            if (userAns === null || userAns === undefined || userAns === '') return false;
+            return userAns !== correctAns && d.esCorrecta !== true && d.acertada !== true;
+        });
+
+        if (falladas.length === 0) {
+            alert('Este test no tiene preguntas falladas. No se genera el documento.');
+            return;
+        }
+
+        // Helpers
+        const limpiarEnunciado = (txt) => {
+            if (!txt) return '';
+            let t = String(txt).trim();
+            // Quitar puntuación final repetida
+            t = t.replace(/[\s:;.\-–—]+$/g, '');
+            return t;
+        };
+        const obtenerOpcionCorrecta = (d) => {
+            const opciones = (d.pregunta && (d.pregunta.opciones || d.pregunta.options)) || d.opciones || [];
+            const idx = (d.pregunta && (d.pregunta.respuestaCorrecta ?? d.pregunta.correctAnswer)) ?? d.respuestaCorrecta;
+            if (typeof idx === 'number' && opciones[idx]) return String(opciones[idx]).trim();
+            if (typeof idx === 'string') {
+                // Si es letra (A/B/C/D)
+                const letras = { A:0, B:1, C:2, D:3, a:0, b:1, c:2, d:3 };
+                if (idx in letras && opciones[letras[idx]]) return String(opciones[letras[idx]]).trim();
+                if (opciones.includes(idx)) return String(idx).trim();
+            }
+            return '';
+        };
+        const obtenerEnunciado = (d) => {
+            if (d.pregunta && typeof d.pregunta === 'object') {
+                return d.pregunta.texto || d.pregunta.question || d.pregunta.enunciado || '';
+            }
+            if (typeof d.pregunta === 'string') return d.pregunta;
+            return d.texto || d.enunciado || d.question || '';
+        };
+
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+
+        const parrafos = [];
+        parrafos.push(new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: 'Aseveraciones - ' + (resultado.test?.nombre || 'Test'), bold: true })]
+        }));
+        parrafos.push(new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: 'Repaso de preguntas falladas', italics: true, color: '666666' })]
+        }));
+        parrafos.push(new Paragraph({ children: [new TextRun('')] }));
+
+        falladas.forEach((d, i) => {
+            const enunciado = limpiarEnunciado(obtenerEnunciado(d));
+            const correcta = obtenerOpcionCorrecta(d);
+            if (!enunciado || !correcta) return;
+            // Unir enunciado + correcta con espacio (la correcta empieza en minúscula salvo nombre propio)
+            const aseveracion = enunciado + ' ' + correcta + (correcta.endsWith('.') ? '' : '.');
+            parrafos.push(new Paragraph({
+                spacing: { after: 160 },
+                children: [
+                    new TextRun({ text: (i + 1) + '. ', bold: true }),
+                    new TextRun({ text: aseveracion })
+                ]
+            }));
+        });
+
+        const documento = new Document({
+            sections: [{ properties: {}, children: parrafos }]
+        });
+
+        const blob = await Packer.toBlob(documento);
+        const nombreLimpio = (resultado.test?.nombre || 'test').replace(/[^a-zA-Z0-9_\-]+/g, '_');
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Aseveraciones_' + nombreLimpio + '.docx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+    } catch (error) {
+        console.error('Error generando Word:', error);
+        alert('Error al generar el documento Word: ' + error.message);
+    }
+};
+
 // Eliminar resultado específico
 window.eliminarResultado = async function(resultadoId) {
     if (confirm('¿Estás seguro de que quieres eliminar este resultado? Esta acción no se puede deshacer.')) {
