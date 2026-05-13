@@ -952,14 +952,19 @@ async function cargarBancoPreguntas() {
         
         if (cacheGuardado && timestampGuardado) {
             const tiempoTranscurrido = Date.now() - parseInt(timestampGuardado);
+            const datosCache = JSON.parse(cacheGuardado);
             
-            if (tiempoTranscurrido < CACHE_DURACION) {
+            // 🛡️ Descartar caché si está vacío (probablemente fue un error de red al guardarlo)
+            if (datosCache.length === 0) {
+                console.warn('⚠️ Caché vacío detectado, descartando y recargando desde Firebase');
+                sessionStorage.removeItem('cacheTemas');
+                sessionStorage.removeItem('cacheTemasTimestamp');
+            } else if (tiempoTranscurrido < CACHE_DURACION) {
                 console.log('✅ Recuperando caché desde sessionStorage');
-                const datosCache = JSON.parse(cacheGuardado);
                 
                 // Reconstruir QuerySnapshot simulado
                 querySnapshot = {
-                    empty: datosCache.length === 0,
+                    empty: false,
                     size: datosCache.length,
                     forEach: function(callback) {
                         datosCache.forEach(item => {
@@ -995,13 +1000,18 @@ async function cargarBancoPreguntas() {
                 });
             });
             
-            try {
-                sessionStorage.setItem('cacheTemas', JSON.stringify(datosParaGuardar));
-                sessionStorage.setItem('cacheTemasTimestamp', Date.now().toString());
-            } catch (quotaError) {
-                console.warn('⚠️ sessionStorage lleno (demasiadas preguntas). Caché desactivado, cargando siempre desde Firebase.');
-                sessionStorage.removeItem('cacheTemas');
-                sessionStorage.removeItem('cacheTemasTimestamp');
+            // 🛡️ Solo guardar caché si hay datos reales (evita persistir resultados vacíos por errores de red)
+            if (datosParaGuardar.length > 0) {
+                try {
+                    sessionStorage.setItem('cacheTemas', JSON.stringify(datosParaGuardar));
+                    sessionStorage.setItem('cacheTemasTimestamp', Date.now().toString());
+                } catch (quotaError) {
+                    console.warn('⚠️ sessionStorage lleno (demasiadas preguntas). Caché desactivado, cargando siempre desde Firebase.');
+                    sessionStorage.removeItem('cacheTemas');
+                    sessionStorage.removeItem('cacheTemasTimestamp');
+                }
+            } else {
+                console.warn('⚠️ Firebase devolvió 0 temas. NO guardando caché (probable error de red).');
             }
             
             cacheTemas = querySnapshot;
@@ -1065,7 +1075,7 @@ if (sinOrdenP.length > 0) {
         const nombre = t.data.nombre;
         let insertado = false;
         for (let i = 0; i < conOrdenP.length; i++) {
-            if (nombre.localeCompare(conOrdenP[i].data.nombre, 'es', { sensitivity: 'base' }) < 0) {
+            if (nombre.localeCompare(conOrdenP[i].data.nombre, 'es', { sensitivity: 'base', numeric: true }) < 0) {
                 conOrdenP.splice(i, 0, t);
                 insertado = true;
                 break;
@@ -1101,7 +1111,7 @@ Object.keys(subtemasPorPadre).forEach(padreId => {
             const nombre = t.data.nombre;
             let insertado = false;
             for (let i = 0; i < conOrdenS.length; i++) {
-                if (nombre.localeCompare(conOrdenS[i].data.nombre, 'es', { sensitivity: 'base' }) < 0) {
+                if (nombre.localeCompare(conOrdenS[i].data.nombre, 'es', { sensitivity: 'base', numeric: true }) < 0) {
                     conOrdenS.splice(i, 0, t);
                     insertado = true;
                     break;
