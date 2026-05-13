@@ -4756,9 +4756,18 @@ async function cargarResultados() {
             
             if (resultado.detalleRespuestas) {
                 resultado.detalleRespuestas.forEach(detalle => {
-                    if (detalle.pregunta && detalle.pregunta.texto) {
-                        preguntasUnicas.add(detalle.pregunta.texto);
-                    }
+                    if (!detalle.pregunta) return;
+                    // Soporta preguntas nativas (.texto) e importadas (.question)
+                    const enunciado = detalle.pregunta.texto || detalle.pregunta.question;
+                    if (!enunciado) return;
+                    // Normalizar para evitar duplicados por diferencias cosméticas
+                    const clave = enunciado
+                        .normalize('NFC')
+                        .toLowerCase()
+                        .replace(/\s+/g, ' ')
+                        .replace(/[.,;:!?¿¡"'()«»\-–—]/g, '')
+                        .trim();
+                    if (clave) preguntasUnicas.add(clave);
                 });
             }
         });
