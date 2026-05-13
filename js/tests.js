@@ -4787,6 +4787,21 @@ async function cargarResultados() {
 
 const notaMedia = totalTests > 0 ? Math.round(sumaPorcentajes / totalTests) : 0;
 
+// Fallback robusto para el contador de Preguntas Únicas:
+// Si el caché reducido de sessionStorage no traía detalleRespuestas, preguntasUnicas vendrá vacío.
+// En ese caso, recuperar el último conteo guardado. Si sí venían, actualizar el caché del conteo.
+let preguntasUnicasFinal = preguntasUnicas.size;
+if (preguntasUnicasFinal === 0 && totalTests > 0) {
+    const cacheCount = sessionStorage.getItem('cachePreguntasUnicasCount');
+    if (cacheCount) {
+        preguntasUnicasFinal = parseInt(cacheCount, 10) || 0;
+    }
+} else if (preguntasUnicasFinal > 0) {
+    try {
+        sessionStorage.setItem('cachePreguntasUnicasCount', String(preguntasUnicasFinal));
+    } catch (e) { /* sessionStorage lleno: se ignora silenciosamente */ }
+}
+
 const panelEstadisticas = document.createElement('div');
 panelEstadisticas.className = 'panel-estadisticas-globales';
 panelEstadisticas.innerHTML = `
@@ -4799,7 +4814,7 @@ panelEstadisticas.innerHTML = `
         </div>
         <div class="stat-global">
             <div class="stat-icono">📝</div>
-            <div class="stat-valor">${preguntasUnicas.size}</div>
+            <div class="stat-valor">${preguntasUnicasFinal}</div>
             <div class="stat-label">Preguntas Únicas</div>
         </div>
         <div class="stat-global correctas-global">
@@ -5058,6 +5073,7 @@ window.eliminarResultado = async function(resultadoId) {
             cacheResultados = null;
 sessionStorage.removeItem('cacheResultados');
 sessionStorage.removeItem('cacheResultadosTimestamp');
+sessionStorage.removeItem('cachePreguntasUnicasCount');
             
             // Recargar la lista de resultados
             cargarResultados();
@@ -5088,6 +5104,7 @@ window.eliminarTodosResultados = async function() {
             cacheResultados = null;
 sessionStorage.removeItem('cacheResultados');
 sessionStorage.removeItem('cacheResultadosTimestamp');
+sessionStorage.removeItem('cachePreguntasUnicasCount');
             
             alert('Todos los resultados han sido eliminados');
             cargarResultados();
