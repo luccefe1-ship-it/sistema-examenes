@@ -4862,6 +4862,14 @@ listResultados.appendChild(eliminarTodosBtn);
     const fecha = fechaObj.toLocaleDateString('es-ES');
     const hora = fechaObj.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
             
+            // Cálculo nota fórmula app móvil (penalización por error)
+            const numOpcionesNota = 4;
+            const penalizacionNota = (resultado.incorrectas || 0) / (numOpcionesNota - 1);
+            const aciertosNetosNota = (resultado.correctas || 0) - penalizacionNota;
+            const notaExamen = (resultado.total || 0) > 0
+                ? Math.max(0, Math.min(100, Math.round((aciertosNetosNota / resultado.total) * 100)))
+                : 0;
+            
             const resultadoDiv = document.createElement('div');
             resultadoDiv.className = 'resultado-historial';
             resultadoDiv.innerHTML = `
@@ -4881,6 +4889,7 @@ listResultados.appendChild(eliminarTodosBtn);
         </div>
         <div class="resultado-stats">
     <span class="fraccion-principal ${resultado.correctas >= resultado.total/2 ? 'aprobado' : 'suspenso'}">${resultado.correctas}/${resultado.total}</span>
+    <span class="nota-examen-resultado ${notaExamen >= 50 ? 'aprobado' : 'suspenso'}" title="Nota con penalización por fallo (fórmula examen oficial)">${notaExamen}/100</span>
 </div>
         <div class="resultado-acciones" onclick="event.stopPropagation()">
             <button class="btn-eliminar-resultado" onclick="eliminarResultado('${id}')" title="Eliminar resultado">
