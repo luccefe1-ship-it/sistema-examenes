@@ -4882,14 +4882,13 @@ listResultados.appendChild(eliminarTodosBtn);
 </div>
         <div class="resultado-detalles">
             <div class="estadisticas-mini">
-                <span class="stat-item correctas">${resultado.correctas}</span>
-<span class="stat-item incorrectas">${resultado.incorrectas}</span>
-<span class="stat-item sin-responder">${resultado.sinResponder}</span>
-<span class="stat-item total">${resultado.total}</span>
+                <span class="stat-item correctas" title="Aciertos">${resultado.correctas}</span>
+<span class="stat-item incorrectas" title="Fallos">${resultado.incorrectas}</span>
+<span class="stat-item sin-responder" title="Sin responder">${resultado.sinResponder}</span>
+<span class="stat-item total" title="Preguntas totales">${resultado.total}</span>
             </div>
         </div>
         <div class="resultado-stats">
-    <span class="fraccion-principal ${resultado.correctas >= resultado.total/2 ? 'aprobado' : 'suspenso'}">${resultado.correctas}/${resultado.total}</span>
     <span class="nota-examen-resultado ${notaExamen >= (notaMaximaExamen / 2) ? 'aprobado' : 'suspenso'}" title="Nota con penalización por fallo (fórmula examen oficial sobre ${notaMaximaExamen})">Nota: ${notaExamen}/${notaMaximaExamen}</span>
 </div>
         <div class="resultado-acciones" onclick="event.stopPropagation()">
@@ -6597,7 +6596,7 @@ function generarHTMLResultadosDetalle(resultado) {
         ? Math.max(0, Math.min(notaMaximaModal, Math.round((aciertosNetosModal / total) * notaMaximaModal)))
         : 0;
     const colorNotaModal = notaExamenModal >= (notaMaximaModal / 2) ? '#28a745' : '#dc3545';
-    html += '<div class="resultado-nota-examen" style="color: ' + colorNotaModal + '; font-size: 1.6rem; font-weight: 700; margin-top: 6px;">Nota: ' + notaExamenModal + '/' + notaMaximaModal + '</div>';
+    html += '<div class="resultado-nota-examen" style="display: inline-block; background: #ffffff; color: ' + colorNotaModal + '; font-size: 1.8rem; font-weight: 800; margin-top: 10px; padding: 8px 22px; border-radius: 999px; box-shadow: 0 3px 10px rgba(0,0,0,0.25); border: 2px solid ' + colorNotaModal + ';">Nota: ' + notaExamenModal + '/' + notaMaximaModal + '</div>';
 
     html += '<div class="resultado-mensaje">' + mensaje + '</div>';
     html += '<div class="resultado-detalles">';
