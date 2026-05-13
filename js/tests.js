@@ -5003,7 +5003,7 @@ window.generarWordAseveraciones = async function(resultadoId) {
         parrafos.push(new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { after: 120 },
-            children: [new TextRun({ text: 'Aseveraciones - ' + (resultado.test?.nombre || 'Test'), bold: true, size: 32, font: 'Calibri', color: '000000' })]
+            children: [new TextRun({ text: 'NOTAS - ' + (resultado.test?.nombre || 'Test'), bold: true, size: 32, font: 'Calibri', color: '000000' })]
         }));
         parrafos.push(new Paragraph({
             alignment: AlignmentType.CENTER,
@@ -5036,7 +5036,7 @@ window.generarWordAseveraciones = async function(resultadoId) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'Aseveraciones_' + nombreLimpio + '.docx';
+        a.download = 'NOTAS_' + nombreLimpio + '.docx';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
