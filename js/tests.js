@@ -4972,12 +4972,20 @@ window.generarWordAseveraciones = async function(resultadoId) {
         const obtenerOpcionCorrecta = (d) => {
             const opciones = (d.pregunta && (d.pregunta.opciones || d.pregunta.options)) || d.opciones || [];
             const idx = (d.pregunta && (d.pregunta.respuestaCorrecta ?? d.pregunta.correctAnswer)) ?? d.respuestaCorrecta;
-            if (typeof idx === 'number' && opciones[idx]) return String(opciones[idx]).trim();
+            const extraerTexto = (op) => {
+                if (op == null) return '';
+                if (typeof op === 'string') return op.trim();
+                if (typeof op === 'object') {
+                    return String(op.texto || op.text || op.opcion || op.option || op.value || op.label || op.respuesta || '').trim();
+                }
+                return String(op).trim();
+            };
+            if (typeof idx === 'number' && opciones[idx] !== undefined) return extraerTexto(opciones[idx]);
             if (typeof idx === 'string') {
                 // Si es letra (A/B/C/D)
                 const letras = { A:0, B:1, C:2, D:3, a:0, b:1, c:2, d:3 };
-                if (idx in letras && opciones[letras[idx]]) return String(opciones[letras[idx]]).trim();
-                if (opciones.includes(idx)) return String(idx).trim();
+                if (idx in letras && opciones[letras[idx]] !== undefined) return extraerTexto(opciones[letras[idx]]);
+                if (opciones.some(o => extraerTexto(o) === idx)) return idx.trim();
             }
             return '';
         };
@@ -4993,27 +5001,28 @@ window.generarWordAseveraciones = async function(resultadoId) {
 
         const parrafos = [];
         parrafos.push(new Paragraph({
-            heading: HeadingLevel.HEADING_1,
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: 'Aseveraciones - ' + (resultado.test?.nombre || 'Test'), bold: true })]
+            spacing: { after: 120 },
+            children: [new TextRun({ text: 'Aseveraciones - ' + (resultado.test?.nombre || 'Test'), bold: true, size: 32, font: 'Calibri', color: '000000' })]
         }));
         parrafos.push(new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: 'Repaso de preguntas falladas', italics: true, color: '666666' })]
+            spacing: { after: 280 },
+            children: [new TextRun({ text: 'Repaso de preguntas falladas', italics: true, color: '666666', size: 22, font: 'Calibri' })]
         }));
-        parrafos.push(new Paragraph({ children: [new TextRun('')] }));
 
         falladas.forEach((d, i) => {
             const enunciado = limpiarEnunciado(obtenerEnunciado(d));
             const correcta = obtenerOpcionCorrecta(d);
             if (!enunciado || !correcta) return;
-            // Unir enunciado + correcta con espacio (la correcta empieza en minúscula salvo nombre propio)
-            const aseveracion = enunciado + ' ' + correcta + (correcta.endsWith('.') ? '' : '.');
+            // Unir enunciado + correcta; la respuesta correcta en negrita
+            const cierre = correcta.endsWith('.') ? '' : '.';
             parrafos.push(new Paragraph({
                 spacing: { after: 160 },
                 children: [
-                    new TextRun({ text: (i + 1) + '. ', bold: true }),
-                    new TextRun({ text: aseveracion })
+                    new TextRun({ text: (i + 1) + '. ', bold: true, font: 'Calibri', size: 22 }),
+                    new TextRun({ text: enunciado + ' ', font: 'Calibri', size: 22 }),
+                    new TextRun({ text: correcta + cierre, bold: true, font: 'Calibri', size: 22 })
                 ]
             }));
         });
