@@ -1868,6 +1868,55 @@ window.eliminarPregunta = async function(temaId, preguntaIndex) {
     }
 };
 
+// 🔧 Función puntual para arreglar el orden de temas mal guardados en Firebase
+// Uso: abrir consola (F12) y ejecutar → window.reordenarTemasNumerico()
+window.reordenarTemasNumerico = async function() {
+    try {
+        if (!currentUser) {
+            console.error('❌ No hay usuario logueado');
+            return;
+        }
+        
+        const q = query(collection(db, 'temas'), where('usuarioId', '==', currentUser.uid));
+        const snap = await getDocs(q);
+        
+        const principales = [];
+        const subtemasPorPadre = {};
+        
+        snap.forEach(d => {
+            const data = d.data();
+            if (data.temaPadreId) {
+                if (!subtemasPorPadre[data.temaPadreId]) subtemasPorPadre[data.temaPadreId] = [];
+                subtemasPorPadre[data.temaPadreId].push({ id: d.id, nombre: data.nombre });
+            } else {
+                principales.push({ id: d.id, nombre: data.nombre });
+            }
+        });
+        
+        const cmp = (a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base', numeric: true });
+        principales.sort(cmp);
+        Object.values(subtemasPorPadre).forEach(arr => arr.sort(cmp));
+        
+        const updates = [];
+        principales.forEach((t, i) => updates.push(updateDoc(doc(db, 'temas', t.id), { orden: i })));
+        Object.values(subtemasPorPadre).forEach(arr => {
+            arr.forEach((t, i) => updates.push(updateDoc(doc(db, 'temas', t.id), { orden: i })));
+        });
+        await Promise.all(updates);
+        
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+        cacheTemas = null;
+        cacheTimestamp = null;
+        
+        const totalSubtemas = Object.values(subtemasPorPadre).flat().length;
+        console.log(`✅ Reordenados ${principales.length} temas y ${totalSubtemas} subtemas. Recargando...`);
+        setTimeout(() => location.reload(), 800);
+    } catch (error) {
+        console.error('❌ Error reordenando:', error);
+    }
+};
+
 // Eliminar todos los temas
 window.eliminarTodosTemas = async function() {
     const confirmacion = prompt('Esta acción eliminará TODOS tus temas y preguntas permanentemente.\nEscribe "ELIMINAR TODO" para confirmar:');
