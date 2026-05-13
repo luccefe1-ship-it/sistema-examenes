@@ -4756,10 +4756,23 @@ async function cargarResultados() {
             
             if (resultado.detalleRespuestas) {
                 resultado.detalleRespuestas.forEach(detalle => {
-                    if (!detalle.pregunta) return;
-                    // Soporta preguntas nativas (.texto) e importadas (.question)
-                    const enunciado = detalle.pregunta.texto || detalle.pregunta.question;
-                    if (!enunciado) return;
+                    if (!detalle) return;
+                    let enunciado = null;
+                    // Caso 1: detalle.pregunta es un objeto con texto/question/enunciado
+                    if (detalle.pregunta && typeof detalle.pregunta === 'object') {
+                        enunciado = detalle.pregunta.texto
+                                 || detalle.pregunta.question
+                                 || detalle.pregunta.enunciado;
+                    }
+                    // Caso 2: detalle.pregunta es directamente un string
+                    if (!enunciado && typeof detalle.pregunta === 'string') {
+                        enunciado = detalle.pregunta;
+                    }
+                    // Caso 3: el texto está en el propio detalle
+                    if (!enunciado) {
+                        enunciado = detalle.texto || detalle.enunciado || detalle.question;
+                    }
+                    if (!enunciado || typeof enunciado !== 'string') return;
                     // Normalizar para evitar duplicados por diferencias cosméticas
                     const clave = enunciado
                         .normalize('NFC')
