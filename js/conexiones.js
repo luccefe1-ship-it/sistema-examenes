@@ -1,235 +1,279 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db, storage } from './firebase-config.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { 
-    doc, getDoc, getDocs, query, where, collection 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 let currentUser = null;
 
-// Auth + navbar
+// ---- Auth + navbar ----
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
         const userDoc = await getDoc(doc(db, "usuarios", user.uid));
         document.getElementById('userName').textContent = userDoc.exists() ? userDoc.data().nombre : user.email;
-        await cargarTemasConTarjetas();
+        await cargarAudios();
     } else {
         window.location.href = 'index.html';
     }
 });
 
-document.getElementById('backBtn').addEventListener('click', () => window.location.href = 'homepage.html');
-document.getElementById('logoutBtn').addEventListener('click', async () => { await signOut(auth); window.location.href = 'index.html'; });
+document.getElementById('backBtn').addEventListener('click', () => { detenerLectura(); window.location.href = 'homepage.html'; });
+document.getElementById('logoutBtn').addEventListener('click', async () => { detenerLectura(); await signOut(auth); window.location.href = 'index.html'; });
 
-// Generar hash consistente
-function generarHashPregunta(texto) {
-    const t = texto || '';
-    let hash = 0;
-    for (let i = 0; i < t.length; i++) {
-        hash = ((hash << 5) - hash) + t.charCodeAt(i);
-        hash = hash & hash;
-    }
-    return 'q_' + Math.abs(hash).toString(36);
+// ====== SUBIDA DE ARCHIVOS ======
+const inputArchivos = document.getElementById('inputArchivos');
+const btnSeleccionar = document.getElementById('btnSeleccionar');
+const uploadZone = document.getElementById('uploadZone');
+const estadoSubida = document.getElementById('estadoSubida');
+
+btnSeleccionar.addEventListener('click', () => inputArchivos.click());
+inputArchivos.addEventListener('change', () => procesarArchivos(inputArchivos.files));
+
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    procesarArchivos(e.dataTransfer.files);
+});
+
+// Extraer texto de Word con mammoth.js
+function extraerTextoWord(archivo) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const result = await mammoth.extractRawText({ arrayBuffer: e.target.result });
+                resolve(result.value);
+            } catch (error) { reject(error); }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(archivo);
+    });
 }
 
-// Cargar temas y contar tarjetas por tema
-async function cargarTemasConTarjetas() {
-    const container = document.getElementById('listaTemasTarjetas');
-    
+async function procesarArchivos(fileList) {
+    const archivos = Array.from(fileList).filter(f => f.name.toLowerCase().endsWith('.docx'));
+    if (archivos.length === 0) {
+        estadoSubida.textContent = '⚠️ Solo se admiten archivos .docx';
+        setTimeout(() => { estadoSubida.textContent = ''; }, 4000);
+        return;
+    }
+
+    btnSeleccionar.disabled = true;
+    let subidos = 0;
+
+    for (let i = 0; i < archivos.length; i++) {
+        const archivo = archivos[i];
+        estadoSubida.textContent = `Procesando ${i + 1}/${archivos.length}: ${archivo.name}...`;
+        try {
+            const texto = (await extraerTextoWord(archivo)).trim();
+            if (!texto) { console.warn('Documento vacío:', archivo.name); continue; }
+            if (texto.length > 900000) { console.warn('Documento demasiado largo:', archivo.name); continue; }
+
+            const audioId = 'audio_' + Date.now() + '_' + i;
+            const storagePath = `audios/${currentUser.uid}/${audioId}.docx`;
+
+            const storageRef = ref(storage, storagePath);
+            const snapshot = await uploadBytes(storageRef, archivo);
+            const url = await getDownloadURL(snapshot.ref);
+
+            await setDoc(doc(db, `usuarios/${currentUser.uid}/audios`, audioId), {
+                nombre: archivo.name.replace(/\.docx$/i, ''),
+                storagePath,
+                url,
+                texto,
+                fechaCreacion: Date.now()
+            });
+            subidos++;
+        } catch (error) {
+            console.error('Error procesando', archivo.name, error);
+        }
+    }
+
+    btnSeleccionar.disabled = false;
+    inputArchivos.value = '';
+    estadoSubida.textContent = subidos > 0 ? `✅ ${subidos} archivo(s) subido(s)` : '❌ No se pudo subir ningún archivo';
+    setTimeout(() => { estadoSubida.textContent = ''; }, 4000);
+    await cargarAudios();
+}
+
+// ====== LISTA DE AUDIOS ======
+let audiosCache = {};
+
+async function cargarAudios() {
+    const container = document.getElementById('listaAudios');
     try {
-        // 1. Cargar todos los temas
-        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
-        const temasSnap = await getDocs(q);
-        
-        // 2. Cargar todas las tarjetas del usuario
-        const tarjetasSnap = await getDocs(collection(db, `usuarios/${currentUser.uid}/tarjetas`));
-        const tarjetasPorPregunta = {};
-        tarjetasSnap.forEach(d => {
-            const data = d.data();
-            if (!tarjetasPorPregunta[data.preguntaId]) tarjetasPorPregunta[data.preguntaId] = [];
-            tarjetasPorPregunta[data.preguntaId].push({ url: data.url, nombre: data.nombre });
-        });
-        
-        // 3. Organizar temas
-        const temasPrincipales = [];
-        const subtemasPorPadre = {};
-        const temasMap = {};
-        
-        temasSnap.forEach(d => {
-            const tema = d.data();
-            temasMap[d.id] = tema;
-            if (tema.temaPadreId) {
-                if (!subtemasPorPadre[tema.temaPadreId]) subtemasPorPadre[tema.temaPadreId] = [];
-                subtemasPorPadre[tema.temaPadreId].push({ id: d.id, data: tema });
-            } else {
-                temasPrincipales.push({ id: d.id, data: tema });
-            }
-        });
-        
-        // Ordenar numéricamente
-        const ordenar = (a, b) => {
-            const na = a.data.nombre.match(/\d+/), nb = b.data.nombre.match(/\d+/);
-            return (na && nb) ? parseInt(na[0]) - parseInt(nb[0]) : a.data.nombre.localeCompare(b.data.nombre);
-        };
-        temasPrincipales.sort(ordenar);
-        Object.values(subtemasPorPadre).forEach(arr => arr.sort(ordenar));
-        
-        // 4. Contar tarjetas por tema (incluyendo subtemas)
-        function contarTarjetasDeTema(temaId) {
-            const tema = temasMap[temaId];
-            if (!tema) return { count: 0, tarjetas: [] };
-            
-            let tarjetas = [];
-            
-            // Tarjetas de preguntas propias
-            if (tema.preguntas) {
-                tema.preguntas.forEach(pregunta => {
-                    const hash = generarHashPregunta(pregunta.texto);
-                    if (tarjetasPorPregunta[hash]) {
-                        tarjetasPorPregunta[hash].forEach(t => {
-                            tarjetas.push({ ...t, preguntaTexto: pregunta.texto });
-                        });
-                    }
-                });
-            }
-            
-            return { count: tarjetas.length, tarjetas };
-        }
-        
-        function contarTarjetasConSubtemas(temaId) {
-            let resultado = contarTarjetasDeTema(temaId);
-            let totalCount = resultado.count;
-            let todasTarjetas = [...resultado.tarjetas];
-            
-            if (subtemasPorPadre[temaId]) {
-                subtemasPorPadre[temaId].forEach(sub => {
-                    const subResultado = contarTarjetasDeTema(sub.id);
-                    totalCount += subResultado.count;
-                    todasTarjetas.push(...subResultado.tarjetas);
-                });
-            }
-            
-            return { count: totalCount, tarjetas: todasTarjetas };
-        }
-        
-        // 5. Renderizar
+        const q = query(collection(db, `usuarios/${currentUser.uid}/audios`), orderBy('fechaCreacion', 'desc'));
+        const snap = await getDocs(q);
+
         container.innerHTML = '';
-        
-        if (temasPrincipales.length === 0) {
-            container.innerHTML = '<p style="text-align:center;color:#64748b;padding:40px;">No hay temas creados.</p>';
+        audiosCache = {};
+
+        if (snap.empty) {
+            container.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:40px;font-size:0.95rem;">Aún no has subido ningún audio. Sube un documento Word para empezar.</p>';
             return;
         }
-        
-        let hayAlgunaTarjeta = false;
-        
-        temasPrincipales.forEach(tema => {
-            const { count, tarjetas } = contarTarjetasConSubtemas(tema.id);
-            if (count > 0) hayAlgunaTarjeta = true;
-            
+
+        snap.forEach(d => {
+            const data = d.data();
+            audiosCache[d.id] = data;
+
             const franja = document.createElement('div');
-            franja.className = `tema-franja ${count === 0 ? 'sin-tarjetas' : ''}`;
+            franja.className = 'audio-franja';
+            franja.dataset.id = d.id;
             franja.innerHTML = `
-                <div class="tema-franja-info">
-                    <span class="tema-franja-nombre">📚 ${tema.data.nombre}</span>
-                    ${count > 0 ? `<span class="tema-franja-count">${count} tarjeta${count !== 1 ? 's' : ''}</span>` : '<span style="color:#94a3b8;font-size:0.85rem;">Sin tarjetas</span>'}
+                <div class="audio-franja-info">
+                    <span style="font-size:1.3rem;">📄</span>
+                    <span class="audio-franja-nombre">${data.nombre}</span>
                 </div>
-                <span class="tema-franja-arrow">${count > 0 ? '→' : ''}</span>
+                <div class="audio-franja-acciones">
+                    <button class="btn-escuchar">▶ Escuchar</button>
+                    <button class="btn-borrar" title="Eliminar">🗑️</button>
+                </div>
             `;
-            
-            if (count > 0) {
-                franja.addEventListener('click', () => abrirModoCine(tema.data.nombre, tarjetas));
-            }
-            
+            franja.querySelector('.btn-escuchar').addEventListener('click', () => reproducirAudio(d.id));
+            franja.querySelector('.btn-borrar').addEventListener('click', () => borrarAudio(d.id, data));
             container.appendChild(franja);
         });
-        
-        if (!hayAlgunaTarjeta) {
-            container.innerHTML += '<p style="text-align:center;color:#94a3b8;padding:20px;font-size:0.9rem;">Aún no has añadido tarjetas a ninguna pregunta. Ve al banco de preguntas y usa el botón 📖 para añadir tarjetas visuales.</p>';
-        }
-        
     } catch (error) {
-        console.error('Error cargando temas:', error);
-        container.innerHTML = '<p style="text-align:center;color:#ef4444;padding:40px;">Error al cargar los temas.</p>';
+        console.error('Error cargando audios:', error);
+        container.innerHTML = '<p style="text-align:center;color:#ef4444;padding:40px;">Error al cargar los audios.</p>';
     }
 }
 
-// Modo cine / presentación
-let cineIndex = 0;
-let cineTarjetas = [];
-
-function abrirModoCine(temaNombre, tarjetas) {
-    cineTarjetas = tarjetas;
-    cineIndex = 0;
-    
-    const overlay = document.createElement('div');
-    overlay.className = 'cine-overlay';
-    overlay.id = 'cineOverlay';
-    
-    overlay.innerHTML = `
-        <div class="cine-header">
-            <span class="cine-titulo">📚 ${temaNombre}</span>
-            <span class="cine-contador" id="cineContador">1 / ${tarjetas.length}</span>
-            <button class="cine-cerrar" onclick="cerrarCine()">✕</button>
-        </div>
-        <div class="cine-imagen-container">
-            <img class="cine-imagen" id="cineImagen" src="${tarjetas[0].url}" alt="Tarjeta">
-        </div>
-        <button class="cine-nav prev" id="cinePrev" onclick="navegarCine(-1)">‹</button>
-        <button class="cine-nav next" id="cineNext" onclick="navegarCine(1)">›</button>
-        <div class="cine-dots" id="cineDots">
-            ${tarjetas.map((_, i) => `<div class="cine-dot ${i === 0 ? 'active' : ''}" onclick="irATarjeta(${i})"></div>`).join('')}
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    document.body.style.overflow = 'hidden';
-    actualizarBotonesCine();
-    
-    // Keyboard navigation
-    document.addEventListener('keydown', manejarTeclasCine);
+async function borrarAudio(audioId, data) {
+    if (!confirm(`¿Eliminar "${data.nombre}"?`)) return;
+    try {
+        if (idReproduciendo === audioId) detenerLectura();
+        await deleteDoc(doc(db, `usuarios/${currentUser.uid}/audios`, audioId));
+        if (data.storagePath) {
+            try { await deleteObject(ref(storage, data.storagePath)); } catch (e) { console.warn('Storage:', e); }
+        }
+        await cargarAudios();
+    } catch (error) {
+        console.error('Error al eliminar:', error);
+        alert('No se pudo eliminar el audio.');
+    }
 }
 
-window.cerrarCine = function() {
-    const overlay = document.getElementById('cineOverlay');
-    if (overlay) overlay.remove();
-    document.body.style.overflow = 'auto';
-    document.removeEventListener('keydown', manejarTeclasCine);
-};
+// ====== LECTURA EN VOZ ALTA (Web Speech API) ======
+const synth = window.speechSynthesis;
+let fragmentos = [];
+let fragmentoActual = 0;
+let idReproduciendo = null;
+let generacionLectura = 0;
+let vozES = null;
 
-window.navegarCine = function(dir) {
-    cineIndex += dir;
-    if (cineIndex < 0) cineIndex = 0;
-    if (cineIndex >= cineTarjetas.length) cineIndex = cineTarjetas.length - 1;
-    actualizarVistaCine();
-};
+function cargarVoz() {
+    const voces = synth.getVoices();
+    vozES = voces.find(v => v.lang === 'es-ES') || voces.find(v => v.lang.startsWith('es')) || null;
+}
+cargarVoz();
+if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = cargarVoz;
 
-window.irATarjeta = function(index) {
-    cineIndex = index;
-    actualizarVistaCine();
-};
-
-function actualizarVistaCine() {
-    const tarjeta = cineTarjetas[cineIndex];
-    document.getElementById('cineImagen').src = tarjeta.url;
-    document.getElementById('cineContador').textContent = `${cineIndex + 1} / ${cineTarjetas.length}`;
-    
-    // Dots
-    document.querySelectorAll('.cine-dot').forEach((dot, i) => {
-        dot.classList.toggle('active', i === cineIndex);
+// Divide el texto en trozos cortos: evita el corte de speechSynthesis en textos largos
+function dividirTexto(texto) {
+    const limpio = texto.replace(/\s+/g, ' ').trim();
+    const frases = limpio.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [limpio];
+    const trozos = [];
+    let buffer = '';
+    frases.forEach(frase => {
+        if ((buffer + frase).length > 200) {
+            if (buffer.trim()) trozos.push(buffer.trim());
+            buffer = frase;
+        } else {
+            buffer += frase;
+        }
     });
-    
-    actualizarBotonesCine();
+    if (buffer.trim()) trozos.push(buffer.trim());
+    return trozos;
 }
 
-function actualizarBotonesCine() {
-    const prev = document.getElementById('cinePrev');
-    const next = document.getElementById('cineNext');
-    if (prev) prev.disabled = cineIndex === 0;
-    if (next) next.disabled = cineIndex === cineTarjetas.length - 1;
+const reproductor = document.getElementById('reproductor');
+const reproductorTitulo = document.getElementById('reproductorTitulo');
+const reproductorProgreso = document.getElementById('reproductorProgreso');
+const btnPausaReanudar = document.getElementById('btnPausaReanudar');
+const btnDetener = document.getElementById('btnDetener');
+
+function reproducirAudio(audioId) {
+    const data = audiosCache[audioId];
+    if (!data || !data.texto) return;
+
+    synth.cancel();
+    generacionLectura++;
+    const gen = generacionLectura;
+
+    idReproduciendo = audioId;
+    fragmentos = dividirTexto(data.texto);
+    fragmentoActual = 0;
+
+    reproductorTitulo.textContent = '🔊 ' + data.nombre;
+    reproductorProgreso.style.width = '0%';
+    reproductor.classList.add('activo');
+    btnPausaReanudar.textContent = '⏸';
+    marcarFranjaActiva(audioId);
+
+    setTimeout(() => hablarFragmento(gen), 60);
 }
 
-function manejarTeclasCine(e) {
-    if (e.key === 'ArrowLeft') navegarCine(-1);
-    else if (e.key === 'ArrowRight') navegarCine(1);
-    else if (e.key === 'Escape') cerrarCine();
+function hablarFragmento(gen) {
+    if (gen !== generacionLectura) return;
+
+    if (fragmentoActual >= fragmentos.length) {
+        reproductorProgreso.style.width = '100%';
+        setTimeout(() => { if (gen === generacionLectura) detenerLectura(); }, 600);
+        return;
+    }
+
+    const u = new SpeechSynthesisUtterance(fragmentos[fragmentoActual]);
+    u.lang = 'es-ES';
+    if (vozES) u.voice = vozES;
+    u.rate = 1;
+
+    u.onend = () => {
+        if (gen !== generacionLectura) return;
+        fragmentoActual++;
+        reproductorProgreso.style.width = Math.round((fragmentoActual / fragmentos.length) * 100) + '%';
+        hablarFragmento(gen);
+    };
+    u.onerror = () => {
+        if (gen !== generacionLectura) return;
+        fragmentoActual++;
+        hablarFragmento(gen);
+    };
+
+    synth.speak(u);
 }
+
+btnPausaReanudar.addEventListener('click', () => {
+    if (synth.paused) {
+        synth.resume();
+        btnPausaReanudar.textContent = '⏸';
+    } else if (synth.speaking) {
+        synth.pause();
+        btnPausaReanudar.textContent = '▶';
+    }
+});
+
+btnDetener.addEventListener('click', detenerLectura);
+
+function detenerLectura() {
+    generacionLectura++;
+    idReproduciendo = null;
+    fragmentos = [];
+    fragmentoActual = 0;
+    synth.cancel();
+    reproductor.classList.remove('activo');
+    reproductorProgreso.style.width = '0%';
+    btnPausaReanudar.textContent = '⏸';
+    marcarFranjaActiva(null);
+}
+
+function marcarFranjaActiva(audioId) {
+    document.querySelectorAll('.audio-franja').forEach(f => {
+        f.classList.toggle('reproduciendo', f.dataset.id === audioId);
+    });
+}
+
+window.addEventListener('beforeunload', () => synth.cancel());
