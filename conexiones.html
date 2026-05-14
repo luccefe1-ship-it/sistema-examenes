@@ -18,19 +18,59 @@
 
         .audios-container {
             max-width: 900px;
-            margin: 100px auto 120px;
+            margin: 100px auto 60px;
             padding: 20px;
         }
 
-        .audios-header { text-align: center; margin-bottom: 30px; }
+        .audios-header { text-align: center; margin-bottom: 24px; }
         .audios-header h1 { font-size: 2rem; color: #1e293b; margin-bottom: 8px; }
         .audios-header p { color: #64748b; font-size: 1rem; }
 
+        /* Barra de consumo / aviso */
+        .consumo-tts {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 22px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .consumo-cabecera {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .consumo-titulo { font-weight: 600; color: #1e293b; font-size: 0.95rem; }
+        .consumo-cifra { font-weight: 700; color: #6366f1; font-size: 0.95rem; }
+        .consumo-barra {
+            height: 10px;
+            background: #e2e8f0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .consumo-progreso {
+            height: 100%;
+            width: 0%;
+            border-radius: 5px;
+            transition: width 0.4s ease;
+        }
+        .consumo-progreso.verde { background: linear-gradient(90deg, #10b981, #34d399); }
+        .consumo-progreso.naranja { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .consumo-progreso.rojo { background: linear-gradient(90deg, #ef4444, #f87171); }
+        .consumo-texto {
+            margin: 10px 0 0;
+            font-size: 0.83rem;
+            color: #64748b;
+            line-height: 1.45;
+        }
+        .consumo-texto.alerta { color: #dc2626; font-weight: 600; }
+
+        /* Zona de subida */
         .upload-zone {
             background: white;
             border: 2px dashed #c7d2fe;
             border-radius: 12px;
-            padding: 30px;
+            padding: 26px;
             text-align: center;
             margin-bottom: 24px;
             transition: all 0.2s ease;
@@ -38,6 +78,22 @@
         .upload-zone.dragover { border-color: #6366f1; background: #eef2ff; }
         .upload-zone p { color: #64748b; margin: 8px 0 16px; font-size: 0.95rem; }
 
+        .upload-controles {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .selector-voz {
+            padding: 11px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.92rem;
+            color: #1e293b;
+            background: white;
+            cursor: pointer;
+        }
         .btn-subir {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white; border: none;
@@ -49,35 +105,34 @@
 
         #estadoSubida { margin-top: 14px; font-size: 0.9rem; color: #6366f1; font-weight: 600; }
 
-        .audios-lista { display: flex; flex-direction: column; gap: 8px; }
-
+        /* Lista de audios */
+        .audios-lista { display: flex; flex-direction: column; gap: 10px; }
         .audio-franja {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 16px 20px; background: white;
-            border-radius: 10px; border-left: 5px solid #6366f1;
+            background: white;
+            border-radius: 10px;
+            border-left: 5px solid #6366f1;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            padding: 14px 18px;
         }
-        .audio-franja.reproduciendo { border-left-color: #10b981; background: #f0fdf4; }
-
+        .audio-franja-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
         .audio-franja-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
         .audio-franja-nombre {
             font-weight: 600; font-size: 0.98rem; color: #1e293b;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-        .audio-franja-acciones { display: flex; gap: 8px; flex-shrink: 0; }
-
-        .btn-escuchar {
-            background: #6366f1; color: white; border: none;
-            padding: 8px 16px; border-radius: 8px;
-            font-size: 0.88rem; font-weight: 600; cursor: pointer; white-space: nowrap;
-        }
-        .btn-escuchar:hover { background: #4f46e5; }
-
+        .audio-franja-meta { font-size: 0.78rem; color: #94a3b8; margin-top: 2px; }
         .btn-borrar {
             background: #fee2e2; color: #dc2626; border: none;
-            width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 1rem;
+            width: 36px; height: 36px; border-radius: 8px; cursor: pointer;
+            font-size: 1rem; flex-shrink: 0;
         }
         .btn-borrar:hover { background: #fecaca; }
+        .audio-franja audio { width: 100%; margin-top: 10px; }
 
         .cargando-audios { text-align: center; padding: 60px 20px; color: #64748b; }
         .cargando-audios .spinner {
@@ -87,38 +142,8 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .reproductor {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: white; box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
-            padding: 14px 24px; display: none; align-items: center; gap: 16px; z-index: 1000;
-        }
-        .reproductor.activo { display: flex; }
-        .reproductor-info { flex: 1; min-width: 0; }
-        .reproductor-titulo {
-            font-weight: 600; color: #1e293b; font-size: 0.95rem;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .reproductor-barra {
-            height: 6px; background: #e2e8f0; border-radius: 3px;
-            margin-top: 6px; overflow: hidden;
-        }
-        .reproductor-progreso {
-            height: 100%; width: 0%;
-            background: linear-gradient(90deg, #6366f1, #8b5cf6);
-            transition: width 0.3s ease;
-        }
-        .reproductor-controles { display: flex; gap: 8px; }
-        .reproductor-btn {
-            background: #6366f1; color: white; border: none;
-            width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 1.1rem;
-        }
-        .reproductor-btn:hover { background: #4f46e5; }
-        .reproductor-btn.stop { background: #ef4444; }
-        .reproductor-btn.stop:hover { background: #dc2626; }
-
         @media (max-width: 768px) {
             .audios-container { margin-top: 80px; padding: 12px; }
-            .reproductor { padding: 12px 14px; gap: 10px; }
         }
     </style>
 </head>
@@ -137,33 +162,41 @@
     <div class="audios-container">
         <div class="audios-header">
             <h1>🎧 Mis Audios</h1>
-            <p>Sube documentos Word y escúchalos en voz alta</p>
+            <p>Sube documentos Word y escúchalos con voz natural</p>
         </div>
 
+        <!-- Barra de consumo / aviso de facturación -->
+        <div class="consumo-tts">
+            <div class="consumo-cabecera">
+                <span class="consumo-titulo">📊 Consumo de voz este mes</span>
+                <span class="consumo-cifra" id="consumoCifra">— / 1.000.000</span>
+            </div>
+            <div class="consumo-barra"><div class="consumo-progreso verde" id="consumoProgreso"></div></div>
+            <p class="consumo-texto" id="consumoTexto">Cargando consumo...</p>
+        </div>
+
+        <!-- Zona de subida -->
         <div class="upload-zone" id="uploadZone">
             <div style="font-size:2.5rem;">📄</div>
             <p>Arrastra aquí tus archivos .docx o haz clic para seleccionarlos</p>
             <input type="file" id="inputArchivos" accept=".docx" multiple style="display:none;">
-            <button class="btn-subir" id="btnSeleccionar">Seleccionar archivos</button>
+            <div class="upload-controles">
+                <select class="selector-voz" id="selectorVoz">
+                    <option value="es-ES-Wavenet-C" selected>Voz femenina (C)</option>
+                    <option value="es-ES-Wavenet-D">Voz femenina (D)</option>
+                    <option value="es-ES-Wavenet-B">Voz masculina (B)</option>
+                </select>
+                <button class="btn-subir" id="btnSeleccionar">Seleccionar archivos</button>
+            </div>
             <div id="estadoSubida"></div>
         </div>
 
+        <!-- Lista de audios -->
         <div id="listaAudios" class="audios-lista">
             <div class="cargando-audios">
                 <div class="spinner"></div>
                 <p>Cargando audios...</p>
             </div>
-        </div>
-    </div>
-
-    <div class="reproductor" id="reproductor">
-        <div class="reproductor-info">
-            <div class="reproductor-titulo" id="reproductorTitulo"></div>
-            <div class="reproductor-barra"><div class="reproductor-progreso" id="reproductorProgreso"></div></div>
-        </div>
-        <div class="reproductor-controles">
-            <button class="reproductor-btn" id="btnPausaReanudar">⏸</button>
-            <button class="reproductor-btn stop" id="btnDetener">⏹</button>
         </div>
     </div>
 
