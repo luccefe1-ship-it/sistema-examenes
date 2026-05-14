@@ -3,261 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tarjetas de Memoria - Plataforma Exámenes</title>
+    <title>Mis Audios - Plataforma Exámenes</title>
     <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <style>
         body {
             overflow-y: auto;
             transition: background 1s ease;
-            background: 
+            background:
                 radial-gradient(ellipse at top, rgba(135,206,250,0.3) 0%, rgba(173,216,230,0.4) 50%, rgba(176,196,222,0.5) 100%),
                 radial-gradient(circle at 20% 80%, rgba(200,230,255,0.15) 0%, transparent 60%),
                 radial-gradient(circle at 80% 20%, rgba(200,230,255,0.15) 0%, transparent 60%);
         }
 
-        .tarjetas-memoria-container {
+        .audios-container {
             max-width: 900px;
-            margin: 0 auto;
+            margin: 100px auto 120px;
             padding: 20px;
-            margin-top: 100px;
         }
 
-        .tarjetas-memoria-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
+        .audios-header { text-align: center; margin-bottom: 30px; }
+        .audios-header h1 { font-size: 2rem; color: #1e293b; margin-bottom: 8px; }
+        .audios-header p { color: #64748b; font-size: 1rem; }
 
-        .tarjetas-memoria-header h1 {
-            font-size: 2rem;
-            color: #1e293b;
-            margin-bottom: 8px;
-        }
-
-        .tarjetas-memoria-header p {
-            color: #64748b;
-            font-size: 1rem;
-        }
-
-        .temas-lista {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .tema-franja {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 24px;
+        .upload-zone {
             background: white;
-            border-radius: 10px;
-            border-left: 5px solid #6366f1;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            cursor: pointer;
+            border: 2px dashed #c7d2fe;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 24px;
             transition: all 0.2s ease;
         }
+        .upload-zone.dragover { border-color: #6366f1; background: #eef2ff; }
+        .upload-zone p { color: #64748b; margin: 8px 0 16px; font-size: 0.95rem; }
 
-        .tema-franja:hover {
-            transform: translateX(6px);
-            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.15);
-            border-left-color: #4f46e5;
+        .btn-subir {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; border: none;
+            padding: 12px 28px; border-radius: 8px;
+            font-size: 0.95rem; font-weight: 600; cursor: pointer;
         }
+        .btn-subir:hover { opacity: 0.92; }
+        .btn-subir:disabled { opacity: 0.5; cursor: default; }
 
-        .tema-franja-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+        #estadoSubida { margin-top: 14px; font-size: 0.9rem; color: #6366f1; font-weight: 600; }
 
-        .tema-franja-nombre {
-            font-weight: 600;
-            font-size: 1rem;
-            color: #1e293b;
-        }
+        .audios-lista { display: flex; flex-direction: column; gap: 8px; }
 
-        .tema-franja-count {
-            font-size: 0.85rem;
-            color: #6366f1;
-            font-weight: 600;
-            background: #eef2ff;
-            padding: 4px 10px;
-            border-radius: 20px;
-        }
-
-        .tema-franja-arrow {
-            color: #94a3b8;
-            font-size: 1.2rem;
-            transition: transform 0.2s;
-        }
-
-        .tema-franja:hover .tema-franja-arrow {
-            transform: translateX(4px);
-            color: #6366f1;
-        }
-
-        .tema-franja.sin-tarjetas {
-            opacity: 0.5;
-            cursor: default;
-            border-left-color: #cbd5e1;
-        }
-
-        .tema-franja.sin-tarjetas:hover {
-            transform: none;
+        .audio-franja {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; background: white;
+            border-radius: 10px; border-left: 5px solid #6366f1;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
+        .audio-franja.reproduciendo { border-left-color: #10b981; background: #f0fdf4; }
 
-        .cargando-temas {
-            text-align: center;
-            padding: 60px 20px;
-            color: #64748b;
+        .audio-franja-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .audio-franja-nombre {
+            font-weight: 600; font-size: 0.98rem; color: #1e293b;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
+        .audio-franja-acciones { display: flex; gap: 8px; flex-shrink: 0; }
 
-        .cargando-temas .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid #e2e8f0;
-            border-top: 4px solid #6366f1;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 16px;
+        .btn-escuchar {
+            background: #6366f1; color: white; border: none;
+            padding: 8px 16px; border-radius: 8px;
+            font-size: 0.88rem; font-weight: 600; cursor: pointer; white-space: nowrap;
         }
+        .btn-escuchar:hover { background: #4f46e5; }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .btn-borrar {
+            background: #fee2e2; color: #dc2626; border: none;
+            width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 1rem;
         }
+        .btn-borrar:hover { background: #fecaca; }
 
-        /* ====== MODO CINE / PRESENTACIÓN ====== */
-        .cine-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.95);
-            z-index: 100000;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+        .cargando-audios { text-align: center; padding: 60px 20px; color: #64748b; }
+        .cargando-audios .spinner {
+            width: 40px; height: 40px;
+            border: 4px solid #e2e8f0; border-top: 4px solid #6366f1;
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;
         }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
-        .cine-header {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 24px;
-            background: rgba(0,0,0,0.5);
-            z-index: 2;
+        .reproductor {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: white; box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+            padding: 14px 24px; display: none; align-items: center; gap: 16px; z-index: 1000;
         }
-
-        .cine-titulo {
-            color: white;
-            font-size: 1.1rem;
-            font-weight: 600;
+        .reproductor.activo { display: flex; }
+        .reproductor-info { flex: 1; min-width: 0; }
+        .reproductor-titulo {
+            font-weight: 600; color: #1e293b; font-size: 0.95rem;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-
-        .cine-contador {
-            color: #94a3b8;
-            font-size: 0.9rem;
+        .reproductor-barra {
+            height: 6px; background: #e2e8f0; border-radius: 3px;
+            margin-top: 6px; overflow: hidden;
         }
-
-        .cine-cerrar {
-            background: rgba(255,255,255,0.15);
-            border: none;
-            color: white;
-            font-size: 1.5rem;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: background 0.2s;
+        .reproductor-progreso {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            transition: width 0.3s ease;
         }
-
-        .cine-cerrar:hover {
-            background: rgba(255,255,255,0.3);
+        .reproductor-controles { display: flex; gap: 8px; }
+        .reproductor-btn {
+            background: #6366f1; color: white; border: none;
+            width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 1.1rem;
         }
-
-        .cine-imagen-container {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            padding: 80px 80px 40px;
-        }
-
-        .cine-imagen {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            border-radius: 8px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            user-select: none;
-        }
-
-        .cine-nav {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            background: rgba(255,255,255,0.1);
-            border: none;
-            color: white;
-            font-size: 2.5rem;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .cine-nav:hover {
-            background: rgba(255,255,255,0.25);
-            transform: translateY(-50%) scale(1.1);
-        }
-
-        .cine-nav.prev { left: 16px; }
-        .cine-nav.next { right: 16px; }
-        .cine-nav:disabled { opacity: 0.2; cursor: default; }
-        .cine-nav:disabled:hover { background: rgba(255,255,255,0.1); transform: translateY(-50%); }
-
-        .cine-dots {
-            position: absolute;
-            bottom: 16px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 6px;
-            max-width: 80%;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .cine-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.3);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .cine-dot.active {
-            background: #6366f1;
-            transform: scale(1.3);
-        }
+        .reproductor-btn:hover { background: #4f46e5; }
+        .reproductor-btn.stop { background: #ef4444; }
+        .reproductor-btn.stop:hover { background: #dc2626; }
 
         @media (max-width: 768px) {
-            .tarjetas-memoria-container { margin-top: 80px; padding: 12px; }
-            .tema-franja { padding: 12px 16px; }
-            .cine-imagen-container { padding: 70px 16px 40px; }
-            .cine-nav { width: 44px; height: 44px; font-size: 1.8rem; }
+            .audios-container { margin-top: 80px; padding: 12px; }
+            .reproductor { padding: 12px 14px; gap: 10px; }
         }
     </style>
 </head>
@@ -273,17 +134,36 @@
         </div>
     </nav>
 
-    <div class="tarjetas-memoria-container">
-        <div class="tarjetas-memoria-header">
-            <h1>🃏 Tarjetas de Memoria</h1>
-            <p>Selecciona un tema para ver tus tarjetas visuales</p>
+    <div class="audios-container">
+        <div class="audios-header">
+            <h1>🎧 Mis Audios</h1>
+            <p>Sube documentos Word y escúchalos en voz alta</p>
         </div>
 
-        <div id="listaTemasTarjetas" class="temas-lista">
-            <div class="cargando-temas">
+        <div class="upload-zone" id="uploadZone">
+            <div style="font-size:2.5rem;">📄</div>
+            <p>Arrastra aquí tus archivos .docx o haz clic para seleccionarlos</p>
+            <input type="file" id="inputArchivos" accept=".docx" multiple style="display:none;">
+            <button class="btn-subir" id="btnSeleccionar">Seleccionar archivos</button>
+            <div id="estadoSubida"></div>
+        </div>
+
+        <div id="listaAudios" class="audios-lista">
+            <div class="cargando-audios">
                 <div class="spinner"></div>
-                <p>Cargando temas...</p>
+                <p>Cargando audios...</p>
             </div>
+        </div>
+    </div>
+
+    <div class="reproductor" id="reproductor">
+        <div class="reproductor-info">
+            <div class="reproductor-titulo" id="reproductorTitulo"></div>
+            <div class="reproductor-barra"><div class="reproductor-progreso" id="reproductorProgreso"></div></div>
+        </div>
+        <div class="reproductor-controles">
+            <button class="reproductor-btn" id="btnPausaReanudar">⏸</button>
+            <button class="reproductor-btn stop" id="btnDetener">⏹</button>
         </div>
     </div>
 
