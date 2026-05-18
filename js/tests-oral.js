@@ -22,6 +22,7 @@ let testFinalizado = false;
 // Modo de escucha: 'respuesta' (A/B/C/D) o 'siNo' (sí/no para la explicación)
 let modoEscucha = 'respuesta';
 let resolverSiNo = null; // resolver de la Promise cuando se escucha sí/no
+let recibioResultado = false; // para detectar timeout silencioso en onend
 
 // ============= INIT =============
 document.addEventListener('DOMContentLoaded', () => {
@@ -102,11 +103,44 @@ async function cargarConfiguracion() {
         }
     }
 
+    // Pedir permisos de micrófono ANTES de inicializar el reconocedor
+    setEstado('', '🎤', 'Comprobando permisos del micrófono...');
+    const permisoOK = await solicitarPermisosMicrofono();
+    if (!permisoOK) return;
+
     // Inicializar reconocedor
     crearReconocedor();
 
     // Arrancar
     mostrarPregunta();
+}
+
+async function solicitarPermisosMicrofono() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Tu navegador no soporta acceso al micrófono. Usa Chrome o Edge.');
+        window.location.href = 'tests.html?section=aleatorio';
+        return false;
+    }
+    try {
+        console.log('[ORAL] Solicitando acceso al micrófono...');
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Cerrar inmediatamente, solo queríamos el permiso
+        stream.getTracks().forEach(t => t.stop());
+        console.log('[ORAL] ✅ Permiso de micrófono concedido');
+        return true;
+    } catch (err) {
+        console.error('[ORAL] ❌ Permiso de micrófono denegado:', err);
+        alert(
+            'No se ha podido acceder al micrófono.\n\n' +
+            'Comprueba que:\n' +
+            '1. Has dado permiso al navegador (icono 🔒 a la izquierda de la URL → Configuración del sitio → Micrófono → Permitir).\n' +
+            '2. El micrófono está conectado y funcionando.\n' +
+            '3. No hay otra aplicación usándolo en exclusiva.\n\n' +
+            'Después recarga la página.'
+        );
+        window.location.href = 'tests.html?section=aleatorio';
+        return false;
+    }
 }
 
 // ============= CRONÓMETRO =============
@@ -164,13 +198,17 @@ function crearReconocedor() {
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 3;
+    console.log('[ORAL] Reconocedor creado, lang:', recognition.lang);
 
     recognition.onstart = () => {
+        console.log('[ORAL] 🎤 onstart - escuchando');
         escuchando = true;
+        recibioResultado = false;
         setEstado('escuchando', '🎤', 'Escuchando tu respuesta...');
     };
 
     recognition.onresult = (event) => {
+        recibioResultado = true;
         escuchando = false;
         // Recoger todas las alternativas del primer resultado
         const alternativas = [];
@@ -179,6 +217,7 @@ function crearReconocedor() {
                 alternativas.push(event.results[0][i].transcript);
             }
         }
+        console.log('[ORAL] 📥 onresult - alternativas:', alternativas);
         const dichoMostrar = alternativas[0] || '';
         document.getElementById('transcriptValor').textContent = dichoMostrar || '—';
 
@@ -192,8 +231,9 @@ function crearReconocedor() {
     };
 
     recognition.onerror = (event) => {
+        recibioResultado = true;
         escuchando = false;
-        console.warn('SR error:', event.error);
+        console.warn('[ORAL] ⚠️ onerror:', event.error);
 
         // En modo sí/no, cualquier error => asumimos null y dejamos que la lógica decida
         if (modoEscucha === 'siNo') {
@@ -204,27 +244,58 @@ function crearReconocedor() {
         // 'no-speech' es habitual: el usuario no dijo nada
         if (event.error === 'no-speech' || event.error === 'audio-capture' || event.error === 'aborted') {
             manejarNoEntendido();
-        } else if (event.error === 'not-allowed') {
-            alert('Has bloqueado el acceso al micrófono. Permítelo en el navegador y recarga la página.');
+        } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            alert('Has bloqueado el acceso al micrófono. Permítelo en el navegador (icono 🔒 → Micrófono → Permitir) y recarga la página.');
             window.location.href = 'tests.html?section=aleatorio';
         } else {
+            // network, language-not-supported, bad-grammar, etc.
+            console.error('[ORAL] Error inesperado:', event.error);
             manejarNoEntendido();
         }
     };
 
     recognition.onend = () => {
+        console.log('[ORAL] 🛑 onend - recibioResultado:', recibioResultado);
         escuchando = false;
+        // Timeout silencioso de Chrome: el reconocimiento termina sin disparar
+        // ni onresult ni onerror. Esto pasa cuando no se detecta NADA de audio.
+        if (!recibioResultado && !pausado && !testFinalizado) {
+            console.warn('[ORAL] Timeout silencioso detectado, reintentando...');
+            // Si estamos en modo siNo, resolver con null para no quedarnos colgados
+            if (modoEscucha === 'siNo') {
+                if (resolverSiNo) resolverSiNo(null);
+                return;
+            }
+            // En modo respuesta: tratar como no entendido
+            manejarNoEntendido();
+        }
     };
 }
 
 function iniciarReconocimiento() {
     if (pausado || testFinalizado) return;
-    if (escuchando) return;
+    if (escuchando) {
+        console.warn('[ORAL] iniciarReconocimiento llamado pero ya estoy escuchando, ignorado');
+        return;
+    }
+    recibioResultado = false;
     try {
+        console.log('[ORAL] → recognition.start()');
         recognition.start();
     } catch (e) {
-        // start() puede tirar si ya está corriendo. Esperar un tick y reintentar.
-        setTimeout(() => { try { recognition.start(); } catch(_) {} }, 300);
+        console.error('[ORAL] Error al start():', e);
+        // Si ya estaba corriendo (InvalidStateError), abortar y reintentar
+        try { recognition.abort(); } catch (_) {}
+        setTimeout(() => {
+            if (pausado || testFinalizado) return;
+            try {
+                console.log('[ORAL] → recognition.start() (reintento)');
+                recognition.start();
+            } catch (e2) {
+                console.error('[ORAL] Error al reintentar start:', e2);
+                setEstado('', '⚠️', 'Error con el micrófono. Pulsa Repetir.');
+            }
+        }, 500);
     }
 }
 
