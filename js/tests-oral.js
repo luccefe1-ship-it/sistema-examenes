@@ -24,6 +24,10 @@ let modoEscucha = 'respuesta';
 let resolverSiNo = null; // resolver de la Promise cuando se escucha sí/no
 let recibioResultado = false; // para detectar timeout silencioso en onend
 
+// Velocidad de la voz (persistente en localStorage)
+const VELOCIDADES = [0.8, 1.0, 1.25, 1.5, 2.0];
+let velocidadVoz = parseFloat(localStorage.getItem('oralVelocidadVoz')) || 1.0;
+
 // ============= INIT =============
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM cargado en tests-oral.js');
@@ -93,6 +97,10 @@ async function cargarConfiguracion() {
     }
 
     document.getElementById('nombreTestOral').textContent = testConfig.nombreTest || 'Test Oral';
+
+    // Reflejar la velocidad guardada en el botón
+    const btnVel = document.getElementById('btnVelocidad');
+    if (btnVel) btnVel.textContent = `⚡ Velocidad: ${velocidadVoz}x`;
 
     // Cronómetro si aplica
     if (testConfig.tiempoLimite && testConfig.tiempoLimite !== 'sin') {
@@ -174,7 +182,7 @@ function hablar(texto) {
 
         const ut = new SpeechSynthesisUtterance(texto);
         ut.lang = 'es-ES';
-        ut.rate = 1.0;
+        ut.rate = velocidadVoz;
         ut.pitch = 1.0;
         if (voiceES) ut.voice = voiceES;
 
@@ -189,6 +197,18 @@ function hablar(texto) {
 function pararTTS() {
     speechSynthesis.cancel();
 }
+
+// Cambia la velocidad ciclando entre VELOCIDADES y la guarda en localStorage
+window.cambiarVelocidad = function() {
+    const idxActual = VELOCIDADES.indexOf(velocidadVoz);
+    const siguiente = VELOCIDADES[(idxActual + 1) % VELOCIDADES.length];
+    velocidadVoz = siguiente;
+    localStorage.setItem('oralVelocidadVoz', String(velocidadVoz));
+    const btn = document.getElementById('btnVelocidad');
+    if (btn) btn.textContent = `⚡ Velocidad: ${velocidadVoz}x`;
+    // Si está hablando ahora mismo, cortar para que la próxima frase salga con la nueva velocidad
+    pararTTS();
+};
 
 // ============= STT (Reconocimiento) =============
 function crearReconocedor() {
