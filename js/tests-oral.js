@@ -24,6 +24,9 @@ let modoEscucha = 'respuesta';
 let resolverSiNo = null; // resolver de la Promise cuando se escucha sí/no
 let recibioResultado = false; // para detectar timeout silencioso en onend
 let bloqueoEscucha = false;   // true mientras la voz TTS está hablando: bloquea el reconocedor
+let utteranceActual = null;   // utterance vivo (para invalidar al cambiar velocidad)
+let textoLecturaActual = '';  // texto que se está leyendo (para relanzar con nueva velocidad)
+let resolverHablar = null;    // resolve de la Promise de hablar() en curso
 
 // Velocidad de la voz (persistente en localStorage)
 const VELOCIDADES = [0.8, 1.0, 1.25, 1.5, 2.0];
@@ -178,8 +181,14 @@ function actualizarDisplayCronometro() {
 function hablar(texto) {
     return new Promise((resolve) => {
         if (!texto) { resolve(); return; }
-        // Cancelar cualquier voz anterior y parar reconocedor por si acaso
+        // Resolver cualquier hablar() anterior huérfano para no dejarlo colgado
+        if (resolverHablar) { const r = resolverHablar; resolverHablar = null; try { r(); } catch(_) {} }
+
+        // Invalidar utterance anterior antes de cancelar (su onend no resolverá)
+        utteranceActual = null;
         speechSynthesis.cancel();
+
+        // Bloquear escucha y parar reconocedor por si acaso
         bloqueoEscucha = true;
         if (recognition && escuchando) {
             recibioResultado = true;
@@ -187,29 +196,52 @@ function hablar(texto) {
             escuchando = false;
         }
 
-        const ut = new SpeechSynthesisUtterance(texto);
-        ut.lang = 'es-ES';
-        ut.rate = velocidadVoz;
-        ut.pitch = 1.0;
-        if (voiceES) ut.voice = voiceES;
-
-        const liberar = () => {
+        textoLecturaActual = texto;
+        resolverHablar = () => {
             bloqueoEscucha = false;
+            utteranceActual = null;
+            textoLecturaActual = '';
+            resolverHablar = null;
             resolve();
         };
-        ut.onend = liberar;
-        ut.onerror = liberar;
 
-        setEstado('hablando', '🔊', 'Leyendo...');
-        speechSynthesis.speak(ut);
+        lanzarUtterance(texto);
     });
 }
 
-function pararTTS() {
-    speechSynthesis.cancel();
+// Lanza un SpeechSynthesisUtterance con la velocidad actual.
+// Solo el utterance vivo en utteranceActual resolverá la promesa al terminar.
+function lanzarUtterance(texto) {
+    const ut = new SpeechSynthesisUtterance(texto);
+    ut.lang = 'es-ES';
+    ut.rate = velocidadVoz;
+    ut.pitch = 1.0;
+    if (voiceES) ut.voice = voiceES;
+
+    ut.onend = () => {
+        if (utteranceActual === ut && resolverHablar) resolverHablar();
+    };
+    ut.onerror = () => {
+        if (utteranceActual === ut && resolverHablar) resolverHablar();
+    };
+
+    utteranceActual = ut;
+    setEstado('hablando', '🔊', 'Leyendo...');
+    speechSynthesis.speak(ut);
 }
 
-// Cambia la velocidad ciclando entre VELOCIDADES y la guarda en localStorage
+function pararTTS() {
+    utteranceActual = null;
+    speechSynthesis.cancel();
+    if (resolverHablar) {
+        const r = resolverHablar;
+        resolverHablar = null;
+        r();
+    }
+}
+
+// Cambia la velocidad ciclando entre VELOCIDADES y la guarda en localStorage.
+// Si está leyendo algo, relanza la MISMA frase a la nueva velocidad SIN liberar el bloqueo.
 window.cambiarVelocidad = function() {
     const idxActual = VELOCIDADES.indexOf(velocidadVoz);
     const siguiente = VELOCIDADES[(idxActual + 1) % VELOCIDADES.length];
@@ -217,8 +249,16 @@ window.cambiarVelocidad = function() {
     localStorage.setItem('oralVelocidadVoz', String(velocidadVoz));
     const btn = document.getElementById('btnVelocidad');
     if (btn) btn.textContent = `⚡ Velocidad: ${velocidadVoz}x`;
-    // Si está hablando ahora mismo, cortar para que la próxima frase salga con la nueva velocidad
-    pararTTS();
+
+    // Si está leyendo algo: cancelar el utterance viejo y relanzar la misma frase a nueva velocidad,
+    // manteniendo el bloqueo de escucha activo.
+    if (textoLecturaActual && resolverHablar) {
+        const texto = textoLecturaActual;
+        utteranceActual = null;            // invalida el viejo: su onend ya no resolverá
+        speechSynthesis.cancel();
+        // Pequeño retardo para que cancel() asiente antes de speak()
+        setTimeout(() => lanzarUtterance(texto), 60);
+    }
 };
 
 // ============= STT (Reconocimiento) =============
