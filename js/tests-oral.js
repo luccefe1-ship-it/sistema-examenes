@@ -23,6 +23,7 @@ let testFinalizado = false;
 let modoEscucha = 'respuesta';
 let resolverSiNo = null; // resolver de la Promise cuando se escucha sí/no
 let recibioResultado = false; // para detectar timeout silencioso en onend
+let bloqueoEscucha = false;   // true mientras la voz TTS está hablando: bloquea el reconocedor
 
 // Velocidad de la voz (persistente en localStorage)
 const VELOCIDADES = [0.8, 1.0, 1.25, 1.5, 2.0];
@@ -177,8 +178,14 @@ function actualizarDisplayCronometro() {
 function hablar(texto) {
     return new Promise((resolve) => {
         if (!texto) { resolve(); return; }
-        // Cancelar cualquier voz anterior
+        // Cancelar cualquier voz anterior y parar reconocedor por si acaso
         speechSynthesis.cancel();
+        bloqueoEscucha = true;
+        if (recognition && escuchando) {
+            recibioResultado = true;
+            try { recognition.abort(); } catch(_) {}
+            escuchando = false;
+        }
 
         const ut = new SpeechSynthesisUtterance(texto);
         ut.lang = 'es-ES';
@@ -186,8 +193,12 @@ function hablar(texto) {
         ut.pitch = 1.0;
         if (voiceES) ut.voice = voiceES;
 
-        ut.onend = () => resolve();
-        ut.onerror = () => resolve();
+        const liberar = () => {
+            bloqueoEscucha = false;
+            resolve();
+        };
+        ut.onend = liberar;
+        ut.onerror = liberar;
 
         setEstado('hablando', '🔊', 'Leyendo...');
         speechSynthesis.speak(ut);
@@ -322,9 +333,11 @@ function iniciarReconocimiento() {
 }
 
 function pararReconocimiento() {
-    if (recognition && escuchando) {
-        try { recognition.stop(); } catch(_) {}
+    if (recognition) {
+        recibioResultado = true; // Evita que onend dispare un reinicio automático
+        try { recognition.abort(); } catch(_) {}
     }
+    escuchando = false;
 }
 
 // ============= INTERPRETACIÓN =============
@@ -460,6 +473,7 @@ async function ejecutarInterpretacion(interp) {
 // Reinicia el micrófono sin decir nada (cuando NO llegó audio del usuario)
 function reiniciarEscuchaSilencio() {
     if (pausado || testFinalizado) return;
+    if (bloqueoEscucha || speechSynthesis.speaking || speechSynthesis.pending) return;
     setEstado('escuchando', '🎤', 'Escuchando... habla cuando quieras');
     iniciarReconocimiento();
 }
