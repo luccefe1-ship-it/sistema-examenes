@@ -3360,6 +3360,21 @@ async function empezarTest() {
             return;
         }
 
+        // NUEVO: Si el modo es "oral", guardar config y redirigir a test oral
+        if (modoSeleccionado === 'oral') {
+            const configuracion = {
+                nombreTest: nombreTest,
+                temas: temasSeleccionados,
+                preguntas: preguntasSeleccionadas,
+                numPreguntas: numFinal,
+                tiempoLimite: tiempoSeleccionado
+            };
+            
+            localStorage.setItem('testConfig', JSON.stringify(configuracion));
+            window.location.href = 'tests-oral.html';
+            return;
+        }
+
         // Crear objeto de test (solo para modo completo)
         testActual = {
             id: generarIdTest(),
@@ -5869,6 +5884,21 @@ window.iniciarTestRepaso = async function() {
             };
             localStorage.setItem('testConfig', JSON.stringify(configuracion));
             window.location.href = 'tests-pregunta.html';
+            return;
+        }
+
+        // Si modo oral, redirigir al test oral
+        if (modoSeleccionado === 'oral') {
+            const configuracion = {
+                nombreTest: `Test de Repaso - ${new Date().toLocaleDateString()}`,
+                temas: 'repaso',
+                preguntas: preguntasMezcladas,
+                numPreguntas: preguntasMezcladas.length,
+                tiempoLimite: 'sin',
+                esRepaso: true
+            };
+            localStorage.setItem('testConfig', JSON.stringify(configuracion));
+            window.location.href = 'tests-oral.html';
             return;
         }
 
