@@ -28,8 +28,9 @@ let utteranceActual = null;   // utterance vivo (para invalidar al cambiar veloc
 let textoLecturaActual = '';  // texto que se está leyendo (para relanzar con nueva velocidad)
 let resolverHablar = null;    // resolve de la Promise de hablar() en curso
 
-// Velocidad de la voz (persistente en localStorage)
-const VELOCIDADES = [0.8, 1.0, 1.25, 1.5, 2.0];
+// Velocidad de la voz (persistente en localStorage).
+// Saltos amplios porque muchas voces ignoran cambios pequeños de rate.
+const VELOCIDADES = [0.7, 1.0, 1.4, 1.8, 2.3];
 let velocidadVoz = parseFloat(localStorage.getItem('oralVelocidadVoz')) || 1.0;
 
 // ============= INIT =============
@@ -68,10 +69,15 @@ function comprobarSoporteNavegador() {
 function cargarVozTTS() {
     function seleccionar() {
         const voces = speechSynthesis.getVoices();
-        // Preferir voz española (es-ES), luego cualquier es-*
-        voiceES = voces.find(v => v.lang === 'es-ES')
-               || voces.find(v => v.lang && v.lang.startsWith('es'))
+        // Preferir voz LOCAL del sistema (respeta bien el rate) sobre voces de red (Google)
+        const esLocales = voces.filter(v => v.lang && v.lang.startsWith('es') && v.localService);
+        const esCualquiera = voces.filter(v => v.lang && v.lang.startsWith('es'));
+        voiceES = esLocales.find(v => v.lang === 'es-ES')
+               || esLocales[0]
+               || esCualquiera.find(v => v.lang === 'es-ES')
+               || esCualquiera[0]
                || null;
+        if (voiceES) console.log('[ORAL] Voz seleccionada:', voiceES.name, '| local:', voiceES.localService);
     }
     seleccionar();
     if (!voiceES) {
