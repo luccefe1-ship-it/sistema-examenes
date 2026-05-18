@@ -313,69 +313,100 @@ function interpretarTranscript(textoBruto) {
     if (!textoBruto) return null;
     const t = textoBruto.toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar tildes
-        .replace(/[.,!?¡¿]/g, '')
+        .replace(/[.,!?¡¿"']/g, '')
+        .replace(/\s+/g, ' ')
         .trim();
+
+    console.log('[ORAL] interpretando:', JSON.stringify(t));
 
     // ---- COMANDOS ----
     if (/\b(repetir|repite|repetelo|repetela|otra vez)\b/.test(t)) return { tipo: 'comando', cmd: 'repetir' };
-    if (/\b(saltar|salta|siguiente|paso|paso pregunta|saltala)\b/.test(t)) return { tipo: 'comando', cmd: 'saltar' };
-    if (/\b(pausa|pausar|para|pausalo)\b/.test(t) && !/\bcontinua/.test(t)) return { tipo: 'comando', cmd: 'pausa' };
+    if (/\b(saltar|salta|siguiente|saltala|saltate|paso pregunta)\b/.test(t)) return { tipo: 'comando', cmd: 'saltar' };
+    if (/\b(pausa|pausar|pausalo)\b/.test(t) && !/\bcontinua/.test(t)) return { tipo: 'comando', cmd: 'pausa' };
     if (/\b(continua|continuar|reanuda|reanudar|sigue)\b/.test(t)) return { tipo: 'comando', cmd: 'continuar' };
-    if (/\b(salir|terminar|acabar|terminalo|fin|finalizar)\b/.test(t)) return { tipo: 'comando', cmd: 'salir' };
+    if (/\b(salir|terminar|acabar|terminalo|finalizar)\b/.test(t)) return { tipo: 'comando', cmd: 'salir' };
 
     // ---- RESPUESTAS ----
     const pregunta = testConfig.preguntas[preguntaActual];
-    const letrasValidas = (pregunta.opciones || []).map(o => o.letra.toUpperCase());
+    const letrasValidas = (pregunta.opciones || [])
+        .map(o => (o && o.letra ? String(o.letra).toUpperCase() : ''))
+        .filter(Boolean);
 
-    // Por palabra/sílaba: "la a", "la be", "be", "a", etc.
-    const mapeoSilabaALetra = {
-        'a': 'A',
-        'la a': 'A', 'es la a': 'A',
-        'be': 'B', 'b': 'B', 'la be': 'B', 'la b': 'B',
-        've': 'B', 'la ve': 'B', // a veces dice "ve corta"
-        'ce': 'C', 'la ce': 'C', 'c': 'C',
-        'se': 'C', // alguna transcripción
-        'de': 'D', 'la de': 'D', 'd': 'D',
-        'e': 'E', 'la e': 'E',
-    };
+    console.log('[ORAL] letras válidas:', letrasValidas);
 
-    // Primero comprobar match exacto en el texto entero (frases cortas)
-    if (mapeoSilabaALetra[t]) {
-        const l = mapeoSilabaALetra[t];
-        if (letrasValidas.includes(l)) return { tipo: 'respuesta', letra: l };
+    if (letrasValidas.length === 0) {
+        console.warn('[ORAL] ⚠️ La pregunta no tiene opciones con letra:', pregunta.opciones);
+        return null;
     }
 
-    // Ordinales
-    const ordinales = {
-        'primera': 'A', 'primero': 'A', 'la primera': 'A', 'opcion uno': 'A', 'numero uno': 'A',
-        'segunda': 'B', 'segundo': 'B', 'la segunda': 'B', 'opcion dos': 'B', 'numero dos': 'B',
-        'tercera': 'C', 'tercero': 'C', 'la tercera': 'C', 'opcion tres': 'C', 'numero tres': 'C',
-        'cuarta': 'D', 'cuarto': 'D', 'la cuarta': 'D', 'opcion cuatro': 'D', 'numero cuatro': 'D',
-        'quinta': 'E', 'quinto': 'E', 'la quinta': 'E', 'opcion cinco': 'E', 'numero cinco': 'E',
+    // Mapeo amplio (incluye errores típicos de Chrome en español)
+    const mapeoLetras = {
+        // A: "a", "ah", "ha", "ja"
+        'a': 'A', 'ah': 'A', 'ha': 'A', 'ja': 'A', 'as': 'A',
+        // B: "be", "b", "ve" (b y v suenan igual en español), "uve", "bebe"
+        'b': 'B', 'be': 'B', 've': 'B', 'uve': 'B', 'bebe': 'B', 'vee': 'B',
+        'be grande': 'B', 'b grande': 'B', 'be larga': 'B', 'b larga': 'B',
+        've corta': 'B', 'v corta': 'B', 'uve corta': 'B',
+        // C: "ce", "c", "se" (suenan igual en muchas zonas), "ese"
+        'c': 'C', 'ce': 'C', 'se': 'C', 'ese': 'C', 'the': 'C', 'ze': 'C',
+        // D: "de", "d"
+        'd': 'D', 'de': 'D', 'di': 'D',
+        // E: "e", "eh", "he"
+        'e': 'E', 'eh': 'E', 'he': 'E', 'es': 'E',
     };
-    for (const k of Object.keys(ordinales)) {
-        if (t === k || t.startsWith(k + ' ') || t.endsWith(' ' + k) || t.includes(' ' + k + ' ')) {
-            const l = ordinales[k];
-            if (letrasValidas.includes(l)) return { tipo: 'respuesta', letra: l };
-        }
+
+    // Ordinales y números
+    const mapeoOrdinales = {
+        'primera': 'A', 'primero': 'A', 'uno': 'A', 'una': 'A',
+        'segunda': 'B', 'segundo': 'B', 'dos': 'B',
+        'tercera': 'C', 'tercero': 'C', 'tres': 'C',
+        'cuarta': 'D', 'cuarto': 'D', 'cuatro': 'D',
+        'quinta': 'E', 'quinto': 'E', 'cinco': 'E',
+    };
+
+    // Limpiar palabras de relleno
+    const limpio = t
+        .replace(/^(creo que|yo digo|pondria|diria|seria|es la|es el)\s+/g, '')
+        .replace(/\b(la|el|las|los|una|un|opcion|opciones|respuesta|letra|numero|es|seria|por|favor)\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    console.log('[ORAL] texto limpio:', JSON.stringify(limpio));
+
+    // 1) Match exacto del texto limpio entero
+    if (mapeoLetras[limpio] && letrasValidas.includes(mapeoLetras[limpio])) {
+        console.log('[ORAL] ✓ match letra:', mapeoLetras[limpio]);
+        return { tipo: 'respuesta', letra: mapeoLetras[limpio] };
+    }
+    if (mapeoOrdinales[limpio] && letrasValidas.includes(mapeoOrdinales[limpio])) {
+        console.log('[ORAL] ✓ match ordinal:', mapeoOrdinales[limpio]);
+        return { tipo: 'respuesta', letra: mapeoOrdinales[limpio] };
     }
 
-    // Buscar palabras sueltas que mapeen a letras
-    const palabras = t.split(/\s+/);
+    // 2) Buscar palabra por palabra
+    const palabras = limpio.split(/\s+/).filter(Boolean);
     for (const w of palabras) {
-        if (mapeoSilabaALetra[w]) {
-            const l = mapeoSilabaALetra[w];
-            if (letrasValidas.includes(l)) return { tipo: 'respuesta', letra: l };
+        if (mapeoLetras[w] && letrasValidas.includes(mapeoLetras[w])) {
+            console.log('[ORAL] ✓ match palabra→letra:', w, '→', mapeoLetras[w]);
+            return { tipo: 'respuesta', letra: mapeoLetras[w] };
+        }
+        if (mapeoOrdinales[w] && letrasValidas.includes(mapeoOrdinales[w])) {
+            console.log('[ORAL] ✓ match palabra→ordinal:', w, '→', mapeoOrdinales[w]);
+            return { tipo: 'respuesta', letra: mapeoOrdinales[w] };
         }
     }
 
-    // Última oportunidad: "opcion a", "respuesta a", etc.
-    const matchLetra = t.match(/\b(opcion|respuesta|letra|la)\s+([a-e])\b/);
-    if (matchLetra) {
-        const l = matchLetra[2].toUpperCase();
-        if (letrasValidas.includes(l)) return { tipo: 'respuesta', letra: l };
+    // 3) Última oportunidad: una sola letra a-e suelta en el texto bruto
+    const matchSola = t.match(/(?:^|[\s.,])([a-e])(?:[\s.,]|$)/);
+    if (matchSola) {
+        const l = matchSola[1].toUpperCase();
+        if (letrasValidas.includes(l)) {
+            console.log('[ORAL] ✓ match letra suelta:', l);
+            return { tipo: 'respuesta', letra: l };
+        }
     }
 
+    console.log('[ORAL] ✗ no interpretado');
     return null;
 }
 
