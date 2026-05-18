@@ -235,22 +235,29 @@ function crearReconocedor() {
         escuchando = false;
         console.warn('[ORAL] ⚠️ onerror:', event.error);
 
-        // En modo sí/no, cualquier error => asumimos null y dejamos que la lógica decida
+       // En modo sí/no: si fue silencio, seguir escuchando; si fue otro error, dejar resolver
         if (modoEscucha === 'siNo') {
-            manejarSiNo([]);
+            if (event.error === 'no-speech' || event.error === 'audio-capture' || event.error === 'aborted') {
+                reiniciarEscuchaSilencio();
+            } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                alert('Has bloqueado el acceso al micrófono. Permítelo en el navegador (icono 🔒 → Micrófono → Permitir) y recarga la página.');
+                window.location.href = 'tests.html?section=aleatorio';
+            } else {
+                manejarSiNo([]);
+            }
             return;
         }
 
-        // 'no-speech' es habitual: el usuario no dijo nada
+        // 'no-speech' es habitual: el usuario todavía no ha hablado → seguir escuchando
         if (event.error === 'no-speech' || event.error === 'audio-capture' || event.error === 'aborted') {
-            manejarNoEntendido();
+            reiniciarEscuchaSilencio();
         } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             alert('Has bloqueado el acceso al micrófono. Permítelo en el navegador (icono 🔒 → Micrófono → Permitir) y recarga la página.');
             window.location.href = 'tests.html?section=aleatorio';
         } else {
             // network, language-not-supported, bad-grammar, etc.
             console.error('[ORAL] Error inesperado:', event.error);
-            manejarNoEntendido();
+            reiniciarEscuchaSilencio();
         }
     };
 
@@ -261,13 +268,8 @@ function crearReconocedor() {
         // ni onresult ni onerror. Esto pasa cuando no se detecta NADA de audio.
         if (!recibioResultado && !pausado && !testFinalizado) {
             console.warn('[ORAL] Timeout silencioso detectado, reintentando...');
-            // Si estamos en modo siNo, resolver con null para no quedarnos colgados
-            if (modoEscucha === 'siNo') {
-                if (resolverSiNo) resolverSiNo(null);
-                return;
-            }
-            // En modo respuesta: tratar como no entendido
-            manejarNoEntendido();
+            // Seguimos escuchando indefinidamente en cualquier modo
+            reiniciarEscuchaSilencio();
         }
     };
 }
@@ -386,7 +388,8 @@ function procesarTranscripts(alternativas) {
             return;
         }
     }
-    manejarNoEntendido();
+    // Llegó audio pero ninguna alternativa se pudo interpretar
+    pedirRepetir();
 }
 
 async function ejecutarInterpretacion(interp) {
@@ -403,17 +406,22 @@ async function ejecutarInterpretacion(interp) {
     }
 }
 
-async function manejarNoEntendido() {
+// Reinicia el micrófono sin decir nada (cuando NO llegó audio del usuario)
+function reiniciarEscuchaSilencio() {
+    if (pausado || testFinalizado) return;
+    setEstado('escuchando', '🎤', 'Escuchando... habla cuando quieras');
+    iniciarReconocimiento();
+}
+
+// Llegó audio pero no se pudo interpretar. Avisa la 1ª vez y cada 3 intentos,
+// y sigue escuchando indefinidamente (nunca avanza solo).
+async function pedirRepetir() {
     intentosReconocimiento++;
-    if (intentosReconocimiento >= 2) {
-        // Saltar como no respondida
-        await hablar('No te he entendido. Pasamos a la siguiente.');
-        registrarRespuesta(null, false, false);
-        siguientePregunta();
-        return;
+    if (intentosReconocimiento === 1 || intentosReconocimiento % 3 === 0) {
+        await hablar('No te he entendido. Repite la respuesta, o di saltar para pasar.');
     }
-    await hablar('No te he entendido. Repite la respuesta.');
-    if (!pausado && !testFinalizado) iniciarReconocimiento();
+    if (pausado || testFinalizado) return;
+    iniciarReconocimiento();
 }
 
 // ============= FLUJO PREGUNTA =============
@@ -595,10 +603,7 @@ async function escucharSiNo() {
             resolverSiNo = null;
             resolve(valor);
         };
-        // Timeout de seguridad por si el navegador no dispara ni onresult ni onerror
-        setTimeout(() => {
-            if (resolverSiNo) resolverSiNo(null);
-        }, 8000);
+        // Sin timeout: el usuario decide cuándo responder
         iniciarReconocimiento();
     });
 }
@@ -611,7 +616,11 @@ function manejarSiNo(alternativas) {
         .trim();
     document.getElementById('transcriptValor').textContent = alternativas[0] || '—';
 
-    if (!dicho) { resolverSiNo(null); return; }
+    // Si no hay texto, seguir escuchando
+    if (!dicho) {
+        if (!pausado && !testFinalizado) iniciarReconocimiento();
+        return;
+    }
 
     if (/\b(si|sip|claro|vale|venga|porfa|por favor|adelante|dale|ok|okey|afirmativo|leela|leelo|leemela|leemelo)\b/.test(dicho)) {
         resolverSiNo(true);
@@ -621,10 +630,9 @@ function manejarSiNo(alternativas) {
         resolverSiNo(false);
         return;
     }
-    // Si dice cualquier otra cosa, lo tomamos como "no" para no atascar el flujo
-    resolverSiNo(false);
+    // Cualquier otra cosa: no avanzamos, seguimos escuchando
+    if (!pausado && !testFinalizado) iniciarReconocimiento();
 }
-
 async function ofrecerExplicacion(pregunta) {
     setEstado('', '📖', 'Buscando explicación...');
     const explicacion = await cargarExplicacionGemini(pregunta);
