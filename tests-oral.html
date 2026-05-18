@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Oral - Plataforma Exámenes</title>
+    <link rel="stylesheet" href="css/tests-oral.css">
+</head>
+<body>
+    <div class="oral-container">
+        <div class="oral-card">
+
+            <!-- Header -->
+            <div class="oral-header">
+                <div class="oral-titulo" id="nombreTestOral">Test Oral</div>
+                <div class="oral-subtitulo">🎤 Modo manos libres</div>
+                <div class="oral-cronometro" id="oralCronometro" style="display:none;">
+                    <span class="cronometro-tiempo" id="tiempoRestante">--:--</span>
+                    <span class="cronometro-label">tiempo restante</span>
+                </div>
+                <button class="btn-salir-oral" onclick="intentarSalir()">← Salir</button>
+            </div>
+
+            <!-- Barra de progreso -->
+            <div class="oral-progreso">
+                <div class="progreso-info">
+                    <span class="progreso-contador" id="contadorPregunta">Pregunta 1 de 10</span>
+                    <span class="progreso-stats">
+                        <span class="stat-ok">✅ <span id="statCorrectas">0</span></span>
+                        <span class="stat-fail">❌ <span id="statIncorrectas">0</span></span>
+                    </span>
+                </div>
+                <div class="progreso-bar-bg">
+                    <div class="progreso-bar" id="progresoBar" style="width:0%"></div>
+                </div>
+            </div>
+
+            <!-- Indicador de estado grande -->
+            <div class="oral-estado" id="oralEstado">
+                <div class="estado-icono" id="estadoIcono">🎤</div>
+                <div class="estado-texto" id="estadoTexto">Preparando...</div>
+                <div class="estado-pulso" id="estadoPulso"></div>
+            </div>
+
+            <!-- Pregunta -->
+            <div class="oral-pregunta-wrap">
+                <div class="oral-pregunta-texto" id="preguntaTexto">Cargando pregunta...</div>
+                <div class="oral-opciones" id="opcionesLista"></div>
+            </div>
+
+            <!-- Lo que entendió el reconocedor -->
+            <div class="oral-transcript" id="transcriptArea">
+                <span class="transcript-label">Has dicho:</span>
+                <span class="transcript-valor" id="transcriptValor">—</span>
+            </div>
+
+            <!-- Controles -->
+            <div class="oral-controles">
+                <button class="btn-oral" id="btnRepetir" onclick="repetirPregunta()" title="Repetir (di 'repetir')">
+                    🔁 Repetir
+                </button>
+                <button class="btn-oral" id="btnSaltar" onclick="saltarPregunta()" title="Saltar (di 'saltar')">
+                    ⏭️ Saltar
+                </button>
+                <button class="btn-oral btn-oral-pausa" id="btnPausa" onclick="togglePausa()" title="Pausa (di 'pausa')">
+                    ⏸️ Pausa
+                </button>
+                <button class="btn-oral btn-oral-stop" id="btnDetener" onclick="detenerTodo()" title="Detener voz">
+                    🛑 Detener voz
+                </button>
+            </div>
+
+            <!-- Ayuda colapsable -->
+            <details class="oral-ayuda">
+                <summary>💡 Comandos de voz disponibles</summary>
+                <ul>
+                    <li><strong>Respuesta:</strong> "a", "be", "ce", "de" — o "la a", "la be"... — o "primera", "segunda", "tercera", "cuarta"</li>
+                    <li><strong>Repetir:</strong> di "repetir" o "repite"</li>
+                    <li><strong>Saltar:</strong> di "saltar", "salta" o "siguiente"</li>
+                    <li><strong>Pausar / Continuar:</strong> di "pausa" o "continuar"</li>
+                    <li><strong>Salir:</strong> di "salir" o "terminar"</li>
+                </ul>
+            </details>
+        </div>
+    </div>
+
+    <!-- Modal de resultados final -->
+    <div class="modal-overlay-oral" id="modalResultados">
+        <div class="modal-resultados">
+            <div class="resultados-titulo">🏁 Test finalizado</div>
+            <div class="resultados-grid" id="resultadosGrid">
+                <!-- Se rellena dinámicamente -->
+            </div>
+            <div class="resultados-acciones">
+                <button class="btn-modal-oral btn-modal-volver" onclick="volverAtests()">
+                    ← Volver a tests
+                </button>
+                <button class="btn-modal-oral btn-modal-reintentar" onclick="verResultados()">
+                    📊 Ver resultados detallados
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal salir -->
+    <div class="modal-overlay-oral" id="modalSalir">
+        <div class="modal-resultados">
+            <div class="resultados-titulo">⚠️ ¿Salir del test?</div>
+            <div class="modal-texto">
+                Si sales ahora, las preguntas restantes se marcarán como no respondidas.
+            </div>
+            <div class="resultados-acciones">
+                <button class="btn-modal-oral btn-modal-volver" onclick="cerrarModalSalir()">
+                    Continuar test
+                </button>
+                <button class="btn-modal-oral btn-modal-reintentar" onclick="confirmarSalida()">
+                    Salir
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/tests-oral.js"></script>
+</body>
+</html>
