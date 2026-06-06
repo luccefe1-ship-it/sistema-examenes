@@ -2105,95 +2105,89 @@ function cerrarModal(modal) {
     }
 }
 
-// Filtrar preguntas en tiempo real
+// Filtrar preguntas en tiempo real (busca en caché, sin depender del DOM renderizado)
+let _busquedaTimer = null;
 function filtrarPreguntas() {
-    const textoBusqueda = document.getElementById('buscadorPreguntas').value.trim();
+    clearTimeout(_busquedaTimer);
+    _busquedaTimer = setTimeout(ejecutarBusquedaPreguntas, 280);
+}
+
+// Devuelve un array [{id, data}] de todos los temas desde la caché (memoria o sessionStorage)
+function obtenerTemasCacheArray() {
+    const arr = [];
+    if (cacheTemas && typeof cacheTemas.forEach === 'function') {
+        cacheTemas.forEach(d => arr.push({ id: d.id, data: d.data() }));
+        if (arr.length > 0) return arr;
+    }
+    try {
+        const raw = sessionStorage.getItem('cacheTemas');
+        if (raw) JSON.parse(raw).forEach(item => arr.push({ id: item.id, data: item.data }));
+    } catch (e) { /* caché no disponible */ }
+    return arr;
+}
+
+function ejecutarBusquedaPreguntas() {
+    const input = document.getElementById('buscadorPreguntas');
+    if (!input) return;
+    const textoBusqueda = input.value.trim();
     const busquedaLower = textoBusqueda.toLowerCase();
-    const todasLasPreguntas = document.querySelectorAll('.pregunta-editable');
-    const todasLasCarpetas = document.querySelectorAll('.tema-card');
-    const todosLosSubtemas = document.querySelectorAll('.subtema-container');
-    const todosLosDetails = document.querySelectorAll('details');
-    
+
+    const listaTemas = document.getElementById('listaTemas');
+    if (!listaTemas) return;
+    const cards = listaTemas.querySelectorAll('.tema-card');
+    let panel = document.getElementById('resultadosBusqueda');
+
+    // Sin texto: restaurar vista normal
     if (textoBusqueda === '') {
-        // Restaurar vista normal
-        todasLasPreguntas.forEach(p => p.style.display = 'block');
-        todasLasCarpetas.forEach(c => c.style.display = 'block');
-        todosLosSubtemas.forEach(s => s.style.display = 'block');
-        todosLosDetails.forEach(d => d.open = false);
-        
-        const mensaje = document.getElementById('mensajeNoResultados');
-        if (mensaje) mensaje.remove();
+        if (panel) panel.remove();
+        cards.forEach(c => c.style.display = 'block');
         return;
     }
-    
-    // Ocultar inicialmente todo
-    todasLasCarpetas.forEach(carpeta => carpeta.style.display = 'none');
-    todosLosSubtemas.forEach(subtema => subtema.style.display = 'none');
-    
-    // ABRIR TODOS LOS DETAILS
-    todosLosDetails.forEach(detail => detail.open = true);
-    
-    // FILTRAR PREGUNTAS
-    let encontradas = 0;
-    const temasConResultados = new Set();
-    const subtemasConResultados = new Set();
-    
-    todasLasPreguntas.forEach(pregunta => {
-        const divTexto = pregunta.querySelector('.pregunta-texto');
-        
-        if (!divTexto) {
-            pregunta.style.display = 'none';
-            return;
-        }
-        
-        const textoEnunciado = divTexto.textContent.trim();
-        const textoEnunciadoLower = textoEnunciado.toLowerCase();
-        
-        if (textoEnunciadoLower.startsWith(busquedaLower)) {
-            pregunta.style.display = 'block';
-            encontradas++;
-            
-            // Marcar los contenedores padres que deben ser visibles
-            let parent = pregunta.parentElement;
-            while (parent && parent.id !== 'listaTemas') {
-                if (parent.style) parent.style.display = 'block';
-                
-                // Identificar si es un tema o subtema
-                if (parent.classList.contains('tema-card')) {
-                    temasConResultados.add(parent);
-                } else if (parent.classList.contains('subtema-container')) {
-                    subtemasConResultados.add(parent);
-                }
-                
-                parent = parent.parentElement;
-            }
-        } else {
-            pregunta.style.display = 'none';
-        }
-    });
-    
-    // Mostrar solo los temas que tienen resultados
-    temasConResultados.forEach(tema => tema.style.display = 'block');
-    
-    // Mostrar solo los subtemas que tienen resultados
-    subtemasConResultados.forEach(subtema => subtema.style.display = 'block');
-    
-    // Mensaje si no hay resultados
-    let mensaje = document.getElementById('mensajeNoResultados');
-    if (encontradas === 0) {
-        if (!mensaje) {
-            mensaje = document.createElement('div');
-            mensaje.id = 'mensajeNoResultados';
-            mensaje.style.cssText = 'padding: 20px; text-align: center; color: #dc3545; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; margin: 20px 0; font-weight: bold;';
-            mensaje.innerHTML = `❌ No se encontraron preguntas que empiecen con: "<strong>${textoBusqueda}</strong>"`;
-            document.getElementById('listaTemas').appendChild(mensaje);
-        } else {
-            mensaje.innerHTML = `❌ No se encontraron preguntas que empiecen con: "<strong>${textoBusqueda}</strong>"`;
-        }
-        mensaje.style.display = 'block';
-    } else if (mensaje) {
-        mensaje.style.display = 'none';
+
+    // Ocultar las tarjetas normales y preparar el panel de resultados
+    cards.forEach(c => c.style.display = 'none');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'resultadosBusqueda';
+        listaTemas.appendChild(panel);
     }
+    panel.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">🔍 Buscando...</div>';
+
+    // Buscar coincidencias en la caché (todas las preguntas, estén o no renderizadas)
+    const temas = obtenerTemasCacheArray();
+    const coincidencias = [];
+    temas.forEach(({ id, data }) => {
+        const preguntas = data.preguntas || [];
+        preguntas.forEach((pregunta, index) => {
+            const texto = (pregunta.texto || '').toLowerCase().trim();
+            if (texto.startsWith(busquedaLower)) {
+                coincidencias.push({ temaId: id, temaNombre: data.nombre || '', pregunta, index });
+            }
+        });
+    });
+
+    if (coincidencias.length === 0) {
+        panel.innerHTML = `<div style="padding:20px;text-align:center;color:#dc3545;background:#f8d7da;border:1px solid #f5c6cb;border-radius:8px;margin:20px 0;font-weight:bold;">❌ No se encontraron preguntas que empiecen con: "<strong>${textoBusqueda}</strong>"</div>`;
+        return;
+    }
+
+    // Pintar resultados por LOTES para no bloquear el navegador
+    panel.innerHTML = `<div style="padding:10px 14px;margin-bottom:12px;background:#eef2ff;border-radius:8px;color:#4338ca;font-weight:600;">🔍 ${coincidencias.length} resultado(s)</div>`;
+    const LOTE = 80;
+    const total = coincidencias.length;
+    let i = 0;
+    const renderizarLote = () => {
+        const fin = Math.min(i + LOTE, total);
+        let html = '';
+        for (; i < fin; i++) {
+            const c = coincidencias[i];
+            html += `<div class="tema-nombre" style="margin:14px 0 6px;font-weight:700;color:#1e293b;">📚 ${c.temaNombre}</div>`;
+            html += crearPreguntaEditable(c.pregunta, c.index, c.temaId);
+        }
+        panel.insertAdjacentHTML('beforeend', html);
+        if (i < total) requestAnimationFrame(renderizarLote);
+    };
+    requestAnimationFrame(renderizarLote);
 }
 // Limpiar buscador
 function limpiarBuscador() {
