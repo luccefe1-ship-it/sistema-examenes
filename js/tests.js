@@ -2181,7 +2181,7 @@ function ejecutarBusquedaPreguntas() {
         let html = '';
         for (; i < fin; i++) {
             const c = coincidencias[i];
-            html += `<div class="tema-nombre" style="margin:14px 0 6px;font-weight:700;color:#1e293b;">📚 ${c.temaNombre}</div>`;
+            html += `<div style="margin:14px 0 6px;font-weight:700;color:#ffffff;font-size:1.05rem;">📚 ${c.temaNombre}</div>`;
             html += crearPreguntaEditable(c.pregunta, c.index, c.temaId);
         }
         panel.insertAdjacentHTML('beforeend', html);
