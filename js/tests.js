@@ -7111,26 +7111,45 @@ window.toggleOficialBloque = async function(temaId) {
 window.cargarPreguntasLazy = async function(event, temaId) {
     const container = document.getElementById(`preguntas-${temaId}`);
     if (!container || container.dataset.cargado === 'true') return;
-    
-    if (event.target.open) {
-        try {
-            const temaDoc = await getDoc(doc(db, "temas", temaId));
-            if (temaDoc.exists()) {
-                const tema = temaDoc.data();
-                if (tema.preguntas) {
-                    container.innerHTML = tema.preguntas.map((pregunta, index) => 
-                        crearPreguntaEditable(pregunta, index, temaId)
-                    ).join('');
-                    container.dataset.cargado = 'true';
-                    temasAbiertos.add(temaId);
-                }
-            }
-        } catch (error) {
-            console.error('Error cargando preguntas lazy:', error);
-            container.innerHTML = '<p style="color:red;">Error cargando preguntas</p>';
-        }
-    } else {
+
+    if (!event.target.open) {
         temasAbiertos.delete(temaId);
+        return;
+    }
+
+    try {
+        const temaDoc = await getDoc(doc(db, "temas", temaId));
+        if (!temaDoc.exists()) return;
+
+        const tema = temaDoc.data();
+        const preguntas = tema.preguntas || [];
+
+        // Marcar como cargado YA para evitar dobles renders por toggles repetidos
+        container.dataset.cargado = 'true';
+        temasAbiertos.add(temaId);
+
+        // Render por LOTES cediendo el hilo principal: evita el bloqueo total
+        // del navegador al pintar miles de preguntas de golpe.
+        const LOTE = 80;
+        const total = preguntas.length;
+        container.innerHTML = ''; // quita el "⏳ Cargando preguntas..."
+
+        let i = 0;
+        const renderizarLote = () => {
+            const fin = Math.min(i + LOTE, total);
+            let html = '';
+            for (; i < fin; i++) {
+                html += crearPreguntaEditable(preguntas[i], i, temaId);
+            }
+            if (html) container.insertAdjacentHTML('beforeend', html);
+            if (i < total) requestAnimationFrame(renderizarLote);
+        };
+        requestAnimationFrame(renderizarLote);
+
+    } catch (error) {
+        console.error('Error cargando preguntas lazy:', error);
+        container.innerHTML = '<p style="color:red;">Error cargando preguntas</p>';
+        container.dataset.cargado = 'false';
     }
 };
 // Versión simplificada sin necesidad de cargar temas
