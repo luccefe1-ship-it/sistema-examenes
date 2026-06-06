@@ -1447,10 +1447,10 @@ function crearSubtemaHTML(subtemaId, subtema) {
             ${subtema.descripcion ? `<div class="subtema-descripcion">${subtema.descripcion}</div>` : ''}
             ${numPreguntas > 0 ? `
                 <div class="preguntas-tema">
-                    <details ontoggle="manejarToggleTema(event, '${subtemaId}')">
+                    <details ontoggle="cargarPreguntasLazy(event, '${subtemaId}')">
                         <summary>Ver y editar preguntas (${numPreguntas})</summary>
-                        <div class="lista-preguntas" id="preguntas-${subtemaId}">
-                            ${subtema.preguntas.map((pregunta, index) => crearPreguntaEditable(pregunta, index, subtemaId)).join('')}
+                        <div class="lista-preguntas" id="preguntas-${subtemaId}" data-cargado="false">
+                            <div style="text-align:center;padding:20px;">⏳ Cargando preguntas...</div>
                         </div>
                     </details>
                 </div>
