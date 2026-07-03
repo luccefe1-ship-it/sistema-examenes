@@ -1619,42 +1619,50 @@ function configurarDragAndDrop() {
 
 // Toggle verificación de pregunta
 window.toggleVerificacion = async function(temaId, preguntaIndex) {
+    // 1) FEEDBACK VISUAL INMEDIATO sobre el propio botón pulsado
+    //    (funciona igual en el banco y en el panel del buscador)
+    const btn = (window.event && window.event.target)
+        ? window.event.target.closest('.btn-verify')
+        : null;
+    const preguntaDiv = btn ? btn.closest('.pregunta-item') : null;
+
+    const estabaVerificada = btn ? btn.classList.contains('verified') : false;
+    const nuevoEstado = !estabaVerificada;
+
+    if (btn) {
+        btn.classList.toggle('verified', nuevoEstado);
+        btn.innerHTML = nuevoEstado ? '⭐' : '☆';
+        btn.title = nuevoEstado ? 'Pregunta verificada' : 'Marcar como verificada';
+    }
+    if (preguntaDiv) {
+        preguntaDiv.classList.toggle('pregunta-verificada', nuevoEstado);
+    }
+
+    // 2) PERSISTIR EN FIREBASE EN SEGUNDO PLANO (no bloquea al usuario)
     try {
         const temaRef = doc(db, "temas", temaId);
         const temaDoc = await getDoc(temaRef);
         const temaData = temaDoc.data();
         const preguntas = [...temaData.preguntas];
-        
-        preguntas[preguntaIndex].verificada = !preguntas[preguntaIndex].verificada;
-        
+
+        preguntas[preguntaIndex].verificada = nuevoEstado;
+
         await updateDoc(temaRef, { preguntas });
 
-        // Actualizar el botón de verificación buscando específicamente en el tema correcto
-        const preguntasContainer = document.getElementById(`preguntas-${temaId}`);
-        if (preguntasContainer) {
-            const todasLasPreguntas = preguntasContainer.querySelectorAll('.pregunta-item');
-            const preguntaDiv = todasLasPreguntas[preguntaIndex];
-            
-            if (preguntaDiv) {
-                const btnVerify = preguntaDiv.querySelector('.btn-verify');
-                if (btnVerify) {
-                    if (preguntas[preguntaIndex].verificada) {
-                        btnVerify.classList.add('verified');
-                        btnVerify.innerHTML = '⭐';
-                    } else {
-                        btnVerify.classList.remove('verified');
-                        btnVerify.innerHTML = '☆';
-                    }
-                }
-                preguntaDiv.classList.toggle('pregunta-verificada', preguntas[preguntaIndex].verificada);
-            }
-        }
-        
         // Marcar caché como sucio (se actualizará en próxima carga completa)
         sessionStorage.setItem('cacheSucio', 'true');
-        
+
     } catch (error) {
         console.error('Error al cambiar verificación:', error);
+        // Revertir el feedback visual si la escritura falló
+        if (btn) {
+            btn.classList.toggle('verified', estabaVerificada);
+            btn.innerHTML = estabaVerificada ? '⭐' : '☆';
+            btn.title = estabaVerificada ? 'Pregunta verificada' : 'Marcar como verificada';
+        }
+        if (preguntaDiv) {
+            preguntaDiv.classList.toggle('pregunta-verificada', estabaVerificada);
+        }
         alert('Error al actualizar la pregunta');
     }
 };
