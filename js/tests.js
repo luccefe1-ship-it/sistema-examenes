@@ -3072,6 +3072,8 @@ async function cargarTemasParaTest() {
         const temasPrincipales = [];
         const subtemasPorPadre = {};
         let totalPreguntasVerificadas = 0;
+        const textosVerificadosPorTema = {};
+        const hijosPorTemaTest = {};
         
         querySnapshot.forEach((doc) => {
             const tema = doc.data();
@@ -3080,6 +3082,11 @@ async function cargarTemasParaTest() {
                 tema.preguntas.filter(p => p.verificada === true).length : 0;
             
             totalPreguntasVerificadas += preguntasVerificadas;
+            textosVerificadosPorTema[temaId] = tema.preguntas ? tema.preguntas.filter(p => p.verificada === true).map(p => p.texto) : [];
+            if (tema.temaPadreId) {
+                if (!hijosPorTemaTest[tema.temaPadreId]) hijosPorTemaTest[tema.temaPadreId] = [];
+                hijosPorTemaTest[tema.temaPadreId].push(temaId);
+            }
             
             if (tema.temaPadreId) {
                 // Es un subtema
@@ -3149,7 +3156,7 @@ async function cargarTemasParaTest() {
                                    onclick="debugClick(this)" onchange="manejarSeleccionTema(event)">
                             <span class="tema-nombre">${tema.nombre}</span>
                         </div>
-                        <span class="tema-preguntas">${tema.preguntasVerificadas} preguntas</span>
+                        <span class="tema-preguntas" id="cnt-${tema.id}" data-total="${tema.preguntasVerificadas}">${tema.preguntasVerificadas} preguntas</span>
                     </label>
                     ${tieneSubtemas ? `
                         <div class="subtemas-toggle" onclick="toggleSubtemas('${tema.id}')">
@@ -3169,7 +3176,7 @@ async function cargarTemasParaTest() {
                        onclick="debugClick(this)" onchange="manejarSeleccionTema(event)">
                 <span class="subtema-nombre">↳ ${subtema.nombre}</span>
             </div>
-            <span class="subtema-preguntas">${subtema.preguntasVerificadas} preguntas</span>
+            <span class="subtema-preguntas" id="cnt-${subtema.id}" data-total="${subtema.preguntasVerificadas}">${subtema.preguntasVerificadas} preguntas</span>
         </label>
     </div>
 `).join('')}
@@ -3182,6 +3189,11 @@ async function cargarTemasParaTest() {
 
         // Actualizar contador inicial
         actualizarPreguntasDisponibles();
+        window.textosVerificadosPorTema = textosVerificadosPorTema;
+        window.hijosPorTemaTest = hijosPorTemaTest;
+        if (document.getElementById('soloPreguntasNuevas')?.checked) {
+            actualizarConteosNuevasDropdown();
+        }
         
     } catch (error) {
         console.error('Error cargando temas para test:', error);
@@ -5716,8 +5728,8 @@ function mezclarArray(array) {
     return shuffled;
 }
 
-// NUEVO: devuelve solo las preguntas que el usuario NUNCA ha visto (ni una sola vez)
-async function filtrarPreguntasNoVistas(preguntas) {
+// NUEVO: conjunto de hashes de preguntas ya vistas (local + Firestore)
+async function obtenerHashesVistos() {
     const hashesVistos = new Set();
 
     // 1) Historial local: preguntas ya presentadas en tests de este dispositivo
@@ -5743,10 +5755,55 @@ async function filtrarPreguntasNoVistas(preguntas) {
         console.warn('No se pudo leer historial de resultados:', e);
     }
 
+    return hashesVistos;
+}
+
+// NUEVO: devuelve solo las preguntas que el usuario NUNCA ha visto (ni una sola vez)
+async function filtrarPreguntasNoVistas(preguntas) {
+    const hashesVistos = await obtenerHashesVistos();
     const noVistas = preguntas.filter(p => !hashesVistos.has(generarHashPregunta(p.texto)));
     console.log(`🆕 Preguntas nuevas: ${noVistas.length} de ${preguntas.length} (vistas: ${hashesVistos.size})`);
     return noVistas;
 }
+
+// NUEVO: muestra en el desplegable cuántas preguntas nuevas tiene cada tema/subtema
+window.actualizarConteosNuevasDropdown = async function() {
+    const check = document.getElementById('soloPreguntasNuevas');
+    const mapaTextos = window.textosVerificadosPorTema || {};
+    const hijos = window.hijosPorTemaTest || {};
+
+    // Si se desmarca: restaurar el conteo original
+    if (!check || !check.checked) {
+        Object.keys(mapaTextos).forEach(id => {
+            const el = document.getElementById(`cnt-${id}`);
+            if (el) {
+                el.textContent = `${el.dataset.total} preguntas`;
+                el.style.background = '';
+                el.style.color = '';
+            }
+        });
+        return;
+    }
+
+    const vistos = await obtenerHashesVistos();
+
+    // Preguntas nuevas propias de cada tema/subtema
+    const nuevasPropias = {};
+    Object.entries(mapaTextos).forEach(([id, textos]) => {
+        nuevasPropias[id] = textos.reduce((n, t) => n + (vistos.has(generarHashPregunta(t)) ? 0 : 1), 0);
+    });
+
+    // Pintar cada fila (los temas principales suman las nuevas de sus subtemas)
+    Object.keys(mapaTextos).forEach(id => {
+        const el = document.getElementById(`cnt-${id}`);
+        if (!el) return;
+        let nuevas = nuevasPropias[id] || 0;
+        if (hijos[id]) hijos[id].forEach(sid => { nuevas += nuevasPropias[sid] || 0; });
+        el.textContent = `${nuevas} nuevas`;
+        el.style.background = '#e3fcef';
+        el.style.color = '#1e7e50';
+    });
+};
 
 // NUEVO: resumen por tema de preguntas nuevas + confirmación (devuelve true/false)
 function mostrarResumenPreguntasNuevas(pool, numSolicitadas) {
