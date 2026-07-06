@@ -3191,8 +3191,8 @@ async function cargarTemasParaTest() {
         actualizarPreguntasDisponibles();
         window.textosVerificadosPorTema = textosVerificadosPorTema;
         window.hijosPorTemaTest = hijosPorTemaTest;
-        if (document.getElementById('soloPreguntasNuevas')?.checked) {
-            actualizarConteosNuevasDropdown();
+        if (document.getElementById('soloPreguntasNuevas')?.checked || document.getElementById('soloPreguntasFalladas')?.checked) {
+            actualizarConteosDropdown();
         }
         
     } catch (error) {
@@ -3347,16 +3347,25 @@ async function empezarTest() {
             return;
         }
 
-        // NUEVO: filtrar solo preguntas nuevas (que no me hayan salido nunca)
+        // NUEVO: filtrar por preguntas nuevas o falladas (excluyentes)
         let poolPreguntas = preguntasDisponibles;
         const soloPreguntasNuevas = document.getElementById('soloPreguntasNuevas')?.checked;
+        const soloPreguntasFalladas = document.getElementById('soloPreguntasFalladas')?.checked;
         if (soloPreguntasNuevas) {
             poolPreguntas = await filtrarPreguntasNoVistas(preguntasDisponibles);
             if (poolPreguntas.length === 0) {
                 alert('🎉 ¡Ya has hecho todas las preguntas de los temas seleccionados! No quedan preguntas nuevas.');
                 return;
             }
-            const confirmado = await mostrarResumenPreguntasNuevas(poolPreguntas, numPreguntas);
+            const confirmado = await mostrarResumenPreguntas(poolPreguntas, numPreguntas, 'nuevas');
+            if (!confirmado) return;
+        } else if (soloPreguntasFalladas) {
+            poolPreguntas = await filtrarPreguntasFalladas(preguntasDisponibles);
+            if (poolPreguntas.length === 0) {
+                alert('✅ No tienes preguntas falladas registradas en los temas seleccionados.');
+                return;
+            }
+            const confirmado = await mostrarResumenPreguntas(poolPreguntas, numPreguntas, 'falladas');
             if (!confirmado) return;
         }
 
@@ -5766,14 +5775,39 @@ async function filtrarPreguntasNoVistas(preguntas) {
     return noVistas;
 }
 
-// NUEVO: muestra en el desplegable cuántas preguntas nuevas tiene cada tema/subtema
-window.actualizarConteosNuevasDropdown = async function() {
-    const check = document.getElementById('soloPreguntasNuevas');
+// NUEVO: conjunto de hashes de preguntas falladas (colección preguntasFalladas)
+async function obtenerHashesFallados() {
+    const set = new Set();
+    try {
+        const q = query(collection(db, "preguntasFalladas"), where("usuarioId", "==", currentUser.uid));
+        const snap = await getDocs(q);
+        snap.forEach(d => {
+            const t = d.data().pregunta?.texto;
+            if (t) set.add(generarHashPregunta(t));
+        });
+    } catch (e) {
+        console.warn('No se pudo leer preguntas falladas:', e);
+    }
+    return set;
+}
+
+// NUEVO: filtra el pool a solo las preguntas falladas
+async function filtrarPreguntasFalladas(preguntas) {
+    const fallados = await obtenerHashesFallados();
+    const res = preguntas.filter(p => fallados.has(generarHashPregunta(p.texto)));
+    console.log(`🔴 Preguntas falladas: ${res.length} de ${preguntas.length}`);
+    return res;
+}
+
+// NUEVO: pinta en el desplegable el conteo según el filtro activo (nuevas / falladas)
+window.actualizarConteosDropdown = async function() {
+    const nuevasOn = document.getElementById('soloPreguntasNuevas')?.checked;
+    const falladasOn = document.getElementById('soloPreguntasFalladas')?.checked;
     const mapaTextos = window.textosVerificadosPorTema || {};
     const hijos = window.hijosPorTemaTest || {};
 
-    // Si se desmarca: restaurar el conteo original
-    if (!check || !check.checked) {
+    // Ningún filtro activo: restaurar el conteo original
+    if (!nuevasOn && !falladasOn) {
         Object.keys(mapaTextos).forEach(id => {
             const el = document.getElementById(`cnt-${id}`);
             if (el) {
@@ -5785,29 +5819,56 @@ window.actualizarConteosNuevasDropdown = async function() {
         return;
     }
 
-    const vistos = await obtenerHashesVistos();
+    let predicado, etiqueta, bg, color;
+    if (nuevasOn) {
+        const vistos = await obtenerHashesVistos();
+        predicado = (t) => !vistos.has(generarHashPregunta(t));
+        etiqueta = 'nuevas'; bg = '#e3fcef'; color = '#1e7e50';
+    } else {
+        const fallados = await obtenerHashesFallados();
+        predicado = (t) => fallados.has(generarHashPregunta(t));
+        etiqueta = 'falladas'; bg = '#fdecea'; color = '#c0392b';
+    }
 
-    // Preguntas nuevas propias de cada tema/subtema
-    const nuevasPropias = {};
+    const propias = {};
     Object.entries(mapaTextos).forEach(([id, textos]) => {
-        nuevasPropias[id] = textos.reduce((n, t) => n + (vistos.has(generarHashPregunta(t)) ? 0 : 1), 0);
+        propias[id] = textos.reduce((n, t) => n + (predicado(t) ? 1 : 0), 0);
     });
 
-    // Pintar cada fila (los temas principales suman las nuevas de sus subtemas)
+    // Los temas principales suman los conteos de sus subtemas
     Object.keys(mapaTextos).forEach(id => {
         const el = document.getElementById(`cnt-${id}`);
         if (!el) return;
-        let nuevas = nuevasPropias[id] || 0;
-        if (hijos[id]) hijos[id].forEach(sid => { nuevas += nuevasPropias[sid] || 0; });
-        el.textContent = `${nuevas} nuevas`;
-        el.style.background = '#e3fcef';
-        el.style.color = '#1e7e50';
+        let total = propias[id] || 0;
+        if (hijos[id]) hijos[id].forEach(sid => { total += propias[sid] || 0; });
+        el.textContent = `${total} ${etiqueta}`;
+        el.style.background = bg;
+        el.style.color = color;
     });
 };
 
-// NUEVO: resumen por tema de preguntas nuevas + confirmación (devuelve true/false)
-function mostrarResumenPreguntasNuevas(pool, numSolicitadas) {
+// NUEVO: exclusión mutua entre "nuevas" y "falladas" + refresco de conteos
+window.toggleFiltroExclusivo = function(tipo) {
+    const nuevas = document.getElementById('soloPreguntasNuevas');
+    const falladas = document.getElementById('soloPreguntasFalladas');
+    if (tipo === 'nuevas' && nuevas?.checked && falladas) falladas.checked = false;
+    if (tipo === 'falladas' && falladas?.checked && nuevas) nuevas.checked = false;
+    actualizarConteosDropdown();
+};
+
+// Alias por compatibilidad
+window.actualizarConteosNuevasDropdown = window.actualizarConteosDropdown;
+
+// NUEVO: resumen por tema de preguntas nuevas/falladas + confirmación (devuelve true/false)
+function mostrarResumenPreguntas(pool, numSolicitadas, tipo = 'nuevas') {
+    const cfg = tipo === 'falladas'
+        ? { titulo: '🔴 Preguntas falladas disponibles', sub: 'Solo entrarán preguntas que hayas fallado antes', badge: 'falladas', totalLbl: 'Total falladas', pillBg: '#fdecea', pillColor: '#c0392b', totalPillBg: '#c0392b' }
+        : { titulo: '🆕 Preguntas nuevas disponibles', sub: 'Solo entrarán preguntas que no hayas respondido nunca', badge: 'nuevas', totalLbl: 'Total sin responder', pillBg: '#eae6ff', pillColor: '#6c5ce7', totalPillBg: '#6c5ce7' };
     return new Promise(resolve => {
+        const tEl = document.getElementById('tituloResumenNuevas');
+        const sEl = document.getElementById('subtituloResumenNuevas');
+        if (tEl) tEl.textContent = cfg.titulo;
+        if (sEl) sEl.textContent = cfg.sub;
         // Agrupar por tema padre (coherente con la distribución del test)
         const conteoPorTema = {};
         pool.forEach(p => {
@@ -5824,28 +5885,32 @@ function mostrarResumenPreguntasNuevas(pool, numSolicitadas) {
         const filas = temasOrdenados.map(([tema, n]) => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #eef0f5;">
                 <span style="color:#2d3436;font-weight:500;font-size:.95rem;">📘 ${tema}</span>
-                <span style="background:#eae6ff;color:#6c5ce7;font-weight:700;font-size:.85rem;padding:4px 12px;border-radius:20px;white-space:nowrap;">${n} nuevas</span>
+                <span style="background:${cfg.pillBg};color:${cfg.pillColor};font-weight:700;font-size:.85rem;padding:4px 12px;border-radius:20px;white-space:nowrap;">${n} ${cfg.badge}</span>
             </div>`).join('');
+
+        const descabecera = tipo === 'falladas'
+            ? 'Preguntas que <strong>has fallado antes</strong> en los temas elegidos:'
+            : 'Preguntas que <strong>aún no te han salido</strong> en los temas elegidos:';
 
         const avisoRecorte = hayRecorte ? `
             <div style="margin:16px 20px 0;padding:12px 14px;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;color:#8a6d00;font-size:.88rem;line-height:1.45;">
-                ⚠️ Pediste <strong>${solicitadas}</strong> preguntas, pero solo quedan <strong>${totalNuevas}</strong> sin responder. El test se ajustará a <strong>${tamanoTest}</strong>.
+                ⚠️ Pediste <strong>${solicitadas}</strong> preguntas, pero solo hay <strong>${totalNuevas}</strong> ${cfg.badge}. El test se ajustará a <strong>${tamanoTest}</strong>.
             </div>` : '';
 
         document.getElementById('cuerpoResumenNuevas').innerHTML = `
             <div style="padding:16px 20px 4px;color:#636e72;font-size:.9rem;">
-                Preguntas que <strong>aún no te han salido</strong> en los temas elegidos:
+                ${descabecera}
             </div>
             <div style="margin:8px 20px 0;border:1px solid #eef0f5;border-radius:12px;overflow:hidden;">
                 ${filas}
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#f7f6ff;">
-                    <span style="color:#2d3436;font-weight:700;">Total sin responder</span>
-                    <span style="background:#6c5ce7;color:#fff;font-weight:700;font-size:.9rem;padding:5px 14px;border-radius:20px;">${totalNuevas}</span>
+                    <span style="color:#2d3436;font-weight:700;">${cfg.totalLbl}</span>
+                    <span style="background:${cfg.totalPillBg};color:#fff;font-weight:700;font-size:.9rem;padding:5px 14px;border-radius:20px;">${totalNuevas}</span>
                 </div>
             </div>
             ${avisoRecorte}
             <div style="margin:16px 20px 0;padding:12px 14px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:10px;color:#2e7d32;font-size:.9rem;">
-                ✅ El test tendrá <strong>${tamanoTest} preguntas</strong> nuevas.
+                ✅ El test tendrá <strong>${tamanoTest} preguntas</strong> ${cfg.badge}.
             </div>`;
 
         const overlay = document.getElementById('modalResumenNuevas');
