@@ -3344,6 +3344,8 @@ async function empezarTest() {
                 alert('🎉 ¡Ya has hecho todas las preguntas de los temas seleccionados! No quedan preguntas nuevas.');
                 return;
             }
+            const confirmado = await mostrarResumenPreguntasNuevas(poolPreguntas, numPreguntas);
+            if (!confirmado) return;
         }
 
         // Determinar número final de preguntas
@@ -5744,6 +5746,67 @@ async function filtrarPreguntasNoVistas(preguntas) {
     const noVistas = preguntas.filter(p => !hashesVistos.has(generarHashPregunta(p.texto)));
     console.log(`🆕 Preguntas nuevas: ${noVistas.length} de ${preguntas.length} (vistas: ${hashesVistos.size})`);
     return noVistas;
+}
+
+// NUEVO: resumen por tema de preguntas nuevas + confirmación (devuelve true/false)
+function mostrarResumenPreguntasNuevas(pool, numSolicitadas) {
+    return new Promise(resolve => {
+        // Agrupar por tema padre (coherente con la distribución del test)
+        const conteoPorTema = {};
+        pool.forEach(p => {
+            const tema = p.temaPadreNombre || p.temaNombre || 'Sin tema';
+            conteoPorTema[tema] = (conteoPorTema[tema] || 0) + 1;
+        });
+        const temasOrdenados = Object.entries(conteoPorTema).sort((a, b) => b[1] - a[1]);
+
+        const totalNuevas = pool.length;
+        const solicitadas = numSolicitadas === 'todas' ? totalNuevas : parseInt(numSolicitadas);
+        const tamanoTest = Math.min(solicitadas, totalNuevas);
+        const hayRecorte = tamanoTest < solicitadas;
+
+        const filas = temasOrdenados.map(([tema, n]) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #eef0f5;">
+                <span style="color:#2d3436;font-weight:500;font-size:.95rem;">📘 ${tema}</span>
+                <span style="background:#eae6ff;color:#6c5ce7;font-weight:700;font-size:.85rem;padding:4px 12px;border-radius:20px;white-space:nowrap;">${n} nuevas</span>
+            </div>`).join('');
+
+        const avisoRecorte = hayRecorte ? `
+            <div style="margin:16px 20px 0;padding:12px 14px;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;color:#8a6d00;font-size:.88rem;line-height:1.45;">
+                ⚠️ Pediste <strong>${solicitadas}</strong> preguntas, pero solo quedan <strong>${totalNuevas}</strong> sin responder. El test se ajustará a <strong>${tamanoTest}</strong>.
+            </div>` : '';
+
+        document.getElementById('cuerpoResumenNuevas').innerHTML = `
+            <div style="padding:16px 20px 4px;color:#636e72;font-size:.9rem;">
+                Preguntas que <strong>aún no te han salido</strong> en los temas elegidos:
+            </div>
+            <div style="margin:8px 20px 0;border:1px solid #eef0f5;border-radius:12px;overflow:hidden;">
+                ${filas}
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#f7f6ff;">
+                    <span style="color:#2d3436;font-weight:700;">Total sin responder</span>
+                    <span style="background:#6c5ce7;color:#fff;font-weight:700;font-size:.9rem;padding:5px 14px;border-radius:20px;">${totalNuevas}</span>
+                </div>
+            </div>
+            ${avisoRecorte}
+            <div style="margin:16px 20px 0;padding:12px 14px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:10px;color:#2e7d32;font-size:.9rem;">
+                ✅ El test tendrá <strong>${tamanoTest} preguntas</strong> nuevas.
+            </div>`;
+
+        const overlay = document.getElementById('modalResumenNuevas');
+        const btnConfirmar = document.getElementById('btnConfirmarNuevas');
+        const btnCancelar = document.getElementById('btnCancelarNuevas');
+        btnConfirmar.textContent = `🚀 Empezar test (${tamanoTest})`;
+
+        const finalizar = (valor) => {
+            overlay.style.display = 'none';
+            btnConfirmar.onclick = null;
+            btnCancelar.onclick = null;
+            resolve(valor);
+        };
+        btnConfirmar.onclick = () => finalizar(true);
+        btnCancelar.onclick = () => finalizar(false);
+
+        overlay.style.display = 'flex';
+    });
 }
 
 // Función para obtener preguntas con distribución proporcional entre temas
