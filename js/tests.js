@@ -6139,6 +6139,69 @@ window.toggleSubtemas = function(temaId) {
     }
 };
 
+// NUEVO: texto claro de la selección (tema completo o nº de subtemas del tema)
+function actualizarTextoSeleccionTemas() {
+    const placeholder = document.querySelector('.dropdown-placeholder');
+    if (!placeholder) return;
+
+    const marcados = Array.from(document.querySelectorAll('.tema-checkbox:not(#todosLosTemas)'))
+        .filter(cb => cb.checked);
+
+    if (marcados.length === 0) {
+        placeholder.textContent = 'Elige temas para tu test';
+        return;
+    }
+
+    // Agrupar por tema padre
+    const padres = {};
+    const registrarPadre = (padreId) => {
+        if (padres[padreId]) return padres[padreId];
+        const padreCb = document.querySelector(`.tema-checkbox[value="${padreId}"]:not([data-tema-padre])`);
+        const nombre = padreCb ? (padreCb.parentElement.querySelector('.tema-nombre')?.textContent.trim() || 'Tema') : 'Tema';
+        const totalSubs = document.querySelectorAll(`.tema-checkbox[data-tema-padre="${padreId}"]`).length;
+        padres[padreId] = { nombre, totalSubs, subsMarcados: 0, padreMarcado: false };
+        return padres[padreId];
+    };
+
+    marcados.forEach(cb => {
+        const padreId = cb.getAttribute('data-tema-padre');
+        if (padreId) {
+            registrarPadre(padreId).subsMarcados++;
+        } else {
+            registrarPadre(cb.value).padreMarcado = true;
+        }
+    });
+
+    const completos = [];
+    const parciales = [];
+    let totalSubsParciales = 0;
+
+    Object.values(padres).forEach(p => {
+        const seleccionCompleta = p.totalSubs > 0 ? p.subsMarcados >= p.totalSubs : p.padreMarcado;
+        if (seleccionCompleta) {
+            completos.push(p.nombre);
+        } else if (p.subsMarcados > 0) {
+            parciales.push(`${p.subsMarcados} subtema${p.subsMarcados > 1 ? 's' : ''} de ${p.nombre}`);
+            totalSubsParciales += p.subsMarcados;
+        } else if (p.padreMarcado) {
+            completos.push(p.nombre);
+        }
+    });
+
+    const segmentos = [...completos, ...parciales];
+    let texto = segmentos.join(' · ');
+
+    // Resumen compacto si es demasiado largo
+    if (segmentos.length > 3 || texto.length > 55) {
+        const partes = [];
+        if (completos.length > 0) partes.push(`${completos.length} tema${completos.length > 1 ? 's' : ''} completo${completos.length > 1 ? 's' : ''}`);
+        if (totalSubsParciales > 0) partes.push(`${totalSubsParciales} subtema${totalSubsParciales > 1 ? 's' : ''}`);
+        texto = partes.join(' · ');
+    }
+
+    placeholder.textContent = texto;
+}
+
 window.manejarSeleccionTema = function(event) {
     console.log('=== DEBUG MANEJO SELECCIÓN TEMA ===');
     
@@ -6194,7 +6257,7 @@ window.manejarSeleccionTema = function(event) {
             todosLosTemas.checked = true;
             placeholder.textContent = 'Todos los temas seleccionados';
         } else {
-            placeholder.textContent = `${temasSeleccionados.length} tema(s) seleccionado(s)`;
+            actualizarTextoSeleccionTemas();
         }
     }
     
