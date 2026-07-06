@@ -5775,18 +5775,23 @@ async function filtrarPreguntasNoVistas(preguntas) {
     return noVistas;
 }
 
-// NUEVO: conjunto de hashes de preguntas falladas (colección preguntasFalladas)
+// NUEVO: conjunto de hashes de preguntas falladas según el REGISTRO de tests (colección resultados)
 async function obtenerHashesFallados() {
     const set = new Set();
     try {
-        const q = query(collection(db, "preguntasFalladas"), where("usuarioId", "==", currentUser.uid));
+        const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
         const snap = await getDocs(q);
-        snap.forEach(d => {
-            const t = d.data().pregunta?.texto;
-            if (t) set.add(generarHashPregunta(t));
+        snap.forEach(docSnap => {
+            const detalles = docSnap.data().detalleRespuestas || [];
+            detalles.forEach(d => {
+                const estado = d.estado || d.resultado;
+                const esFallada = estado === 'incorrecta' || estado === 'fallada' || d.acierto === false;
+                const texto = d.pregunta?.texto;
+                if (esFallada && texto) set.add(generarHashPregunta(texto));
+            });
         });
     } catch (e) {
-        console.warn('No se pudo leer preguntas falladas:', e);
+        console.warn('No se pudo leer el registro de resultados:', e);
     }
     return set;
 }
