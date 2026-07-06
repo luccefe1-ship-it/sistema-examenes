@@ -376,6 +376,12 @@ function renderizarProgresoTemas() {
                 <div class="tema-stat">
                     ✅ Tests: <strong>${progreso.testsRealizados || 0}</strong>
                 </div>
+                <div class="tema-stat" style="display:flex;align-items:center;gap:6px;">
+                    🔁 Repasos:
+                    <button onclick="registrarRepaso('${tema.id}', -1)" title="Quitar un repaso" style="width:24px;height:24px;border:none;border-radius:6px;background:#f1f2f6;color:#57606f;font-size:16px;font-weight:700;cursor:pointer;line-height:1;">−</button>
+                    <strong style="min-width:20px;text-align:center;display:inline-block;">${progreso.repasos || 0}</strong>
+                    <button onclick="registrarRepaso('${tema.id}', 1)" title="Añadir un repaso" style="width:24px;height:24px;border:none;border-radius:6px;background:#e3fcef;color:#1e7e50;font-size:16px;font-weight:700;cursor:pointer;line-height:1;">+</button>
+                </div>
             </div>
             <div class="tema-barra">
                 <div class="tema-barra-fill" style="width: ${porcentaje}%"></div>
@@ -384,6 +390,25 @@ function renderizarProgresoTemas() {
         container.appendChild(div);
     });
 }
+
+// Registrar/ajustar nº de repasos de un tema
+window.registrarRepaso = async function(temaId, delta) {
+    if (!progresoData.temas[temaId]) {
+        progresoData.temas[temaId] = { hojasLeidas: 0, testsRealizados: 0, repasos: 0 };
+    }
+    const actual = progresoData.temas[temaId].repasos || 0;
+    const nuevo = Math.max(0, actual + delta);
+    progresoData.temas[temaId].repasos = nuevo;
+
+    try {
+        await setDoc(doc(db, "progresoSimple", currentUser.uid), progresoData);
+        renderizarProgresoTemas();
+    } catch (error) {
+        console.error('Error guardando repasos:', error);
+        progresoData.temas[temaId].repasos = actual; // revertir en memoria
+        alert('Error al guardar el número de repasos');
+    }
+};
 
 // Registrar progreso
 document.getElementById('formRegistro').addEventListener('submit', async (e) => {
