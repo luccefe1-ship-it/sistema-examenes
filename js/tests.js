@@ -3335,17 +3335,28 @@ async function empezarTest() {
             return;
         }
 
+        // NUEVO: filtrar solo preguntas nuevas (que no me hayan salido nunca)
+        let poolPreguntas = preguntasDisponibles;
+        const soloPreguntasNuevas = document.getElementById('soloPreguntasNuevas')?.checked;
+        if (soloPreguntasNuevas) {
+            poolPreguntas = await filtrarPreguntasNoVistas(preguntasDisponibles);
+            if (poolPreguntas.length === 0) {
+                alert('🎉 ¡Ya has hecho todas las preguntas de los temas seleccionados! No quedan preguntas nuevas.');
+                return;
+            }
+        }
+
         // Determinar número final de preguntas
         const numFinal = numPreguntas === 'todas' ? 
-            preguntasDisponibles.length : Math.min(parseInt(numPreguntas), preguntasDisponibles.length);
+            poolPreguntas.length : Math.min(parseInt(numPreguntas), poolPreguntas.length);
         
-        if (numFinal > preguntasDisponibles.length) {
-            alert(`Solo hay ${preguntasDisponibles.length} preguntas verificadas disponibles`);
+        if (numFinal > poolPreguntas.length) {
+            alert(`Solo hay ${poolPreguntas.length} preguntas verificadas disponibles`);
             return;
         }
 
         // Obtener preguntas únicas y aleatorias
-        const preguntasSeleccionadas = obtenerPreguntasUnicasAleatorias(preguntasDisponibles, numFinal);
+        const preguntasSeleccionadas = obtenerPreguntasUnicasAleatorias(poolPreguntas, numFinal);
 
         // NUEVO: Si el modo es "pregunta", guardar config y redirigir
         if (modoSeleccionado === 'pregunta') {
@@ -5701,6 +5712,38 @@ function mezclarArray(array) {
     }
     
     return shuffled;
+}
+
+// NUEVO: devuelve solo las preguntas que el usuario NUNCA ha visto (ni una sola vez)
+async function filtrarPreguntasNoVistas(preguntas) {
+    const hashesVistos = new Set();
+
+    // 1) Historial local: preguntas ya presentadas en tests de este dispositivo
+    try {
+        const historialLocal = obtenerHistorialPreguntas();
+        Object.keys(historialLocal).forEach(h => hashesVistos.add(h));
+    } catch (e) {
+        console.warn('No se pudo leer historial local:', e);
+    }
+
+    // 2) Historial en Firestore: todos los tests completados (multi-dispositivo, autoritativo)
+    try {
+        const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
+        const snap = await getDocs(q);
+        snap.forEach(docSnap => {
+            const detalles = docSnap.data().detalleRespuestas || [];
+            detalles.forEach(d => {
+                const texto = d.pregunta?.texto;
+                if (texto) hashesVistos.add(generarHashPregunta(texto));
+            });
+        });
+    } catch (e) {
+        console.warn('No se pudo leer historial de resultados:', e);
+    }
+
+    const noVistas = preguntas.filter(p => !hashesVistos.has(generarHashPregunta(p.texto)));
+    console.log(`🆕 Preguntas nuevas: ${noVistas.length} de ${preguntas.length} (vistas: ${hashesVistos.size})`);
+    return noVistas;
 }
 
 // Función para obtener preguntas con distribución proporcional entre temas
