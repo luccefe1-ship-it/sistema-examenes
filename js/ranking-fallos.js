@@ -95,18 +95,13 @@ async function cargarRanking() {
             }
 
             detalleRespuestas.forEach(detalle => {
-                if (detalle.estado !== 'incorrecta' || detalle.restaurada) {
-                    return;
-                }
+                // Mismo criterio que "solo preguntas falladas": todo lo fallado en el registro de resultados
+                const estado = detalle.estado || detalle.resultado;
+                const esFallada = estado === 'incorrecta' || estado === 'fallada' || detalle.acierto === false;
+                if (!esFallada) return;
                 
                 const pregunta = detalle.pregunta;
                 if (!pregunta || !pregunta.texto) return;
-                
-                // Excluir preguntas dominadas (acertadas en test de ranking)
-                const textoNormalizado = pregunta.texto.trim();
-                if (preguntasDominadas.includes(textoNormalizado)) {
-                    return;
-                }
                 
                 const textoKey = pregunta.texto;
                 totalFallos++;
