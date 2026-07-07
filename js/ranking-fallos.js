@@ -275,7 +275,6 @@ function renderRankingItem(item, posicion) {
                 </div>
                 <div class="ranking-fallos">${item.count} ${item.count === 1 ? 'fallo' : 'fallos'}</div>
                 <button class="btn-responder" onclick="event.stopPropagation(); abrirModalResponder('${preguntaData}')">Responder</button>
-                <button class="btn-restaurar" onclick="event.stopPropagation(); restaurarPregunta('${textoEscapado}')">↻</button>
                 <span class="ranking-expand">▼</span>
             </div>
             <div class="ranking-detalles">
