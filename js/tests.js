@@ -4139,8 +4139,14 @@ async function guardarResultado(resultados) {
             usuarioId: currentUser.uid
         };
 
-        // Guardar resultado principal
+       // Guardar resultado principal
         await addDoc(collection(db, "resultados"), datosLimpios);
+        
+        // Registrar como usadas SOLO las preguntas de un test que sí se guarda
+        const preguntasParaRegistrar = datosLimpios.detalleRespuestas
+            .map(d => d.pregunta)
+            .filter(p => p && p.texto);
+        registrarPreguntasUsadas(preguntasParaRegistrar);
         
         // Invalidar caché de resultados
         sessionStorage.removeItem('cacheResultados');
@@ -6031,8 +6037,9 @@ function obtenerPreguntasUnicasAleatorias(preguntas, cantidad) {
     
     console.log(`Seleccionadas: ${preguntasFinales.length} preguntas`);
     
-    // 6. Registrar estas preguntas como usadas
-    registrarPreguntasUsadas(preguntasFinales);
+        // 6. (Movido a guardarResultado) Ya NO se registran aquí como usadas:
+    //    solo se marcan las preguntas de tests que realmente se guardan.
+    // registrarPreguntasUsadas(preguntasFinales);
     
     return mezclarArray(preguntasFinales);
 }
