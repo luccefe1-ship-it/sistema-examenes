@@ -1,6 +1,7 @@
 import { auth, db, storage } from './firebase-config.js';
 import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 import { inicializarTemaDigital, abrirModalTemaDigital } from './tema-digital.js';
+import { generarBloqueComparativa, DIVISOR_PENALIZACION } from './notas-corte.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
     doc, 
@@ -4025,6 +4026,8 @@ html += '<div class="estadistica-label">Sin responder</div>';
 html += '</div>';
 html += '</div>';
 
+html += generarBloqueComparativa({ correctas: correctas, incorrectas: incorrectas, total: total }, 'comparativaResultado');
+
 html += '<div class="revision-respuestas">';
 html += '<div class="revision-header">';
 html += '<h3>Revisión de Respuestas</h3>';
@@ -5015,10 +5018,9 @@ listResultados.appendChild(eliminarTodosBtn);
     const fecha = fechaObj.toLocaleDateString('es-ES');
     const hora = fechaObj.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
             
-            // Cálculo nota fórmula app móvil (penalización por error, sobre nota máxima del examen oficial)
-            const numOpcionesNota = 4;
-            const notaMaximaExamen = 60; // Nota máxima examen oficial (Gestión / Tramitación Procesal)
-            const penalizacionNota = (resultado.incorrectas || 0) / (numOpcionesNota - 1);
+            // Fórmula oficial BOE PJC/1437/2024: acierto +0,60 / error -0,15 → 1 error = 0,25 aciertos → divisor 4
+            const notaMaximaExamen = 60; // Nota máxima 1er ejercicio, turno libre
+            const penalizacionNota = (resultado.incorrectas || 0) / DIVISOR_PENALIZACION;
             const aciertosNetosNota = (resultado.correctas || 0) - penalizacionNota;
             const notaExamen = (resultado.total || 0) > 0
                 ? Math.max(0, Math.min(notaMaximaExamen, Math.round((aciertosNetosNota / resultado.total) * notaMaximaExamen)))
@@ -7139,10 +7141,9 @@ function generarHTMLResultadosDetalle(resultado) {
 
     html += '<div class="resultado-porcentaje" style="color: ' + colorPuntuacion + '">' + correctas + '/' + total + '</div>';
 
-    // Nota fórmula examen oficial (penalización por fallo, sobre 60)
-    const numOpcionesModal = 4;
+    // Fórmula oficial BOE PJC/1437/2024: acierto +0,60 / error -0,15 → divisor 4
     const notaMaximaModal = 60;
-    const penalizacionModal = (incorrectas || 0) / (numOpcionesModal - 1);
+    const penalizacionModal = (incorrectas || 0) / DIVISOR_PENALIZACION;
     const aciertosNetosModal = (correctas || 0) - penalizacionModal;
     const notaExamenModal = total > 0
         ? Math.max(0, Math.min(notaMaximaModal, Math.round((aciertosNetosModal / total) * notaMaximaModal)))
@@ -7174,6 +7175,8 @@ function generarHTMLResultadosDetalle(resultado) {
     html += '<div class="estadistica-label">Sin responder</div>';
     html += '</div>';
     html += '</div>';
+
+    html += generarBloqueComparativa({ correctas: correctas || 0, incorrectas: incorrectas || 0, total: total || 0 }, 'comparativaModal');
 
     // Mostrar preguntas y respuestas detalladas
     if (detalleRespuestas && detalleRespuestas.length > 0) {
