@@ -3,6 +3,7 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { doc, getDoc, setDoc, addDoc, collection, query, where, getDocs, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { generarBloqueComparativa, DIVISOR_PENALIZACION } from './notas-corte.js';
 
 // ============= ESTADO =============
 let currentUser = null;
@@ -854,8 +855,8 @@ async function finalizarTest(porTiempo) {
     const noRespondidas = total - correctas - incorrectas;
     const porcentaje = total > 0 ? Math.round((correctas / total) * 100) : 0;
 
-    // Sistema de puntuación con penalización (mismo del modo escrito)
-    const penalizacion = incorrectas / 3;
+    // Fórmula oficial BOE PJC/1437/2024: acierto +0,60 / error -0,15 → divisor 4
+    const penalizacion = incorrectas / DIVISOR_PENALIZACION;
     const aciertosNetos = correctas - penalizacion;
     const puntuacion100 = total > 0 ? Math.max(0, (aciertosNetos / total) * 100) : 0;
     const notaExamen = total > 0 ? Math.max(0, (aciertosNetos / total) * 60) : 0;
@@ -946,6 +947,11 @@ async function finalizarTest(porTiempo) {
             <div class="resultado-valor">${notaExamen.toFixed(2)}</div>
         </div>
     `;
+    document.getElementById('comparativaOral')?.remove();
+    grid.insertAdjacentHTML('afterend', generarBloqueComparativa(
+        { correctas: correctas, incorrectas: incorrectas, total: total },
+        'comparativaOral'
+    ));
     document.getElementById('modalResultados').classList.add('activo');
 
     // Guardar en Firebase y hablar el cierre EN PARALELO
