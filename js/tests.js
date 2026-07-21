@@ -3074,6 +3074,7 @@ async function cargarTemasParaTest() {
         const subtemasPorPadre = {};
         let totalPreguntasVerificadas = 0;
         const textosVerificadosPorTema = {};
+        const textosOficialesPorTema = {};
         const hijosPorTemaTest = {};
         
         querySnapshot.forEach((doc) => {
@@ -3084,6 +3085,7 @@ async function cargarTemasParaTest() {
             
             totalPreguntasVerificadas += preguntasVerificadas;
             textosVerificadosPorTema[temaId] = tema.preguntas ? tema.preguntas.filter(p => p.verificada === true).map(p => p.texto) : [];
+            textosOficialesPorTema[temaId] = tema.preguntas ? tema.preguntas.filter(p => p.verificada === true && p.esOficial === true).map(p => p.texto) : [];
             if (tema.temaPadreId) {
                 if (!hijosPorTemaTest[tema.temaPadreId]) hijosPorTemaTest[tema.temaPadreId] = [];
                 hijosPorTemaTest[tema.temaPadreId].push(temaId);
@@ -3191,8 +3193,11 @@ async function cargarTemasParaTest() {
         // Actualizar contador inicial
         actualizarPreguntasDisponibles();
         window.textosVerificadosPorTema = textosVerificadosPorTema;
+        window.textosOficialesPorTema = textosOficialesPorTema;
         window.hijosPorTemaTest = hijosPorTemaTest;
-        if (document.getElementById('soloPreguntasNuevas')?.checked || document.getElementById('soloPreguntasFalladas')?.checked) {
+        if (document.getElementById('soloPreguntasNuevas')?.checked ||
+            document.getElementById('soloPreguntasFalladas')?.checked ||
+            document.getElementById('soloPreguntasOficiales')?.checked) {
             actualizarConteosDropdown();
         }
         
@@ -3348,25 +3353,43 @@ async function empezarTest() {
             return;
         }
 
-        // NUEVO: filtrar por preguntas nuevas o falladas (excluyentes)
+        // Filtros: oficiales (independiente) + nuevas/falladas (excluyentes entre sí)
         let poolPreguntas = preguntasDisponibles;
+        const soloPreguntasOficiales = document.getElementById('soloPreguntasOficiales')?.checked;
         const soloPreguntasNuevas = document.getElementById('soloPreguntasNuevas')?.checked;
         const soloPreguntasFalladas = document.getElementById('soloPreguntasFalladas')?.checked;
-        if (soloPreguntasNuevas) {
-            poolPreguntas = await filtrarPreguntasNoVistas(preguntasDisponibles);
+
+        if (soloPreguntasOficiales) {
+            poolPreguntas = poolPreguntas.filter(p => p.esOficial === true);
+            console.log(`📋 Preguntas oficiales: ${poolPreguntas.length} de ${preguntasDisponibles.length}`);
             if (poolPreguntas.length === 0) {
-                alert('🎉 ¡Ya has hecho todas las preguntas de los temas seleccionados! No quedan preguntas nuevas.');
+                alert('📋 No hay preguntas marcadas como oficiales en los temas seleccionados.');
                 return;
             }
-            const confirmado = await mostrarResumenPreguntas(poolPreguntas, numPreguntas, 'nuevas');
+        }
+
+        if (soloPreguntasNuevas) {
+            poolPreguntas = await filtrarPreguntasNoVistas(poolPreguntas);
+            if (poolPreguntas.length === 0) {
+                alert(soloPreguntasOficiales
+                    ? '🎉 No quedan preguntas oficiales nuevas en los temas seleccionados.'
+                    : '🎉 ¡Ya has hecho todas las preguntas de los temas seleccionados! No quedan preguntas nuevas.');
+                return;
+            }
+            const confirmado = await mostrarResumenPreguntas(poolPreguntas, numPreguntas, soloPreguntasOficiales ? 'oficiales-nuevas' : 'nuevas');
             if (!confirmado) return;
         } else if (soloPreguntasFalladas) {
-            poolPreguntas = await filtrarPreguntasFalladas(preguntasDisponibles);
+            poolPreguntas = await filtrarPreguntasFalladas(poolPreguntas);
             if (poolPreguntas.length === 0) {
-                alert('✅ No tienes preguntas falladas registradas en los temas seleccionados.');
+                alert(soloPreguntasOficiales
+                    ? '✅ No tienes preguntas oficiales falladas en los temas seleccionados.'
+                    : '✅ No tienes preguntas falladas registradas en los temas seleccionados.');
                 return;
             }
-            const confirmado = await mostrarResumenPreguntas(poolPreguntas, numPreguntas, 'falladas');
+            const confirmado = await mostrarResumenPreguntas(poolPreguntas, numPreguntas, soloPreguntasOficiales ? 'oficiales-falladas' : 'falladas');
+            if (!confirmado) return;
+        } else if (soloPreguntasOficiales) {
+            const confirmado = await mostrarResumenPreguntas(poolPreguntas, numPreguntas, 'oficiales');
             if (!confirmado) return;
         }
 
@@ -5847,12 +5870,15 @@ async function filtrarPreguntasFalladas(preguntas) {
 window.actualizarConteosDropdown = async function() {
     const nuevasOn = document.getElementById('soloPreguntasNuevas')?.checked;
     const falladasOn = document.getElementById('soloPreguntasFalladas')?.checked;
-    const mapaTextos = window.textosVerificadosPorTema || {};
+    const oficialesOn = document.getElementById('soloPreguntasOficiales')?.checked;
+    const todosLosTextos = window.textosVerificadosPorTema || {};
+    // Si el filtro de oficiales está activo, partimos solo de las oficiales
+    const mapaTextos = oficialesOn ? (window.textosOficialesPorTema || {}) : todosLosTextos;
     const hijos = window.hijosPorTemaTest || {};
 
     // Ningún filtro activo: restaurar el conteo original
-    if (!nuevasOn && !falladasOn) {
-        Object.keys(mapaTextos).forEach(id => {
+    if (!nuevasOn && !falladasOn && !oficialesOn) {
+        Object.keys(todosLosTextos).forEach(id => {
             const el = document.getElementById(`cnt-${id}`);
             if (el) {
                 el.textContent = `${el.dataset.total} preguntas`;
@@ -5867,11 +5893,15 @@ window.actualizarConteosDropdown = async function() {
     if (nuevasOn) {
         const vistos = await obtenerHashesVistos();
         predicado = (t) => !vistos.has(generarHashPregunta(t));
-        etiqueta = 'nuevas'; bg = '#e3fcef'; color = '#1e7e50';
-    } else {
+        etiqueta = oficialesOn ? 'oficiales nuevas' : 'nuevas'; bg = '#e3fcef'; color = '#1e7e50';
+    } else if (falladasOn) {
         const fallados = await obtenerHashesFallados();
         predicado = (t) => fallados.has(generarHashPregunta(t));
-        etiqueta = 'falladas'; bg = '#fdecea'; color = '#c0392b';
+        etiqueta = oficialesOn ? 'oficiales falladas' : 'falladas'; bg = '#fdecea'; color = '#c0392b';
+    } else {
+        // Solo oficiales: todas las del mapa cuentan
+        predicado = () => true;
+        etiqueta = 'oficiales'; bg = '#fef3c7'; color = '#b45309';
     }
 
     const propias = {};
@@ -5880,7 +5910,7 @@ window.actualizarConteosDropdown = async function() {
     });
 
     // Los temas principales suman los conteos de sus subtemas
-    Object.keys(mapaTextos).forEach(id => {
+    Object.keys(todosLosTextos).forEach(id => {
         const el = document.getElementById(`cnt-${id}`);
         if (!el) return;
         let total = propias[id] || 0;
@@ -5898,6 +5928,7 @@ window.toggleFiltroExclusivo = function(tipo) {
     if (tipo === 'nuevas' && nuevas?.checked && falladas) falladas.checked = false;
     if (tipo === 'falladas' && falladas?.checked && nuevas) nuevas.checked = false;
     actualizarConteosDropdown();
+    // "oficiales" es independiente: no se desmarca aquí
 };
 
 // Alias por compatibilidad
@@ -5905,9 +5936,14 @@ window.actualizarConteosNuevasDropdown = window.actualizarConteosDropdown;
 
 // NUEVO: resumen por tema de preguntas nuevas/falladas + confirmación (devuelve true/false)
 function mostrarResumenPreguntas(pool, numSolicitadas, tipo = 'nuevas') {
-    const cfg = tipo === 'falladas'
-        ? { titulo: '🔴 Preguntas falladas disponibles', sub: 'Solo entrarán preguntas que hayas fallado antes', badge: 'falladas', totalLbl: 'Total falladas', pillBg: '#fdecea', pillColor: '#c0392b', totalPillBg: '#c0392b' }
-        : { titulo: '🆕 Preguntas nuevas disponibles', sub: 'Solo entrarán preguntas que no hayas respondido nunca', badge: 'nuevas', totalLbl: 'Total sin responder', pillBg: '#eae6ff', pillColor: '#6c5ce7', totalPillBg: '#6c5ce7' };
+    const CONFIGS = {
+        falladas:            { titulo: '🔴 Preguntas falladas disponibles', sub: 'Solo entrarán preguntas que hayas fallado antes', badge: 'falladas', totalLbl: 'Total falladas', pillBg: '#fdecea', pillColor: '#c0392b', totalPillBg: '#c0392b' },
+        nuevas:              { titulo: '🆕 Preguntas nuevas disponibles', sub: 'Solo entrarán preguntas que no hayas respondido nunca', badge: 'nuevas', totalLbl: 'Total sin responder', pillBg: '#eae6ff', pillColor: '#6c5ce7', totalPillBg: '#6c5ce7' },
+        oficiales:           { titulo: '📋 Preguntas oficiales disponibles', sub: 'Solo entrarán preguntas marcadas como oficiales de examen', badge: 'oficiales', totalLbl: 'Total oficiales', pillBg: '#fef3c7', pillColor: '#b45309', totalPillBg: '#b45309' },
+        'oficiales-nuevas':  { titulo: '📋 Preguntas oficiales nuevas', sub: 'Oficiales de examen que no hayas respondido nunca', badge: 'oficiales nuevas', totalLbl: 'Total sin responder', pillBg: '#fef3c7', pillColor: '#b45309', totalPillBg: '#b45309' },
+        'oficiales-falladas':{ titulo: '📋 Preguntas oficiales falladas', sub: 'Oficiales de examen que hayas fallado antes', badge: 'oficiales falladas', totalLbl: 'Total falladas', pillBg: '#fef3c7', pillColor: '#b45309', totalPillBg: '#b45309' }
+    };
+    const cfg = CONFIGS[tipo] || CONFIGS.nuevas;
     return new Promise(resolve => {
         const tEl = document.getElementById('tituloResumenNuevas');
         const sEl = document.getElementById('subtituloResumenNuevas');
