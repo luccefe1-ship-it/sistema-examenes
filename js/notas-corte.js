@@ -139,21 +139,23 @@ export function calcularNotaOficial({ correctas = 0, incorrectas = 0, total = 0,
     const superaPrimerEjercicio = notaExtrapolada >= cfg.notaCortePrimerEjercicio;
     const difPrimerEjercicio = notaExtrapolada - cfg.notaCortePrimerEjercicio;
 
-    // Proyección al proceso completo (orientativa)
-    let notaProceso = null;
-    let obtendriaPlaza = null;
-    let difProceso = null;
+    // Camino a la plaza (turno libre) — basado SOLO en el 1er ejercicio real.
+    // El 1er ejercicio NO descarta por ranking: basta con alcanzar el mínimo fijo
+    // de las bases. La plaza se decide por la SUMA de los 3 ejercicios. Calculamos
+    // cuántos puntos harían falta en los dos ejercicios restantes para igualar al
+    // último que obtuvo plaza en Madrid.
+    let puntosRestantesMax = null;        // puntos máximos del 2º + 3er ejercicio
+    let puntosNecesariosRestantes = null; // puntos necesarios en esos dos ejercicios
+    let plazaAlcanzable = null;           // ¿es matemáticamente posible?
     let puntosConcursoNecesarios = null;
 
     if (turno === 'libre') {
-        // Se asume rendimiento equivalente en los otros dos ejercicios
-        notaProceso = (notaExtrapolada / cfg.notaMaxima) * cfg.notaMaximaProceso;
-        difProceso = notaProceso - cfg.notaCorteFinal;
-        obtendriaPlaza = notaProceso >= cfg.notaCorteFinal;
+        puntosRestantesMax = cfg.notaMaximaProceso - cfg.notaMaxima;
+        puntosNecesariosRestantes = Math.max(0, cfg.notaCorteFinal - notaExtrapolada);
+        plazaAlcanzable = puntosNecesariosRestantes <= puntosRestantesMax;
     } else {
-        // Promoción interna: la nota total depende de los méritos del concurso
+        // Promoción interna: ejercicio único + méritos del concurso
         puntosConcursoNecesarios = Math.max(0, cfg.notaCorteFinal - notaExtrapolada);
-        obtendriaPlaza = null; // no determinable sin méritos
     }
 
     // Fiabilidad estadística según tamaño de la muestra
@@ -174,9 +176,9 @@ export function calcularNotaOficial({ correctas = 0, incorrectas = 0, total = 0,
         notaExtrapolada,
         superaPrimerEjercicio,
         difPrimerEjercicio,
-        notaProceso,
-        difProceso,
-        obtendriaPlaza,
+        puntosRestantesMax,
+        puntosNecesariosRestantes,
+        plazaAlcanzable,
         puntosConcursoNecesarios,
         fiabilidad
     };
@@ -235,16 +237,15 @@ export function generarBloqueComparativa(datos, idBloque = 'bloqueComparativa') 
     html += `<div class="comparativa-diferencia" style="color:${colorVeredicto}">${r.difPrimerEjercicio >= 0 ? '+' + fmt(r.difPrimerEjercicio) + ' por encima del mínimo' : 'Te faltan ' + fmt(Math.abs(r.difPrimerEjercicio)) + ' puntos'}</div>`;
     html += `</div>`;
 
-    // NIVEL 2 — Plaza
+    // NIVEL 2 — Camino a la plaza (a partir del 1er ejercicio)
     if (r.turno === 'libre') {
-        const colorPlaza = r.obtendriaPlaza ? '#28a745' : '#dc3545';
+        const colorPlaza = r.plazaAlcanzable ? '#28a745' : '#dc3545';
         html += `<div class="comparativa-nivel orientativo" style="border-left-color:${colorPlaza}">`;
-        html += `<div class="comparativa-nivel-cabecera">¿Plaza? <span class="comparativa-tag">orientativo</span></div>`;
-        html += `<div class="comparativa-veredicto" style="color:${colorPlaza}">${r.obtendriaPlaza ? '🏅 HABRÍAS COGIDO PLAZA' : '📉 FUERA DE PLAZA'}</div>`;
-        html += `<div class="comparativa-nota">Proyección al proceso completo: <strong>${fmt(r.notaProceso)}</strong> / ${r.cfg.notaMaximaProceso}</div>`;
+        html += `<div class="comparativa-nivel-cabecera">Camino a la plaza <span class="comparativa-tag">orientativo</span></div>`;
+        html += `<div class="comparativa-veredicto" style="color:${colorPlaza}">${r.plazaAlcanzable ? '🎯 PLAZA AL ALCANCE' : '📉 PLAZA MUY DIFÍCIL'}</div>`;
         html += `<div class="comparativa-corte-dato">Última plaza en ${DATOS_CONVOCATORIA.ambito.split('·')[0].trim()}: <strong>${fmt(r.cfg.notaCorteFinal)}</strong> / ${r.cfg.notaMaximaProceso} <small>(${r.cfg.plazasAmbito} plazas)</small></div>`;
-        html += `<div class="comparativa-diferencia" style="color:${colorPlaza}">${r.difProceso >= 0 ? '+' + fmt(r.difProceso) + ' sobre la última plaza' : 'Te faltarían ' + fmt(Math.abs(r.difProceso)) + ' puntos'}</div>`;
-        html += `<div class="comparativa-supuesto">Asume un rendimiento equivalente en el 2º y 3er ejercicio.</div>`;
+        html += `<div class="comparativa-nota">Con tu 1er ejercicio (<strong>${fmt(r.notaExtrapolada)}</strong> / ${r.cfg.notaMaxima}) necesitarías <strong>${fmt(r.puntosNecesariosRestantes)}</strong> / ${fmt(r.puntosRestantesMax, 0)} en el 2º y 3er ejercicio</div>`;
+        html += `<div class="comparativa-supuesto">${r.plazaAlcanzable ? 'El 1er ejercicio solo exige el mínimo fijo; la plaza se decide por la suma de los 3 ejercicios.' : 'Ni con el máximo en los otros dos ejercicios llegarías: necesitas subir la nota del test.'}</div>`;
         html += `</div>`;
     } else {
         html += `<div class="comparativa-nivel orientativo" style="border-left-color:#6c757d">`;
