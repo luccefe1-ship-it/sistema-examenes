@@ -5167,7 +5167,7 @@ sessionStorage.removeItem('cacheResultadosTimestamp');
 };
 // Eliminar todos los resultados
 window.eliminarTodosResultados = async function() {
-    const confirmacion = prompt('Esta acción eliminará TODOS tus resultados permanentemente.\nEscribe "ELIMINAR TODO" para confirmar:');
+    const confirmacion = prompt('Esta acción eliminará SOLO el registro de tests realizados (el historial y sus estadísticas), de forma permanente.\n\nNO se borrarán tus preguntas registradas como falladas: el contador de repaso se mantiene (para eso está el botón "Limpiar Todo" de la sección de repaso).\n\nEscribe "ELIMINAR TODO" para confirmar:');
     
     if (confirmacion === 'ELIMINAR TODO') {
         try {
