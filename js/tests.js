@@ -5968,9 +5968,11 @@ function mostrarResumenPreguntas(pool, numSolicitadas, tipo = 'nuevas') {
                 <span style="background:${cfg.pillBg};color:${cfg.pillColor};font-weight:700;font-size:.85rem;padding:4px 12px;border-radius:20px;white-space:nowrap;">${n} ${cfg.badge}</span>
             </div>`).join('');
 
-        const descabecera = tipo === 'falladas'
+        const descabecera = tipo.includes('falladas')
             ? 'Preguntas que <strong>has fallado antes</strong> en los temas elegidos:'
-            : 'Preguntas que <strong>aún no te han salido</strong> en los temas elegidos:';
+            : tipo === 'oficiales'
+                ? 'Preguntas marcadas como <strong>oficiales de examen</strong> en los temas elegidos:'
+                : 'Preguntas que <strong>aún no te han salido</strong> en los temas elegidos:';
 
         const avisoRecorte = hayRecorte ? `
             <div style="margin:16px 20px 0;padding:12px 14px;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;color:#8a6d00;font-size:.88rem;line-height:1.45;">
