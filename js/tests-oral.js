@@ -9,6 +9,7 @@ import { generarBloqueComparativa, DIVISOR_PENALIZACION } from './notas-corte.js
 let currentUser = null;
 let testConfig = null;
 let preguntaActual = 0;
+let conteoFallosPorHash = {};
 let respuestas = [];          // [{ preguntaIndex, letraUsuario, esCorrecta, respondida }]
 let cronometroInterval = null;
 let tiempoRestanteSegundos = 0;
@@ -108,6 +109,9 @@ async function cargarConfiguracion() {
     }
 
     document.getElementById('nombreTestOral').textContent = testConfig.nombreTest || 'Test Oral';
+
+    // Conteo de veces falladas para la píldora de cada pregunta
+    await cargarConteoFallosOral();
 
     // Reflejar la velocidad guardada en el botón
     const btnVel = document.getElementById('btnVelocidad');
@@ -537,6 +541,42 @@ async function pedirRepetir() {
 }
 
 // ============= FLUJO PREGUNTA =============
+// NUEVO: hash de pregunta (mismo algoritmo que tests.js)
+function generarHashPreguntaOral(texto) {
+    const preguntaTexto = texto || '';
+    let hash = 0;
+    for (let i = 0; i < preguntaTexto.length; i++) {
+        const char = preguntaTexto.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return 'q_' + Math.abs(hash).toString(36);
+}
+
+// NUEVO: cuenta cuántas veces se ha fallado cada pregunta en todo el historial
+async function cargarConteoFallosOral() {
+    const conteo = {};
+    try {
+        const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
+        const snap = await getDocs(q);
+        snap.forEach(docSnap => {
+            const detalles = docSnap.data().detalleRespuestas || [];
+            detalles.forEach(d => {
+                const estado = d.estado || d.resultado;
+                const esFallada = estado === 'incorrecta' || estado === 'fallada' || d.acierto === false;
+                const texto = d.pregunta?.texto;
+                if (!esFallada || !texto) return;
+                const hash = generarHashPreguntaOral(texto);
+                conteo[hash] = (conteo[hash] || 0) + 1;
+            });
+        });
+    } catch (e) {
+        console.warn('No se pudo calcular el conteo de fallos:', e);
+    }
+    conteoFallosPorHash = conteo;
+    console.log(`📊 Conteo de fallos cargado: ${Object.keys(conteo).length} preguntas`);
+}
+
 async function mostrarPregunta() {
     if (preguntaActual >= testConfig.preguntas.length) {
         finalizarTest(false);
@@ -545,6 +585,24 @@ async function mostrarPregunta() {
 
     intentosReconocimiento = 0;
     const p = testConfig.preguntas[preguntaActual];
+
+    // Badge de veces falladas
+    const preguntaTextoEl = document.getElementById('preguntaTexto');
+    let fallosBadgeOral = document.getElementById('fallosBadgeOral');
+    if (!fallosBadgeOral) {
+        fallosBadgeOral = document.createElement('div');
+        fallosBadgeOral.id = 'fallosBadgeOral';
+        fallosBadgeOral.className = 'badge-fallos';
+        fallosBadgeOral.style.cssText = 'margin-bottom:12px;';
+        preguntaTextoEl.parentNode.insertBefore(fallosBadgeOral, preguntaTextoEl);
+    }
+    const vecesFalladaOral = conteoFallosPorHash[generarHashPreguntaOral(p.texto)] || 0;
+    if (vecesFalladaOral > 0) {
+        fallosBadgeOral.textContent = `✗ Fallada ${vecesFalladaOral} ${vecesFalladaOral === 1 ? 'vez' : 'veces'}`;
+        fallosBadgeOral.style.display = 'inline-flex';
+    } else {
+        fallosBadgeOral.style.display = 'none';
+    }
 
     // Render texto y opciones
     document.getElementById('preguntaTexto').textContent = p.texto || '';
