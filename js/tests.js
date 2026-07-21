@@ -3646,7 +3646,7 @@ function generarPreguntasTest() {
             <div class="pregunta-header">
                 <div class="pregunta-numero">${index + 1}</div>
                 ${pregunta.esOficial ? '<span class="badge-oficial">📋 Oficial</span>' : ''}
-                ${vecesFallada > 0 ? `<span class="badge-fallos" title="Has fallado esta pregunta ${vecesFallada} ${vecesFallada === 1 ? 'vez' : 'veces'}">✗ x${vecesFallada}</span>` : ''}
+                ${vecesFallada > 0 ? `<span class="badge-fallos" title="Has fallado esta pregunta ${vecesFallada} ${vecesFallada === 1 ? 'vez' : 'veces'}">✗ x${vecesFallada}</span>` : (vecesFallada < 0 ? `<span class="badge-aprendida" title="Aprendida tras fallo">✓ Aprendida</span>` : '')}
                 <div class="pregunta-tema-info">
                     ${(pregunta.temaPadreId && pregunta.temaPadreNombre) ? pregunta.temaPadreNombre : pregunta.temaNombre}${pregunta.temaEpigrafe ? ` - ${pregunta.temaEpigrafe}` : ''}
                 </div>
@@ -4171,6 +4171,10 @@ async function guardarResultado(resultados) {
             usuarioId: currentUser.uid
         };
 
+        // Actualizar el contador de falladas ANTES de guardar el resultado
+        // (para que el seed desde el historial no incluya el test actual).
+        await actualizarContadorFalladas(datosLimpios.detalleRespuestas);
+
        // Guardar resultado principal
         await addDoc(collection(db, "resultados"), datosLimpios);
         
@@ -4231,83 +4235,10 @@ async function guardarResultado(resultados) {
             }
         }
 
-        // Guardar preguntas falladas para el test de repaso (SOLO si NO es un test de repaso)
-        if (!testActual.esRepaso) {
-            const preguntasFalladas = resultados.detalleRespuestas.filter(detalle => 
-                detalle.estado === 'incorrecta'
-            );
-
-            if (preguntasFalladas.length > 0) {
-                // Guardar cada pregunta fallada en la colección especial
-                const promesasGuardado = preguntasFalladas.map(async (detalle) => {
-                    const preguntaFallada = {
-                        usuarioId: currentUser.uid,
-                        pregunta: {
-                            texto: detalle.pregunta.texto,
-                            opciones: detalle.pregunta.opciones,
-                            respuestaCorrecta: detalle.respuestaCorrecta,
-                            temaId: detalle.pregunta.temaId || '',
-                            temaNombre: detalle.pregunta.temaNombre || '',
-                            temaEpigrafe: detalle.pregunta.temaEpigrafe || ''
-                        },
-                        respuestaUsuario: detalle.respuestaUsuario,
-                        estado: detalle.estado,
-                        fechaFallo: new Date(),
-                        testId: resultados.test.id,
-                        testNombre: resultados.test.nombre
-                    };
-
-                    return addDoc(collection(db, "preguntasFalladas"), preguntaFallada);
-                });
-
-                await Promise.all(promesasGuardado);
-                console.log(`${preguntasFalladas.length} preguntas falladas guardadas para repaso`);
-            }
-        } else {
-            // Si ES un test de repaso, eliminar las preguntas respondidas correctamente
-            const preguntasCorrectas = resultados.detalleRespuestas.filter(detalle => 
-                detalle.estado === 'correcta'
-            );
-
-            if (preguntasCorrectas.length > 0) {
-                console.log(`Intentando eliminar ${preguntasCorrectas.length} preguntas acertadas del banco de repaso...`);
-                
-                // Obtener TODAS las preguntas falladas del usuario
-                const q = query(
-                    collection(db, "preguntasFalladas"),
-                    where("usuarioId", "==", currentUser.uid)
-                );
-                
-                const querySnapshot = await getDocs(q);
-                const eliminaciones = [];
-                
-                // Comparar cada pregunta fallada con las acertadas
-                querySnapshot.forEach((docSnapshot) => {
-                    const data = docSnapshot.data();
-                    const textoFallada = data.pregunta?.texto?.trim();
-                    
-                    // Verificar si esta pregunta fue acertada
-                    const fueAcertada = preguntasCorrectas.some(correcta => 
-                        correcta.pregunta?.texto?.trim() === textoFallada
-                    );
-                    
-                    if (fueAcertada) {
-                        console.log('Eliminando pregunta acertada:', textoFallada?.substring(0, 50));
-                        eliminaciones.push(deleteDoc(docSnapshot.ref));
-                    }
-                });
-
-                if (eliminaciones.length > 0) {
-                    await Promise.all(eliminaciones);
-                    console.log(`✅ ${eliminaciones.length} preguntas eliminadas del banco de repaso`);
-                } else {
-                    console.log('⚠️ No se encontraron preguntas para eliminar');
-                }
-                
-                // Actualizar interfaz del test de repaso
-                setTimeout(() => cargarTestRepaso(), 1000);
-            }
-        }
+        // El contador de falladas (pendientes/acumulados/aprendida) ya se
+        // actualizó al principio con actualizarContadorFalladas(). Aquí solo
+        // refrescamos el contador visible del test de repaso.
+        setTimeout(() => cargarTestRepaso(), 1000);
 
     } catch (error) {
         console.error('Error guardando resultado:', error);
@@ -5819,26 +5750,23 @@ async function filtrarPreguntasNoVistas(preguntas) {
 async function obtenerHashesFallados() {
     const set = new Set();
     try {
-        const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
-        const snap = await getDocs(q);
+        const snap = await getDocs(query(collection(db, "preguntasFalladas"), where("usuarioId", "==", currentUser.uid)));
         snap.forEach(docSnap => {
-            const detalles = docSnap.data().detalleRespuestas || [];
-            detalles.forEach(d => {
-                const estado = d.estado || d.resultado;
-                const esFallada = estado === 'incorrecta' || estado === 'fallada' || d.acierto === false;
-                const texto = d.pregunta?.texto;
-                if (esFallada && texto) set.add(generarHashPregunta(texto));
-            });
+            const d = docSnap.data();
+            const pend = (d.fallosPendientes !== undefined) ? d.fallosPendientes : 1;
+            if (pend > 0) set.add(d.hash || generarHashPregunta(d.pregunta?.texto || ''));
         });
     } catch (e) {
-        console.warn('No se pudo leer el registro de resultados:', e);
+        console.warn('No se pudo leer el registro de falladas:', e);
     }
     return set;
 }
 
 // NUEVO: cuenta cuántas veces se ha fallado cada pregunta en todo el historial.
 // Deja el resultado en window.conteoFallosPorHash = { hash: nºVeces }
-async function cargarConteoFallosTest() {
+// Conteo histórico de fallos por hash (para "sembrar" el contador la primera
+// vez). Cuenta cuántas veces se ha fallado cada pregunta en TODO el historial.
+async function contarFallosHistorial() {
     const conteo = {};
     try {
         const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
@@ -5853,6 +5781,116 @@ async function cargarConteoFallosTest() {
                 const hash = generarHashPregunta(texto);
                 conteo[hash] = (conteo[hash] || 0) + 1;
             });
+        });
+    } catch (e) {
+        console.warn('No se pudo calcular el conteo histórico de fallos:', e);
+    }
+    return conteo;
+}
+
+// Actualiza el contador de falladas (fallosPendientes / fallosAcumulados /
+// aprendida) por pregunta, keyeado por hash del texto (compartido con la app
+// móvil). Baja al acertar, sube al fallar, marca "aprendida" al llegar a 0.
+// Debe llamarse ANTES de guardar el resultado del test actual.
+async function actualizarContadorFalladas(detalleRespuestas) {
+    try {
+        const colRef = collection(db, "preguntasFalladas");
+        const snap = await getDocs(query(colRef, where("usuarioId", "==", currentUser.uid)));
+
+        const porHash = {};
+        const duplicados = [];
+        snap.forEach(docSnap => {
+            const data = docSnap.data();
+            const texto = data.pregunta?.texto || '';
+            const h = data.hash || generarHashPregunta(texto);
+            if (porHash[h]) {
+                duplicados.push(docSnap.ref); // doc antiguo repetido → se limpia
+            } else {
+                porHash[h] = { ref: docSnap.ref, data };
+            }
+        });
+
+        let histConteo = null; // se calcula solo si hay que sembrar
+
+        const escrituras = [];
+        for (const detalle of (detalleRespuestas || [])) {
+            const estado = detalle.estado;
+            if (estado !== 'correcta' && estado !== 'incorrecta') continue; // en blanco no cuenta
+            const texto = detalle.pregunta?.texto;
+            if (!texto) continue;
+            const h = generarHashPregunta(texto);
+            const esAcierto = estado === 'correcta';
+            const existente = porHash[h];
+
+            let pendientes, acumulados, aprendida;
+            if (existente && existente.data.fallosPendientes !== undefined) {
+                pendientes = existente.data.fallosPendientes;
+                acumulados = (existente.data.fallosAcumulados !== undefined)
+                    ? existente.data.fallosAcumulados : pendientes;
+                aprendida = existente.data.aprendida === true;
+            } else if (existente) {
+                // Doc antiguo (sin contadores) → sembrar desde el historial
+                if (!histConteo) histConteo = await contarFallosHistorial();
+                const h0 = histConteo[h] || 0;
+                pendientes = h0 > 0 ? h0 : 1;
+                acumulados = pendientes;
+                aprendida = false;
+            } else {
+                pendientes = 0; acumulados = 0; aprendida = false;
+            }
+
+            if (esAcierto) {
+                if (pendientes > 0) { pendientes -= 1; if (pendientes === 0) aprendida = true; }
+            } else {
+                if (aprendida) { pendientes = acumulados + 1; acumulados = pendientes; aprendida = false; }
+                else { pendientes += 1; acumulados = pendientes; }
+            }
+
+            if (!existente && pendientes === 0 && !aprendida) continue;
+
+            const payload = {
+                usuarioId: currentUser.uid,
+                hash: h,
+                temaId: detalle.pregunta?.temaId || '',
+                temaNombre: detalle.pregunta?.temaNombre || '',
+                pregunta: {
+                    texto: texto,
+                    opciones: detalle.pregunta?.opciones || [],
+                    respuestaCorrecta: detalle.respuestaCorrecta || ''
+                },
+                fallosPendientes: pendientes,
+                fallosAcumulados: acumulados,
+                aprendida: aprendida,
+                fechaActualizacion: new Date()
+            };
+
+            if (existente) {
+                escrituras.push(setDoc(existente.ref, payload, { merge: true }));
+            } else {
+                escrituras.push(addDoc(colRef, payload));
+            }
+        }
+
+        // Limpiar duplicados antiguos (dejamos un doc por pregunta)
+        for (const ref of duplicados) escrituras.push(deleteDoc(ref));
+
+        await Promise.all(escrituras);
+    } catch (e) {
+        console.error('Error actualizando contador de falladas:', e);
+    }
+}
+
+// Deja en window.conteoFallosPorHash = { hash: nº pendientes } (-1 = aprendida)
+async function cargarConteoFallosTest() {
+    const conteo = {};
+    try {
+        const snap = await getDocs(query(collection(db, "preguntasFalladas"), where("usuarioId", "==", currentUser.uid)));
+        snap.forEach(docSnap => {
+            const d = docSnap.data();
+            const texto = d.pregunta?.texto || '';
+            const hash = d.hash || generarHashPregunta(texto);
+            const pend = (d.fallosPendientes !== undefined) ? d.fallosPendientes : 1;
+            conteo[hash] = (d.aprendida === true) ? -1 : pend;
         });
     } catch (e) {
         console.warn('No se pudo calcular el conteo de fallos:', e);
@@ -6127,16 +6165,22 @@ async function cargarTestRepaso() {
             where("usuarioId", "==", currentUser.uid)
         );
         const querySnapshot = await getDocs(q);
-        
+
         const containerRepaso = document.getElementById('testRepasoContainer');
         if (!containerRepaso) return;
 
-        if (querySnapshot.empty) {
+        // Contar solo las que tienen fallos pendientes (excluye aprendidas)
+        let totalPreguntasFalladas = 0;
+        querySnapshot.forEach(docSnap => {
+            const d = docSnap.data();
+            const pend = (d.fallosPendientes !== undefined) ? d.fallosPendientes : 1;
+            if (pend > 0) totalPreguntasFalladas++;
+        });
+
+        if (totalPreguntasFalladas === 0) {
             containerRepaso.style.display = 'none';
             return;
         }
-
-        const totalPreguntasFalladas = querySnapshot.size;
         containerRepaso.style.display = 'block';
         
         // Actualizar el contador en la interfaz
@@ -6175,15 +6219,22 @@ window.iniciarTestRepaso = async function() {
             return;
         }
 
-        // Convertir a formato de preguntas
+        // Convertir a formato de preguntas (solo con fallos pendientes)
         const preguntasRepaso = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
+            const pend = (data.fallosPendientes !== undefined) ? data.fallosPendientes : 1;
+            if (pend <= 0) return; // aprendida → fuera del repaso
             preguntasRepaso.push({
                 ...data.pregunta,
                 documentId: doc.id
             });
         });
+
+        if (preguntasRepaso.length === 0) {
+            alert('No hay preguntas falladas pendientes para repasar');
+            return;
+        }
 
         // Obtener preguntas únicas y aleatorias para el repaso
         const preguntasMezcladas = obtenerPreguntasUnicasAleatorias(preguntasRepaso, preguntasRepaso.length);
