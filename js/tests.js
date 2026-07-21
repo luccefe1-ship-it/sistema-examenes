@@ -4886,6 +4886,9 @@ async function cargarResultados() {
         
         listResultados.innerHTML = '';
 
+        // Asegurar el mapa de temas para resolver el nombre del tema padre en las etiquetas
+        await asegurarMapaTemas();
+
         // PANEL DE ESTADÍSTICAS GLOBALES
         let totalTests = 0;
         let totalPreguntasContestadas = 0;
@@ -7531,15 +7534,56 @@ window.cargarPreguntasLazy = async function(event, temaId) {
     }
 };
 // Versión simplificada sin necesidad de cargar temas
+// Mapa global de temas (id -> { nombre, temaPadreId }) para resolver el nombre del tema padre
+let mapaTemasCache = null;
+
+async function asegurarMapaTemas(forzar = false) {
+    if (mapaTemasCache && !forzar) return mapaTemasCache;
+    try {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
+        const snap = await getDocs(q);
+        const mapa = {};
+        snap.forEach(d => {
+            const data = d.data();
+            mapa[d.id] = { nombre: data.nombre || '', temaPadreId: data.temaPadreId || null };
+        });
+        mapaTemasCache = mapa;
+    } catch (e) {
+        console.warn('No se pudo cargar el mapa de temas:', e);
+        mapaTemasCache = mapaTemasCache || {};
+    }
+    return mapaTemasCache;
+}
+
+// Dado un id de tema, devuelve el nombre de su tema PADRE (o el propio nombre si no tiene padre)
+function nombreTemaPadre(temaId) {
+    const mapa = mapaTemasCache || {};
+    const tema = mapa[temaId];
+    if (!tema) return null;
+    if (tema.temaPadreId && mapa[tema.temaPadreId]) {
+        return mapa[tema.temaPadreId].nombre || null;
+    }
+    return tema.nombre || null;
+}
+
 function obtenerTextoTemasSimple(tema) {
     if (tema === 'todos') {
         return 'Todos los temas';
     } else if (tema === 'repaso') {
         return 'Test de repaso';
     } else if (Array.isArray(tema)) {
-        return tema.length > 1 ? `${tema.length} temas seleccionados` : 'Tema específico';
+        // Mostrar el nombre del/los tema(s) PADRE, sin duplicados
+        // (ej.: aunque se seleccionen varios subtemas del Tema 1, mostrar "Tema 1")
+        const nombres = [...new Set(
+            tema.map(id => nombreTemaPadre(id)).filter(Boolean)
+        )];
+        if (nombres.length === 0) {
+            // Fallback si el mapa de temas aún no está disponible
+            return tema.length > 1 ? `${tema.length} temas seleccionados` : 'Tema específico';
+        }
+        return nombres.join(', ');
     } else if (typeof tema === 'string') {
-        return 'Tema específico';
+        return nombreTemaPadre(tema) || 'Tema específico';
     } else {
         return 'Test';
     }
