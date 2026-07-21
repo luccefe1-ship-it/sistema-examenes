@@ -6292,7 +6292,7 @@ window.iniciarTestRepaso = async function() {
 
 // Limpiar todas las preguntas falladas
 window.limpiarTodasPreguntasFalladas = async function() {
-    if (!confirm('¿Estás seguro de que quieres eliminar todas las preguntas falladas? Esta acción no se puede deshacer.')) {
+    if (!confirm('⚠️ Vas a eliminar TODAS las preguntas registradas como falladas y su contador de fallos.\n\nComo los datos están en la nube y son compartidos, desaparecerán TANTO en la WEB como en la APP MÓVIL.\n\nEsta acción no se puede deshacer. ¿Continuar?')) {
         return;
     }
 
