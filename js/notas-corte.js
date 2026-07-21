@@ -27,7 +27,13 @@ export const DATOS_CONVOCATORIA = {
                     notaMaximaProceso: 100,
                     notaCorteFinal: 52.85,
                     plazas: 731,
-                    plazasAmbito: 180
+                    plazasAmbito: 180,
+                    ejercicio2Nombre: 'práctico',
+                    ejercicio2Max: 15,
+                    ejercicio2Min: 7.5,
+                    ejercicio3Nombre: 'escrito',
+                    ejercicio3Max: 25,
+                    ejercicio3Min: 12.5
                 },
                 interna: {
                     nombre: 'Promoción interna',
@@ -63,7 +69,13 @@ export const DATOS_CONVOCATORIA = {
                     notaMaximaProceso: 100,
                     notaCorteFinal: 71.10,
                     plazas: 855,
-                    plazasAmbito: 310
+                    plazasAmbito: 310,
+                    ejercicio2Nombre: 'práctico',
+                    ejercicio2Max: 20,
+                    ejercicio2Min: 10,
+                    ejercicio3Nombre: 'informática',
+                    ejercicio3Max: 20,
+                    ejercicio3Min: 10
                 },
                 interna: {
                     nombre: 'Promoción interna',
@@ -144,15 +156,23 @@ export function calcularNotaOficial({ correctas = 0, incorrectas = 0, total = 0,
     // de las bases. La plaza se decide por la SUMA de los 3 ejercicios. Calculamos
     // cuántos puntos harían falta en los dos ejercicios restantes para igualar al
     // último que obtuvo plaza en Madrid.
-    let puntosRestantesMax = null;        // puntos máximos del 2º + 3er ejercicio
-    let puntosNecesariosRestantes = null; // puntos necesarios en esos dos ejercicios
-    let plazaAlcanzable = null;           // ¿es matemáticamente posible?
+    let puntosRestantesMax = null;         // puntos máximos del 2º + 3er ejercicio
+    let puntosNecesariosRestantes = null;  // puntos que faltan (sobre el 1er ej.) para el corte
+    let plazaAlcanzable = null;            // ¿es matemáticamente posible llegar al corte?
+    let notaConMinimos = null;            // nota total si aprueba 2º y 3º por el mínimo
+    let plazaSoloConMinimos = null;       // ¿basta aprobar 2º y 3º por el mínimo?
+    let puntosExtraSobreMinimos = null;   // puntos extra (además de los mínimos) para el corte
     let puntosConcursoNecesarios = null;
 
     if (turno === 'libre') {
         puntosRestantesMax = cfg.notaMaximaProceso - cfg.notaMaxima;
         puntosNecesariosRestantes = Math.max(0, cfg.notaCorteFinal - notaExtrapolada);
         plazaAlcanzable = puntosNecesariosRestantes <= puntosRestantesMax;
+        // Cada ejercicio es eliminatorio con su propio mínimo oficial (BOE).
+        const minRestantes = cfg.ejercicio2Min + cfg.ejercicio3Min;
+        notaConMinimos = notaExtrapolada + minRestantes;
+        plazaSoloConMinimos = notaConMinimos >= cfg.notaCorteFinal;
+        puntosExtraSobreMinimos = Math.max(0, cfg.notaCorteFinal - notaConMinimos);
     } else {
         // Promoción interna: ejercicio único + méritos del concurso
         puntosConcursoNecesarios = Math.max(0, cfg.notaCorteFinal - notaExtrapolada);
@@ -179,6 +199,9 @@ export function calcularNotaOficial({ correctas = 0, incorrectas = 0, total = 0,
         puntosRestantesMax,
         puntosNecesariosRestantes,
         plazaAlcanzable,
+        notaConMinimos,
+        plazaSoloConMinimos,
+        puntosExtraSobreMinimos,
         puntosConcursoNecesarios,
         fiabilidad
     };
@@ -243,9 +266,19 @@ export function generarBloqueComparativa(datos, idBloque = 'bloqueComparativa') 
         html += `<div class="comparativa-nivel orientativo" style="border-left-color:${colorPlaza}">`;
         html += `<div class="comparativa-nivel-cabecera">Camino a la plaza <span class="comparativa-tag">orientativo</span></div>`;
         html += `<div class="comparativa-veredicto" style="color:${colorPlaza}">${r.plazaAlcanzable ? '🎯 PLAZA AL ALCANCE' : '📉 PLAZA MUY DIFÍCIL'}</div>`;
-        html += `<div class="comparativa-corte-dato">Última plaza en ${DATOS_CONVOCATORIA.ambito.split('·')[0].trim()}: <strong>${fmt(r.cfg.notaCorteFinal)}</strong> / ${r.cfg.notaMaximaProceso} <small>(${r.cfg.plazasAmbito} plazas)</small></div>`;
-        html += `<div class="comparativa-nota">Con tu 1er ejercicio (<strong>${fmt(r.notaExtrapolada)}</strong> / ${r.cfg.notaMaxima}) necesitarías <strong>${fmt(r.puntosNecesariosRestantes)}</strong> / ${fmt(r.puntosRestantesMax, 0)} en el 2º y 3er ejercicio</div>`;
-        html += `<div class="comparativa-supuesto">${r.plazaAlcanzable ? 'El 1er ejercicio solo exige el mínimo fijo; la plaza se decide por la suma de los 3 ejercicios.' : 'Ni con el máximo en los otros dos ejercicios llegarías: necesitas subir la nota del test.'}</div>`;
+        html += `<div class="comparativa-nota">Tu 1er ejercicio: <strong>${fmt(r.notaExtrapolada)}</strong> / ${r.cfg.notaMaxima}</div>`;
+        html += `<div class="comparativa-corte-dato">Nota del último con plaza en ${DATOS_CONVOCATORIA.ambito.split('·')[0].trim()}: <strong>${fmt(r.cfg.notaCorteFinal)}</strong> / ${r.cfg.notaMaximaProceso} <small>(${r.cfg.plazasAmbito} plazas)</small></div>`;
+        html += `<div class="comparativa-nota" style="margin-top:6px">Debes superar además (eliminatorios):</div>`;
+        html += `<div class="comparativa-corte-dato">2º ejercicio (${r.cfg.ejercicio2Nombre}): mínimo <strong>${fmt(r.cfg.ejercicio2Min)}</strong> / ${r.cfg.ejercicio2Max}</div>`;
+        html += `<div class="comparativa-corte-dato">3er ejercicio (${r.cfg.ejercicio3Nombre}): mínimo <strong>${fmt(r.cfg.ejercicio3Min)}</strong> / ${r.cfg.ejercicio3Max}</div>`;
+        if (!r.plazaAlcanzable) {
+            html += `<div class="comparativa-diferencia" style="color:${colorPlaza}">Ni con el máximo en el 2º y 3er ejercicio llegarías al corte: sube la nota del test.</div>`;
+        } else if (r.plazaSoloConMinimos) {
+            html += `<div class="comparativa-diferencia" style="color:${colorPlaza}">Aprobándolos por el mínimo sumarías ${fmt(r.notaConMinimos)} / ${r.cfg.notaMaximaProceso} → ya superarías al último con plaza.</div>`;
+        } else {
+            html += `<div class="comparativa-diferencia" style="color:${colorPlaza}">Aprobándolos por el mínimo sumarías ${fmt(r.notaConMinimos)} / ${r.cfg.notaMaximaProceso}; para el corte necesitarías <strong>${fmt(r.puntosExtraSobreMinimos)}</strong> puntos más entre esos dos ejercicios.</div>`;
+        }
+        html += `<div class="comparativa-supuesto">Cada ejercicio es <strong>eliminatorio</strong>: hay que alcanzar su mínimo. Datos de mínimos: Orden PJC/1437/2024 (BOE).</div>`;
         html += `</div>`;
     } else {
         html += `<div class="comparativa-nivel orientativo" style="border-left-color:#6c757d">`;
