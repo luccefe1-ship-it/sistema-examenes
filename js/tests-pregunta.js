@@ -23,6 +23,42 @@ let cronometroInterval = null;
 let tiempoRestanteSegundos = 0;
 let padreNombresMap = {};
 
+// NUEVO: hash de pregunta (mismo algoritmo que tests.js)
+function generarHashPregunta(texto) {
+    const preguntaTexto = texto || '';
+    let hash = 0;
+    for (let i = 0; i < preguntaTexto.length; i++) {
+        const char = preguntaTexto.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return 'q_' + Math.abs(hash).toString(36);
+}
+
+// NUEVO: cuenta cuántas veces se ha fallado cada pregunta en todo el historial
+async function cargarConteoFallos() {
+    const conteo = {};
+    try {
+        const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
+        const snap = await getDocs(q);
+        snap.forEach(docSnap => {
+            const detalles = docSnap.data().detalleRespuestas || [];
+            detalles.forEach(d => {
+                const estado = d.estado || d.resultado;
+                const esFallada = estado === 'incorrecta' || estado === 'fallada' || d.acierto === false;
+                const texto = d.pregunta?.texto;
+                if (!esFallada || !texto) return;
+                const hash = generarHashPregunta(texto);
+                conteo[hash] = (conteo[hash] || 0) + 1;
+            });
+        });
+    } catch (e) {
+        console.warn('No se pudo calcular el conteo de fallos:', e);
+    }
+    window.conteoFallosPorHash = conteo;
+    console.log(`📊 Conteo de fallos cargado: ${Object.keys(conteo).length} preguntas`);
+}
+
 // Esperar a que el DOM esté cargado
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM cargado en tests-pregunta.js');
@@ -87,6 +123,9 @@ async function cargarConfiguracion() {
         iniciarCronometro(minutos * 60);
     }
     
+    // Conteo de veces falladas para la píldora de cada pregunta
+    await cargarConteoFallos();
+
     // Generar dots de progreso
     generarProgressDots();
     
@@ -194,6 +233,24 @@ function mostrarPregunta() {
         oficialBadge.style.display = 'inline-flex';
     } else {
         oficialBadge.style.display = 'none';
+    }
+
+    // Badge de veces falladas
+    let fallosBadge = document.getElementById('fallosBadgePregunta');
+    if (!fallosBadge) {
+        fallosBadge = document.createElement('div');
+        fallosBadge.id = 'fallosBadgePregunta';
+        fallosBadge.className = 'badge-fallos';
+        fallosBadge.style.cssText = 'margin-bottom:12px;margin-left:8px;';
+        const textoEl = document.getElementById('textoPreguntaGrande');
+        textoEl.parentNode.insertBefore(fallosBadge, textoEl);
+    }
+    const vecesFallada = (window.conteoFallosPorHash || {})[generarHashPregunta(pregunta.texto)] || 0;
+    if (vecesFallada > 0) {
+        fallosBadge.textContent = `✗ Fallada ${vecesFallada} ${vecesFallada === 1 ? 'vez' : 'veces'}`;
+        fallosBadge.style.display = 'inline-flex';
+    } else {
+        fallosBadge.style.display = 'none';
     }
 
     // Mostrar texto de la pregunta
@@ -1735,23 +1792,29 @@ window.generarExplicacionIA = async function() {
 
     try {
         const apiKey = await obtenerClaudeApiKey();
-        console.log('API KEY usada:', apiKey.substring(0, 20) + '...' + apiKey.substring(apiKey.length - 5));
-        console.log('Longitud clave:', apiKey.length);
 
         const respUsuario = opciones.find(o => o.letra === pregunta.respuestaUsuario || o.letra === respuestas.find(r => r.preguntaIndex === preguntaActual)?.respuestaUsuario);
 
-        const prompt = `Eres un experto en oposiciones españolas. Analiza esta pregunta de oposición y explica:
-1. Por qué la respuesta del alumno es INCORRECTA (si lo es).
-2. Por qué la respuesta CORRECTA es la que es, con base legal si aplica.
+        const fallo = respUsuario && respCorrecta && respUsuario.letra !== respCorrecta.letra;
+
+        const prompt = `Eres profesor de oposiciones a la Administración de Justicia en España. Le explicas una pregunta fallada a un alumno, de viva voz.
 
 Pregunta: ${preguntaTexto}
 Opciones:
 ${opciones.map(o => `${o.letra}) ${o.texto}`).join('\n')}
-Respuesta del alumno: ${respUsuario ? `${respUsuario.letra}) ${respUsuario.texto}` : 'No disponible'}
-Respuesta correcta: ${respCorrecta ? `${respCorrecta.letra}) ${respCorrecta.texto}` : 'No disponible'}
+Opción marcada por el alumno: ${respUsuario ? `${respUsuario.letra}) ${respUsuario.texto}` : 'ninguna'}
+Opción correcta: ${respCorrecta ? `${respCorrecta.letra}) ${respCorrecta.texto}` : 'No disponible'}
 
-Sé directo y pedagógico. Máximo 6 líneas.`;
+Escribe dos párrafos cortos y seguidos:
+${fallo ? 'Primero, por qué la opción que marcó el alumno no es válida.\n' : ''}${fallo ? 'Después, ' : ''}por qué la opción correcta sí lo es, citando el artículo y la norma concretos.
 
+REGLAS DE FORMATO (obligatorias):
+- Texto plano. Nada de asteriscos, almohadillas, guiones de lista, negritas ni ningún marcado.
+- Sin títulos, sin encabezados, sin numeración.
+- No repitas el enunciado ni las opciones.
+- Sin introducción, sin resumen final, sin frases de cortesía.
+- Lenguaje natural, sencillo y directo.
+- Máximo 120 palabras en total.`;
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
@@ -1761,15 +1824,21 @@ Sé directo y pedagógico. Máximo 6 líneas.`;
                 'anthropic-dangerous-direct-browser-access': 'true'
             },
             body: JSON.stringify({
-                model: 'claude-sonnet-4-5',
-                max_tokens: 1024,
+                model: 'claude-opus-4-8',
+                max_tokens: 1000,
                 messages: [{ role: 'user', content: prompt }]
             })
         });
 
-        if (!response.ok) throw new Error(`Error API: ${response.status}`);
+        if (!response.ok) throw new Error(`Error API: ${response.status} ${await response.text()}`);
         const data = await response.json();
-        const texto = data.content?.[0]?.text || '';
+        const texto = (data.content || [])
+            .filter(b => b.type === 'text')
+            .map(b => b.text || '')
+            .join('\n')
+            .replace(/\*+/g, '')
+            .replace(/^#+\s*/gm, '')
+            .trim();
 
         textarea.innerHTML = texto.replace(/\n/g, '<br>');
         document.getElementById('tabGemini').classList.add('tiene-contenido');
@@ -1784,7 +1853,9 @@ Sé directo y pedagógico. Máximo 6 líneas.`;
 async function obtenerClaudeApiKey() {
     const keyDoc = await getDoc(doc(db, 'config', 'keys'));
     if (!keyDoc.exists()) throw new Error('No se encontró la configuración de IA');
-    return keyDoc.data().claudeApiKey.replace(/\s/g, '');
+    const key = (keyDoc.data().claudeApiKeyWeb || '').replace(/\s/g, '');
+    if (!key) throw new Error('Falta el campo claudeApiKeyWeb en config/keys');
+    return key;
 }
 
 window.borrarExplicacionGemini = async function() {
