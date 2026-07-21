@@ -3427,6 +3427,9 @@ async function empezarTest() {
         window.testActual = testActual;  // AÑADIR ESTA LÍNEA
         respuestasUsuario = {};
 
+        // Conteo de veces falladas para mostrar la píldora en cada pregunta
+        await cargarConteoFallosTest();
+
         // Mostrar interfaz del test
         mostrarInterfazTest();
         
@@ -3613,11 +3616,14 @@ function generarPreguntasTest() {
     testActual.preguntas.forEach((pregunta, index) => {
         const preguntaDiv = document.createElement('div');
         preguntaDiv.className = 'pregunta-test';
-        
+
+        const vecesFallada = (window.conteoFallosPorHash || {})[generarHashPregunta(pregunta.texto)] || 0;
+
         preguntaDiv.innerHTML = `
             <div class="pregunta-header">
                 <div class="pregunta-numero">${index + 1}</div>
                 ${pregunta.esOficial ? '<span class="badge-oficial">📋 Oficial</span>' : ''}
+                ${vecesFallada > 0 ? `<span class="badge-fallos" title="Has fallado esta pregunta ${vecesFallada} ${vecesFallada === 1 ? 'vez' : 'veces'}">✗ x${vecesFallada}</span>` : ''}
                 <div class="pregunta-tema-info">
                     ${(pregunta.temaPadreId && pregunta.temaPadreNombre) ? pregunta.temaPadreNombre : pregunta.temaNombre}${pregunta.temaEpigrafe ? ` - ${pregunta.temaEpigrafe}` : ''}
                 </div>
@@ -5804,6 +5810,31 @@ async function obtenerHashesFallados() {
     return set;
 }
 
+// NUEVO: cuenta cuántas veces se ha fallado cada pregunta en todo el historial.
+// Deja el resultado en window.conteoFallosPorHash = { hash: nºVeces }
+async function cargarConteoFallosTest() {
+    const conteo = {};
+    try {
+        const q = query(collection(db, "resultados"), where("usuarioId", "==", currentUser.uid));
+        const snap = await getDocs(q);
+        snap.forEach(docSnap => {
+            const detalles = docSnap.data().detalleRespuestas || [];
+            detalles.forEach(d => {
+                const estado = d.estado || d.resultado;
+                const esFallada = estado === 'incorrecta' || estado === 'fallada' || d.acierto === false;
+                const texto = d.pregunta?.texto;
+                if (!esFallada || !texto) return;
+                const hash = generarHashPregunta(texto);
+                conteo[hash] = (conteo[hash] || 0) + 1;
+            });
+        });
+    } catch (e) {
+        console.warn('No se pudo calcular el conteo de fallos:', e);
+    }
+    window.conteoFallosPorHash = conteo;
+    console.log(`📊 Conteo de fallos cargado: ${Object.keys(conteo).length} preguntas`);
+}
+
 // NUEVO: filtra el pool a solo las preguntas falladas
 async function filtrarPreguntasFalladas(preguntas) {
     const fallados = await obtenerHashesFallados();
@@ -6158,6 +6189,7 @@ window.iniciarTestRepaso = async function() {
         };
 
         respuestasUsuario = {};
+        await cargarConteoFallosTest();
         mostrarInterfazTest();
 
     } catch (error) {
@@ -8053,13 +8085,29 @@ window.generarExplicacionIAModal = async function() {
     try {
         const keyDoc = await getDoc(doc(db, 'config', 'keys'));
         if (!keyDoc.exists()) throw new Error('No se encontró configuración de IA');
-        const apiKey = keyDoc.data().claudeApiKey;
+        const apiKey = (keyDoc.data().claudeApiKeyWeb || '').replace(/\s/g, '');
+        if (!apiKey) throw new Error('Falta el campo claudeApiKeyWeb en config/keys');
 
-        const prompt = `Eres un experto en oposiciones españolas. Explica de forma clara y concisa por qué la respuesta a esta pregunta es la correcta.
+        const listaOpciones = (pregunta.opciones || [])
+            .map(o => `${o.letra}) ${o.texto}`).join('\n');
+        const opcionCorrecta = (pregunta.opciones || [])
+            .find(o => o.esCorrecta || o.letra === pregunta.respuestaCorrecta);
+
+        const prompt = `Eres profesor de oposiciones a la Administración de Justicia en España. Le explicas una pregunta a un alumno, de viva voz.
 
 Pregunta: ${pregunta.texto}
+${listaOpciones ? `Opciones:\n${listaOpciones}` : ''}
+${opcionCorrecta ? `Opción correcta: ${opcionCorrecta.letra}) ${opcionCorrecta.texto}` : ''}
 
-Proporciona una explicación pedagógica de 3-5 líneas que ayude a memorizar y entender la respuesta.`;
+Explica en un párrafo corto por qué la opción correcta lo es, citando el artículo y la norma concretos. Si alguna otra opción induce especialmente a error, aclara brevemente por qué no vale.
+
+REGLAS DE FORMATO (obligatorias):
+- Texto plano. Nada de asteriscos, almohadillas, guiones de lista, negritas ni ningún marcado.
+- Sin títulos, sin encabezados, sin numeración.
+- No repitas el enunciado ni las opciones.
+- Sin introducción, sin resumen final, sin frases de cortesía.
+- Lenguaje natural, sencillo y directo.
+- Máximo 120 palabras en total.`;
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -8070,15 +8118,21 @@ Proporciona una explicación pedagógica de 3-5 líneas que ayude a memorizar y 
                 'anthropic-dangerous-direct-browser-access': 'true'
             },
             body: JSON.stringify({
-                model: 'claude-sonnet-4-5',
-                max_tokens: 1024,
+                model: 'claude-opus-4-8',
+                max_tokens: 1000,
                 messages: [{ role: 'user', content: prompt }]
             })
         });
 
-        if (!response.ok) throw new Error(`Error API: ${response.status}`);
+        if (!response.ok) throw new Error(`Error API: ${response.status} ${await response.text()}`);
         const data = await response.json();
-        const texto = data.content?.[0]?.text || '';
+        const texto = (data.content || [])
+            .filter(b => b.type === 'text')
+            .map(b => b.text || '')
+            .join('\n')
+            .replace(/\*+/g, '')
+            .replace(/^#+\s*/gm, '')
+            .trim();
         if (textarea) textarea.innerHTML = texto.replace(/\n/g, '<br>');
 
     } catch (error) {
