@@ -936,6 +936,91 @@
 .pregunta-revision .badge-oficial {
     margin-left: 8px;
 }
+
+/* ===== Subida de Word con Claude ===== */
+.claude-upload {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.claude-upload-header { margin-bottom: 14px; }
+.claude-upload-titulo {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #333;
+}
+.claude-upload-sub {
+    display: block;
+    font-size: 0.85rem;
+    color: #777;
+    margin-top: 2px;
+}
+.claude-dropzone {
+    border: 2px dashed #a5b4fc;
+    border-radius: 10px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+    background: #f8f9ff;
+}
+.claude-dropzone:hover,
+.claude-dropzone.arrastrando {
+    background: #eef0ff;
+    border-color: #6366f1;
+}
+.claude-dropzone.procesando {
+    opacity: .55;
+    pointer-events: none;
+}
+.claude-dropzone-icono { font-size: 2rem; margin-bottom: 6px; }
+.claude-dropzone-texto { color: #555; font-size: 0.95rem; }
+
+.claude-progreso { margin-top: 16px; }
+.claude-progreso-texto {
+    font-size: 0.9rem;
+    color: #444;
+    margin-bottom: 8px;
+}
+.claude-progreso-barra {
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 999px;
+    overflow: hidden;
+}
+.claude-progreso-relleno {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+    border-radius: 999px;
+    transition: width .35s ease;
+}
+
+.claude-avisos {
+    margin-top: 16px;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+.claude-avisos-titulo {
+    font-weight: 600;
+    color: #92400e;
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+}
+.claude-avisos ul {
+    margin: 0;
+    padding-left: 18px;
+}
+.claude-avisos li {
+    font-size: 0.85rem;
+    color: #78350f;
+    margin-bottom: 3px;
+}
     </style>
 </head>
 <body>
@@ -977,6 +1062,34 @@
                         <span id="temaSeleccionado" class="tema-actual">Tema: Ninguno seleccionado</span>
 <button id="importarArchivoBtn" class="btn-primary">📁 Importar desde Archivo</button>
 <input type="file" id="fileInput" accept=".json" style="display: none;">
+                    </div>
+                </div>
+
+                <!-- Subida directa de Word con Claude -->
+                <div class="claude-upload">
+                    <div class="claude-upload-header">
+                        <span class="claude-upload-titulo">Subir Word de la academia</span>
+                        <span class="claude-upload-sub">Claude Opus 5 extrae las preguntas y detecta la respuesta correcta automáticamente</span>
+                    </div>
+
+                    <div id="zonaWord" class="claude-dropzone">
+                        <div class="claude-dropzone-icono">📄</div>
+                        <div class="claude-dropzone-texto">
+                            Arrastra aquí el archivo <strong>.docx</strong> o haz clic para seleccionarlo
+                        </div>
+                    </div>
+                    <input type="file" id="wordInput" accept=".docx" style="display: none;">
+
+                    <div id="progresoWord" class="claude-progreso" style="display: none;">
+                        <div class="claude-progreso-texto" id="progresoWordTexto">Leyendo el documento...</div>
+                        <div class="claude-progreso-barra">
+                            <div class="claude-progreso-relleno" id="progresoWordBarra"></div>
+                        </div>
+                    </div>
+
+                    <div id="avisosWord" class="claude-avisos" style="display: none;">
+                        <div class="claude-avisos-titulo">⚠️ Revisa estas preguntas antes de asignarlas</div>
+                        <ul id="avisosWordLista"></ul>
                     </div>
                 </div>
 

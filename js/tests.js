@@ -438,6 +438,9 @@ async function importarTemaCompletoConSubtemas(datos) {
     }
 // Inicializar tema digital cuando DOM está listo
     inicializarTemaDigital();
+
+    // Inicializar subida de Word con Claude
+    inicializarSubidaWord();
 }
 
 
@@ -9260,3 +9263,202 @@ window.eliminarPreguntasSeleccionadas = async function() {
         alert('Error al eliminar las preguntas seleccionadas');
     }
 };
+
+
+// ============================================================
+//  SUBIDA DE WORD CON CLAUDE (API Opus 5, esfuerzo medio)
+//  Sustituye el paso manual por DeepSeek: el Word de la academia
+//  se convierte directamente en preguntas con el formato de la
+//  plataforma y se vuelca en la vista previa existente.
+// ============================================================
+
+const ENDPOINT_CLAUDE = '/api/procesar-preguntas';
+
+function inicializarSubidaWord() {
+    const zona = document.getElementById('zonaWord');
+    const input = document.getElementById('wordInput');
+    if (!zona || !input) return;
+
+    zona.addEventListener('click', () => input.click());
+
+    zona.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zona.classList.add('arrastrando');
+    });
+
+    zona.addEventListener('dragleave', () => {
+        zona.classList.remove('arrastrando');
+    });
+
+    zona.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zona.classList.remove('arrastrando');
+        const archivo = e.dataTransfer.files[0];
+        if (archivo) procesarWordConClaude(archivo);
+    });
+
+    input.addEventListener('change', (e) => {
+        const archivo = e.target.files[0];
+        if (archivo) procesarWordConClaude(archivo);
+        input.value = ''; // permite volver a subir el mismo archivo
+    });
+}
+
+// ------------------------------------------------------------
+//  Flujo principal
+// ------------------------------------------------------------
+async function procesarWordConClaude(archivo) {
+    if (!temaSeleccionado) {
+        alert('Selecciona primero el tema o subtema al que quieres subir las preguntas.');
+        return;
+    }
+    if (!archivo.name.toLowerCase().endsWith('.docx')) {
+        alert('El archivo debe ser un Word en formato .docx (no .doc ni PDF).');
+        return;
+    }
+
+    const zona = document.getElementById('zonaWord');
+    zona.classList.add('procesando');
+    ocultarAvisosWord();
+    mostrarProgresoWord('Leyendo el documento...', 5);
+
+    try {
+        // 1. Extraer el texto del Word en el navegador
+        const texto = await extraerTextoDeWord(archivo);
+        if (!texto || texto.trim().length < 40) {
+            throw new Error('No se ha podido leer texto del documento. ¿Está vacío o es una imagen escaneada?');
+        }
+
+        // 2. Procesar por lotes contra Claude
+        mostrarProgresoWord('Analizando con Claude Opus 5...', 12);
+
+        const todasLasPreguntas = [];
+        const todosLosAvisos = [];
+        let lote = 0;
+        let totalLotes = 1;
+        let tokensEntrada = 0;
+        let tokensSalida = 0;
+        const cuentasUsadas = new Set();
+
+        do {
+            const datos = await pedirLoteAClaude(texto, lote);
+            totalLotes = datos.totalLotes;
+            if (datos.cuenta) cuentasUsadas.add(datos.cuenta);
+
+            todasLasPreguntas.push(...datos.preguntas);
+            todosLosAvisos.push(...(datos.avisos || []));
+            tokensEntrada += (datos.uso && datos.uso.tokensEntrada) || 0;
+            tokensSalida += (datos.uso && datos.uso.tokensSalida) || 0;
+
+            const porcentaje = 12 + Math.round(((lote + 1) / totalLotes) * 85);
+            mostrarProgresoWord(
+                `Analizando con Claude Opus 5... bloque ${lote + 1} de ${totalLotes} · ${todasLasPreguntas.length} preguntas extraídas`,
+                porcentaje
+            );
+
+            lote++;
+        } while (lote < totalLotes);
+
+        if (todasLasPreguntas.length === 0) {
+            throw new Error('Claude no ha podido extraer ninguna pregunta válida del documento.');
+        }
+
+        // 3. Renumerar y volcar en la vista previa existente
+        preguntasProcesadas = todasLasPreguntas.map((pregunta, indice) => ({
+            numero: indice + 1,
+            texto: pregunta.texto,
+            opciones: pregunta.opciones,
+            respuestaCorrecta: pregunta.respuestaCorrecta,
+            fechaCreacion: new Date()
+        }));
+
+        mostrarProgresoWord(
+            `✅ ${preguntasProcesadas.length} preguntas listas · revisa la vista previa y pulsa "Asignar Preguntas al Tema"`,
+            100
+        );
+
+        mostrarVistaPreviaPreguntas();
+        if (todosLosAvisos.length > 0) mostrarAvisosWord(todosLosAvisos);
+
+        console.log(`[Claude] ${preguntasProcesadas.length} preguntas · ${tokensEntrada} tokens de entrada · ${tokensSalida} de salida · cuenta: ${[...cuentasUsadas].join(' + ') || 'desconocida'}`);
+
+        document.getElementById('preguntasProcesadas')
+            .scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    } catch (error) {
+        console.error('Error procesando el Word con Claude:', error);
+        mostrarProgresoWord(`❌ ${error.message}`, 100, true);
+    } finally {
+        zona.classList.remove('procesando');
+    }
+}
+
+// ------------------------------------------------------------
+//  Auxiliares
+// ------------------------------------------------------------
+function extraerTextoDeWord(archivo) {
+    return new Promise((resolve, reject) => {
+        const lector = new FileReader();
+        lector.onload = async (e) => {
+            try {
+                const resultado = await mammoth.extractRawText({ arrayBuffer: e.target.result });
+                resolve(resultado.value);
+            } catch (error) {
+                reject(new Error('El archivo no se ha podido abrir como documento Word.'));
+            }
+        };
+        lector.onerror = () => reject(new Error('Error leyendo el archivo.'));
+        lector.readAsArrayBuffer(archivo);
+    });
+}
+
+async function pedirLoteAClaude(texto, lote) {
+    const respuesta = await fetch(ENDPOINT_CLAUDE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto, lote })
+    });
+
+    let datos;
+    try {
+        datos = await respuesta.json();
+    } catch (e) {
+        throw new Error(`El servidor devolvió una respuesta inesperada (${respuesta.status}).`);
+    }
+
+    if (!respuesta.ok) {
+        throw new Error(datos.error || `Error ${respuesta.status} del servidor.`);
+    }
+    return datos;
+}
+
+function mostrarProgresoWord(mensaje, porcentaje, esError = false) {
+    const contenedor = document.getElementById('progresoWord');
+    const textoEl = document.getElementById('progresoWordTexto');
+    const barra = document.getElementById('progresoWordBarra');
+    if (!contenedor) return;
+
+    contenedor.style.display = 'block';
+    textoEl.textContent = mensaje;
+    textoEl.style.color = esError ? '#b91c1c' : '#444';
+    barra.style.width = porcentaje + '%';
+    barra.style.background = esError
+        ? '#ef4444'
+        : 'linear-gradient(90deg, #6366f1, #818cf8)';
+}
+
+function mostrarAvisosWord(avisos) {
+    const contenedor = document.getElementById('avisosWord');
+    const lista = document.getElementById('avisosWordLista');
+    if (!contenedor) return;
+
+    lista.innerHTML = avisos
+        .map(aviso => `<li>${aviso.replace(/</g, '&lt;')}</li>`)
+        .join('');
+    contenedor.style.display = 'block';
+}
+
+function ocultarAvisosWord() {
+    const contenedor = document.getElementById('avisosWord');
+    if (contenedor) contenedor.style.display = 'none';
+}
