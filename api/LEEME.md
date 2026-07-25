@@ -44,12 +44,34 @@ Para abaratarlo, cambia la constante `MODELO` a `claude-sonnet-5` (cuesta unas 5
 
 | Archivo | Qué se hizo |
 |---|---|
+| `api/_claude.js` | Nuevo. Módulo interno compartido: control de origen, encadenado de cuentas y reintentos. No es un endpoint (Vercel ignora los archivos que empiezan por `_`). |
 | `api/procesar-preguntas.js` | Nuevo. Llama a Claude y devuelve las preguntas ya en el formato de la plataforma. |
-| `vercel.json` | Nuevo. Da 60 s de margen a la función. |
+| `api/explicacion.js` | Nuevo. Genera las explicaciones de las preguntas desde el servidor. |
+| `vercel.json` | Nuevo. Da 60 s de margen a las dos funciones. |
 | `tests.html` | Se añadió la zona de subida (`#zonaWord`) y sus estilos. |
-| `js/tests.js` | Se añadieron `inicializarSubidaWord()` y funciones auxiliares al final, más una línea de inicialización. |
+| `js/tests.js` | Se añadió la subida de Word, y `generarExplicacionIAModal()` pasó a usar `/api/explicacion`. |
+| `js/tests-pregunta.js` | `generarExplicacionIA()` pasó a usar `/api/explicacion`. Se eliminó `obtenerClaudeApiKey()`. |
 
-No se modificó ninguna función existente. El flujo de pegar texto de DeepSeek sigue disponible.
+El flujo de pegar texto de DeepSeek sigue disponible como alternativa gratuita.
+
+## Explicaciones de preguntas
+
+Antes se generaban desde el navegador: se descargaba `claudeApiKeyWeb` de Firestore y se
+llamaba a la API con la cabecera `anthropic-dangerous-direct-browser-access`. Cualquier
+usuario registrado podía ver la clave en la pestaña de red del inspector.
+
+Ahora pasan por `/api/explicacion`, con dos consecuencias:
+
+- La clave no sale nunca del servidor.
+- Las explicaciones heredan el encadenado de cuentas: si una se queda sin saldo, siguen
+  funcionando con la otra.
+
+El prompt se construye **en el servidor**, no lo manda el cliente. Es deliberado: si el
+navegador pudiera enviar texto libre, el endpoint sería una pasarela gratuita a Claude para
+cualquiera que lo descubriese. El cliente solo envía el enunciado, las opciones y qué letra
+es la correcta.
+
+Modelo: `claude-opus-4-8` (constante `MODELO` en `api/explicacion.js`).
 
 ## Qué hace Claude con el documento
 

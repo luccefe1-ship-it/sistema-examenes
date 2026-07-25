@@ -13,24 +13,7 @@ const ESFUERZO = 'medium';           // effort medio
 const PREGUNTAS_POR_LOTE = 8;        // troceado para no agotar el tiempo
 const MAX_TOKENS = 16000;
 
-// Solo se acepta la petición si viene de la propia plataforma
-// (mismo dominio que sirve la función) o de localhost mientras
-// desarrollas. Así nadie puede usar tu endpoint desde otra web.
-// Si algún día sirves la plataforma desde un dominio propio
-// distinto, añádelo a esta lista.
-const ORIGENES_EXTRA_PERMITIDOS = [];
-
-function origenPermitido(origen, host) {
-    if (!origen) return true;              // peticiones sin cabecera Origin (curl, tests)
-    if (ORIGENES_EXTRA_PERMITIDOS.includes(origen)) return true;
-    try {
-        const { hostname, host: hostOrigen } = new URL(origen);
-        if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
-        return hostOrigen === host;        // mismo dominio que la propia función
-    } catch (e) {
-        return false;
-    }
-}
+const { peticionValida, obtenerCuentas, llamarClaude } = require('./_claude');
 
 // ------------------------------------------------------------
 //  Instrucciones para Claude (equivalente al antiguo prompt de
@@ -167,46 +150,10 @@ function agruparEnLotes(bloques, tam) {
 }
 
 // ------------------------------------------------------------
-//  Cuentas disponibles
-//  Se usan en orden: si la primera se queda sin saldo (o su clave
-//  deja de ser válida), se pasa automáticamente a la siguiente.
-//  Los saldos de organizaciones distintas no se pueden fusionar,
-//  pero así se aprovechan los dos sin tocar nada a mano.
+//  Pide un lote de preguntas a Claude y devuelve el JSON validado
 // ------------------------------------------------------------
-function obtenerCuentas() {
-    return [
-        { nombre: 'Luciano',     clave: process.env.ANTHROPIC_API_KEY },
-        { nombre: 'Musicalbase', clave: process.env.ANTHROPIC_API_KEY_2 }
-    ].filter(cuenta => cuenta.clave && cuenta.clave.trim());
-}
-
-const MAX_REINTENTOS = 3;
-const URL_RECARGA = 'https://platform.claude.com/settings/billing';
-
-// Error temporal: no es culpa de la cuenta, hay que reintentar con la MISMA
-// clave tras una pausa. Pasa cuando se lanzan varios lotes a la vez y se toca
-// el límite de peticiones por minuto.
-function esTemporal(estado) {
-    return estado === 429 || estado === 500 || estado === 502 || estado === 503 || estado === 529;
-}
-
-// Error de la cuenta: saldo agotado o clave inválida. Aquí sí conviene
-// pasar a la siguiente cuenta.
-function convieneCambiar(estado, detalle) {
-    if (estado === 401 || estado === 403) return true;              // clave inválida o revocada
-    const texto = String(detalle || '').toLowerCase();
-    return texto.includes('credit balance') || texto.includes('billing');
-}
-
-function esperar(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// ------------------------------------------------------------
-//  Llamada a la API de Claude
-// ------------------------------------------------------------
-async function llamarClaude(fragmento, numPreguntas, cuentas) {
-    const cuerpo = JSON.stringify({
+async function pedirLote(fragmento, numPreguntas, cuentas) {
+    const { data, cuenta } = await llamarClaude({
         model: MODELO,
         max_tokens: MAX_TOKENS,
         system: SYSTEM_PROMPT,
@@ -218,96 +165,19 @@ async function llamarClaude(fragmento, numPreguntas, cuentas) {
             effort: ESFUERZO,
             format: { type: 'json_schema', schema: SCHEMA }
         }
-    });
-
-    let respuesta = null;
-    let cuentaUsada = null;
-    const fallos = [];
-    const descartadas = [];   // cuentas que se han quedado sin saldo o con clave inválida
-
-    for (const cuenta of cuentas) {
-        let cambiarDeCuenta = false;
-
-        for (let reintento = 0; reintento <= MAX_REINTENTOS; reintento++) {
-            const intento = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'content-type': 'application/json',
-                    'x-api-key': cuenta.clave.trim(),
-                    'anthropic-version': '2023-06-01'
-                },
-                body: cuerpo
-            });
-
-            if (intento.ok) {
-                respuesta = intento;
-                cuentaUsada = cuenta.nombre;
-                break;
-            }
-
-            const detalle = await intento.text();
-            fallos.push(`${cuenta.nombre}: ${intento.status} ${detalle.slice(0, 200)}`);
-
-            // Límite de peticiones o servidor saturado: misma cuenta, esperar y reintentar
-            if (esTemporal(intento.status) && reintento < MAX_REINTENTOS) {
-                const cabecera = parseFloat(intento.headers.get('retry-after'));
-                const pausa = Number.isFinite(cabecera)
-                    ? Math.min(cabecera * 1000, 8000)
-                    : 1500 * Math.pow(2, reintento);   // 1,5 s · 3 s · 6 s
-                console.warn(`[procesar-preguntas] ${intento.status} con ${cuenta.nombre}, reintento ${reintento + 1} en ${pausa} ms.`);
-                await esperar(pausa);
-                continue;
-            }
-
-            // Saldo agotado o clave inválida: pasar a la siguiente cuenta
-            if (convieneCambiar(intento.status, detalle)) {
-                const sinSaldo = String(detalle).toLowerCase().includes('credit balance');
-                descartadas.push({
-                    nombre: cuenta.nombre,
-                    motivo: sinSaldo ? 'sin saldo' : 'clave no válida o revocada'
-                });
-                console.warn(`[procesar-preguntas] Cuenta ${cuenta.nombre} descartada (${intento.status}), probando la siguiente.`);
-                cambiarDeCuenta = true;
-                break;
-            }
-
-            // Cualquier otro error: abortar sin gastar la otra cuenta
-            throw new Error(`Claude devolvió ${intento.status} con la cuenta ${cuenta.nombre}: ${detalle.slice(0, 400)}`);
-        }
-
-        if (respuesta) break;
-        if (!cambiarDeCuenta) break;   // se agotaron los reintentos temporales
-    }
-
-    if (!respuesta) {
-        // Se han acabado los fondos: mensaje único, sin detalles de cuentas
-        if (descartadas.length === cuentas.length && descartadas.every(c => c.motivo === 'sin saldo')) {
-            const error = new Error('Se han agotado los fondos de la API de Claude. Recarga saldo y vuelve a intentarlo.');
-            error.enlace = URL_RECARGA;
-            throw error;
-        }
-        throw new Error(`Ninguna cuenta pudo procesar la petición. ${fallos.join(' | ')}`);
-    }
-
-    const data = await respuesta.json();
-    data._cuentaUsada = cuentaUsada;
+    }, cuentas);
 
     if (data.stop_reason === 'max_tokens') {
         throw new Error('La respuesta se cortó por longitud. Reduce PREGUNTAS_POR_LOTE.');
-    }
-    if (data.stop_reason === 'refusal') {
-        throw new Error('Claude rechazó la petición para este fragmento.');
     }
 
     const bloqueTexto = (data.content || []).find(b => b.type === 'text');
     if (!bloqueTexto) throw new Error('Claude no devolvió contenido de texto.');
 
-    const parseado = JSON.parse(bloqueTexto.text);
     return {
-        preguntas: parseado.preguntas || [],
+        preguntas: JSON.parse(bloqueTexto.text).preguntas || [],
         uso: data.usage || {},
-        cuenta: cuentaUsada,
-        descartadas
+        cuenta
     };
 }
 
@@ -365,23 +235,7 @@ function aFormatoPlataforma(preguntasClaude, numeroInicial) {
 //  Handler HTTP
 // ------------------------------------------------------------
 module.exports = async function handler(req, res) {
-    // CORS / origen
-    const origen = req.headers.origin || '';
-    const permitido = origenPermitido(origen, req.headers.host);
-
-    if (origen && permitido) {
-        res.setHeader('Access-Control-Allow-Origin', origen);
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'content-type');
-
-    if (req.method === 'OPTIONS') return res.status(204).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
-
-    // Bloquea peticiones desde otros sitios web
-    if (!permitido) {
-        return res.status(403).json({ error: 'Origen no autorizado: ' + origen });
-    }
+    if (!peticionValida(req, res)) return;
 
     const cuentas = obtenerCuentas();
     if (cuentas.length === 0) {
@@ -411,7 +265,7 @@ module.exports = async function handler(req, res) {
         const numPreguntas = lotes[lote].length;
         const numeroInicial = lote * PREGUNTAS_POR_LOTE + 1;
 
-        const { preguntas, uso, cuenta } = await llamarClaude(fragmento, numPreguntas, cuentas);
+        const { preguntas, uso, cuenta } = await pedirLote(fragmento, numPreguntas, cuentas);
         const { validas, avisos } = aFormatoPlataforma(preguntas, numeroInicial);
 
         if (preguntas.length !== numPreguntas) {

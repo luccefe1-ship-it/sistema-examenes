@@ -8219,57 +8219,23 @@ window.generarExplicacionIAModal = async function() {
     if (btnGenerar) { btnGenerar.disabled = true; btnGenerar.textContent = '⏳ Generando...'; }
 
     try {
-        const keyDoc = await getDoc(doc(db, 'config', 'keys'));
-        if (!keyDoc.exists()) throw new Error('No se encontró configuración de IA');
-        const apiKey = (keyDoc.data().claudeApiKeyWeb || '').replace(/\s/g, '');
-        if (!apiKey) throw new Error('Falta el campo claudeApiKeyWeb en config/keys');
-
-        const listaOpciones = (pregunta.opciones || [])
-            .map(o => `${o.letra}) ${o.texto}`).join('\n');
-        const opcionCorrecta = (pregunta.opciones || [])
-            .find(o => o.esCorrecta || o.letra === pregunta.respuestaCorrecta);
-
-        const prompt = `Eres profesor de oposiciones a la Administración de Justicia en España. Le explicas una pregunta a un alumno, de viva voz.
-
-Pregunta: ${pregunta.texto}
-${listaOpciones ? `Opciones:\n${listaOpciones}` : ''}
-${opcionCorrecta ? `Opción correcta: ${opcionCorrecta.letra}) ${opcionCorrecta.texto}` : ''}
-
-Explica en un párrafo corto por qué la opción correcta lo es, citando el artículo y la norma concretos. Si alguna otra opción induce especialmente a error, aclara brevemente por qué no vale.
-
-REGLAS DE FORMATO (obligatorias):
-- Texto plano. Nada de asteriscos, almohadillas, guiones de lista, negritas ni ningún marcado.
-- Sin títulos, sin encabezados, sin numeración.
-- No repitas el enunciado ni las opciones.
-- Sin introducción, sin resumen final, sin frases de cortesía.
-- Lenguaje natural, sencillo y directo.
-- Máximo 120 palabras en total.`;
-
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
+        // La llamada a Claude se hace en el servidor (/api/explicacion):
+        // la clave de la API nunca llega al navegador.
+        const response = await fetch('/api/explicacion', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerous-direct-browser-access': 'true'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'claude-opus-4-8',
-                max_tokens: 1000,
-                messages: [{ role: 'user', content: prompt }]
+                modo: 'banco',
+                texto: pregunta.texto,
+                opciones: pregunta.opciones || [],
+                respuestaCorrecta: pregunta.respuestaCorrecta
             })
         });
 
-        if (!response.ok) throw new Error(`Error API: ${response.status} ${await response.text()}`);
         const data = await response.json();
-        const texto = (data.content || [])
-            .filter(b => b.type === 'text')
-            .map(b => b.text || '')
-            .join('\n')
-            .replace(/\*+/g, '')
-            .replace(/^#+\s*/gm, '')
-            .trim();
-        if (textarea) textarea.innerHTML = texto.replace(/\n/g, '<br>');
+        if (!response.ok) throw new Error(data.error || `Error ${response.status} del servidor.`);
+
+        if (textarea) textarea.innerHTML = (data.texto || '').replace(/\n/g, '<br>');
 
     } catch (error) {
         console.error('Error generando explicación IA:', error);
@@ -8722,10 +8688,21 @@ window.abrirExplicacionBanco = async function(temaId, index) {
 
 let _moverPreguntaOrigen = null;
 let _moverPreguntaDestino = null;
+let _moverSeleccion = null;   // null = mover una sola; array = mover varias
 
 window.abrirModalMoverPregunta = async function(temaId, preguntaIndex) {
+    // Si no viene de abrirModalMoverSeleccionadas, es un movimiento individual
+    if (preguntaIndex !== null) _moverSeleccion = null;
+
     _moverPreguntaOrigen = { temaId, preguntaIndex };
     _moverPreguntaDestino = null;
+
+    const titulo = document.getElementById('tituloModalMover');
+    if (titulo) {
+        titulo.textContent = _moverSeleccion
+            ? `🔀 Mover ${_moverSeleccion.length} pregunta(s) a...`
+            : '🔀 Mover pregunta a...';
+    }
 
     const modal = document.getElementById('modalMoverPregunta');
     const arbol = document.getElementById('arbolTemasModal');
@@ -8816,10 +8793,14 @@ window.cerrarModalMoverPregunta = function() {
     document.getElementById('modalMoverPregunta').style.display = 'none';
     _moverPreguntaOrigen = null;
     _moverPreguntaDestino = null;
+    _moverSeleccion = null;
 };
 
 window.confirmarMoverPregunta = async function() {
     if (!_moverPreguntaOrigen || !_moverPreguntaDestino) return;
+
+    // Movimiento múltiple: se gestiona aparte
+    if (_moverSeleccion) return moverSeleccionadasA(_moverPreguntaDestino);
 
     const { temaId: origenId, preguntaIndex } = _moverPreguntaOrigen;
     const destinoId = _moverPreguntaDestino;
@@ -9263,6 +9244,103 @@ window.eliminarPreguntasSeleccionadas = async function() {
         alert('Error al eliminar las preguntas seleccionadas');
     }
 };
+
+// =============================================
+// MOVER VARIAS PREGUNTAS A LA VEZ
+// Reutiliza el mismo modal que el movimiento individual.
+// =============================================
+
+window.abrirModalMoverSeleccionadas = function() {
+    const seleccionadas = document.querySelectorAll('.pregunta-seleccion-checkbox:checked');
+    if (seleccionadas.length === 0) return;
+
+    // Guardamos qué preguntas hay que mover antes de abrir el modal
+    _moverSeleccion = Array.from(seleccionadas).map(cb => ({
+        temaId: cb.dataset.temaId,
+        indice: parseInt(cb.dataset.preguntaIndex, 10)
+    }));
+
+    // preguntaIndex null indica al modal que es un movimiento múltiple:
+    // así no marca ningún tema como origen y todos son destinos válidos
+    abrirModalMoverPregunta(null, null);
+};
+
+async function moverSeleccionadasA(destinoId) {
+    const seleccion = _moverSeleccion || [];
+    const btnConfirmar = document.getElementById('btnConfirmarMover');
+    btnConfirmar.disabled = true;
+    btnConfirmar.textContent = '⏳ Moviendo...';
+
+    try {
+        // Agrupamos por tema de origen, descartando las que ya están en el destino
+        const porTema = {};
+        seleccion.forEach(({ temaId, indice }) => {
+            if (temaId === destinoId) return;
+            if (!porTema[temaId]) porTema[temaId] = new Set();
+            porTema[temaId].add(indice);
+        });
+
+        if (Object.keys(porTema).length === 0) {
+            alert('Las preguntas seleccionadas ya están en ese tema.');
+            btnConfirmar.disabled = false;
+            btnConfirmar.textContent = 'Mover aquí';
+            return;
+        }
+
+        // 1. Sacarlas de sus temas de origen
+        const preguntasMovidas = [];
+        for (const [temaId, indices] of Object.entries(porTema)) {
+            const temaRef = doc(db, "temas", temaId);
+            const temaDoc = await getDoc(temaRef);
+            if (!temaDoc.exists()) continue;
+
+            const preguntas = temaDoc.data().preguntas || [];
+            preguntas.forEach((pregunta, idx) => {
+                if (indices.has(idx)) preguntasMovidas.push(pregunta);
+            });
+
+            const restantes = preguntas.filter((_, idx) => !indices.has(idx));
+            await updateDoc(temaRef, { preguntas: restantes });
+        }
+
+        if (preguntasMovidas.length === 0) throw new Error('No se encontró ninguna pregunta');
+
+        // 2. Añadirlas al destino
+        const destinoRef = doc(db, "temas", destinoId);
+        const destinoDoc = await getDoc(destinoRef);
+        if (!destinoDoc.exists()) throw new Error('El tema de destino ya no existe');
+
+        await updateDoc(destinoRef, {
+            preguntas: [...(destinoDoc.data().preguntas || []), ...preguntasMovidas],
+            ultimaActualizacion: new Date()
+        });
+
+        // 3. Invalidar caché y refrescar (más seguro que retocar el DOM a mano,
+        //    porque los índices de varios temas cambian a la vez)
+        sessionStorage.setItem('cacheSucio', 'true');
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+        cacheTemas = null;
+        cacheTimestamp = null;
+
+        const omitidas = seleccion.length - preguntasMovidas.length;
+        cerrarModalMoverPregunta();
+        cancelarSeleccion();
+
+        alert(`✅ ${preguntasMovidas.length} pregunta(s) movida(s) correctamente` +
+              (omitidas > 0 ? `\n(${omitidas} ya estaban en ese tema)` : ''));
+
+        if (document.getElementById('banco-section')?.classList.contains('active')) {
+            cargarBancoPreguntas();
+        }
+
+    } catch (error) {
+        console.error('Error moviendo preguntas seleccionadas:', error);
+        alert('❌ Error al mover las preguntas. Inténtalo de nuevo.');
+        btnConfirmar.disabled = false;
+        btnConfirmar.textContent = 'Mover aquí';
+    }
+}
 
 
 // ============================================================

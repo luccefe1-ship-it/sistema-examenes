@@ -1791,56 +1791,26 @@ window.generarExplicacionIA = async function() {
     if (btnGenerar) { btnGenerar.disabled = true; btnGenerar.textContent = '⏳ Generando...'; }
 
     try {
-        const apiKey = await obtenerClaudeApiKey();
-
         const respUsuario = opciones.find(o => o.letra === pregunta.respuestaUsuario || o.letra === respuestas.find(r => r.preguntaIndex === preguntaActual)?.respuestaUsuario);
 
-        const fallo = respUsuario && respCorrecta && respUsuario.letra !== respCorrecta.letra;
-
-        const prompt = `Eres profesor de oposiciones a la Administración de Justicia en España. Le explicas una pregunta fallada a un alumno, de viva voz.
-
-Pregunta: ${preguntaTexto}
-Opciones:
-${opciones.map(o => `${o.letra}) ${o.texto}`).join('\n')}
-Opción marcada por el alumno: ${respUsuario ? `${respUsuario.letra}) ${respUsuario.texto}` : 'ninguna'}
-Opción correcta: ${respCorrecta ? `${respCorrecta.letra}) ${respCorrecta.texto}` : 'No disponible'}
-
-Escribe dos párrafos cortos y seguidos:
-${fallo ? 'Primero, por qué la opción que marcó el alumno no es válida.\n' : ''}${fallo ? 'Después, ' : ''}por qué la opción correcta sí lo es, citando el artículo y la norma concretos.
-
-REGLAS DE FORMATO (obligatorias):
-- Texto plano. Nada de asteriscos, almohadillas, guiones de lista, negritas ni ningún marcado.
-- Sin títulos, sin encabezados, sin numeración.
-- No repitas el enunciado ni las opciones.
-- Sin introducción, sin resumen final, sin frases de cortesía.
-- Lenguaje natural, sencillo y directo.
-- Máximo 120 palabras en total.`;
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
+        // La llamada a Claude se hace en el servidor (/api/explicacion):
+        // la clave de la API nunca llega al navegador.
+        const response = await fetch('/api/explicacion', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerous-direct-browser-access': 'true'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'claude-opus-4-8',
-                max_tokens: 1000,
-                messages: [{ role: 'user', content: prompt }]
+                modo: 'test',
+                texto: preguntaTexto,
+                opciones: opciones,
+                respuestaCorrecta: respCorrecta ? respCorrecta.letra : null,
+                respuestaUsuario: respUsuario ? respUsuario.letra : null
             })
         });
 
-        if (!response.ok) throw new Error(`Error API: ${response.status} ${await response.text()}`);
         const data = await response.json();
-        const texto = (data.content || [])
-            .filter(b => b.type === 'text')
-            .map(b => b.text || '')
-            .join('\n')
-            .replace(/\*+/g, '')
-            .replace(/^#+\s*/gm, '')
-            .trim();
+        if (!response.ok) throw new Error(data.error || `Error ${response.status} del servidor.`);
 
-        textarea.innerHTML = texto.replace(/\n/g, '<br>');
+        textarea.innerHTML = (data.texto || '').replace(/\n/g, '<br>');
         document.getElementById('tabGemini').classList.add('tiene-contenido');
 
     } catch (error) {
@@ -1850,13 +1820,8 @@ REGLAS DE FORMATO (obligatorias):
         if (btnGenerar) { btnGenerar.disabled = false; btnGenerar.textContent = '✨ Generar con IA'; }
     }
 };
-async function obtenerClaudeApiKey() {
-    const keyDoc = await getDoc(doc(db, 'config', 'keys'));
-    if (!keyDoc.exists()) throw new Error('No se encontró la configuración de IA');
-    const key = (keyDoc.data().claudeApiKeyWeb || '').replace(/\s/g, '');
-    if (!key) throw new Error('Falta el campo claudeApiKeyWeb en config/keys');
-    return key;
-}
+// obtenerClaudeApiKey() se eliminó: la clave ya no se descarga al navegador.
+// Las explicaciones se generan en el servidor, en /api/explicacion.
 
 window.borrarExplicacionGemini = async function() {
     if (!confirm('¿Estás seguro de que quieres borrar esta explicación?')) {
