@@ -18,16 +18,22 @@ Después **redespliega** (Deployments → ⋯ → Redeploy) para que las variabl
 
 Las claves viven solo en el servidor de Vercel; nunca llegan al navegador.
 
-### Dos organizaciones
+### Dos cuentas, un solo saldo a efectos prácticos
 
-Los saldos de organizaciones distintas no se pueden fusionar, pero la función encadena las
-cuentas: usa siempre la primera y, si devuelve un error de saldo agotado, clave revocada o
-límite de uso, repite la misma petición con la segunda sin que tengas que hacer nada.
-Si el error es de otro tipo (por ejemplo un fallo de la petición), aborta directamente en
-lugar de gastar la segunda cuenta.
+La función encadena las cuentas: gasta la de `ANTHROPIC_API_KEY` hasta agotarla y entonces
+sigue con la de `ANTHROPIC_API_KEY_2`, de forma transparente. Para ti es como si los saldos
+estuvieran sumados. No se avisa de nada por el camino: **solo cuando se acaban las dos**
+aparece un único mensaje con enlace de recarga.
 
-La respuesta incluye el campo `cuenta` con la que se acabó usando, y la consola del navegador
-lo registra al terminar cada documento.
+**El orden de consumo lo decides tú:** se gasta primero la clave que pongas en
+`ANTHROPIC_API_KEY`. Si quieres agotar antes una cuenta concreta, intercambia los valores de
+las dos variables en Vercel.
+
+Si el fallo es de otro tipo (petición mal formada, por ejemplo), aborta directamente en lugar
+de gastar la segunda cuenta. Y ante un límite de peticiones reintenta con la misma.
+
+La respuesta incluye el campo `cuenta` con la que se acabó usando, solo visible en la consola
+del navegador, para diagnóstico.
 
 ## Coste
 
@@ -60,6 +66,8 @@ No se modificó ninguna función existente. El flujo de pegar texto de DeepSeek 
 - Modelo `claude-opus-5` con `output_config.effort: "medium"`.
 - Salida estructurada con esquema JSON forzado: la respuesta siempre es JSON válido, nunca falla el parseo.
 - El documento se trocea en lotes de 8 preguntas; cada lote es una petición HTTP independiente, lo que evita el límite de tiempo de Vercel y permite mostrar progreso real.
+- Los lotes se procesan de 3 en 3 (constante `LOTES_EN_PARALELO` en `js/tests.js`). Un documento de 100 preguntas baja de ~7 minutos a ~2-3. Los resultados se reordenan por número de lote, así que la numeración final siempre es correlativa.
+- Ante un error temporal (429 por límite de peticiones, o servidor saturado) se reintenta con la **misma** cuenta tras una pausa creciente de 1,5 s, 3 s y 6 s. Solo se cambia de cuenta si el problema es de saldo o de clave inválida.
 - El endpoint solo acepta peticiones del propio dominio de la plataforma o de localhost.
 
 ## Si algo falla

@@ -9273,6 +9273,7 @@ window.eliminarPreguntasSeleccionadas = async function() {
 // ============================================================
 
 const ENDPOINT_CLAUDE = '/api/procesar-preguntas';
+const LOTES_EN_PARALELO = 3;   // bloques que se procesan a la vez
 
 function inicializarSubidaWord() {
     const zona = document.getElementById('zonaWord');
@@ -9329,35 +9330,56 @@ async function procesarWordConClaude(archivo) {
             throw new Error('No se ha podido leer texto del documento. ¿Está vacío o es una imagen escaneada?');
         }
 
-        // 2. Procesar por lotes contra Claude
+        // 2. Procesar por lotes contra Claude.
+        //    El primer lote nos dice cuántos hay; el resto se lanzan de
+        //    LOTES_EN_PARALELO en LOTES_EN_PARALELO para ir más rápido.
         mostrarProgresoWord('Analizando con Claude Opus 5...', 12);
 
-        const todasLasPreguntas = [];
         const todosLosAvisos = [];
-        let lote = 0;
-        let totalLotes = 1;
+        const cuentasUsadas = new Set();
         let tokensEntrada = 0;
         let tokensSalida = 0;
-        const cuentasUsadas = new Set();
+        let completados = 0;
 
-        do {
-            const datos = await pedirLoteAClaude(texto, lote);
-            totalLotes = datos.totalLotes;
-            if (datos.cuenta) cuentasUsadas.add(datos.cuenta);
+        const primero = await pedirLoteAClaude(texto, 0);
+        const totalLotes = primero.totalLotes;
+        const resultados = new Array(totalLotes);
 
-            todasLasPreguntas.push(...datos.preguntas);
+        const registrar = (datos) => {
+            resultados[datos.lote] = datos.preguntas;
             todosLosAvisos.push(...(datos.avisos || []));
+            if (datos.cuenta) cuentasUsadas.add(datos.cuenta);
             tokensEntrada += (datos.uso && datos.uso.tokensEntrada) || 0;
             tokensSalida += (datos.uso && datos.uso.tokensSalida) || 0;
 
-            const porcentaje = 12 + Math.round(((lote + 1) / totalLotes) * 85);
+            completados++;
+            const extraidas = resultados.reduce((suma, lote) => suma + (lote ? lote.length : 0), 0);
             mostrarProgresoWord(
-                `Analizando con Claude Opus 5... bloque ${lote + 1} de ${totalLotes} · ${todasLasPreguntas.length} preguntas extraídas`,
-                porcentaje
+                `Analizando con Claude Opus 5... ${completados} de ${totalLotes} bloques · ${extraidas} preguntas extraídas`,
+                12 + Math.round((completados / totalLotes) * 85)
             );
+        };
 
-            lote++;
-        } while (lote < totalLotes);
+        registrar(primero);
+
+        // Cola de lotes pendientes repartida entre varios trabajadores
+        const pendientes = [];
+        for (let i = 1; i < totalLotes; i++) pendientes.push(i);
+
+        const trabajador = async () => {
+            while (pendientes.length > 0) {
+                const siguiente = pendientes.shift();
+                registrar(await pedirLoteAClaude(texto, siguiente));
+            }
+        };
+
+        const trabajadores = [];
+        for (let i = 0; i < Math.min(LOTES_EN_PARALELO, pendientes.length); i++) {
+            trabajadores.push(trabajador());
+        }
+        await Promise.all(trabajadores);
+
+        const todasLasPreguntas = resultados.flat().filter(Boolean);
 
         if (todasLasPreguntas.length === 0) {
             throw new Error('Claude no ha podido extraer ninguna pregunta válida del documento.');
@@ -9387,7 +9409,7 @@ async function procesarWordConClaude(archivo) {
 
     } catch (error) {
         console.error('Error procesando el Word con Claude:', error);
-        mostrarProgresoWord(`❌ ${error.message}`, 100, true);
+        mostrarProgresoWord(`❌ ${error.message}`, 100, true, error.enlace);
     } finally {
         zona.classList.remove('procesando');
     }
@@ -9427,12 +9449,14 @@ async function pedirLoteAClaude(texto, lote) {
     }
 
     if (!respuesta.ok) {
-        throw new Error(datos.error || `Error ${respuesta.status} del servidor.`);
+        const error = new Error(datos.error || `Error ${respuesta.status} del servidor.`);
+        error.enlace = datos.enlace || null;
+        throw error;
     }
     return datos;
 }
 
-function mostrarProgresoWord(mensaje, porcentaje, esError = false) {
+function mostrarProgresoWord(mensaje, porcentaje, esError = false, enlace = null) {
     const contenedor = document.getElementById('progresoWord');
     const textoEl = document.getElementById('progresoWordTexto');
     const barra = document.getElementById('progresoWordBarra');
@@ -9441,6 +9465,17 @@ function mostrarProgresoWord(mensaje, porcentaje, esError = false) {
     contenedor.style.display = 'block';
     textoEl.textContent = mensaje;
     textoEl.style.color = esError ? '#b91c1c' : '#444';
+
+    // Enlace de recarga cuando se acaban los fondos
+    if (enlace) {
+        const a = document.createElement('a');
+        a.href = enlace;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = ' Recargar saldo →';
+        a.style.cssText = 'color:#b91c1c;font-weight:600;text-decoration:underline;margin-left:6px;';
+        textoEl.appendChild(a);
+    }
     barra.style.width = porcentaje + '%';
     barra.style.background = esError
         ? '#ef4444'
@@ -9452,7 +9487,8 @@ function mostrarAvisosWord(avisos) {
     const lista = document.getElementById('avisosWordLista');
     if (!contenedor) return;
 
-    lista.innerHTML = avisos
+    // Sin repetidos: los avisos de cuenta agotada llegan en cada lote
+    lista.innerHTML = [...new Set(avisos)]
         .map(aviso => `<li>${aviso.replace(/</g, '&lt;')}</li>`)
         .join('');
     contenedor.style.display = 'block';

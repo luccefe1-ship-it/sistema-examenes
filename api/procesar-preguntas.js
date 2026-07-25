@@ -180,12 +180,26 @@ function obtenerCuentas() {
     ].filter(cuenta => cuenta.clave && cuenta.clave.trim());
 }
 
-// ¿El error justifica probar con la siguiente cuenta?
+const MAX_REINTENTOS = 3;
+const URL_RECARGA = 'https://platform.claude.com/settings/billing';
+
+// Error temporal: no es culpa de la cuenta, hay que reintentar con la MISMA
+// clave tras una pausa. Pasa cuando se lanzan varios lotes a la vez y se toca
+// el límite de peticiones por minuto.
+function esTemporal(estado) {
+    return estado === 429 || estado === 500 || estado === 502 || estado === 503 || estado === 529;
+}
+
+// Error de la cuenta: saldo agotado o clave inválida. Aquí sí conviene
+// pasar a la siguiente cuenta.
 function convieneCambiar(estado, detalle) {
     if (estado === 401 || estado === 403) return true;              // clave inválida o revocada
-    if (estado === 429) return true;                                 // límite de uso alcanzado
     const texto = String(detalle || '').toLowerCase();
     return texto.includes('credit balance') || texto.includes('billing');
+}
+
+function esperar(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // ------------------------------------------------------------
@@ -209,34 +223,69 @@ async function llamarClaude(fragmento, numPreguntas, cuentas) {
     let respuesta = null;
     let cuentaUsada = null;
     const fallos = [];
+    const descartadas = [];   // cuentas que se han quedado sin saldo o con clave inválida
 
     for (const cuenta of cuentas) {
-        const intento = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-                'x-api-key': cuenta.clave.trim(),
-                'anthropic-version': '2023-06-01'
-            },
-            body: cuerpo
-        });
+        let cambiarDeCuenta = false;
 
-        if (intento.ok) {
-            respuesta = intento;
-            cuentaUsada = cuenta.nombre;
-            break;
-        }
+        for (let reintento = 0; reintento <= MAX_REINTENTOS; reintento++) {
+            const intento = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    'x-api-key': cuenta.clave.trim(),
+                    'anthropic-version': '2023-06-01'
+                },
+                body: cuerpo
+            });
 
-        const detalle = await intento.text();
-        fallos.push(`${cuenta.nombre}: ${intento.status} ${detalle.slice(0, 200)}`);
+            if (intento.ok) {
+                respuesta = intento;
+                cuentaUsada = cuenta.nombre;
+                break;
+            }
 
-        if (!convieneCambiar(intento.status, detalle)) {
+            const detalle = await intento.text();
+            fallos.push(`${cuenta.nombre}: ${intento.status} ${detalle.slice(0, 200)}`);
+
+            // Límite de peticiones o servidor saturado: misma cuenta, esperar y reintentar
+            if (esTemporal(intento.status) && reintento < MAX_REINTENTOS) {
+                const cabecera = parseFloat(intento.headers.get('retry-after'));
+                const pausa = Number.isFinite(cabecera)
+                    ? Math.min(cabecera * 1000, 8000)
+                    : 1500 * Math.pow(2, reintento);   // 1,5 s · 3 s · 6 s
+                console.warn(`[procesar-preguntas] ${intento.status} con ${cuenta.nombre}, reintento ${reintento + 1} en ${pausa} ms.`);
+                await esperar(pausa);
+                continue;
+            }
+
+            // Saldo agotado o clave inválida: pasar a la siguiente cuenta
+            if (convieneCambiar(intento.status, detalle)) {
+                const sinSaldo = String(detalle).toLowerCase().includes('credit balance');
+                descartadas.push({
+                    nombre: cuenta.nombre,
+                    motivo: sinSaldo ? 'sin saldo' : 'clave no válida o revocada'
+                });
+                console.warn(`[procesar-preguntas] Cuenta ${cuenta.nombre} descartada (${intento.status}), probando la siguiente.`);
+                cambiarDeCuenta = true;
+                break;
+            }
+
+            // Cualquier otro error: abortar sin gastar la otra cuenta
             throw new Error(`Claude devolvió ${intento.status} con la cuenta ${cuenta.nombre}: ${detalle.slice(0, 400)}`);
         }
-        console.warn(`[procesar-preguntas] Cuenta ${cuenta.nombre} descartada (${intento.status}), probando la siguiente.`);
+
+        if (respuesta) break;
+        if (!cambiarDeCuenta) break;   // se agotaron los reintentos temporales
     }
 
     if (!respuesta) {
+        // Se han acabado los fondos: mensaje único, sin detalles de cuentas
+        if (descartadas.length === cuentas.length && descartadas.every(c => c.motivo === 'sin saldo')) {
+            const error = new Error('Se han agotado los fondos de la API de Claude. Recarga saldo y vuelve a intentarlo.');
+            error.enlace = URL_RECARGA;
+            throw error;
+        }
         throw new Error(`Ninguna cuenta pudo procesar la petición. ${fallos.join(' | ')}`);
     }
 
@@ -257,7 +306,8 @@ async function llamarClaude(fragmento, numPreguntas, cuentas) {
     return {
         preguntas: parseado.preguntas || [],
         uso: data.usage || {},
-        cuenta: cuentaUsada
+        cuenta: cuentaUsada,
+        descartadas
     };
 }
 
@@ -383,6 +433,9 @@ module.exports = async function handler(req, res) {
 
     } catch (error) {
         console.error('[procesar-preguntas]', error);
-        return res.status(500).json({ error: error.message || 'Error procesando el documento' });
+        return res.status(500).json({
+            error: error.message || 'Error procesando el documento',
+            enlace: error.enlace || null
+        });
     }
 };
