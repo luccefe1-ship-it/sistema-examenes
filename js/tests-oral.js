@@ -806,6 +806,11 @@ function manejarSiNo(alternativas) {
 async function ofrecerExplicacion(pregunta) {
     setEstado('', '📖', 'Buscando explicación...');
     const explicacion = await cargarExplicacionGemini(pregunta);
+
+    // Si el test se ha pausado o cerrado mientras se buscaba, no seguir:
+    // la explicación pertenece a una pregunta que ya no está en curso
+    if (pausado || testFinalizado) return;
+
     if (!explicacion) {
         // No hay explicación, seguimos sin más
         return;

@@ -49,11 +49,26 @@ function generarHashPregunta(texto) {
 }
 
 // Buscar y mostrar explicación guardada o textarea para crear una nueva
+// Contador para descartar búsquedas obsoletas: si mientras se consulta
+// Firestore cambia la pregunta en pantalla, la respuesta que llega tarde
+// no debe pintarse encima de la pregunta nueva.
+let _tokenExplicacionMulti = 0;
+
+// ¿Sigue siendo esta la pregunta que se está mostrando?
+function siguePreguntaEnPantalla(textoEsperado, miToken) {
+    if (miToken !== _tokenExplicacionMulti) return false;
+    const enPantalla = document.getElementById('textoPregunta')?.textContent || '';
+    return enPantalla === textoEsperado;
+}
+
 // Buscar y mostrar explicación guardada o textarea para crear una nueva
 async function buscarYMostrarExplicacion(pregunta) {
     const opcionesPregunta = document.getElementById('opcionesPregunta');
     if (!opcionesPregunta || !pregunta) return;
     if (opcionesPregunta.querySelector('.seccion-explicacion-multi')) return;
+
+    const miToken = ++_tokenExplicacionMulti;
+    const textoEsperado = pregunta.pregunta;
 
     const preguntaHash = generarHashPregunta(pregunta.pregunta);
     const rivalUid = window.rivalUidGlobal;
@@ -94,6 +109,13 @@ async function buscarYMostrarExplicacion(pregunta) {
         // Verificar DOM intacto
         if (!document.getElementById('opcionesPregunta')) return;
         if (opcionesPregunta.querySelector('.seccion-explicacion-multi')) return;
+
+        // La consulta a Firestore tarda: comprobar que seguimos en la MISMA
+        // pregunta. Si no, esta explicación es de la anterior y no debe pintarse.
+        if (!siguePreguntaEnPantalla(textoEsperado, miToken)) {
+            console.log('Explicación descartada: la pregunta en pantalla ya es otra');
+            return;
+        }
 
         // CREAR SECCIÓN
         const seccion = document.createElement('div');
@@ -274,6 +296,13 @@ async function buscarYMostrarExplicacion(pregunta) {
                 seccion.appendChild(tarjetasDiv);
             }
         } catch(e) { console.warn('Error cargando tarjetas multi:', e); }
+
+        // Última comprobación antes de pintar: la carga de tarjetas también
+        // consulta Firestore y ha podido dar tiempo a que cambie la pregunta.
+        if (!siguePreguntaEnPantalla(textoEsperado, miToken)) {
+            console.log('Explicación descartada antes de pintar: la pregunta ya es otra');
+            return;
+        }
 
         opcionesPregunta.appendChild(seccion);
 

@@ -8102,12 +8102,21 @@ window.cambiarTabModal = async function(tab) {
 async function cargarExplicacionGeminiModal() {
     const textarea = document.getElementById('textoGeminiModal');
     if (!textarea || !window.preguntaIdActualExplicacion) return;
-    
+
+    // Pregunta para la que se pidió esta carga
+    const idPedido = window.preguntaIdActualExplicacion;
+
     try {
-        const docId = `${currentUser.uid}_${window.preguntaIdActualExplicacion}`;
+        const docId = `${currentUser.uid}_${idPedido}`;
         const geminiRef = doc(db, 'explicacionesGemini', docId);
         const geminiDoc = await getDoc(geminiRef);
-        
+
+        // Si mientras tanto se ha abierto otra pregunta, descartar
+        if (window.preguntaIdActualExplicacion !== idPedido) {
+            console.log('Explicación descartada: el modal ya muestra otra pregunta');
+            return;
+        }
+
         if (geminiDoc.exists() && geminiDoc.data().texto) {
             let texto = geminiDoc.data().texto;
             if (!texto.includes('<')) {

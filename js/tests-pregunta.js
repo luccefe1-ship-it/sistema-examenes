@@ -1633,6 +1633,11 @@ async function verificarIndicadorGemini() {
         const docId = `${currentUser.uid}_${preguntaIdHash}`;
         const geminiRef = doc(db, 'explicacionesGemini', docId);
         const geminiDoc = await getDoc(geminiRef);
+
+        // Si mientras se consultaba Firestore hemos pasado a otra pregunta,
+        // este resultado ya no vale
+        if ((testConfig.preguntas[preguntaActual]?.texto || '') !== preguntaTexto) return;
+
         if (geminiDoc.exists() && geminiDoc.data().texto) {
             tab.classList.add('tiene-contenido');
         } else {
@@ -1709,7 +1714,14 @@ async function cargarExplicacionGemini() {
         const docId = `${currentUser.uid}_${preguntaIdHash}`;
         const geminiRef = doc(db, 'explicacionesGemini', docId);
         const geminiDoc = await getDoc(geminiRef);
-        
+
+        // Si mientras se consultaba Firestore hemos pasado a otra pregunta,
+        // esta explicación es de la anterior y no debe mostrarse
+        if ((testConfig.preguntas[preguntaActual]?.texto || '') !== preguntaTexto) {
+            console.log('Explicación descartada: ya estamos en otra pregunta');
+            return;
+        }
+
         if (geminiDoc.exists() && geminiDoc.data().texto) {
             let texto = geminiDoc.data().texto;
             if (!texto.includes('<')) {
