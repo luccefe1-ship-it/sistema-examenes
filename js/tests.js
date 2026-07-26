@@ -3210,16 +3210,30 @@ async function cargarTemasParaTest() {
         cargandoTemasTest = false;
     }
     
+    // Mostrar la tarjeta para repetir la última configuración usada
+    if (typeof mostrarTarjetaUltimosParametros === 'function') {
+        mostrarTarjetaUltimosParametros();
+    }
+
     // Configurar eventos post-carga
     setTimeout(() => {
         console.log('Ejecutando configuración post-carga...');
         forzarEventListeners();
-        
+
+        // Si el usuario acaba de pulsar "Usar estos ajustes", no reponer
+        // los valores por defecto encima de lo que ha recuperado
+        const aplicadosHaceNada = window._ultimosParametrosAplicados &&
+                                  (Date.now() - window._ultimosParametrosAplicados) < 3000;
+        if (aplicadosHaceNada) {
+            console.log('Se conservan los parámetros recuperados del último test');
+            return;
+        }
+
         const primerCantidad = document.querySelector('.btn-cantidad');
         if (primerCantidad) {
             primerCantidad.click();
         }
-        
+
         const ultimoTiempo = document.querySelector('.btn-tiempo[data-tiempo="sin"]');
         if (ultimoTiempo) {
             ultimoTiempo.click();
@@ -3346,6 +3360,15 @@ async function empezarTest() {
         alert('Por favor, selecciona al menos un tema');
         return;
     }
+
+    // Recordar esta configuración para poder repetirla sin volver a elegirlo todo
+    guardarUltimosParametros({
+        modo: modoSeleccionado,
+        temas: temasSeleccionados,
+        numPreguntas,
+        tiempo: tiempoSeleccionado,
+        nombreTest
+    });
 
     try {
         // Obtener preguntas verificadas
@@ -9585,3 +9608,177 @@ function ocultarAvisosWord() {
     const contenedor = document.getElementById('avisosWord');
     if (contenedor) contenedor.style.display = 'none';
 }
+
+
+// ============================================================
+//  REPETIR LOS ÚLTIMOS PARÁMETROS DE TEST
+//  Guarda la configuración al empezar un test y permite
+//  recuperarla de un clic, igual que en la app móvil.
+// ============================================================
+
+const CLAVE_ULTIMOS_PARAMETROS = 'ultimosParametrosTest';
+
+const NOMBRES_MODO = {
+    completo: 'Test Completo',
+    pregunta: 'Pregunta a Pregunta',
+    oral: 'Test Oral'
+};
+
+// Nombres legibles de lo que hay marcado ahora mismo en el desplegable
+function describirSeleccionTemas() {
+    const marcados = Array.from(document.querySelectorAll('.tema-checkbox:not(#todosLosTemas)'))
+        .filter(cb => cb.checked);
+
+    if (marcados.length === 0) return { padres: [], subtemas: 0, texto: 'Todos los temas' };
+
+    const padres = [];
+    let subtemas = 0;
+
+    marcados.forEach(cb => {
+        const nombre = cb.closest('label')?.querySelector('.tema-nombre')?.textContent?.trim() || '';
+        const padreId = cb.dataset.temaPadre;
+
+        if (padreId) {
+            // Es un subtema: anotamos el nombre de su tema padre
+            subtemas++;
+            const cbPadre = document.querySelector(`.tema-checkbox[value="${padreId}"]:not([data-tema-padre])`);
+            const nombrePadre = cbPadre?.closest('label')?.querySelector('.tema-nombre')?.textContent?.trim();
+            if (nombrePadre && !padres.includes(nombrePadre)) padres.push(nombrePadre);
+        } else if (nombre && !padres.includes(nombre)) {
+            padres.push(nombre);
+        }
+    });
+
+    return { padres, subtemas, texto: padres.join(', ') };
+}
+
+function guardarUltimosParametros(datos) {
+    try {
+        const seleccion = describirSeleccionTemas();
+        const filtros = {
+            nuevas: !!document.getElementById('soloPreguntasNuevas')?.checked,
+            falladas: !!document.getElementById('soloPreguntasFalladas')?.checked,
+            oficiales: !!document.getElementById('soloPreguntasOficiales')?.checked
+        };
+
+        localStorage.setItem(CLAVE_ULTIMOS_PARAMETROS, JSON.stringify({
+            ...datos,
+            filtros,
+            temasNombres: seleccion.padres,
+            numSubtemas: seleccion.subtemas,
+            fecha: new Date().toISOString()
+        }));
+    } catch (error) {
+        console.warn('No se pudieron guardar los últimos parámetros:', error);
+    }
+}
+
+function leerUltimosParametros() {
+    try {
+        const guardado = localStorage.getItem(CLAVE_ULTIMOS_PARAMETROS);
+        return guardado ? JSON.parse(guardado) : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+// Pinta la tarjeta con el resumen de la última configuración usada
+window.mostrarTarjetaUltimosParametros = function() {
+    const tarjeta = document.getElementById('tarjetaUltimosParametros');
+    const detalle = document.getElementById('ultimosParametrosDetalle');
+    if (!tarjeta || !detalle) return;
+
+    const p = leerUltimosParametros();
+    if (!p) { tarjeta.style.display = 'none'; return; }
+
+    // Temas
+    let textoTemas;
+    if (p.temas === 'todos' || !p.temasNombres || p.temasNombres.length === 0) {
+        textoTemas = 'Todos los temas';
+    } else {
+        textoTemas = p.temasNombres.join(', ');
+        if (p.numSubtemas > 0) textoTemas += ` (${p.numSubtemas} subtema${p.numSubtemas === 1 ? '' : 's'})`;
+    }
+
+    const partes = [
+        NOMBRES_MODO[p.modo] || p.modo,
+        p.numPreguntas === 'todas' ? 'todas las preguntas' : `${p.numPreguntas} preguntas`,
+        p.tiempo === 'sin' ? 'sin tiempo' : `${p.tiempo} min`
+    ];
+
+    const filtrosActivos = [];
+    if (p.filtros?.nuevas) filtrosActivos.push('🆕 solo nuevas');
+    if (p.filtros?.falladas) filtrosActivos.push('🔴 solo falladas');
+    if (p.filtros?.oficiales) filtrosActivos.push('📋 solo oficiales');
+
+    detalle.innerHTML =
+        `<span class="up-temas">${textoTemas.replace(/</g, '&lt;')}</span><br>` +
+        partes.join(' · ') +
+        (filtrosActivos.length ? `<br>${filtrosActivos.join(' · ')}` : '');
+
+    tarjeta.style.display = 'flex';
+};
+
+// Vuelve a dejar la pantalla como estaba en el último test
+window.aplicarUltimosParametros = function() {
+    const p = leerUltimosParametros();
+    if (!p) return;
+
+    // Evita que el reajuste automático posterior a la carga de temas
+    // pise lo que acabamos de aplicar
+    window._ultimosParametrosAplicados = Date.now();
+
+    // 1. Modo
+    const btnModo = document.querySelector(`.mode-btn[data-mode="${p.modo}"]`);
+    if (btnModo) btnModo.click();
+
+    // 2. Temas
+    const todos = document.getElementById('todosLosTemas');
+    const checkboxes = Array.from(document.querySelectorAll('.tema-checkbox:not(#todosLosTemas)'));
+
+    if (p.temas === 'todos') {
+        checkboxes.forEach(cb => { cb.checked = false; });
+        if (todos) todos.checked = true;
+    } else {
+        const idsGuardados = new Set(p.temas);
+        let encontrados = 0;
+        checkboxes.forEach(cb => {
+            const marcar = idsGuardados.has(cb.value);
+            cb.checked = marcar;
+            if (marcar) encontrados++;
+        });
+        if (todos) todos.checked = false;
+
+        if (encontrados === 0) {
+            alert('Los temas del último test ya no existen. Revisa la selección.');
+        } else if (encontrados < idsGuardados.size) {
+            alert(`Se han recuperado ${encontrados} de ${idsGuardados.size} temas. Alguno se ha borrado o renombrado desde entonces.`);
+        }
+    }
+
+    // 3. Número de preguntas y duración
+    const btnCantidad = document.querySelector(`.btn-cantidad[data-cantidad="${p.numPreguntas}"]`);
+    if (btnCantidad) btnCantidad.click();
+
+    const btnTiempo = document.querySelector(`.btn-tiempo[data-tiempo="${p.tiempo}"]`);
+    if (btnTiempo) btnTiempo.click();
+
+    // 4. Nombre
+    const inputNombre = document.getElementById('nombreTest');
+    if (inputNombre) inputNombre.value = p.nombreTest || '';
+
+    // 5. Filtros
+    const cbNuevas = document.getElementById('soloPreguntasNuevas');
+    const cbFalladas = document.getElementById('soloPreguntasFalladas');
+    const cbOficiales = document.getElementById('soloPreguntasOficiales');
+    if (cbNuevas) cbNuevas.checked = !!p.filtros?.nuevas;
+    if (cbFalladas) cbFalladas.checked = !!p.filtros?.falladas;
+    if (cbOficiales) cbOficiales.checked = !!p.filtros?.oficiales;
+
+    // 6. Refrescar los textos y contadores que dependen de la selección
+    if (typeof actualizarTextoSeleccionTemas === 'function') actualizarTextoSeleccionTemas();
+    if (typeof actualizarPreguntasDisponibles === 'function') actualizarPreguntasDisponibles();
+    if (typeof actualizarConteosDropdown === 'function') actualizarConteosDropdown();
+
+    document.getElementById('empezarTestBtn')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
