@@ -91,9 +91,21 @@ function prepararAvatar() {
         boton.textContent = 'Guardando…';
 
         try {
+            const nuevo = selectorAvatarPerfil.obtener();
+
             await setDoc(doc(db, 'usuarios', currentUser.uid),
-                { avatar: selectorAvatarPerfil.obtener() },
+                { avatar: nuevo },
                 { merge: true });
+
+            /* Se refresca también la copia del navegador que usa el
+               asistente. Si no, al ir a otra página seguiría saliendo
+               el avatar viejo hasta que Firestore respondiera. */
+            try {
+                localStorage.setItem('avatarAsistente',
+                    JSON.stringify({ uid: currentUser.uid, avatar: nuevo }));
+            } catch (e) {
+                console.warn('No se pudo guardar el avatar en el navegador:', e);
+            }
 
             boton.textContent = '✅ Guardado';
             setTimeout(() => { boton.textContent = textoOriginal; boton.disabled = false; }, 1800);

@@ -23,6 +23,40 @@ const SALUDO = 'Hola. Soy tu asistente en la plataforma. Pregúntame lo que quie
 
 let usuarioActual = null;
 let avatarUsuario = null;
+
+/* ------------------------------------------------------------
+   Copia del avatar en el navegador.
+   Sin esto, al cambiar de página la burbuja se pintaba con el búho
+   y el avatar solo aparecía cuando contestaba Firestore: medio
+   segundo de parpadeo en cada navegación. Guardado aquí, el avatar
+   está disponible de inmediato y Firestore solo sirve para
+   refrescarlo por detrás.
+   Se guarda junto al uid para no enseñarle a un usuario el avatar
+   del anterior si se cambia de cuenta en el mismo navegador.
+------------------------------------------------------------ */
+const CLAVE_AVATAR = 'avatarAsistente';
+
+function leerAvatarGuardado(uid) {
+    try {
+        const crudo = localStorage.getItem(CLAVE_AVATAR);
+        if (!crudo) return null;
+        const guardado = JSON.parse(crudo);
+        if (!guardado || guardado.uid !== uid || !guardado.avatar) return null;
+        return sanearAvatar(guardado.avatar);
+    } catch (error) {
+        return null;
+    }
+}
+
+function guardarAvatar(uid, avatar) {
+    try {
+        if (avatar) localStorage.setItem(CLAVE_AVATAR, JSON.stringify({ uid, avatar }));
+        else localStorage.removeItem(CLAVE_AVATAR);
+    } catch (error) {
+        // Si el navegador no deja guardar, no pasa nada: solo vuelve el parpadeo
+        console.warn('No se pudo guardar el avatar en el navegador:', error);
+    }
+}
 let conversacion = [];      // historial que se manda al servidor
 let esperando = false;
 
@@ -58,10 +92,21 @@ function inyectarWidget() {
 
     const enPortada = esPortada();
 
+    // El avatar guardado se pinta ya, sin esperar a Firestore
+    avatarUsuario = usuarioActual ? leerAvatarGuardado(usuarioActual.uid) : null;
+    const svgAvatar = avatarUsuario ? dibujarAvatar(avatarUsuario) : null;
+
+    const caraBurbuja = svgAvatar
+        ? `<span class="burbuja-avatar">${svgAvatar}</span>`
+        : `<span class="burbuja-emoji">🦉</span>`;
+    const caraPanel = svgAvatar
+        ? `<span class="panel-avatar-img">${svgAvatar}</span>`
+        : `<span class="panel-avatar">🦉</span>`;
+
     const trozos = [`
         <button class="burbuja-flotante burbuja-asistente ${enPortada ? '' : 'solo-circulo'}"
                 id="btnAsistente" title="Pregúntame cómo funciona la plataforma">
-            <span class="burbuja-emoji">🦉</span>
+            ${caraBurbuja}
             ${enPortada ? '<span class="burbuja-etiqueta">¿Te ayudo?</span>' : ''}
             <span class="burbuja-pulso"></span>
         </button>
@@ -69,7 +114,7 @@ function inyectarWidget() {
         <div class="panel-flotante panel-asistente" id="panelAsistente">
             <div class="panel-cabecera">
                 <div class="panel-titulo">
-                    <span class="panel-avatar">🦉</span>
+                    ${caraPanel}
                     <div>
                         <strong>Asistente de la plataforma</strong>
                         <small>Te explico cómo funciona cada parte</small>
@@ -315,33 +360,50 @@ function prepararConsumo() {
 // ------------------------------------------------------------
 //  Arranque
 // ------------------------------------------------------------
-/* El asistente lleva la cara que el usuario eligió al registrarse.
-   Si es una cuenta antigua sin avatar, se queda el búho. */
+/* Refresca el avatar desde Firestore por detrás.
+   Como la burbuja ya se pintó con la copia guardada, esto solo
+   repinta si el usuario lo ha cambiado desde otro sitio. */
 async function ponerAvatarDeAsistente() {
     try {
         const perfil = await getDoc(doc(db, 'usuarios', usuarioActual.uid));
-        if (!perfil.exists() || !perfil.data().avatar) return;
+        if (!perfil.exists()) return;
 
-        avatarUsuario = sanearAvatar(perfil.data().avatar);
-        const svg = dibujarAvatar(avatarUsuario);
+        const datos = perfil.data();
 
-        const enBurbuja = document.querySelector('#btnAsistente .burbuja-emoji');
+        // El nombre no se guarda en local, así que se pone siempre
+        const rotulo = document.querySelector('#panelAsistente .panel-titulo strong');
+        if (rotulo && datos.nombre) {
+            rotulo.textContent = `Asistente de ${String(datos.nombre).split(' ')[0]}`;
+        }
+
+        if (!datos.avatar) {
+            guardarAvatar(usuarioActual.uid, null);
+            return;
+        }
+
+        const reciente = sanearAvatar(datos.avatar);
+        guardarAvatar(usuarioActual.uid, reciente);
+
+        // Si ya se pintó ese mismo avatar, no se toca nada: así se evita
+        // el parpadeo de volver a insertar el mismo SVG
+        if (avatarUsuario && JSON.stringify(avatarUsuario) === JSON.stringify(reciente)) return;
+
+        avatarUsuario = reciente;
+        const svg = dibujarAvatar(reciente);
+
+        const enBurbuja = document.querySelector('#btnAsistente .burbuja-emoji, #btnAsistente .burbuja-avatar');
         if (enBurbuja) {
             enBurbuja.classList.remove('burbuja-emoji');
             enBurbuja.classList.add('burbuja-avatar');
             enBurbuja.innerHTML = svg;
         }
 
-        const enPanel = document.querySelector('#panelAsistente .panel-avatar');
+        const enPanel = document.querySelector('#panelAsistente .panel-avatar, #panelAsistente .panel-avatar-img');
         if (enPanel) {
             enPanel.classList.remove('panel-avatar');
             enPanel.classList.add('panel-avatar-img');
             enPanel.innerHTML = svg;
         }
-
-        const nombre = perfil.data().nombre;
-        const rotulo = document.querySelector('#panelAsistente .panel-titulo strong');
-        if (rotulo && nombre) rotulo.textContent = `Asistente de ${String(nombre).split(' ')[0]}`;
 
     } catch (error) {
         console.error('No se pudo cargar el avatar:', error);
@@ -349,7 +411,12 @@ async function ponerAvatarDeAsistente() {
 }
 
 onAuthStateChanged(auth, (user) => {
-    if (!user) return;
+    if (!user) {
+        // Al cerrar sesión se borra la copia: el siguiente que entre en
+        // este navegador no debe ver el avatar del anterior
+        try { localStorage.removeItem(CLAVE_AVATAR); } catch (e) {}
+        return;
+    }
     usuarioActual = user;
 
     inyectarWidget();
