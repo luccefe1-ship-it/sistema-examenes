@@ -1,18 +1,21 @@
 import { auth, db, storage } from './firebase-config.js';
 import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 import { inicializarTemaDigital, abrirModalTemaDigital, abrirVisorTemaDigital } from './tema-digital.js';
-import { quitarRepetidas } from './preguntas-repetidas.js';
+import { quitarRepetidas, huella, clavePorTexto } from './preguntas-repetidas.js';
 import {
     montarDocumentoSubrayable,
     obtenerFragmentos,
     subrayarSeleccion,
     quitarSubrayados,
     buscarEnDocumento,
+    moverResultado,
+    estadoBusqueda,
     limpiarBusqueda,
     irAlPrimerSubrayado,
     fragmentosDesdeDoc
 } from './documento-subrayable.js';
 import { generarBloqueComparativa, DIVISOR_PENALIZACION } from './notas-corte.js';
+import { crearGestorBanco, borrarCacheTemas } from './cache-temas.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
     doc, 
@@ -37,12 +40,42 @@ let temaSeleccionado = null;
 let preguntasProcesadas = [];
 let temasAbiertos = new Set(); // Para recordar qué temas están expandidos
 let preguntasImportadas = [];
-// Cache para temas cargados
-let cacheTemas = null;
-let cacheTimestamp = null;
-const CACHE_DURACION = 5 * 60 * 1000; // 5 minutos
+const CACHE_DURACION = 12 * 60 * 60 * 1000; // 12 horas (persistida en IndexedDB)
 let cacheResultados = null;
 let cacheResultadosTimestamp = null;
+
+// Gestor del banco de temas. Toda la lógica de caché (memoria -> IndexedDB ->
+// Firebase, invalidación y control de carreras) vive en cache-temas.js para
+// poder probarla sin navegador; aquí solo se le dice de dónde leer.
+const gestorBanco = crearGestorBanco({
+    obtenerUid: () => (currentUser && currentUser.uid) || null,
+    leerDeOrigen: async (uid) => {
+        const q = query(collection(db, "temas"), where("usuarioId", "==", uid));
+        return await getDocs(q);
+    },
+    duracion: CACHE_DURACION
+});
+
+/**
+ * Único punto de invalidación del banco. Sustituye a los ~15 bloques repetidos
+ * de `cacheTemas = null; sessionStorage.removeItem(...)` y al antiguo flag
+ * `cacheSucio`, que solo limpiaba sessionStorage y dejaba la copia en memoria
+ * intacta: por eso una pregunta borrada seguía saliendo en el buscador y en
+ * Test Aleatorio hasta que caducaba.
+ *
+ * Surte efecto de inmediato. El borrado en disco va por detrás.
+ */
+function invalidarCacheTemas() {
+    try {
+        // Restos de la implementación anterior sobre sessionStorage; se limpian
+        // para no dejar basura en los navegadores que aún la tengan guardada.
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+        sessionStorage.removeItem('cacheSucio');
+    } catch (e) { /* sessionStorage puede no estar disponible */ }
+
+    gestorBanco.invalidar();
+}
 
 // Función utilitaria para generar hash de pregunta (consistente con tests-pregunta.js)
 function generarHashPregunta(texto) {
@@ -194,6 +227,12 @@ function setupEventListeners() {
 
     logoutBtn.addEventListener('click', async () => {
         try {
+            // La caché ya no muere con la pestaña: vive en IndexedDB, que es
+            // del origen. Al salir hay que borrarla para no dejar el banco de
+            // un usuario en un navegador compartido. (La lectura valida el
+            // usuarioId de todas formas, esto es el segundo cerrojo.)
+            invalidarCacheTemas();
+            await borrarCacheTemas();
             await signOut(auth);
             window.location.href = 'index.html';
         } catch (error) {
@@ -390,10 +429,7 @@ async function importarTemaCompletoConSubtemas(datos) {
         }
 
         // Invalidar caché
-        cacheTemas = null;
-        cacheTimestamp = null;
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
+        invalidarCacheTemas();
 
         alert(`✅ Importación completada:\n• Tema padre: "${nombrePadre}"\n• ${subtemasCreados} subtema(s) creados (orden alfabético)\n• ${preguntasImportadas} preguntas importadas`);
 
@@ -511,9 +547,7 @@ function cambiarSeccion(seccionId) {
     // Cargar datos específicos de la sección (solo si no están cargando)
     if (seccionId === 'banco') {
         // Solo cargar si no está cargando y no hay caché válido
-        const necesitaCargar = !cargandoBanco && 
-                              (!cacheTemas || !cacheTimestamp || 
-                               (Date.now() - cacheTimestamp >= CACHE_DURACION));
+        const necesitaCargar = !cargandoBanco && !gestorBanco.hayCacheEnMemoria();
         
         if (necesitaCargar) {
             cargarBancoPreguntas();
@@ -641,10 +675,7 @@ async function crearTema() {
         alert('Tema creado exitosamente');
 
 // Invalidar caché
-sessionStorage.removeItem('cacheTemas');
-sessionStorage.removeItem('cacheTemasTimestamp');
-cacheTimestamp = null;
-cacheTemas = null;
+invalidarCacheTemas();
 
 // Recargar banco si está activo
 if (document.getElementById('banco-section').classList.contains('active')) {
@@ -661,9 +692,9 @@ if (document.getElementById('banco-section').classList.contains('active')) {
 // Cargar temas en el select
 async function cargarTemasEnSelect() {
     try {
-        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
-        const querySnapshot = await getDocs(q);
-        
+        // Solo pinta nombres en un desplegable: puede tirar de caché sin riesgo
+        const querySnapshot = await obtenerSnapshotTemas(false);
+
         listaTemaSelect.innerHTML = '<option value="">Selecciona un tema...</option>';
         
         // Separar temas principales y subtemas
@@ -906,10 +937,7 @@ async function asignarPreguntasATema() {
         alert(`${preguntasProcesadas.length} preguntas asignadas al tema "${temaSeleccionado.nombre}"`);
 
 // Invalidar caché
-sessionStorage.removeItem('cacheTemas');
-sessionStorage.removeItem('cacheTemasTimestamp');
-cacheTimestamp = null;
-cacheTemas = null;
+invalidarCacheTemas();
 
 // Limpiar formulario
 textoPreguntas.value = '';
@@ -931,9 +959,9 @@ textoPreguntas.value = '';
 // Cargar temas existentes
 async function cargarTemas() {
     try {
-        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
-        const querySnapshot = await getDocs(q);
-        
+        // Solo pinta nombres y contadores en un desplegable
+        const querySnapshot = await obtenerSnapshotTemas(false);
+
         // Actualizar select de test aleatorio
         const selectTemaTest = document.getElementById('seleccionarTemaTest');
         if (selectTemaTest) {
@@ -953,99 +981,31 @@ async function cargarTemas() {
     }
 }
 
+/**
+ * Punto ÚNICO de obtención del banco de temas. Lo usan tanto el Banco de
+ * Preguntas como Test Aleatorio, así que una sola lectura de Firebase sirve a
+ * los dos (antes Test Aleatorio hacía su propia lectura completa aparte).
+ *
+ * Orden: memoria -> IndexedDB -> Firebase.
+ *
+ * @param {boolean} forzar - salta la caché y relee de Firebase
+ * @returns {Promise<object>} QuerySnapshot real o simulado
+ */
+function obtenerSnapshotTemas(forzar) {
+    return gestorBanco.obtener(forzar === true);
+}
+
 // Cargar banco de preguntas
-async function cargarBancoPreguntas() {
+async function cargarBancoPreguntas(forzarRecarga) {
     if (cargandoBanco) {
         console.log('⏸️ Ya cargando banco, omitiendo...');
         return;
     }
-    
+
     try {
         cargandoBanco = true;
-        let querySnapshot;
-        
-        // Verificar si el caché está sucio (hubo cambios)
-        const cacheSucio = sessionStorage.getItem('cacheSucio') === 'true';
-        if (cacheSucio) {
-            sessionStorage.removeItem('cacheSucio');
-            sessionStorage.removeItem('cacheTemas');
-            sessionStorage.removeItem('cacheTemasTimestamp');
-            cacheTemas = null;
-            cacheTimestamp = null;
-        }
-        
-        // 🆕 INTENTAR RECUPERAR CACHÉ DE sessionStorage
-        const cacheGuardado = sessionStorage.getItem('cacheTemas');
-        const timestampGuardado = sessionStorage.getItem('cacheTemasTimestamp');
-        
-        if (cacheGuardado && timestampGuardado) {
-            const tiempoTranscurrido = Date.now() - parseInt(timestampGuardado);
-            const datosCache = JSON.parse(cacheGuardado);
-            
-            // 🛡️ Descartar caché si está vacío (probablemente fue un error de red al guardarlo)
-            if (datosCache.length === 0) {
-                console.warn('⚠️ Caché vacío detectado, descartando y recargando desde Firebase');
-                sessionStorage.removeItem('cacheTemas');
-                sessionStorage.removeItem('cacheTemasTimestamp');
-            } else if (tiempoTranscurrido < CACHE_DURACION) {
-                console.log('✅ Recuperando caché desde sessionStorage');
-                
-                // Reconstruir QuerySnapshot simulado
-                querySnapshot = {
-                    empty: false,
-                    size: datosCache.length,
-                    forEach: function(callback) {
-                        datosCache.forEach(item => {
-                            callback({
-                                id: item.id,
-                                data: () => item.data
-                            });
-                        });
-                    }
-                };
-                
-                cacheTemas = querySnapshot;
-                cacheTimestamp = parseInt(timestampGuardado);
-            } else {
-                console.log('⏰ Caché expirado, recargando...');
-                sessionStorage.removeItem('cacheTemas');
-                sessionStorage.removeItem('cacheTemasTimestamp');
-            }
-        }
-        
-        // Si no hay caché válido, cargar desde Firebase
-        if (!querySnapshot) {
-            console.log('🔄 Recargando temas desde Firebase');
-            const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
-            querySnapshot = await getDocs(q);
-            
-            // 🆕 GUARDAR EN sessionStorage
-            const datosParaGuardar = [];
-            querySnapshot.forEach(doc => {
-                datosParaGuardar.push({
-                    id: doc.id,
-                    data: doc.data()
-                });
-            });
-            
-            // 🛡️ Solo guardar caché si hay datos reales (evita persistir resultados vacíos por errores de red)
-            if (datosParaGuardar.length > 0) {
-                try {
-                    sessionStorage.setItem('cacheTemas', JSON.stringify(datosParaGuardar));
-                    sessionStorage.setItem('cacheTemasTimestamp', Date.now().toString());
-                } catch (quotaError) {
-                    console.warn('⚠️ sessionStorage lleno (demasiadas preguntas). Caché desactivado, cargando siempre desde Firebase.');
-                    sessionStorage.removeItem('cacheTemas');
-                    sessionStorage.removeItem('cacheTemasTimestamp');
-                }
-            } else {
-                console.warn('⚠️ Firebase devolvió 0 temas. NO guardando caché (probable error de red).');
-            }
-            
-            cacheTemas = querySnapshot;
-            cacheTimestamp = Date.now();
-        }
-        
+        const querySnapshot = await obtenerSnapshotTemas(forzarRecarga === true);
+
         listaTemas.innerHTML = '';
         
         if (querySnapshot.empty) {
@@ -1059,6 +1019,7 @@ async function cargarBancoPreguntas() {
         controlesDiv.innerHTML = `
             <input type="text" id="buscadorPreguntas" placeholder="Buscar preguntas..." />
             <button id="detectarDuplicadasBtn" class="btn-warning">🔍 Detectar Repetidas</button>
+            <button id="recargarBancoBtn" title="Vuelve a leer el banco desde el servidor. Útil si has editado preguntas desde la app o desde otro ordenador.">🔄 Recargar banco</button>
             <button class="btn-danger" onclick="eliminarTodosTemas()">🗑️ Eliminar Todos los Temas</button>
         `;
         listaTemas.appendChild(controlesDiv);
@@ -1067,6 +1028,26 @@ async function cargarBancoPreguntas() {
         setTimeout(() => {
             document.getElementById('buscadorPreguntas').addEventListener('input', filtrarPreguntas);
             document.getElementById('detectarDuplicadasBtn').addEventListener('click', detectarPreguntasDuplicadas);
+
+            // Salida manual: la invalidación automática solo ve las ediciones
+            // hechas en esta web, no las que vengan de la app o de otro equipo.
+            const btnRecargar = document.getElementById('recargarBancoBtn');
+            if (btnRecargar) {
+                btnRecargar.addEventListener('click', async () => {
+                    btnRecargar.disabled = true;
+                    btnRecargar.textContent = '⏳ Recargando...';
+                    try {
+                        await cargarBancoPreguntas(true);
+                    } catch (e) {
+                        console.error('Error recargando el banco:', e);
+                        alert('❌ No se pudo recargar el banco. Revisa tu conexión.');
+                        btnRecargar.disabled = false;
+                        btnRecargar.textContent = '🔄 Recargar banco';
+                    }
+                    // Si fue bien, cargarBancoPreguntas repinta los controles
+                    // enteros y este botón deja de existir.
+                });
+            }
         }, 100);
         
         // Separar temas principales y subtemas
@@ -1117,7 +1098,12 @@ if (sinOrdenP.length > 0) {
         t.data.orden = idx;
         return updateDoc(doc(db, "temas", t.id), { orden: idx });
     });
-    Promise.all(promesasMig).catch(e => console.warn('Error migración orden:', e));
+    // Al acabar se invalida: la copia guardada en disco pudo escribirse antes de
+    // esta migración y, si no, en cada arranque en frío se volvería a detectar
+    // "sin orden" y se repetirían estas escrituras contra Firebase.
+    Promise.all(promesasMig)
+        .then(() => invalidarCacheTemas())
+        .catch(e => console.warn('Error migración orden:', e));
     
     temasPrincipales.length = 0;
     temasPrincipales.push(...conOrdenP);
@@ -1325,7 +1311,7 @@ function agregarSubtemaAlDOM(subtemaId, subtemaData, temaPadreId) {
         }
         if (!temaCard) {
             // Forzar recarga si no se encuentra el contenedor
-            sessionStorage.setItem('cacheSucio', 'true');
+            invalidarCacheTemas();
             cargarBancoPreguntas();
             return;
         }
@@ -1528,7 +1514,11 @@ function configurarDragAndDrop() {
                     orden: tema.orden
                 });
             }
-            
+
+            // Sin esto la caché conservaría el orden anterior y al volver al
+            // banco los temas saldrían como estaban antes de arrastrarlos.
+            invalidarCacheTemas();
+
             console.log('Orden guardado:', temasOrdenados);
         } catch (error) {
             console.error('Error guardando orden:', error);
@@ -1546,6 +1536,7 @@ function configurarDragAndDrop() {
                 }
             });
             await Promise.all(promesas);
+            invalidarCacheTemas(); // igual que con los temas: si no, se pierde el nuevo orden
             console.log('Orden de subtemas guardado');
         } catch (error) {
             console.error('Error guardando orden de subtemas:', error);
@@ -1679,7 +1670,7 @@ window.toggleVerificacion = async function(temaId, preguntaIndex) {
         await updateDoc(temaRef, { preguntas });
 
         // Marcar caché como sucio (se actualizará en próxima carga completa)
-        sessionStorage.setItem('cacheSucio', 'true');
+        invalidarCacheTemas();
 
     } catch (error) {
         console.error('Error al cambiar verificación:', error);
@@ -1833,7 +1824,7 @@ window.cambiarRespuestaCorrecta = async function(temaId, preguntaIndex, nuevaLet
         await updateDoc(temaRef, { preguntas });
         
         // NO recargar - el radio button ya está actualizado visualmente
-        sessionStorage.setItem('cacheSucio', 'true');
+        invalidarCacheTemas();
         
     } catch (error) {
         console.error('Error cambiando respuesta correcta:', error);
@@ -1896,7 +1887,7 @@ window.eliminarPregunta = async function(temaId, preguntaIndex) {
                 }
             }
             
-            sessionStorage.setItem('cacheSucio', 'true');
+            invalidarCacheTemas();
             
         } catch (error) {
             console.error('Error eliminando pregunta:', error);
@@ -1941,10 +1932,7 @@ window.reordenarTemasNumerico = async function() {
         });
         await Promise.all(updates);
         
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
-        cacheTemas = null;
-        cacheTimestamp = null;
+        invalidarCacheTemas();
         
         const totalSubtemas = Object.values(subtemasPorPadre).flat().length;
         console.log(`✅ Reordenados ${principales.length} temas y ${totalSubtemas} subtemas. Recargando...`);
@@ -1971,10 +1959,7 @@ window.eliminarTodosTemas = async function() {
             await Promise.all(promises);
 
 // Invalidar caché
-sessionStorage.removeItem('cacheTemas');
-sessionStorage.removeItem('cacheTemasTimestamp');
-cacheTimestamp = null;
-cacheTemas = null;
+invalidarCacheTemas();
 
 alert('Todos los temas han sido eliminados');
 cargarBancoPreguntas();
@@ -2008,7 +1993,7 @@ window.editarTema = async function(temaId) {
             });
             
             // Marcar caché como sucio para próxima carga
-            sessionStorage.setItem('cacheSucio', 'true');
+            invalidarCacheTemas();
             
             // Actualizar nombre directamente en el DOM (sin recargar)
             const temaCard = document.querySelector(`[data-tema-id="${temaId}"]`);
@@ -2084,10 +2069,7 @@ window.vaciarTema = async function(temaId) {
             if (numSubtemas > 0) alertMsg += `- ${numSubtemas} subtema(s) eliminado(s)`;
             
             // Invalidar caché
-            sessionStorage.removeItem('cacheTemas');
-            sessionStorage.removeItem('cacheTemasTimestamp');
-            cacheTimestamp = null;
-            cacheTemas = [];
+            invalidarCacheTemas();
             
             alert(alertMsg);
             cargarBancoPreguntas();
@@ -2187,10 +2169,7 @@ window.eliminarTema = async function(temaId) {
             const limpiado = await limpiarRastroDePreguntas(textosBorrados);
 
             // Invalidar caché
-sessionStorage.removeItem('cacheTemas');
-sessionStorage.removeItem('cacheTemasTimestamp');
-cacheTimestamp = null;
-cacheTemas = null;
+invalidarCacheTemas();
 
 let mensaje = 'Tema y subtemas eliminados exitosamente';
 if (limpiado.falladas > 0 || limpiado.dominadas > 0) {
@@ -2223,21 +2202,18 @@ function filtrarPreguntas() {
     _busquedaTimer = setTimeout(ejecutarBusquedaPreguntas, 280);
 }
 
-// Devuelve un array [{id, data}] de todos los temas desde la caché (memoria o sessionStorage)
+// Devuelve un array [{id, data}] de todos los temas para el buscador.
+// SÍNCRONA a propósito: se apoya solo en la copia en memoria, que
+// obtenerSnapshotTemas() rellena en cada carga. No toca IndexedDB.
+//
+// Devuelve [] si la caché está invalidada, y eso es lo correcto: antes esta
+// función leía cacheTemas sin comprobar la invalidación, de modo que una
+// pregunta recién borrada seguía apareciendo en los resultados de búsqueda.
 function obtenerTemasCacheArray() {
-    const arr = [];
-    if (cacheTemas && typeof cacheTemas.forEach === 'function') {
-        cacheTemas.forEach(d => arr.push({ id: d.id, data: d.data() }));
-        if (arr.length > 0) return arr;
-    }
-    try {
-        const raw = sessionStorage.getItem('cacheTemas');
-        if (raw) JSON.parse(raw).forEach(item => arr.push({ id: item.id, data: item.data }));
-    } catch (e) { /* caché no disponible */ }
-    return arr;
+    return gestorBanco.temasSincronos();
 }
 
-function ejecutarBusquedaPreguntas() {
+async function ejecutarBusquedaPreguntas() {
     const input = document.getElementById('buscadorPreguntas');
     if (!input) return;
     const textoBusqueda = input.value.trim();
@@ -2265,7 +2241,21 @@ function ejecutarBusquedaPreguntas() {
     panel.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">🔍 Buscando...</div>';
 
     // Buscar coincidencias en la caché (todas las preguntas, estén o no renderizadas)
-    const temas = obtenerTemasCacheArray();
+    let temas = obtenerTemasCacheArray();
+
+    // La caché puede estar vacía si se acaba de editar algo (la invalidación
+    // limpia la memoria pero el DOM se actualiza a mano, sin recarga completa).
+    // Sin esto el buscador diría "no encontrado" cuando la pregunta sí existe.
+    if (temas.length === 0) {
+        try {
+            await obtenerSnapshotTemas(false);
+            temas = obtenerTemasCacheArray();
+        } catch (e) {
+            console.error('Error recargando temas para la búsqueda:', e);
+        }
+        // El usuario pudo seguir escribiendo mientras se recargaba
+        if (input.value.trim() !== textoBusqueda) return;
+    }
     const coincidencias = [];
     temas.forEach(({ id, data }) => {
         const preguntas = data.preguntas || [];
@@ -2352,7 +2342,11 @@ window.eliminarSubtemasHuerfanos = async function() {
         for (const subtema of subtemasHuerfanos) {
             await deleteDoc(doc(db, "temas", subtema.id));
         }
-        
+
+        // Imprescindible: sin invalidar, la recarga de abajo tiraría de caché
+        // y los subtemas recién borrados volverían a aparecer.
+        invalidarCacheTemas();
+
         alert(`Se eliminaron ${subtemasHuerfanos.length} subtemas huÃ©rfanos`);
         cargarBancoPreguntas();
         
@@ -2905,10 +2899,7 @@ window.eliminarNoSeleccionadas = async function() {
             await updateDoc(temaRef, { preguntas });
         }
         
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
-        cacheTimestamp = null;
-        cacheTemas = null;
+        invalidarCacheTemas();
         
         alert(`Se eliminaron ${totalEliminadas} pregunta(s). Se mantuvieron ${seleccionadasCount}.`);
         cerrarModalDuplicadas();
@@ -2969,10 +2960,7 @@ window.eliminarSeleccionadas = async function() {
         }
         
         // Invalidar caché para forzar recarga desde Firebase
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
-        cacheTimestamp = null;
-        cacheTemas = null;
+        invalidarCacheTemas();
         
         alert(`Se eliminaron ${totalEliminadas} pregunta(s) seleccionada(s).`);
         cerrarModalDuplicadas();
@@ -3009,9 +2997,9 @@ function mostrarOpcionSubtema() {
 // Cargar temas padre en select
 async function cargarTemasPadre(preseleccionado = null) {
     try {
-        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
-        const querySnapshot = await getDocs(q);
-        
+        // Solo pinta nombres de temas padre en un desplegable
+        const querySnapshot = await obtenerSnapshotTemas(false);
+
         const temaPadreSelect = document.getElementById('temaPadreSelect');
         temaPadreSelect.innerHTML = '<option value="">Selecciona tema padre...</option>';
         
@@ -3150,20 +3138,13 @@ async function cargarTemasParaTest() {
     
     try {
         cargandoTemasTest = true;
-        let querySnapshot;
-        
-        // ✅ USAR CACHÉ (igual que cargarBancoPreguntas)
-        if (cacheTemas && cacheTimestamp && (Date.now() - cacheTimestamp < CACHE_DURACION)) {
-            console.log('✅ Usando caché de temas en Test Aleatorio');
-            querySnapshot = cacheTemas;
-        } else {
-            console.log('🔄 Recargando temas desde Firebase en Test Aleatorio');
-            const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
-            querySnapshot = await getDocs(q);
-            cacheTemas = querySnapshot;
-            cacheTimestamp = Date.now();
-        }
-        
+
+        // Mismo punto de entrada que el Banco de Preguntas. Antes esta función
+        // tenía su propia caché: no miraba la marca de invalidación (así que
+        // podía servir preguntas ya borradas) y lo que leía de Firebase no lo
+        // persistía, duplicando la descarga del banco entero.
+        const querySnapshot = await obtenerSnapshotTemas(false);
+
         const listaContainer = document.getElementById('listaTemasDropdown');
         
         if (!listaContainer) return;
@@ -3789,12 +3770,74 @@ async function empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionad
             return;
         }
 
+        /* 3b. Sembrar el filtro con lo que YA existe.
+           Antes solo se comparaba contra lo generado en la propia tanda y del
+           mismo tema, así que la IA podía devolver una pregunta que ya estaba
+           en el banco (salía con su badge de "fallada") o la misma pregunta
+           por dos temas distintos del mix. */
+        pintarProgresoIA(0, 1, 'Revisando tu banco para no repetir preguntas…');
+
+        const idsElegidos = new Set(conDocumento.map(t => t.id));
+        const vetoTextos = new Set();          // texto exacto, contra TODO el banco
+        const huellasBanco = [];               // comparación a fondo, solo temas elegidos
+        const enunciadosBancoPorTema = new Map();
+
+        try {
+            // Asegura que el banco esté cargado: si se entra directo a
+            // configurar el test, la copia en memoria puede estar vacía.
+            await obtenerSnapshotTemas(false);
+
+            obtenerTemasCacheArray().forEach(({ id, data }) => {
+                const esElegido = idsElegidos.has(id);
+                const propias = [];
+
+                (data.preguntas || []).forEach(p => {
+                    if (!p || !p.texto) return;
+                    vetoTextos.add(clavePorTexto(p.texto));
+                    if (esElegido) {
+                        huellasBanco.push(huella(p));
+                        propias.push(p.texto);
+                    }
+                });
+
+                if (esElegido && propias.length > 0) {
+                    enunciadosBancoPorTema.set(id, propias);
+                }
+            });
+            console.log(`[IA] Filtro sembrado: ${vetoTextos.size} enunciados del banco, ${huellasBanco.length} huellas de los temas elegidos`);
+        } catch (e) {
+            // Si esto falla se sigue: el filtro queda como antes, no se rompe el test
+            console.warn('[IA] No se pudo sembrar el filtro con el banco:', e);
+        }
+
+        /* Muestra aleatoria de enunciados ya existentes para avisar a Claude.
+           Sale más barato pagar unos cientos de tokens de aviso que pagar
+           preguntas generadas que luego hay que tirar. */
+        const muestraDelBanco = (temaId, cuantos) => {
+            const todos = enunciadosBancoPorTema.get(temaId) || [];
+            if (todos.length <= cuantos) return todos.slice();
+            const copia = todos.slice();
+            for (let i = copia.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copia[i], copia[j]] = [copia[j], copia[i]];
+            }
+            return copia.slice(0, cuantos);
+        };
+
+        // Lo que se le manda a Claude: parte de lo que ya existe, parte de lo
+        // recién generado. El servidor recorta a 25 en total.
+        const avisoParaClaude = (temaId) => {
+            const generados = (enunciadosPorTema.get(temaId) || []).slice(-10);
+            return muestraDelBanco(temaId, 15).concat(generados);
+        };
+
         // 4. Lanzar los lotes en tandas.
-        //    Las repetidas se descartan sobre la marcha, comparando cada
-        //    lote nuevo contra todo lo que ya se lleva generado de ese tema.
+        //    Las repetidas se descartan sobre la marcha, comparando cada lote
+        //    nuevo contra el banco y contra TODO lo generado en esta tanda
+        //    (de cualquier tema, para cazar duplicados cruzados del mix).
         const preguntasPorTema = new Map();
-        const huellasPorTema = new Map();
         const enunciadosPorTema = new Map();
+        let huellasVistas = huellasBanco;
         let hechos = 0;
         let repetidasDescartadas = 0;
 
@@ -3802,10 +3845,12 @@ async function empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionad
 
         const procesarLote = (trabajo, preguntas) => {
             const idTema = trabajo.tema.id;
-            const previas = huellasPorTema.get(idTema) || [];
-            const { aceptadas, descartadas, huellas } = quitarRepetidas(preguntas, previas);
+            const { aceptadas, descartadas, huellas } = quitarRepetidas(preguntas, huellasVistas, vetoTextos);
 
-            huellasPorTema.set(idTema, huellas);
+            // Lista compartida entre temas: así el tema A y el tema B del mix
+            // no pueden colar la misma pregunta cada uno por su lado.
+            huellasVistas = huellas;
+            aceptadas.forEach(p => vetoTextos.add(clavePorTexto(p.texto)));
             preguntasPorTema.set(idTema, (preguntasPorTema.get(idTema) || []).concat(aceptadas));
 
             const enunciados = enunciadosPorTema.get(idTema) || [];
@@ -3824,7 +3869,7 @@ async function empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionad
 
             const resultados = await Promise.allSettled(tanda.map(async trabajo => {
                 // Se le dice a Claude sobre qué ha preguntado ya en este tema
-                const yaPreguntado = (enunciadosPorTema.get(trabajo.tema.id) || []).slice(-25);
+                const yaPreguntado = avisoParaClaude(trabajo.tema.id);
                 const preguntas = await pedirLoteIA(trabajo.texto, trabajo.cantidad, trabajo.tema.nombre, yaPreguntado);
                 return { trabajo, preguntas };
             }));
@@ -3858,7 +3903,7 @@ async function empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionad
                 if (cuantas <= 0) return;
 
                 const texto = prepararTextoParaLote(tema.trozos, cuantas);
-                const yaPreguntado = (enunciadosPorTema.get(tema.id) || []).slice(-25);
+                const yaPreguntado = avisoParaClaude(tema.id);
                 const preguntas = await pedirLoteIA(texto, cuantas, tema.nombre, yaPreguntado);
                 procesarLote({ tema }, preguntas);
             }));
@@ -3986,6 +4031,9 @@ function mostrarBannerPreguntasIA() {
 }
 
 // Busca el subtema "Preguntas IA X" bajo un tema; si no existe, lo crea
+// Nota: esta función escribe en `temas` pero NO invalida la caché a propósito.
+// Su único llamante es guardarPreguntasIA(), que invalida una sola vez al final
+// en lugar de hacerlo por cada subtema creado.
 async function obtenerOCrearSubtemaIA(temaId, nombreTemaPadre) {
     const nombreSubtema = `Preguntas IA ${nombreTemaPadre}`;
 
@@ -4115,10 +4163,7 @@ window.guardarPreguntasIA = async function() {
         if (banner) banner.remove();
 
         // Invalidar caché para que el banco muestre las subcarpetas nuevas
-        cacheTemas = null;
-        cacheTimestamp = null;
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
+        invalidarCacheTemas();
 
         alert(`✅ Preguntas guardadas:\n\n${resumen.join('\n')}`);
 
@@ -5224,6 +5269,11 @@ contenido.innerHTML = `
             <div class="buscador-mejorado">
                 <input type="text" id="buscadorInputModal" placeholder="🔍 Buscar palabra en el documento..." class="input-buscador-mejorado">
                 <button onclick="buscarEnTextoModal()" class="btn-buscar-mejorado">Buscar</button>
+                <div class="nav-busqueda" id="navBusquedaModal" hidden>
+                    <button type="button" class="btn-nav-busqueda" onclick="navegarBusquedaModal(-1)" title="Anterior (Mayús+Intro)">▲</button>
+                    <span class="contador-busqueda" id="contadorBusquedaModal">0/0</span>
+                    <button type="button" class="btn-nav-busqueda" onclick="navegarBusquedaModal(1)" title="Siguiente (Intro)">▼</button>
+                </div>
             </div>
             <div class="botones-accion-superior">
                 <button class="btn-accion btn-subrayar" onclick="subrayarSeleccionModal()">✏️ Subrayar Selección</button>
@@ -5439,6 +5489,22 @@ async function guardarFragmentosSubrayados(preguntaId, fragmentos) {
 
 // Búsqueda sobre el DOM: recorre nodos de texto en vez de hacer replace
 // sobre el innerHTML, que con el documento maquetado rompería las etiquetas
+// Refresca el contador "3/12" y enseña u oculta las flechas
+function pintarContadorBusqueda(idNav, idContador, contenedor) {
+    const nav = document.getElementById(idNav);
+    const contador = document.getElementById(idContador);
+    if (!nav || !contador) return;
+
+    const { actual, total } = estadoBusqueda(contenedor);
+    if (total === 0) {
+        nav.hidden = true;
+        contador.textContent = '0/0';
+        return;
+    }
+    nav.hidden = false;
+    contador.textContent = `${actual}/${total}`;
+}
+
 window.buscarEnTextoModal = function() {
     const input = document.getElementById('buscadorInputModal');
     const textoBuscar = input.value.trim();
@@ -5446,11 +5512,63 @@ window.buscarEnTextoModal = function() {
     if (!textoExplicacion) return;
 
     const coincidencias = buscarEnDocumento(textoExplicacion, textoBuscar);
+    pintarContadorBusqueda('navBusquedaModal', 'contadorBusquedaModal', textoExplicacion);
 
     if (textoBuscar && coincidencias === 0) {
         alert('No se encontraron coincidencias');
     }
 };
+
+// Salta a la coincidencia anterior (paso -1) o siguiente (paso 1), dando la
+// vuelta al llegar al final. Evita tener que buscarlas a base de scroll.
+window.navegarBusquedaModal = function(paso) {
+    const textoExplicacion = document.getElementById('textoExplicacionModal');
+    if (!textoExplicacion) return;
+    moverResultado(textoExplicacion, paso);
+    pintarContadorBusqueda('navBusquedaModal', 'contadorBusquedaModal', textoExplicacion);
+};
+
+window.navegarBusquedaResultado = function(paso) {
+    const textoExplicacion = document.getElementById('textoExplicacionRes');
+    if (!textoExplicacion) return;
+    moverResultado(textoExplicacion, paso);
+    pintarContadorBusqueda('navBusquedaRes', 'contadorBusquedaRes', textoExplicacion);
+};
+
+/* Intro en el buscador. Se registra UNA vez por delegación en lugar de al
+   montar cada panel: los buscadores se pintan desde tres sitios distintos y
+   dos de ellos comparten los mismos ids, así que engancharlo en cada montaje
+   duplicaba listeners o se olvidaba en alguno.
+
+   La primera vez Intro busca; después salta a la siguiente coincidencia, y
+   Mayús+Intro a la anterior (igual que el buscador del navegador). */
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter') return;
+
+    const destino = e.target;
+    if (!destino || !destino.id) return;
+
+    let panelId, buscar, navegar;
+    if (destino.id === 'buscadorInputModal') {
+        panelId = 'textoExplicacionModal';
+        buscar = window.buscarEnTextoModal;
+        navegar = window.navegarBusquedaModal;
+    } else if (destino.id === 'buscadorInputRes') {
+        panelId = 'textoExplicacionRes';
+        buscar = window.buscarEnTextoResultado;
+        navegar = window.navegarBusquedaResultado;
+    } else {
+        return;
+    }
+
+    e.preventDefault();
+    const panel = document.getElementById(panelId);
+    if (panel && estadoBusqueda(panel).total > 0) {
+        navegar(e.shiftKey ? -1 : 1);
+    } else if (typeof buscar === 'function') {
+        buscar();
+    }
+});
 
 
 window.subrayarSeleccionModal = function() {
@@ -7580,10 +7698,7 @@ async function importarConSubcarpetas(datos, temaId) {
         alert(resumen);
         
         // Invalidar caché y recargar
-        cacheTemas = null;
-        cacheTimestamp = null;
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
+        invalidarCacheTemas();
         
         if (document.getElementById('banco-section').classList.contains('active')) {
             cargarBancoPreguntas();
@@ -7657,10 +7772,7 @@ async function importarPreguntasDirectoATema(preguntasConvertidas, temaId) {
         alert(`${preguntasConvertidas.length} preguntas importadas exitosamente al tema "${nombreTema}"`);
         
         // Invalidar caché antes de recargar
-        cacheTemas = null;
-        cacheTimestamp = null;
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
+        invalidarCacheTemas();
         
         // Recargar banco si está activo
         if (document.getElementById('banco-section').classList.contains('active')) {
@@ -8326,10 +8438,7 @@ window.toggleOficial = async function(temaId, preguntaIndex) {
         }
         
         // Invalidar caché
-        cacheTemas = null;
-        cacheTimestamp = null;
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
+        invalidarCacheTemas();
         
     } catch (error) {
         console.error('Error toggling oficial:', error);
@@ -8366,10 +8475,7 @@ window.toggleOficialBloque = async function(temaId) {
         alert(`${preguntas.length} preguntas ${nuevasMarcadas ? 'marcadas' : 'desmarcadas'} como oficiales`);
         
         // Invalidar caché y recargar
-        cacheTemas = null;
-        cacheTimestamp = null;
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
+        invalidarCacheTemas();
         
         // Recargar las preguntas si están visibles
         const container = document.getElementById(`preguntas-${temaId}`);
@@ -8437,8 +8543,11 @@ let mapaTemasCache = null;
 async function asegurarMapaTemas(forzar = false) {
     if (mapaTemasCache && !forzar) return mapaTemasCache;
     try {
-        const q = query(collection(db, "temas"), where("usuarioId", "==", currentUser.uid));
-        const snap = await getDocs(q);
+        // Solo construye un mapa id -> {nombre, padre}.
+        // `forzar` aquí significa "reconstruye el mapa", no "vacía el banco":
+        // por eso NO se propaga. Forzar la relectura del banco es cosa del
+        // botón "Recargar banco".
+        const snap = await obtenerSnapshotTemas(false);
         const mapa = {};
         snap.forEach(d => {
             const data = d.data();
@@ -8526,6 +8635,11 @@ async function cargarExplicacionResultado() {
                 <div class="buscador-texto">
                     <input type="text" id="buscadorInputRes" placeholder="🔍 Buscar texto..." class="input-buscador">
                     <button onclick="buscarEnTextoResultado()" class="btn-buscar">Buscar</button>
+                    <div class="nav-busqueda" id="navBusquedaRes" hidden>
+                        <button type="button" class="btn-nav-busqueda" onclick="navegarBusquedaResultado(-1)" title="Anterior (Mayús+Intro)">▲</button>
+                        <span class="contador-busqueda" id="contadorBusquedaRes">0/0</span>
+                        <button type="button" class="btn-nav-busqueda" onclick="navegarBusquedaResultado(1)" title="Siguiente (Intro)">▼</button>
+                    </div>
                 </div>
             </div>
             <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacionRes"></div>
@@ -8691,12 +8805,14 @@ window.buscarEnTextoResultado = function() {
 
     if (!textoBuscar) {
         limpiarBusqueda(textoExplicacion);
+        pintarContadorBusqueda('navBusquedaRes', 'contadorBusquedaRes', textoExplicacion);
         return;
     }
 
     // Recorre el DOM: antes reconstruía el panel desde el texto plano,
     // lo que borraba los subrayados y el maquetado
     const coincidencias = buscarEnDocumento(textoExplicacion, textoBuscar);
+    pintarContadorBusqueda('navBusquedaRes', 'contadorBusquedaRes', textoExplicacion);
 
     if (coincidencias === 0) {
         alert('No se encontraron coincidencias');
@@ -9621,7 +9737,7 @@ window.confirmarMoverPregunta = async function() {
             if (summaryDest) summaryDest.textContent = `Ver y editar preguntas (${preguntasDestino.length})`;
         }
 
-        sessionStorage.setItem('cacheSucio', 'true');
+        invalidarCacheTemas();
         cerrarModalMoverPregunta();
 
     } catch (err) {
@@ -9976,11 +10092,7 @@ window.eliminarPreguntasSeleccionadas = async function() {
             await updateDoc(temaRef, { preguntas: nuevasPreguntas });
         }
         
-        sessionStorage.setItem('cacheSucio', 'true');
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
-        cacheTemas = null;
-        cacheTimestamp = null;
+        invalidarCacheTemas();
         
         alert(`✅ ${total} pregunta(s) eliminada(s) correctamente`);
         
@@ -10065,11 +10177,7 @@ async function moverSeleccionadasA(destinoId) {
 
         // 3. Invalidar caché y refrescar (más seguro que retocar el DOM a mano,
         //    porque los índices de varios temas cambian a la vez)
-        sessionStorage.setItem('cacheSucio', 'true');
-        sessionStorage.removeItem('cacheTemas');
-        sessionStorage.removeItem('cacheTemasTimestamp');
-        cacheTemas = null;
-        cacheTimestamp = null;
+        invalidarCacheTemas();
 
         const omitidas = seleccion.length - preguntasMovidas.length;
         cerrarModalMoverPregunta();

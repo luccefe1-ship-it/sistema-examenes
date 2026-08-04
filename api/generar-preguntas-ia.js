@@ -172,9 +172,11 @@ module.exports = async (req, res) => {
             return;
         }
 
-        /* Enunciados ya generados en este mismo test, para que no vuelva
-           sobre lo mismo. Los lotes viajan en paralelo, así que esto no
-           lo cubre todo: por eso el cliente filtra además las repetidas. */
+        /* Enunciados que el alumno ya tiene: unos del banco de ese tema y
+           otros generados en este mismo test. Avisar sale más barato que
+           pagar preguntas que luego hay que descartar por repetidas.
+           Los lotes viajan en paralelo, así que esto no lo cubre todo:
+           por eso el cliente filtra además las repetidas. */
         const previos = Array.isArray(yaPreguntado)
             ? yaPreguntado
                 .filter(t => typeof t === 'string' && t.trim())
@@ -183,7 +185,7 @@ module.exports = async (req, res) => {
             : [];
 
         const bloqueYaPreguntado = previos.length > 0
-            ? `\n\nEn este test YA se ha preguntado por esto. Cada una de tus preguntas debe versar sobre un dato distinto a todos estos, y no vale reformularlos:\n<ya_preguntado>\n${previos.map(t => `- ${t}`).join('\n')}\n</ya_preguntado>`
+            ? `\n\nEl alumno YA tiene estas preguntas, unas de tests anteriores y otras recién generadas. Cada una de tus preguntas debe versar sobre un dato distinto a todos estos, y no vale reformularlos con otras palabras:\n<ya_preguntado>\n${previos.map(t => `- ${t}`).join('\n')}\n</ya_preguntado>`
             : '';
 
         const { data, cuenta } = await llamarClaude({

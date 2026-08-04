@@ -19,8 +19,17 @@
 
 import { TIPOS_WORD, cargarDocxPreview, descargarOriginal, abrirEnlacesFuera } from './tema-digital.js';
 
+import {
+    CLASE_BUSQUEDA,
+    CLASE_BUSQUEDA_ACTIVA,
+    irAResultado,
+    moverResultado,
+    estadoBusqueda,
+    olvidarPosicion
+} from './busqueda-navegacion.js';
+
 export const CLASE_SUBRAYADO = 'subrayado';
-export const CLASE_BUSQUEDA = 'busqueda-highlight';
+export { CLASE_BUSQUEDA, CLASE_BUSQUEDA_ACTIVA };
 
 /* ------------------------------------------------------------------
    Índice de texto del contenedor
@@ -380,6 +389,7 @@ export function quitarSubrayados(contenedor, soloSeleccion = false) {
 ------------------------------------------------------------------ */
 export function limpiarBusqueda(contenedor) {
     if (!contenedor) return;
+    olvidarPosicion(contenedor);
     contenedor.querySelectorAll(`.${CLASE_BUSQUEDA}`).forEach(marca => {
         const padre = marca.parentNode;
         if (!padre) return;
@@ -404,13 +414,16 @@ export function buscarEnDocumento(contenedor, termino) {
         envolverTramo(indice, item.inicio, item.fin, CLASE_BUSQUEDA);
     });
 
-    const primera = contenedor.querySelector(`.${CLASE_BUSQUEDA}`);
-    if (primera && typeof primera.scrollIntoView === 'function') {
-        primera.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    // Deja la primera como activa y salta a ella
+    irAResultado(contenedor, 0);
 
     return encontrados.length;
 }
+
+// La navegación entre coincidencias vive en busqueda-navegacion.js.
+// Se reexporta desde aquí para que quien ya importaba de este módulo
+// no tenga que cambiar nada.
+export { irAResultado, moverResultado, estadoBusqueda };
 
 export function irAlPrimerSubrayado(contenedor) {
     if (!contenedor) return;

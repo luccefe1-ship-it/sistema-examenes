@@ -118,16 +118,40 @@ export function sonLaMisma(a, b) {
     return { repetida: false };
 }
 
+/* Clave de un enunciado para comparar por texto EXACTO.
+   Normaliza tildes, mayúsculas, signos y espacios de más, de forma que
+   "¿Cuál es el plazo?" y "Cual es el plazo" den la misma clave.
+
+   Sirve para el veto rápido contra el banco entero: comparar a fondo
+   contra 10.000 preguntas sería lento, pero mirar en un Set es inmediato. */
+export function clavePorTexto(texto) {
+    return quitarTildes(texto)
+        .toLowerCase()
+        .replace(/[^a-z0-9ñ\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
 /* Filtra una lista dejando solo preguntas distintas entre sí.
-   Se puede pasar un conjunto de huellas ya vistas para comparar
-   también contra lo generado en lotes anteriores. */
-export function quitarRepetidas(preguntas, huellasPrevias = []) {
+
+   @param huellasPrevias  huellas contra las que comparar a fondo (lo ya
+                          generado en esta tanda y lo que ya hay en el banco
+                          de los temas elegidos)
+   @param vetoTextos      Set de claves de texto exacto; si el enunciado
+                          coincide con una, fuera sin más comprobaciones */
+export function quitarRepetidas(preguntas, huellasPrevias = [], vetoTextos = null) {
     const aceptadas = [];
     const descartadas = [];
     const vistas = huellasPrevias.slice();
 
     (preguntas || []).forEach(pregunta => {
         if (!pregunta || !pregunta.texto) return;
+
+        // Veto rápido: el mismo enunciado ya existe en el banco
+        if (vetoTextos && vetoTextos.has(clavePorTexto(pregunta.texto))) {
+            descartadas.push({ texto: pregunta.texto, motivo: 'ya existe en tu banco (texto idéntico)' });
+            return;
+        }
 
         const h = huella(pregunta);
         let choque = null;
