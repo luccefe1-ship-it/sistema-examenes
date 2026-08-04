@@ -148,7 +148,7 @@ module.exports = async (req, res) => {
     if (!usuario) return;
 
     try {
-        const { texto, cantidad, nombreTema } = req.body || {};
+        const { texto, cantidad, nombreTema, yaPreguntado } = req.body || {};
 
         const contenido = String(texto || '').trim();
         if (!contenido) {
@@ -175,8 +175,8 @@ module.exports = async (req, res) => {
         /* Enunciados ya generados en este mismo test, para que no vuelva
            sobre lo mismo. Los lotes viajan en paralelo, así que esto no
            lo cubre todo: por eso el cliente filtra además las repetidas. */
-        const previos = Array.isArray(cuerpo.yaPreguntado)
-            ? cuerpo.yaPreguntado
+        const previos = Array.isArray(yaPreguntado)
+            ? yaPreguntado
                 .filter(t => typeof t === 'string' && t.trim())
                 .slice(-25)
                 .map(t => t.trim().slice(0, 300))
