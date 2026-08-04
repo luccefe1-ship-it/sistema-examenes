@@ -1,6 +1,6 @@
 import { auth, db, storage } from './firebase-config.js';
 import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
-import { inicializarTemaDigital, abrirModalTemaDigital } from './tema-digital.js';
+import { inicializarTemaDigital, abrirModalTemaDigital, abrirVisorTemaDigital } from './tema-digital.js';
 import { generarBloqueComparativa, DIVISOR_PENALIZACION } from './notas-corte.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
@@ -18,6 +18,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 // Exponer función al scope global para onclick
 window.abrirModalTemaDigital = abrirModalTemaDigital;
+window.abrirVisorTemaDigital = abrirVisorTemaDigital;
 // Variables globales
 let currentUser = null;
 let temaSeleccionado = null;
@@ -1192,6 +1193,7 @@ temasPrincipales.forEach(tema => {
                             <div class="tema-fecha">Creado: ${fechaCreacion}</div>
                         </div>
                         <div class="tema-stats">${numPreguntas} preguntas</div>
+                        ${tema.documentoDigital ? `<button class="btn-ver-tema-digital" onclick="abrirVisorTemaDigital('${id}')" title="Ver el documento subido para este tema">📄 Ver tema digital subido</button>` : ''}
                     </div>
                   <div class="tema-acciones">
     <div class="acciones-dropdown">

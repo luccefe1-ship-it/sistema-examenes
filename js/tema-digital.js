@@ -1,6 +1,6 @@
 import { db, storage, auth } from './firebase-config.js';
 import { doc, getDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 
 let temaActualDigital = null;
 let documentoActual = null;
@@ -391,9 +391,11 @@ window.eliminarDocumentoTema = async function() {
 
 // Actualizar botón de tema digital en la lista
 function actualizarBotonTemaDigital(temaId, tieneDocumento) {
-    // La lista de temas no lleva data-tema-id, así que localizamos el botón por su onclick
-    const btn = document.querySelector(`.btn-tema-digital[onclick*="'${temaId}'"]`)
-        || document.querySelector(`[data-tema-id="${temaId}"] .btn-tema-digital`);
+    const tarjeta = document.querySelector(`[data-tema-id="${temaId}"]`);
+
+    // 1. Entrada del menú "Acciones"
+    const btn = (tarjeta && tarjeta.querySelector('.btn-tema-digital'))
+        || document.querySelector(`.btn-tema-digital[onclick*="'${temaId}'"]`);
     if (btn) {
         if (tieneDocumento) {
             btn.classList.add('has-document');
@@ -403,7 +405,208 @@ function actualizarBotonTemaDigital(temaId, tieneDocumento) {
             btn.innerHTML = '📄 Tema Digital';
         }
     }
+
+    // 2. Botón "Ver tema digital subido" junto al número de preguntas
+    if (!tarjeta) return;
+    const infoTema = tarjeta.querySelector('.tema-info');
+    if (!infoTema) return;
+
+    let btnVer = infoTema.querySelector('.btn-ver-tema-digital');
+
+    if (tieneDocumento && !btnVer) {
+        btnVer = document.createElement('button');
+        btnVer.className = 'btn-ver-tema-digital';
+        btnVer.title = 'Ver el documento subido para este tema';
+        btnVer.textContent = '📄 Ver tema digital subido';
+        btnVer.onclick = () => abrirVisorTemaDigital(temaId);
+        infoTema.appendChild(btnVer);
+    } else if (!tieneDocumento && btnVer) {
+        btnVer.remove();
+    }
 }
+
+/* ==================================================================
+   VISOR A PANTALLA AMPLIA
+   Muestra el documento tal cual se subió, con su formato.
+   El HTML no se guarda en Firestore (un tema puede pasar de 200 KB y
+   el límite por documento es 1 MiB): se genera al vuelo desde Storage.
+================================================================== */
+
+const TIPOS_WORD = [
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+];
+
+function pintarEstadoVisor(icono, mensaje) {
+    const cuerpo = document.getElementById('visorTemaCuerpo');
+    if (!cuerpo) return;
+    cuerpo.innerHTML = '';
+
+    const bloque = document.createElement('div');
+    bloque.className = 'visor-estado';
+
+    const iconoEl = document.createElement('div');
+    iconoEl.className = 'upload-icon';
+    iconoEl.textContent = icono;
+
+    const textoEl = document.createElement('p');
+    textoEl.textContent = mensaje;
+
+    bloque.append(iconoEl, textoEl);
+    cuerpo.appendChild(bloque);
+}
+
+// Descarga el fichero original. getBlob evita problemas de CORS con la URL pública.
+async function descargarOriginal(documento) {
+    if (documento.storagePath) {
+        try {
+            return await getBlob(ref(storage, documento.storagePath));
+        } catch (error) {
+            console.warn('getBlob falló, probando con la URL de descarga:', error);
+        }
+    }
+    if (!documento.url) throw new Error('El documento no tiene ni storagePath ni url');
+    const respuesta = await fetch(documento.url);
+    if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status} al descargar el documento`);
+    return await respuesta.blob();
+}
+
+// Abrir el visor
+export async function abrirVisorTemaDigital(temaId) {
+    const modal = document.getElementById('modalVisorTemaDigital');
+    const titulo = document.getElementById('visorTemaTitulo');
+    const subtitulo = document.getElementById('visorTemaSubtitulo');
+    const enlace = document.getElementById('visorTemaDescargar');
+    const cuerpo = document.getElementById('visorTemaCuerpo');
+    if (!modal || !cuerpo) return;
+
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    titulo.textContent = '📄 Tema digital';
+    subtitulo.textContent = '';
+    enlace.style.display = 'none';
+    pintarEstadoVisor('⏳', 'Abriendo el documento…');
+
+    try {
+        const temaSnap = await getDoc(doc(db, 'temas', temaId));
+        const documento = temaSnap.exists() ? temaSnap.data().documentoDigital : null;
+
+        if (!documento || !documento.nombre) {
+            pintarEstadoVisor('📭', 'Este tema todavía no tiene ningún documento subido.');
+            return;
+        }
+
+        titulo.textContent = `📄 ${documento.nombre}`;
+        const nombreTema = temaSnap.data().nombre;
+        subtitulo.textContent = nombreTema ? `Tema digital de "${nombreTema}"` : '';
+
+        if (documento.url) {
+            enlace.href = documento.url;
+            enlace.style.display = 'inline-block';
+        }
+
+        // --- PDF: se muestra el original en un iframe ---
+        if (documento.tipo === 'application/pdf' && documento.url) {
+            cuerpo.innerHTML = '';
+            const marco = document.createElement('iframe');
+            marco.className = 'visor-pdf';
+            marco.src = documento.url;
+            marco.title = documento.nombre;
+            cuerpo.appendChild(marco);
+            return;
+        }
+
+        // --- Word: se convierte a HTML conservando negritas, listas, tablas e imágenes ---
+        if (TIPOS_WORD.includes(documento.tipo)) {
+            if (typeof mammoth === 'undefined') {
+                mostrarTextoPlanoVisor(documento, 'No se ha podido cargar el conversor de Word.');
+                return;
+            }
+
+            pintarEstadoVisor('⏳', 'Convirtiendo el documento…');
+            const blob = await descargarOriginal(documento);
+            const arrayBuffer = await blob.arrayBuffer();
+            const resultado = await mammoth.convertToHtml({ arrayBuffer });
+
+            cuerpo.innerHTML = '';
+            const hoja = document.createElement('div');
+            hoja.className = 'visor-doc';
+            hoja.innerHTML = resultado.value;
+            // Los enlaces del documento se abren fuera, no dentro del visor
+            hoja.querySelectorAll('a[href]').forEach(a => {
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+            });
+            cuerpo.appendChild(hoja);
+            return;
+        }
+
+        // --- TXT y cualquier otro caso ---
+        try {
+            const blob = await descargarOriginal(documento);
+            mostrarTextoPlanoVisor(documento, null, await blob.text());
+        } catch (error) {
+            console.warn('No se pudo descargar el original, uso el texto extraído:', error);
+            mostrarTextoPlanoVisor(documento);
+        }
+
+    } catch (error) {
+        console.error('Error abriendo el visor del tema digital:', error);
+        pintarEstadoVisor('⚠️', 'No se ha podido abrir el documento. Prueba a descargarlo con el botón de arriba.');
+    }
+}
+
+// Respaldo: muestra texto sin formato (el extraído o el que se le pase)
+function mostrarTextoPlanoVisor(documento, aviso, texto) {
+    const cuerpo = document.getElementById('visorTemaCuerpo');
+    if (!cuerpo) return;
+
+    const contenido = typeof texto === 'string' ? texto : (documento.textoExtraido || '');
+    cuerpo.innerHTML = '';
+
+    if (aviso) {
+        const avisoEl = document.createElement('p');
+        avisoEl.className = 'visor-estado';
+        avisoEl.textContent = aviso;
+        cuerpo.appendChild(avisoEl);
+    }
+
+    const pre = document.createElement('div');
+    pre.className = 'visor-txt';
+    pre.textContent = contenido || 'No hay texto que mostrar para este documento.';
+    cuerpo.appendChild(pre);
+}
+
+window.cerrarVisorTemaDigital = function() {
+    const modal = document.getElementById('modalVisorTemaDigital');
+    if (!modal) return;
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    // Liberamos memoria: un tema convertido puede ocupar bastante
+    document.getElementById('visorTemaCuerpo').innerHTML = '';
+};
+
+// Botón "Ver documento completo" dentro del modal de gestión
+window.verDocumentoCompleto = function() {
+    if (temaActualDigital) {
+        abrirVisorTemaDigital(temaActualDigital);
+    }
+};
+
+// Cerrar con Esc y haciendo clic fuera de la hoja
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const modal = document.getElementById('modalVisorTemaDigital');
+    if (modal && modal.classList.contains('active')) {
+        window.cerrarVisorTemaDigital();
+    }
+});
+
+document.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'modalVisorTemaDigital') {
+        window.cerrarVisorTemaDigital();
+    }
+});
 
 // Buscar contexto en documento (para usar en tests)
 export async function buscarContextoEnDocumento(pregunta, temaId) {
