@@ -2097,31 +2097,105 @@ window.vaciarTema = async function(temaId) {
         alert('Error al vaciar el tema');
     }
 };
+/* Al borrar un tema, sus preguntas dejan de existir pero seguían vivas en
+   preguntasFalladas y preguntasDominadas, que guardan una copia completa.
+   Resultado: preguntas fantasma en el Test de Repaso para siempre.
+   Esta función limpia esos rastros a partir de los textos borrados. */
+async function limpiarRastroDePreguntas(textosBorrados) {
+    const textos = new Set(
+        (textosBorrados || [])
+            .map(t => String(t || '').trim())
+            .filter(Boolean)
+    );
+    if (textos.size === 0) return { falladas: 0, dominadas: 0 };
+
+    let falladasBorradas = 0;
+    let dominadasBorradas = 0;
+
+    try {
+        const snap = await getDocs(query(
+            collection(db, 'preguntasFalladas'),
+            where('usuarioId', '==', currentUser.uid)
+        ));
+
+        const borrados = [];
+        snap.forEach(docSnap => {
+            const texto = String(docSnap.data()?.pregunta?.texto || '').trim();
+            if (texto && textos.has(texto)) {
+                borrados.push(deleteDoc(doc(db, 'preguntasFalladas', docSnap.id)));
+            }
+        });
+
+        await Promise.all(borrados);
+        falladasBorradas = borrados.length;
+    } catch (error) {
+        console.error('No se pudieron limpiar las preguntas falladas:', error);
+    }
+
+    try {
+        const refDominadas = doc(db, 'preguntasDominadas', currentUser.uid);
+        const snapDominadas = await getDoc(refDominadas);
+
+        if (snapDominadas.exists()) {
+            const lista = snapDominadas.data().preguntas || [];
+            const restantes = lista.filter(texto => !textos.has(String(texto || '').trim()));
+            dominadasBorradas = lista.length - restantes.length;
+
+            if (dominadasBorradas > 0) {
+                await setDoc(refDominadas, { preguntas: restantes, ultimaActualizacion: new Date() });
+            }
+        }
+    } catch (error) {
+        console.error('No se pudieron limpiar las preguntas dominadas:', error);
+    }
+
+    return { falladas: falladasBorradas, dominadas: dominadasBorradas };
+}
+
 window.eliminarTema = async function(temaId) {
-    if (confirm('¿Estás seguro de que quieres eliminar este tema? Se eliminarán también todos sus subtemas.')) {
+    if (confirm('¿Estás seguro de que quieres eliminar este tema? Se eliminarán también todos sus subtemas, y sus preguntas dejarán de aparecer en el repaso.')) {
         try {
             // Eliminar subtemas primero
             const q = query(
-                collection(db, "temas"), 
+                collection(db, "temas"),
                 where("usuarioId", "==", currentUser.uid),
                 where("temaPadreId", "==", temaId)
             );
             const subtemasSnapshot = await getDocs(q);
-            
+
+            // Se recogen los textos ANTES de borrar, para limpiar después
+            // el rastro en preguntasFalladas y preguntasDominadas
+            const textosBorrados = [];
+            const recoger = datos => {
+                (datos?.preguntas || []).forEach(p => {
+                    if (p && p.texto) textosBorrados.push(p.texto);
+                });
+            };
+
             for (const subtemaDoc of subtemasSnapshot.docs) {
+                recoger(subtemaDoc.data());
                 await deleteDoc(doc(db, "temas", subtemaDoc.id));
             }
-            
+
+            const temaSnap = await getDoc(doc(db, "temas", temaId));
+            if (temaSnap.exists()) recoger(temaSnap.data());
+
             // Eliminar tema principal
             await deleteDoc(doc(db, "temas", temaId));
-            
+
+            const limpiado = await limpiarRastroDePreguntas(textosBorrados);
+
             // Invalidar caché
 sessionStorage.removeItem('cacheTemas');
 sessionStorage.removeItem('cacheTemasTimestamp');
 cacheTimestamp = null;
 cacheTemas = null;
 
-alert('Tema y subtemas eliminados exitosamente');
+let mensaje = 'Tema y subtemas eliminados exitosamente';
+if (limpiado.falladas > 0 || limpiado.dominadas > 0) {
+    mensaje += `\n\nTambién se han limpiado ${limpiado.falladas} preguntas del repaso y ${limpiado.dominadas} del registro de dominadas.`;
+}
+alert(mensaje);
 cargarBancoPreguntas();
 cargarTemas();
         } catch (error) {
@@ -3752,7 +3826,8 @@ function mostrarBannerPreguntasIA() {
     banner.innerHTML = `
         <div class="texto">
             <strong>✨ ${total} preguntas generadas por IA sin guardar</strong>
-            Se guardarán en: ${nombres}
+            Se guardarán en: ${nombres}.
+            Sus fallos no entrarán en el repaso hasta que las guardes.
         </div>
         <button class="btn-guardar-ia" onclick="guardarPreguntasIA()">💾 Guardar preguntas</button>
         <button class="btn-descartar-ia" onclick="descartarPreguntasIA()">Descartar</button>
@@ -3791,6 +3866,59 @@ async function obtenerOCrearSubtemaIA(temaId, nombreTemaPadre) {
     return { id: nuevo.id, creado: true, nombre: nombreSubtema };
 }
 
+const CLAVE_IA_RESULTADO = 'preguntasIAResultadoPendiente';
+
+// Escribe en preguntasFalladas y preguntasDominadas lo que quedó en espera
+// al terminar un test IA. Solo se llama si el usuario guarda las preguntas.
+async function volcarResultadoIAEnEspera() {
+    const vacio = { falladas: 0, dominadas: 0 };
+
+    let pendiente;
+    try {
+        const crudo = localStorage.getItem(CLAVE_IA_RESULTADO);
+        if (!crudo) return vacio;
+        pendiente = JSON.parse(crudo);
+    } catch (error) {
+        console.error('No se pudo leer el resultado IA en espera:', error);
+        localStorage.removeItem(CLAVE_IA_RESULTADO);
+        return vacio;
+    }
+
+    try {
+        const falladas = Array.isArray(pendiente.falladas) ? pendiente.falladas : [];
+        const dominadas = Array.isArray(pendiente.dominadas) ? pendiente.dominadas : [];
+
+        await Promise.all(falladas.map(f => addDoc(collection(db, 'preguntasFalladas'), {
+            usuarioId: currentUser.uid,
+            pregunta: f.pregunta,
+            respuestaUsuario: f.respuestaUsuario,
+            estado: f.estado,
+            fechaFallo: new Date(),
+            testId: pendiente.testId || '',
+            testNombre: pendiente.testNombre || ''
+        })));
+
+        if (dominadas.length > 0) {
+            const refDominadas = doc(db, 'preguntasDominadas', currentUser.uid);
+            const snap = await getDoc(refDominadas);
+            const lista = snap.exists() ? (snap.data().preguntas || []) : [];
+
+            dominadas.forEach(texto => {
+                if (!lista.includes(texto)) lista.push(texto);
+            });
+
+            await setDoc(refDominadas, { preguntas: lista, ultimaActualizacion: new Date() });
+        }
+
+        localStorage.removeItem(CLAVE_IA_RESULTADO);
+        return { falladas: falladas.length, dominadas: dominadas.length };
+
+    } catch (error) {
+        console.error('Error registrando los fallos del test IA:', error);
+        return vacio;
+    }
+}
+
 window.guardarPreguntasIA = async function() {
     const pendientes = leerPreguntasIAPendientes();
     if (!pendientes) return;
@@ -3827,6 +3955,13 @@ window.guardarPreguntasIA = async function() {
             resumen.push(`${nuevas.length} en "${subtema.nombre}"${subtema.creado ? ' (creada)' : ''}`);
         }
 
+        // Ahora que las preguntas existen de verdad, se registran sus fallos
+        // y aciertos. Hasta este momento estaban en espera.
+        const registrados = await volcarResultadoIAEnEspera();
+        if (registrados.falladas > 0 || registrados.dominadas > 0) {
+            resumen.push(`${registrados.falladas} falladas y ${registrados.dominadas} dominadas registradas`);
+        }
+
         localStorage.removeItem(CLAVE_IA_PENDIENTE);
         if (banner) banner.remove();
 
@@ -3846,8 +3981,9 @@ window.guardarPreguntasIA = async function() {
 };
 
 window.descartarPreguntasIA = function() {
-    if (!confirm('¿Descartar las preguntas generadas? No se podrán recuperar.')) return;
+    if (!confirm('¿Descartar las preguntas generadas? No se podrán recuperar, y sus fallos no se registrarán para el repaso.')) return;
     localStorage.removeItem(CLAVE_IA_PENDIENTE);
+    localStorage.removeItem(CLAVE_IA_RESULTADO);
     const banner = document.getElementById('bannerPreguntasIA');
     if (banner) banner.remove();
 };

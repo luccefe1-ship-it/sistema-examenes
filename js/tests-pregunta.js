@@ -803,12 +803,18 @@ async function finalizarTest() {
             }
         }
 
+        // En un test con preguntas IA todavía no sabemos si el usuario las va a
+        // guardar. Registrar aciertos y fallos ahora dejaría preguntas fantasma
+        // en el repaso y en el ranking, así que se aparcan y se escriben solo
+        // si pulsa "Guardar preguntas" en la pantalla de resultados.
+        const esTestIA = testConfig.origen === 'ia';
+
         // Guardar preguntas acertadas como "dominadas" (ocultas del ranking) - aplica a TODOS los tipos de test
-        const preguntasAcertadasDominadas = detalleRespuestas.filter(detalle => 
+        const preguntasAcertadasDominadas = detalleRespuestas.filter(detalle =>
             detalle.estado === 'correcta'
         );
-        
-        if (preguntasAcertadasDominadas.length > 0) {
+
+        if (preguntasAcertadasDominadas.length > 0 && !esTestIA) {
             console.log(`Guardando ${preguntasAcertadasDominadas.length} preguntas como dominadas...`);
             
             const dominadasRefAcertadas = doc(db, "preguntasDominadas", currentUser.uid);
@@ -870,7 +876,7 @@ async function finalizarTest() {
         }
 
         // Guardar preguntas falladas para repaso (solo si NO es test de ranking)
-        if (preguntasFalladas.length > 0 && !testConfig.esRanking) {
+        if (preguntasFalladas.length > 0 && !testConfig.esRanking && !esTestIA) {
             const promesasGuardado = preguntasFalladas.map(async (detalle) => {
                 // Obtener respuestaCorrecta de forma robusta
                 let respuestaCorrecta = detalle.respuestaCorrecta;
@@ -904,7 +910,42 @@ async function finalizarTest() {
             await Promise.all(promesasGuardado);
             console.log(`${preguntasFalladas.length} preguntas falladas guardadas para repaso desde test pregunta a pregunta`);
         }
-        
+
+        // Test IA: dejamos aciertos y fallos en espera, a la espera de que el
+        // usuario decida si guarda las preguntas generadas.
+        if (esTestIA) {
+            try {
+                const enEspera = {
+                    testId: resultadosCompletos.test.id,
+                    testNombre: resultadosCompletos.test.nombre,
+                    falladas: preguntasFalladas.map(detalle => {
+                        let respuestaCorrecta = detalle.respuestaCorrecta;
+                        if (!respuestaCorrecta && detalle.pregunta.opciones) {
+                            const opcionCorrecta = detalle.pregunta.opciones.find(op => op.esCorrecta === true);
+                            if (opcionCorrecta) respuestaCorrecta = opcionCorrecta.letra;
+                        }
+                        return {
+                            pregunta: {
+                                texto: detalle.pregunta.texto,
+                                opciones: detalle.pregunta.opciones,
+                                respuestaCorrecta: respuestaCorrecta,
+                                temaId: detalle.pregunta.temaId || '',
+                                temaNombre: detalle.pregunta.temaNombre || '',
+                                temaEpigrafe: detalle.pregunta.temaEpigrafe || ''
+                            },
+                            respuestaUsuario: detalle.respuestaUsuario,
+                            estado: detalle.estado
+                        };
+                    }),
+                    dominadas: preguntasAcertadasDominadas.map(a => a.pregunta.texto.trim())
+                };
+                localStorage.setItem('preguntasIAResultadoPendiente', JSON.stringify(enEspera));
+                console.log(`[IA] ${enEspera.falladas.length} falladas y ${enEspera.dominadas.length} dominadas en espera de que se guarden las preguntas`);
+            } catch (error) {
+                console.error('No se pudo aparcar el resultado del test IA:', error);
+            }
+        }
+
         // NUEVO: Registrar test en progresoSimple
         console.log('=== DEBUG TEMAS EN TEST ===');
         console.log('testConfig.temas:', testConfig.temas);

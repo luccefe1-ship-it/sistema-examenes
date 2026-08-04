@@ -46,6 +46,19 @@ async function cargarRanking() {
         
         cacheTemas = temasSnapshot;
 
+        /* Textos de las preguntas que existen ahora mismo en algún tema.
+           El ranking se construye desde el histórico de resultados, que
+           guarda una copia de cada pregunta, así que sin este cruce seguían
+           apareciendo preguntas de temas borrados y preguntas generadas por
+           IA que el usuario decidió no guardar. */
+        const textosExistentes = new Set();
+        temasSnapshot.forEach(docTema => {
+            (docTema.data().preguntas || []).forEach(p => {
+                if (p && p.texto) textosExistentes.add(String(p.texto).trim());
+            });
+        });
+        console.log(`Preguntas vivas en los temas: ${textosExistentes.size}`);
+
         // Construir mapas de temas
         const mapaTemasCompleto = {};
         const mapaPorNombre = {};
@@ -102,7 +115,10 @@ async function cargarRanking() {
                 
                 const pregunta = detalle.pregunta;
                 if (!pregunta || !pregunta.texto) return;
-                
+
+                // Si la pregunta ya no vive en ningún tema, fuera del ranking
+                if (!textosExistentes.has(String(pregunta.texto).trim())) return;
+
                 const textoKey = pregunta.texto;
                 totalFallos++;
 
