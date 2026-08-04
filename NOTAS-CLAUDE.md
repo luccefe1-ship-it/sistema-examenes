@@ -154,6 +154,19 @@ cuesta más.
 Pruebas en `pruebas/repetidas.prueba.mjs`, incluida una que comprueba que el
 comportamiento antiguo sí dejaba colar el duplicado.
 
+**Rondas de relleno.** Si al descartar repetidas faltan preguntas, se insiste
+hasta `IA_MAX_RONDAS_RELLENO` (3) veces, pidiendo 2 de más por lote para
+absorber las que se caigan. Dos frenos para no encadenar llamadas:
+
+- el tope de rondas
+- un tema del que una ronda no saca NADA nuevo se marca agotado y deja de
+  pedírsele; si se agotan todos, se corta
+
+Peor caso con 3 temas: 9 llamadas extra. Si aun así falta, se avisa con un
+`alert` breve antes de empezar y el test arranca con las que haya. Si sobran
+(por pedir de más) se recorta al número pedido, pero el sobrante se guarda
+igualmente en el banco al terminar: ya está pagado.
+
 ---
 
 ## Buscador del documento

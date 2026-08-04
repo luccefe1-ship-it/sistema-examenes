@@ -3442,6 +3442,7 @@ window.cabecerasApi = cabecerasApi;
 const IA_MAX_PREGUNTAS = 50;
 const IA_PREGUNTAS_POR_LOTE = 5;      // debe ser <= MAX_PREGUNTAS_POR_PETICION del endpoint
 const IA_LOTES_EN_PARALELO = 3;
+const IA_MAX_RONDAS_RELLENO = 3;      // intentos extra para completar lo pedido
 const IA_TAM_FRAGMENTO = 2500;        // caracteres por fragmento de temario
 const IA_MAX_FRAGMENTOS_LOTE = 12;    // tope de contexto por lote (controla el coste)
 const IA_MAX_CARACTERES = 55000;      // margen bajo el tope del endpoint
@@ -3887,30 +3888,62 @@ async function empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionad
                 `Generando ${cantidadTotal} preguntas con IA… (${hechos} de ${trabajos.length} lotes)`);
         }
 
-        /* 4b. Si al quitar repetidas faltan preguntas, una ronda de relleno.
-           Se pide solo lo que falta y se le pasa la lista de lo ya
-           preguntado para que no vuelva sobre lo mismo. */
+        /* 4b. Rondas de relleno hasta completar lo pedido.
+           Antes había una sola ronda, así que si en ella también salían
+           repetidas el test empezaba corto. Ahora insiste, pero con dos
+           frenos para no encadenar llamadas a Claude sin sentido:
+
+             - un tope de rondas (IA_MAX_RONDAS_RELLENO)
+             - un tema del que una ronda no saca NADA nuevo se da por
+               agotado y deja de pedírsele: su temario ya está exprimido
+
+           Se pide algo más de lo que falta, porque parte se va a caer por
+           repetida: una llamada que devuelve 5 sale más barata que dos
+           que devuelven 3 y 2, ya que el prompt de sistema se paga entero
+           en cada llamada. */
         const contar = () => Array.from(preguntasPorTema.values()).reduce((s, l) => s + l.length, 0);
+        const cuantasDe = (temaId) => (preguntasPorTema.get(temaId) || []).length;
 
-        if (contar() < cantidadTotal && repetidasDescartadas > 0) {
+        const temasAgotados = new Set();
+        let ronda = 0;
+
+        while (contar() < cantidadTotal && ronda < IA_MAX_RONDAS_RELLENO) {
+            const activos = conDocumento.filter(t => !temasAgotados.has(t.id));
+            if (activos.length === 0) {
+                console.log('[IA] Todos los temas agotados: no se puede sacar más de su temario');
+                break;
+            }
+
+            ronda++;
+            const faltanAhora = cantidadTotal - contar();
             pintarProgresoIA(trabajos.length, trabajos.length,
-                `Rellenando ${cantidadTotal - contar()} pregunta(s) que salieron repetidas…`);
+                `Completando ${faltanAhora} pregunta(s)… (intento ${ronda} de ${IA_MAX_RONDAS_RELLENO})`);
 
-            const faltan = repartirPreguntas(cantidadTotal - contar(), conDocumento.length);
+            const reparto = repartirPreguntas(faltanAhora, activos.length);
 
-            await Promise.allSettled(conDocumento.map(async (tema, i) => {
-                const cuantas = Math.min(faltan[i], IA_PREGUNTAS_POR_LOTE);
-                if (cuantas <= 0) return;
+            await Promise.allSettled(activos.map(async (tema, i) => {
+                if (reparto[i] <= 0) return;
+                // Se pide un par de más para absorber las que se caigan
+                const cuantas = Math.min(reparto[i] + 2, IA_PREGUNTAS_POR_LOTE);
 
+                const antes = cuantasDe(tema.id);
                 const texto = prepararTextoParaLote(tema.trozos, cuantas);
                 const yaPreguntado = avisoParaClaude(tema.id);
                 const preguntas = await pedirLoteIA(texto, cuantas, tema.nombre, yaPreguntado);
                 procesarLote({ tema }, preguntas);
+
+                if (cuantasDe(tema.id) === antes) {
+                    temasAgotados.add(tema.id);
+                    console.log(`[IA] "${tema.nombre}" no aporta nada nuevo; no se le pide más`);
+                }
             }));
         }
 
         if (repetidasDescartadas > 0) {
             console.log(`[IA] ${repetidasDescartadas} pregunta(s) repetidas descartadas en total`);
+        }
+        if (ronda > 0) {
+            console.log(`[IA] ${ronda} ronda(s) de relleno; total conseguido: ${contar()} de ${cantidadTotal}`);
         }
 
         // 5. Montar las preguntas con los datos de tema que espera la plataforma
@@ -3946,14 +3979,18 @@ async function empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionad
             return;
         }
 
-        if (preguntasFinales.length < cantidadTotal) {
-            const explicacion = repetidasDescartadas > 0
-                ? `\n\nSe descartaron ${repetidasDescartadas} por preguntar lo mismo que otra.`
-                : '';
-            alert(`Se han podido generar ${preguntasFinales.length} preguntas de las ${cantidadTotal} pedidas. El test empezará con las que hay.${explicacion}`);
+        // Al pedir de más en las rondas de relleno pueden sobrar. Se mezcla
+        // antes de recortar para no quedarse siempre con los mismos temas, y
+        // el sobrante igualmente se guarda en el banco al acabar el test.
+        let mezcladas = mezclarArray(preguntasFinales);
+        if (mezcladas.length > cantidadTotal) {
+            mezcladas = mezcladas.slice(0, cantidadTotal);
         }
 
-        const mezcladas = mezclarArray(preguntasFinales);
+        // Aviso breve si aun así no se ha llegado, antes de empezar
+        if (mezcladas.length < cantidadTotal) {
+            alert(`El test tendrá ${mezcladas.length} preguntas en vez de ${cantidadTotal}: el temario de estos temas no da para más preguntas nuevas sin repetir.`);
+        }
 
         // 6. Dejar constancia para poder guardarlas al terminar
         localStorage.setItem(CLAVE_IA_PENDIENTE, JSON.stringify({
