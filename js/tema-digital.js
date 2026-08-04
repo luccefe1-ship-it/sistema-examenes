@@ -435,7 +435,7 @@ function actualizarBotonTemaDigital(temaId, tieneDocumento) {
    el límite por documento es 1 MiB): se genera al vuelo desde Storage.
 ================================================================== */
 
-const TIPOS_WORD = [
+export const TIPOS_WORD = [
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 ];
@@ -444,7 +444,7 @@ const TIPOS_WORD = [
 // Vía ESM a propósito: la build UMD ocuparía window.docx, que ya usa la
 // librería docx@8.5.0 de generación cargada en tests.html.
 let docxPreviewPromesa = null;
-function cargarDocxPreview() {
+export function cargarDocxPreview() {
     if (!docxPreviewPromesa) {
         docxPreviewPromesa = import('https://esm.sh/docx-preview@0.3.5')
             .catch(error => {
@@ -456,7 +456,7 @@ function cargarDocxPreview() {
 }
 
 // Los enlaces del documento se abren fuera, no dentro del visor
-function abrirEnlacesFuera(contenedor) {
+export function abrirEnlacesFuera(contenedor) {
     contenedor.querySelectorAll('a[href]').forEach(a => {
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
@@ -502,7 +502,7 @@ function pintarEstadoVisor(icono, mensaje) {
 }
 
 // Descarga el fichero original. getBlob evita problemas de CORS con la URL pública.
-async function descargarOriginal(documento) {
+export async function descargarOriginal(documento) {
     if (documento.storagePath) {
         try {
             return await getBlob(ref(storage, documento.storagePath));

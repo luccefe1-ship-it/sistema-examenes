@@ -1,6 +1,16 @@
 import { auth, db, storage } from './firebase-config.js';
 import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 import { inicializarTemaDigital, abrirModalTemaDigital, abrirVisorTemaDigital } from './tema-digital.js';
+import {
+    montarDocumentoSubrayable,
+    obtenerFragmentos,
+    subrayarSeleccion,
+    quitarSubrayados,
+    buscarEnDocumento,
+    limpiarBusqueda,
+    irAlPrimerSubrayado,
+    fragmentosDesdeDoc
+} from './documento-subrayable.js';
 import { generarBloqueComparativa, DIVISOR_PENALIZACION } from './notas-corte.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
@@ -14,7 +24,8 @@ import {
     where, 
     collection, 
     writeBatch,
-    setDoc  // <-- AÑADIR ESTA LÍNEA
+    setDoc,  // <-- AÑADIR ESTA LÍNEA
+    deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 // Exponer función al scope global para onclick
 window.abrirModalTemaDigital = abrirModalTemaDigital;
@@ -4387,24 +4398,14 @@ window.abrirExplicacionResultado = async function(preguntaId, pregunta) {
         console.log('✅ Tema con documento encontrado:', temaConDocumento);
         
         const documentoCompleto = temaConDocumento.documento.textoExtraido;
-        
+
         // Cargar subrayados previos si existen (usar hash, no temaId)
         const subrayados = await cargarSubrayadosPrevios(preguntaIdHash);
-        
-        let textoMostrar;
-let mensajeInfo;
 
-if (subrayados) {
-    textoMostrar = subrayados.replace(/<mark class="busqueda-highlight"[^>]*>(.*?)<\/mark>/gi, '$1');
-    mensajeInfo = '✅ Mostrando tus subrayados guardados';
-} else {
-    textoMostrar = documentoCompleto;
-    mensajeInfo = '✅ Documento cargado - Puedes hacer scroll o buscar texto específico';
-}
-
-// Guardar variables globales
-window.textoDocumentoOriginal = documentoCompleto;
-window.preguntaIdActual = preguntaIdHash;
+        // Guardar variables globales
+        window.textoDocumentoOriginal = documentoCompleto;
+        window.preguntaIdActual = preguntaIdHash;
+        window.documentoDigitalActual = temaConDocumento.documento;
 
 contenido.innerHTML = `
     <div class="tabs-explicacion" style="background: linear-gradient(to right, #1e293b, #334155); padding: 10px 16px; display: flex; gap: 8px;">
@@ -4428,12 +4429,10 @@ contenido.innerHTML = `
                 <button class="btn-accion btn-borrar" onclick="borrarSubrayadoModal()">🗑️ Quitar Subrayado</button>
                 <button class="btn-accion btn-guardar" onclick="guardarTodoModal()">💾 Guardar Cambios</button>
             </div>
-            ${subrayados ? '<p class="info-subrayados">✅ Mostrando tus subrayados guardados</p>' : '<p class="info-subrayados">🔄 Documento sin subrayados previos</p>'}
+            <p class="info-subrayados" id="infoSubrayadosModal">⏳ Cargando el documento…</p>
         </div>
         <div class="contenedor-texto-explicacion">
-            <div class="explicacion-texto" id="textoExplicacionModal">
-                ${textoMostrar.replace(/\n/g, '<br>')}
-            </div>
+            <div class="explicacion-texto" id="textoExplicacionModal"></div>
         </div>
     </div>
     <div class="tab-content" id="contentGeminiModal" style="padding: 16px;">
@@ -4469,16 +4468,14 @@ contenido.innerHTML = `
     </div>
 `;
         
-        // Scroll automático al primer subrayado guardado
-        if (subrayados) {
-            setTimeout(() => {
-                const primerSubrayado = contenido.querySelector('.subrayado');
-                if (primerSubrayado) {
-                    primerSubrayado.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }, 300);
-        }
-        
+        // Renderizar el documento con su formato y reaplicar los subrayados
+        await pintarPanelTemaDigital({
+            idContenedor: 'textoExplicacionModal',
+            idInfo: 'infoSubrayadosModal',
+            documento: temaConDocumento.documento,
+            fragmentos: subrayados
+        });
+
         // Event listener para limpiar búsqueda al borrar input
         setTimeout(() => {
             const buscadorInput = document.getElementById('buscadorInputModal');
@@ -4561,122 +4558,135 @@ async function buscarTemaIdPorNombre(nombreTema) {
     }
 }
 
+// Pinta el documento en un panel y reaplica los subrayados guardados.
+// Compartido por las tres vistas de explicación.
+async function pintarPanelTemaDigital({ idContenedor, idInfo, documento, fragmentos }) {
+    const contenedor = document.getElementById(idContenedor);
+    const info = idInfo ? document.getElementById(idInfo) : null;
+    if (!contenedor) return;
+
+    try {
+        const resultado = await montarDocumentoSubrayable({
+            contenedor,
+            documento,
+            fragmentos,
+            ajustarAlAncho: true // el panel es estrecho: el texto fluye al ancho disponible
+        });
+
+        if (info) {
+            if (resultado.total === 0) {
+                info.textContent = '🔄 Documento sin subrayados previos';
+            } else if (resultado.aplicados === resultado.total) {
+                info.textContent = '✅ Mostrando tus subrayados guardados';
+            } else {
+                // Honestidad con el usuario: si el texto del documento cambió,
+                // algún subrayado puede no encontrar ya su sitio
+                info.textContent = `⚠️ Recuperados ${resultado.aplicados} de ${resultado.total} subrayados`;
+            }
+        }
+
+        if (resultado.aplicados > 0) {
+            setTimeout(() => irAlPrimerSubrayado(contenedor), 300);
+        }
+    } catch (error) {
+        console.error('Error pintando el tema digital:', error);
+        if (info) info.textContent = '⚠️ No se ha podido cargar el documento';
+    }
+}
+
+// Devuelve los fragmentos de texto subrayados. Acepta también el formato
+// antiguo (HTML completo del panel) y extrae de ahí los fragmentos.
 async function cargarSubrayadosPrevios(preguntaId) {
     try {
         const subDoc = doc(db, 'subrayados', `${currentUser.uid}_${preguntaId}`);
         const subSnap = await getDoc(subDoc);
-        
+
         if (subSnap.exists()) {
-            return subSnap.data().htmlCompleto;
+            return fragmentosDesdeDoc(subSnap.data());
         }
-        return null;
+        return [];
     } catch (error) {
         console.error('Error cargando subrayados:', error);
-        return null;
+        return [];
     }
 }
 
+// Guarda solo los fragmentos subrayados (no el HTML del documento)
+async function guardarFragmentosSubrayados(preguntaId, fragmentos) {
+    const docId = `${currentUser.uid}_${preguntaId}`;
+    const subrayadoRef = doc(db, 'subrayados', docId);
+
+    if (!fragmentos || fragmentos.length === 0) {
+        const existente = await getDoc(subrayadoRef);
+        if (existente.exists()) await deleteDoc(subrayadoRef);
+        return 0;
+    }
+
+    await setDoc(subrayadoRef, {
+        usuarioId: currentUser.uid,
+        preguntaId: preguntaId,
+        fragmentos: fragmentos,
+        cantidadSubrayados: fragmentos.length,
+        // Se borran los campos del formato antiguo para no arrastrar su peso
+        htmlCompleto: deleteField(),
+        contenido: deleteField(),
+        fecha: new Date()
+    }, { merge: true });
+
+    return fragmentos.length;
+}
+
+// Búsqueda sobre el DOM: recorre nodos de texto en vez de hacer replace
+// sobre el innerHTML, que con el documento maquetado rompería las etiquetas
 window.buscarEnTextoModal = function() {
     const input = document.getElementById('buscadorInputModal');
     const textoBuscar = input.value.trim();
     const textoExplicacion = document.getElementById('textoExplicacionModal');
-    
-    // SIEMPRE limpiar marcas de búsqueda anteriores primero
-    const htmlActual = textoExplicacion.innerHTML;
-    const htmlLimpio = htmlActual.replace(/<mark class="busqueda-highlight"[^>]*>(.*?)<\/mark>/gi, '$1');
-    textoExplicacion.innerHTML = htmlLimpio;
-    
-    // Si no hay texto de búsqueda, terminar aquí (ya limpiamos)
-    if (!textoBuscar) {
-        return;
-    }
-    
-    // Buscar coincidencias
-    const textoLower = htmlLimpio.toLowerCase();
-    const buscarLower = textoBuscar.toLowerCase();
-    
-    let posicion = textoLower.indexOf(buscarLower);
-    
-    if (posicion === -1) {
+    if (!textoExplicacion) return;
+
+    const coincidencias = buscarEnDocumento(textoExplicacion, textoBuscar);
+
+    if (textoBuscar && coincidencias === 0) {
         alert('No se encontraron coincidencias');
-        return;
     }
-    
-    // Contar coincidencias
-    let pos = 0;
-    let coincidencias = 0;
-    while ((pos = textoLower.indexOf(buscarLower, pos)) !== -1) {
-        coincidencias++;
-        pos += buscarLower.length;
-    }
-    
-    // Resaltar NUEVAS coincidencias
-    const regex = new RegExp(textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    
-    let contador = 0;
-    const textoResaltado = htmlLimpio.replace(regex, (match) => {
-        contador++;
-        return `<mark class="busqueda-highlight" data-coincidencia="${contador}">${match}</mark>`;
-    });
-    
-    textoExplicacion.innerHTML = textoResaltado;
-    
-    // Scroll a la primera coincidencia
-    setTimeout(() => {
-        const primeraMarca = textoExplicacion.querySelector('.busqueda-highlight');
-        if (primeraMarca) {
-            primeraMarca.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    }, 100);
 };
 
 
 window.subrayarSeleccionModal = function() {
-    const selection = window.getSelection();
-    const texto = selection.toString().trim();
-    
-    if (!texto) {
-        alert('Selecciona el texto que quieres subrayar');
-        return;
+    const textoDiv = document.getElementById('textoExplicacionModal');
+    if (!textoDiv) return;
+
+    const resultado = subrayarSeleccion(textoDiv);
+
+    if (!resultado.ok) {
+        if (resultado.motivo === 'fuera') {
+            alert('Selecciona el texto dentro del documento');
+        } else if (resultado.motivo === 'no-envuelto') {
+            alert('No se ha podido subrayar esa selección. Prueba a seleccionar un trozo más corto.');
+        } else {
+            alert('Selecciona el texto que quieres subrayar');
+        }
     }
-    
-    const range = selection.getRangeAt(0);
-    const span = document.createElement('span');
-    span.className = 'subrayado';
-    span.appendChild(range.extractContents());
-    range.insertNode(span);
-    
-    selection.removeAllRanges();
 };
 
 window.borrarSubrayadoModal = function() {
     const textoDiv = document.getElementById('textoExplicacionModal');
-    const subrayados = textoDiv.querySelectorAll('.subrayado');
-    
-    subrayados.forEach(sub => {
-        const texto = document.createTextNode(sub.textContent);
-        sub.parentNode.replaceChild(texto, sub);
-    });
-    
-    // Normalizar para unir nodos de texto
-    textoDiv.normalize();
+    if (!textoDiv) return;
+    quitarSubrayados(textoDiv);
 };
 
 window.guardarSubrayadoModal = async function() {
     const textoDiv = document.getElementById('textoExplicacionModal');
-    const elementos = textoDiv.querySelectorAll('.subrayado');
-    
+    if (!textoDiv) return;
+
     try {
-        const subDoc = doc(db, 'subrayados', `${currentUser.uid}_${window.preguntaIdActual}`);
-        await setDoc(subDoc, {
-            usuarioId: currentUser.uid,
-            preguntaId: window.preguntaIdActual,
-            htmlCompleto: textoDiv.innerHTML,
-            cantidadSubrayados: elementos.length,
-            fecha: new Date()
-        }, { merge: true });
-        
-        alert('âœ… Subrayado guardado correctamente');
+        limpiarBusqueda(textoDiv);
+        const fragmentos = obtenerFragmentos(textoDiv);
+        await guardarFragmentosSubrayados(window.preguntaIdActual, fragmentos);
+
+        alert(fragmentos.length
+            ? '✅ Subrayado guardado correctamente'
+            : '✅ Guardado (sin subrayados)');
     } catch (error) {
         console.error('Error guardando subrayado:', error);
         alert('Error guardando el subrayado');
@@ -7696,35 +7706,30 @@ async function cargarExplicacionResultado() {
         
         const documentoCompleto = temaConDocumento.documento.textoExtraido;
         const preguntaIdHash = window.preguntaIdActualExplicacion;
-        
+
         const subrayados = await cargarSubrayadosPreviosResultado(preguntaIdHash);
-        
-        let textoMostrar;
-        let mensajeInfo;
-        
-        if (subrayados) {
-            textoMostrar = subrayados;
-            mensajeInfo = '✅ Mostrando tus subrayados guardados';
-        } else {
-            textoMostrar = documentoCompleto;
-            mensajeInfo = '✅ Documento cargado';
-        }
-        
+
         window.textoDocumentoOriginalResultado = documentoCompleto;
-        
+        window.documentoDigitalActualResultado = temaConDocumento.documento;
+
         contenido.innerHTML = `
             <div class="contexto-encontrado-header">
-                <p class="contexto-info">${mensajeInfo}</p>
+                <p class="contexto-info" id="infoSubrayadosRes">⏳ Cargando el documento…</p>
                 <div class="buscador-texto">
                     <input type="text" id="buscadorInputRes" placeholder="🔍 Buscar texto..." class="input-buscador">
                     <button onclick="buscarEnTextoResultado()" class="btn-buscar">Buscar</button>
                 </div>
             </div>
-            <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacionRes">
-                ${textoMostrar.replace(/\n/g, '<br>')}
-            </div>
+            <div class="explicacion-texto contexto-automatico documento-scroll" id="textoExplicacionRes"></div>
         `;
-        
+
+        await pintarPanelTemaDigital({
+            idContenedor: 'textoExplicacionRes',
+            idInfo: 'infoSubrayadosRes',
+            documento: temaConDocumento.documento,
+            fragmentos: subrayados
+        });
+
     } catch (error) {
         console.error('Error cargando explicación:', error);
         contenido.innerHTML = '<div class="explicacion-no-encontrado"><p>⚠️ Error al cargar la explicación.</p></div>';
@@ -7769,14 +7774,14 @@ async function cargarSubrayadosPreviosResultado(preguntaIdHash) {
         const docId = `${currentUser.uid}_${preguntaIdHash}`;
         const subrayadoRef = doc(db, 'subrayados', docId);
         const subDoc = await getDoc(subrayadoRef);
-        
+
         if (subDoc.exists()) {
-            return subDoc.data().htmlCompleto;
+            return fragmentosDesdeDoc(subDoc.data());
         }
-        return null;
+        return [];
     } catch (error) {
         console.error('Error cargando subrayados:', error);
-        return null;
+        return [];
     }
 }
 
@@ -7800,91 +7805,11 @@ async function cargarExplicacionGeminiResultado() {
     }
 }
 
-window.subrayarSeleccionResultado = function() {
-    const selection = window.getSelection();
-    
-    if (!selection || selection.toString().length === 0) {
-        alert('Selecciona texto primero');
-        return;
-    }
-    
-    try {
-        const range = selection.getRangeAt(0);
-        const span = document.createElement('span');
-        span.className = 'subrayado';
-        range.surroundContents(span);
-        selection.removeAllRanges();
-    } catch (e) {
-        alert('No se puede subrayar texto complejo.');
-    }
-};
-
-window.borrarSubrayadoResultado = function() {
-    const selection = window.getSelection();
-    
-    if (!selection || selection.toString().length === 0) {
-        alert('Selecciona el texto subrayado que quieres eliminar');
-        return;
-    }
-    
-    try {
-        const range = selection.getRangeAt(0);
-        const fragment = range.extractContents();
-        
-        const spans = fragment.querySelectorAll('.subrayado');
-        spans.forEach(span => {
-            const parent = span.parentNode;
-            while (span.firstChild) {
-                parent.insertBefore(span.firstChild, span);
-            }
-            parent.removeChild(span);
-        });
-        
-        range.insertNode(fragment);
-        selection.removeAllRanges();
-    } catch (e) {
-        console.error('Error:', e);
-        alert('Error al borrar subrayado');
-    }
-};
-
-window.guardarSubrayadoResultado = async function() {
-    const textoExplicacion = document.getElementById('textoExplicacionRes');
-    
-    if (!textoExplicacion) {
-        alert('Error: Elementos no encontrados');
-        return;
-    }
-    
-    const elementos = textoExplicacion.querySelectorAll('.subrayado');
-    
-    try {
-        const preguntaIdHash = window.preguntaIdActualExplicacion;
-        const docId = `${currentUser.uid}_${preguntaIdHash}`;
-        const subrayadoRef = doc(db, 'subrayados', docId);
-        
-        if (elementos.length === 0) {
-            const docSnap = await getDoc(subrayadoRef);
-            if (docSnap.exists()) {
-                await deleteDoc(subrayadoRef);
-            }
-            alert('✅ Guardado (sin subrayados)');
-        } else {
-            await setDoc(subrayadoRef, {
-                usuarioId: currentUser.uid,
-                preguntaId: preguntaIdHash,
-                htmlCompleto: textoExplicacion.innerHTML,
-                cantidadSubrayados: elementos.length,
-                fecha: new Date()
-            }, { merge: true });
-            
-            alert('✅ Subrayado guardado correctamente');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error al guardar: ' + error.message);
-    }
-};
+/* Aquí había una primera definición de subrayarSeleccionResultado,
+   borrarSubrayadoResultado y guardarSubrayadoResultado que quedaba
+   sobrescrita más abajo por otra copia, así que nunca llegaba a
+   ejecutarse. Se elimina para no dejar dos versiones del mismo botón
+   ni código con el formato de guardado antiguo. */
 
 window.guardarExplicacionGeminiResultado = async function() {
     const textarea = document.getElementById('textoGeminiRes');
@@ -7949,35 +7874,25 @@ window.borrarExplicacionGeminiResultado = async function() {
 window.buscarEnTextoResultado = function() {
     const input = document.getElementById('buscadorInputRes');
     const textoBuscar = input.value.trim();
-    
-    if (!textoBuscar) {
-        alert('Escribe algo para buscar');
-        return;
-    }
-    
-    const textoOriginal = window.textoDocumentoOriginalResultado;
-    
-    if (!textoOriginal) {
+    const textoExplicacion = document.getElementById('textoExplicacionRes');
+
+    if (!textoExplicacion) {
         alert('Error: No hay documento cargado');
         return;
     }
-    
-    const regex = new RegExp(textoBuscar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    let contador = 0;
-    const textoResaltado = textoOriginal.replace(regex, (match) => {
-        contador++;
-        return `<mark class="busqueda-highlight">${match}</mark>`;
-    });
-    
-    if (contador === 0) {
-        alert('No se encontraron coincidencias');
+
+    if (!textoBuscar) {
+        limpiarBusqueda(textoExplicacion);
         return;
     }
-    
-    const textoExplicacion = document.getElementById('textoExplicacionRes');
-    textoExplicacion.innerHTML = textoResaltado.replace(/\n/g, '<br>');
-    
-    alert(`Se encontraron ${contador} coincidencias`);
+
+    // Recorre el DOM: antes reconstruía el panel desde el texto plano,
+    // lo que borraba los subrayados y el maquetado
+    const coincidencias = buscarEnDocumento(textoExplicacion, textoBuscar);
+
+    if (coincidencias === 0) {
+        alert('No se encontraron coincidencias');
+    }
 };
 // Cerrar modal de explicación en resultados
 window.cerrarExplicacionResultado = function() {
@@ -8010,40 +7925,45 @@ window.cambiarTabResultado = function(tab) {
 };
 
 // Funciones de subrayado para resultados
+// Trabajan sobre #textoExplicacionRes, que es el panel del documento.
+// Antes apuntaban a #explicacionContenidoRes (el contenedor del modal entero)
+// y guardaban en otra colección distinta de la que se lee al abrir, así que
+// los subrayados de esta vista nunca reaparecían.
 window.subrayarSeleccionResultado = function() {
-    const contenido = document.getElementById('explicacionContenidoRes');
+    const contenido = document.getElementById('textoExplicacionRes');
     if (!contenido) return;
-    
-    const selection = window.getSelection();
-    if (selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        const span = document.createElement('span');
-        span.className = 'subrayado';
-        span.style.backgroundColor = '#ffeb3b';
-        range.surroundContents(span);
+
+    const resultado = subrayarSeleccion(contenido);
+
+    if (!resultado.ok) {
+        if (resultado.motivo === 'fuera') {
+            alert('Selecciona el texto dentro del documento');
+        } else if (resultado.motivo === 'no-envuelto') {
+            alert('No se ha podido subrayar esa selección. Prueba con un trozo más corto.');
+        } else {
+            alert('Selecciona el texto que quieres subrayar');
+        }
     }
 };
 
 window.borrarSubrayadoResultado = function() {
-    const subrayados = document.querySelectorAll('#explicacionContenidoRes .subrayado');
-    subrayados.forEach(s => {
-        const parent = s.parentNode;
-        while (s.firstChild) {
-            parent.insertBefore(s.firstChild, s);
-        }
-        parent.removeChild(s);
-    });
+    const contenido = document.getElementById('textoExplicacionRes');
+    if (!contenido) return;
+    quitarSubrayados(contenido);
 };
 
 window.guardarSubrayadoResultado = async function() {
-    const contenido = document.getElementById('explicacionContenidoRes');
+    const contenido = document.getElementById('textoExplicacionRes');
     if (!contenido || !window.preguntaIdActualExplicacion) return;
-    
+
     try {
-        const subrayados = Array.from(contenido.querySelectorAll('.subrayado')).map(s => s.textContent);
-        const docRef = doc(db, `usuarios/${auth.currentUser.uid}/explicaciones`, window.preguntaIdActualExplicacion);
-        await setDoc(docRef, { subrayados }, { merge: true });
-        alert('✅ Subrayado guardado');
+        limpiarBusqueda(contenido);
+        const fragmentos = obtenerFragmentos(contenido);
+        await guardarFragmentosSubrayados(window.preguntaIdActualExplicacion, fragmentos);
+
+        alert(fragmentos.length
+            ? '✅ Subrayado guardado'
+            : '✅ Guardado (sin subrayados)');
     } catch (error) {
         console.error('Error guardando subrayado:', error);
         alert('Error guardando subrayado');
@@ -8190,17 +8110,14 @@ window.guardarTodoModal = async function() {
     }
     
     // 2. Guardar subrayados si hay contenido en el tema digital
+    //    Se guardan los fragmentos de texto, no el HTML del documento
     const textoExplicacion = document.getElementById('textoExplicacionModal');
     if (textoExplicacion && window.preguntaIdActualExplicacion) {
         try {
-            const contenidoHTML = textoExplicacion.innerHTML;
-            if (contenidoHTML.includes('class="subrayado"')) {
-                const docId = `${currentUser.uid}_${window.preguntaIdActualExplicacion}`;
-                const subrayadoRef = doc(db, 'subrayados', docId);
-                await setDoc(subrayadoRef, {
-                    contenido: contenidoHTML,
-                    fecha: new Date()
-                });
+            limpiarBusqueda(textoExplicacion);
+            const fragmentos = obtenerFragmentos(textoExplicacion);
+            if (fragmentos.length > 0) {
+                await guardarFragmentosSubrayados(window.preguntaIdActualExplicacion, fragmentos);
                 msgs.push('Subrayados');
             }
         } catch (e) { console.error('Error guardando subrayados:', e); }
@@ -8612,17 +8529,11 @@ window.abrirExplicacionBanco = async function(temaId, index) {
         } else {
             const documentoCompleto = temaConDocumento.documento.textoExtraido;
             const subrayados = await cargarSubrayadosPrevios(preguntaIdHash);
-            
-            let textoMostrar;
-            if (subrayados) {
-                textoMostrar = subrayados.replace(/<mark class="busqueda-highlight"[^>]*>(.*?)<\/mark>/gi, '$1');
-            } else {
-                textoMostrar = documentoCompleto;
-            }
-            
+
             window.textoDocumentoOriginal = documentoCompleto;
             window.preguntaIdActual = preguntaIdHash;
-            
+            window.documentoDigitalActual = temaConDocumento.documento;
+
             htmlDigital = `
                 <div class="explicacion-header-mejorada">
                     <div class="buscador-mejorado">
@@ -8634,12 +8545,10 @@ window.abrirExplicacionBanco = async function(temaId, index) {
                         <button class="btn-accion btn-borrar" onclick="borrarSubrayadoModal()">🗑️ Quitar Subrayado</button>
                         <button class="btn-accion btn-guardar" onclick="guardarTodoModal()">💾 Guardar Cambios</button>
                     </div>
-                    ${subrayados ? '<p class="info-subrayados">✅ Mostrando tus subrayados guardados</p>' : '<p class="info-subrayados">🔄 Documento sin subrayados previos</p>'}
+                    <p class="info-subrayados" id="infoSubrayadosModal">⏳ Cargando el documento…</p>
                 </div>
                 <div class="contenedor-texto-explicacion">
-                    <div class="explicacion-texto" id="textoExplicacionModal">
-                        ${textoMostrar.replace(/\n/g, '<br>')}
-                    </div>
+                    <div class="explicacion-texto" id="textoExplicacionModal"></div>
                 </div>
             `;
         }
@@ -8691,19 +8600,16 @@ window.abrirExplicacionBanco = async function(temaId, index) {
             </div>
         `;
         
-        // Scroll al primer subrayado si existe
+        // Renderizar el documento con su formato y reaplicar los subrayados
         if (temaConDocumento) {
-            const subrayados = await cargarSubrayadosPrevios(preguntaIdHash);
-            if (subrayados) {
-                setTimeout(() => {
-                    const primerSubrayado = contenido.querySelector('.subrayado');
-                    if (primerSubrayado) {
-                        primerSubrayado.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                }, 300);
-            }
+            await pintarPanelTemaDigital({
+                idContenedor: 'textoExplicacionModal',
+                idInfo: 'infoSubrayadosModal',
+                documento: temaConDocumento.documento,
+                fragmentos: await cargarSubrayadosPrevios(preguntaIdHash)
+            });
         }
-        
+
         verificarIndicadoresModal();
         
     } catch (error) {
