@@ -3291,6 +3291,10 @@ async function cargarTemasParaTest() {
             listaContainer.appendChild(temaDiv);
         });
 
+        // La lista se acaba de repintar: hay que volver a aplicar
+        // las restricciones del modo IA sobre los subtemas nuevos
+        aplicarRestriccionesOrigen();
+
         // Actualizar contador inicial
         actualizarPreguntasDisponibles();
         window.textosVerificadosPorTema = textosVerificadosPorTema;
@@ -3409,10 +3413,14 @@ function obtenerTemasSeleccionados() {
         return 'todos';
     }
     
-    // Obtener checkboxes marcados excluyendo "todos los temas"
-    const checkboxesMarcados = document.querySelectorAll('.tema-checkbox:checked:not(#todosLosTemas)');
+    // Obtener checkboxes marcados excluyendo "todos los temas".
+    // En modo IA se descartan los subtemas: no admiten tema digital.
+    const selector = obtenerOrigenPreguntas() === 'ia'
+        ? '.tema-checkbox:checked:not(#todosLosTemas):not([data-tema-padre])'
+        : '.tema-checkbox:checked:not(#todosLosTemas)';
+    const checkboxesMarcados = document.querySelectorAll(selector);
     console.log('Checkboxes de temas específicos encontrados:', checkboxesMarcados.length);
-    
+
     const idsSeleccionados = Array.from(checkboxesMarcados).map(cb => cb.value);
     console.log('IDs extraídos:', idsSeleccionados);
     
@@ -3504,6 +3512,32 @@ function aplicarRestriccionesOrigen() {
             }
         }
     });
+
+    /* Subtemas: el tema digital solo se sube a los temas padre, así que en
+       modo IA se ocultan. Si quedaba alguno marcado de antes, se desmarca:
+       si no, se enviaría al generador un tema sin documento del que sacar
+       las preguntas. */
+    document.querySelectorAll('.subtemas-container').forEach(caja => {
+        caja.style.display = esIA ? 'none' : caja.style.display;
+        if (esIA) caja.dataset.ocultoPorIa = '1';
+        else if (caja.dataset.ocultoPorIa) delete caja.dataset.ocultoPorIa;
+    });
+
+    document.querySelectorAll('.subtemas-toggle').forEach(toggle => {
+        toggle.style.display = esIA ? 'none' : '';
+    });
+
+    if (esIA) {
+        let desmarcados = 0;
+        document.querySelectorAll('.tema-checkbox[data-tema-padre]:checked').forEach(cb => {
+            cb.checked = false;
+            desmarcados++;
+        });
+        if (desmarcados > 0) {
+            console.log(`[IA] ${desmarcados} subtema(s) desmarcados: no admiten tema digital`);
+            if (typeof actualizarTextoSeleccionTemas === 'function') actualizarTextoSeleccionTemas();
+        }
+    }
 
     // Filtros: no aplican a preguntas que aún no existen
     const grupoFiltros = document.getElementById('grupoFiltrosPreguntas');
@@ -7205,9 +7239,13 @@ window.manejarSeleccionTema = function(event) {
         }
         
         // NUEVA FUNCIONALIDAD: Auto-seleccionar subtemas cuando se selecciona tema principal
+        // En modo IA no: el tema digital solo se puede subir a los temas padre,
+        // así que un subtema marcado se quedaría sin documento del que sacar preguntas.
         const temaId = checkboxClickeado.value;
-        const subtemas = document.querySelectorAll(`input[data-tema-padre="${temaId}"]`);
-        
+        const subtemas = obtenerOrigenPreguntas() === 'ia'
+            ? []
+            : document.querySelectorAll(`input[data-tema-padre="${temaId}"]`);
+
         if (subtemas.length > 0) {
             console.log(`Encontrados ${subtemas.length} subtemas para tema ${temaId}`);
             subtemas.forEach(subtema => {
