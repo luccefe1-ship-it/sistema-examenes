@@ -841,6 +841,62 @@ function mostrarCartelTurno(esMiTurno, salaData) {
     if (suyo) suyo.classList.toggle('en-turno', !esMiTurno);
 }
 
+/* Muestra de qué tema y subtema sale la pregunta.
+   Los datos ya viajan en el objeto de la pregunta: cargarPreguntasRival
+   guarda el nombre del tema padre y, si venía de una subcarpeta,
+   también el nombre de esa subcarpeta. */
+function mostrarProcedencia(pregunta) {
+    const caja = document.getElementById('procedenciaPregunta');
+    if (!caja) return;
+
+    const tema = (pregunta && pregunta.temaNombre) ? String(pregunta.temaNombre).trim() : '';
+    const subtema = (pregunta && pregunta.esSubtema && pregunta.subtemaOriginal)
+        ? String(pregunta.subtemaOriginal).trim()
+        : '';
+
+    if (!tema && !subtema) {
+        caja.style.display = 'none';
+        caja.textContent = '';
+        return;
+    }
+
+    caja.innerHTML = '';
+    const icono = document.createElement('span');
+    icono.className = 'procedencia-icono';
+    icono.textContent = '📚';
+    caja.appendChild(icono);
+
+    const partes = [tema, subtema].filter(Boolean);
+    partes.forEach((parte, i) => {
+        if (i > 0) {
+            const flecha = document.createElement('span');
+            flecha.className = 'procedencia-flecha';
+            flecha.textContent = '›';
+            caja.appendChild(flecha);
+        }
+        const trozo = document.createElement('span');
+        trozo.className = i === 0 ? 'procedencia-tema' : 'procedencia-subtema';
+        trozo.textContent = parte;   // textContent: los nombres los pone el usuario
+        caja.appendChild(trozo);
+    });
+
+    if (pregunta && pregunta.esOficial) {
+        const oficial = document.createElement('span');
+        oficial.className = 'procedencia-oficial';
+        oficial.textContent = 'oficial';
+        caja.appendChild(oficial);
+    }
+
+    caja.style.display = 'flex';
+}
+
+function ocultarProcedencia() {
+    const caja = document.getElementById('procedenciaPregunta');
+    if (!caja) return;
+    caja.style.display = 'none';
+    caja.textContent = '';
+}
+
 function ocultarCartelTurno() {
     const cartel = document.getElementById('cartelTurno');
     const texto = document.getElementById('textoPregunta');
@@ -1136,6 +1192,7 @@ function actualizarTurno(salaData) {
             deshabilitarSeleccionPreguntas();
         }
         limpiarVentanaCentral();
+        ocultarProcedencia();
         mostrarCartelTurno(esMiTurno, salaData);
     }
 }
@@ -1216,6 +1273,7 @@ async function seleccionarPregunta(pregunta) {
 // ===============================================
 async function mostrarPreguntaParaResponder(pregunta) {
     ocultarCartelTurno();
+    mostrarProcedencia(pregunta);
     const textoPregunta = document.getElementById('textoPregunta');
     const opcionesPregunta = document.getElementById('opcionesPregunta');
 
@@ -1255,6 +1313,7 @@ setTimeout(() => {
 
 function mostrarPreguntaEsperando(pregunta, salaData) {
     ocultarCartelTurno();
+    mostrarProcedencia(pregunta);
     const textoPregunta = document.getElementById('textoPregunta');
     const opcionesPregunta = document.getElementById('opcionesPregunta');
 
@@ -1377,7 +1436,10 @@ async function responderPregunta(indiceSeleccionado, pregunta) {
                 respuestaUsuario: ['A', 'B', 'C', 'D'][indiceSeleccionado],
                 temaId: pregunta.temaId || '',
                 temaNombre: pregunta.temaNombre || '',
-                temaEpigrafe: pregunta.temaEpigrafe || ''
+                temaEpigrafe: pregunta.temaEpigrafe || '',
+                // Para poder enseñar la procedencia en el repaso final
+                esSubtema: pregunta.esSubtema || false,
+                subtemaOriginal: pregunta.subtemaOriginal || ''
             });
             
             await updateDoc(salaRef, {
@@ -1602,6 +1664,104 @@ function agruparPreguntasPorTemas(preguntas) {
 // ===============================================
 // RESULTADOS Y FINALIZACIÓN
 // ===============================================
+/* ------------------------------------------------------------------
+   Repaso de las preguntas falladas en el duelo.
+   Se ofrece siempre, se haya ganado o perdido: ganar 3-2 también deja
+   dos preguntas que conviene mirar.
+------------------------------------------------------------------ */
+function prepararRepasoDeFallos() {
+    const caja = document.getElementById('repasoFallos');
+    const boton = document.getElementById('btnVerFallos');
+    const lista = document.getElementById('listaFallos');
+    if (!caja || !boton || !lista) return;
+
+    const fallos = preguntasIncorrectasPartida || [];
+
+    if (fallos.length === 0) {
+        caja.style.display = 'block';
+        boton.style.display = 'none';
+        lista.style.display = 'block';
+        lista.innerHTML = '<p class="sin-fallos">🎯 No has fallado ninguna pregunta en este duelo.</p>';
+        return;
+    }
+
+    boton.style.display = '';
+    boton.textContent = `📋 Ver las ${fallos.length} pregunta${fallos.length === 1 ? '' : 's'} que has fallado`;
+    lista.style.display = 'none';
+    lista.innerHTML = '';
+    caja.style.display = 'block';
+
+    boton.onclick = () => {
+        const abierta = lista.style.display === 'block';
+        if (abierta) {
+            lista.style.display = 'none';
+            boton.textContent = `📋 Ver las ${fallos.length} pregunta${fallos.length === 1 ? '' : 's'} que has fallado`;
+            return;
+        }
+
+        if (lista.children.length === 0) pintarFallos(lista, fallos);
+        lista.style.display = 'block';
+        boton.textContent = '🙈 Ocultar las falladas';
+    };
+}
+
+function pintarFallos(lista, fallos) {
+    lista.innerHTML = '';
+
+    fallos.forEach((fallo, i) => {
+        const tarjeta = document.createElement('div');
+        tarjeta.className = 'fallo-tarjeta';
+
+        // Procedencia
+        const procedencia = [fallo.temaNombre, fallo.esSubtema ? fallo.subtemaOriginal : '']
+            .filter(Boolean).join(' › ');
+        if (procedencia) {
+            const proc = document.createElement('div');
+            proc.className = 'fallo-procedencia';
+            proc.textContent = `📚 ${procedencia}`;
+            tarjeta.appendChild(proc);
+        }
+
+        const enunciado = document.createElement('div');
+        enunciado.className = 'fallo-enunciado';
+        enunciado.textContent = `${i + 1}. ${fallo.texto}`;
+        tarjeta.appendChild(enunciado);
+
+        const opciones = document.createElement('div');
+        opciones.className = 'fallo-opciones';
+
+        (fallo.opciones || []).forEach(op => {
+            const fila = document.createElement('div');
+            const esCorrecta = op.esCorrecta === true;
+            const laMarque = op.letra === fallo.respuestaUsuario;
+
+            fila.className = 'fallo-opcion'
+                + (esCorrecta ? ' es-correcta' : '')
+                + (laMarque && !esCorrecta ? ' la-marque' : '');
+
+            const marca = esCorrecta ? '✅' : (laMarque ? '❌' : '　');
+            fila.textContent = `${marca} ${op.letra}) ${op.texto}`;
+            opciones.appendChild(fila);
+        });
+
+        tarjeta.appendChild(opciones);
+
+        const pie = document.createElement('div');
+        pie.className = 'fallo-pie';
+        pie.textContent = fallo.respuestaUsuario
+            ? `Marcaste ${fallo.respuestaUsuario} · La correcta era ${fallo.respuestaCorrecta}`
+            : `Se acabó el tiempo · La correcta era ${fallo.respuestaCorrecta}`;
+        tarjeta.appendChild(pie);
+
+        lista.appendChild(tarjeta);
+    });
+
+    const nota = document.createElement('p');
+    nota.className = 'fallo-nota';
+    nota.textContent = 'Estas preguntas se han guardado en tu Test de Repaso.';
+    lista.appendChild(nota);
+}
+
 async function mostrarResultado(salaData) {
     interfazJuego.classList.add('hidden');
     pantallaResultado.classList.remove('hidden');
@@ -1630,6 +1790,9 @@ async function mostrarResultado(salaData) {
         pantallaResultado.className = 'pantalla-resultado derrota';
         textoResultado.textContent = 'HAS PERDIDO';
     }
+
+    // Repaso de lo fallado, se haya ganado o perdido
+    prepararRepasoDeFallos();
     
     // GUARDAR PREGUNTAS FALLADAS EN TEST DE REPASO
     if (preguntasIncorrectasPartida.length > 0) {
