@@ -155,4 +155,4 @@ async function anotarConsumo({ uid, email, funcion, modelo, uso, cuenta, detalle
     return calculo;
 }
 
-module.exports = { calcularCoste, anotarConsumo, PRECIOS };
+module.exports = { calcularCoste, anotarConsumo, obtenerFirestore, PRECIOS };

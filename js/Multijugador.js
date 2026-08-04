@@ -1,5 +1,18 @@
 import { auth, db } from './firebase-config.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+/* Cabecera con el token de sesión: los endpoints propios comprueban
+   quién llama antes de devolver nada. */
+async function cabecerasApi() {
+    const cabeceras = { 'Content-Type': 'application/json' };
+    try {
+        const usuario = auth.currentUser;
+        if (usuario) cabeceras.Authorization = `Bearer ${await usuario.getIdToken()}`;
+    } catch (e) {
+        console.error('No se pudo obtener el token de sesión:', e);
+    }
+    return cabeceras;
+}
 import { 
     doc, 
     getDoc, 
@@ -1908,14 +1921,26 @@ function mostrarMensajeTiempoAgotado() {
 }
 async function cargarPreguntasRival(rivalUid, temasPermitidos = null) {
     try {
-        const q = query(collection(db, "temas"), where("usuarioId", "==", rivalUid));
-        const querySnapshot = await getDocs(q);
-        
+        /* Las preguntas del rival ya no se leen directamente de Firestore:
+           las sirve /api/preguntas-rival, que comprueba que los dos estáis
+           en la misma sala. Así se puede cerrar la lectura abierta de
+           "temas", que dejaba a cualquiera descargarse el banco de
+           preguntas y los temarios de los demás. */
+        const respuesta = await fetch('/api/preguntas-rival', {
+            method: 'POST',
+            headers: await cabecerasApi(),
+            body: JSON.stringify({ clave: claveActual })
+        });
+
+        const datos = await respuesta.json().catch(() => ({}));
+        if (!respuesta.ok) {
+            throw new Error(datos.error || `El servidor devolvió ${respuesta.status}`);
+        }
+
         preguntasRival = [];
-        
-        querySnapshot.forEach((doc) => {
-            const tema = doc.data();
-            const temaId = doc.id;
+
+        (datos.temas || []).forEach((tema) => {
+            const temaId = tema.id;
             const nombreTemaPrincipal = tema.nombre; // USAR EL NOMBRE DEL TEMA PRINCIPAL
             
             // Cargar preguntas principales del tema

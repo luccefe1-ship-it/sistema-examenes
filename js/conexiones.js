@@ -1,6 +1,6 @@
 import { auth, db, storage } from './firebase-config.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, orderBy, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 const LIMITE_GRATIS = 1000000;       // caracteres gratis/mes (voces WaveNet)
@@ -26,14 +26,23 @@ onAuthStateChanged(auth, async (user) => {
 document.getElementById('backBtn').addEventListener('click', () => window.location.href = 'homepage.html');
 document.getElementById('logoutBtn').addEventListener('click', async () => { await signOut(auth); window.location.href = 'index.html'; });
 
+/* La clave de Google TTS ya no se descarga al navegador: vive solo en
+   Vercel y la síntesis se hace en /api/tts. Antes cualquier usuario
+   registrado podía leerla en Firestore y gastarla por su cuenta. */
 async function cargarApiKey() {
+    apiKeyTTS = 'servidor'; // se conserva la variable para no tocar el resto del flujo
+}
+
+// Cabecera con el token de sesión, que el endpoint comprueba
+async function cabecerasApi() {
+    const cabeceras = { 'Content-Type': 'application/json' };
     try {
-        const snap = await getDoc(doc(db, 'config', 'keys'));
-        apiKeyTTS = snap.exists() ? (snap.data().googleTTS_web || null) : null;
+        const usuario = auth.currentUser;
+        if (usuario) cabeceras.Authorization = `Bearer ${await usuario.getIdToken()}`;
     } catch (e) {
-        console.error('Error cargando API key:', e);
-        apiKeyTTS = null;
+        console.error('No se pudo obtener el token de sesión:', e);
     }
+    return cabeceras;
 }
 
 // ====== SUBIDA ======
@@ -102,21 +111,16 @@ function dividirEnTrozos(texto) {
 
 // Llamar a Google Cloud TTS para un trozo → MP3 en base64
 async function sintetizarTrozo(texto, voz) {
-    const resp = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKeyTTS}`, {
+    const resp = await fetch('/api/tts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            input: { text: texto },
-            voice: { languageCode: 'es-ES', name: voz },
-            audioConfig: { audioEncoding: 'MP3' }
-        })
+        headers: await cabecerasApi(),
+        body: JSON.stringify({ texto, voz })
     });
+
+    const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
-        let detalle = '';
-        try { detalle = (await resp.json()).error?.message || ''; } catch (e) {}
-        throw new Error(`API ${resp.status} ${detalle}`);
+        throw new Error(data.error || `El servidor devolvió ${resp.status}`);
     }
-    const data = await resp.json();
     return data.audioContent;
 }
 
@@ -257,21 +261,12 @@ async function leerConsumoActual() {
     return { mes: mesActual(), caracteres: 0 };
 }
 
+/* El contador lo lleva ahora /api/tts con permisos de servidor.
+   Antes lo escribía el navegador, así que cualquier usuario podía
+   ponerlo a cero y seguir gastando sin que constara. Se conserva la
+   función para no tocar quien la llama; solo refresca la pantalla. */
 async function sumarConsumo(chars) {
-    const refDoc = doc(db, 'ttsUsage', 'actual');
-    const mes = mesActual();
-    try {
-        await runTransaction(db, async (tx) => {
-            const snap = await tx.get(refDoc);
-            if (!snap.exists() || snap.data().mes !== mes) {
-                tx.set(refDoc, { mes, caracteres: chars });
-            } else {
-                tx.set(refDoc, { mes, caracteres: snap.data().caracteres + chars });
-            }
-        });
-    } catch (e) {
-        console.error('Error actualizando consumo:', e);
-    }
+    await cargarConsumo();
 }
 
 async function cargarConsumo() {

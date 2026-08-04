@@ -1,0 +1,194 @@
+rules_version = '2';
+
+// ============================================================
+//  REGLAS DE FIRESTORE
+//  Se guardan aquí para que queden versionadas junto al código.
+//  Firebase NO las lee de este archivo: hay que pegarlas en la
+//  consola (Firestore → Reglas → Publicar).
+//
+//  Principio: el navegador solo puede tocar lo suyo. Todo lo que
+//  cuesta dinero o es de otro usuario pasa por /api con el SDK de
+//  Admin, que no está sujeto a estas reglas.
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------
+    //  USUARIOS
+    // ------------------------------------------------------------
+    match /usuarios/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Tarjetas: el dueño escribe, cualquier autenticado lee (multijugador)
+      match /tarjetas/{docId} {
+        allow write: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null;
+      }
+
+      // Audios: solo el dueño
+      match /audios/{audioId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // ------------------------------------------------------------
+    //  TEMAS DE PREGUNTAS
+    //  CERRADO: antes lo leía cualquier usuario registrado, porque el
+    //  Multijugador necesitaba los temas del rival. Eso permitía
+    //  descargarse el banco de preguntas y los temarios completos de
+    //  cualquiera. Ahora esa lectura la hace /api/preguntas-rival,
+    //  que comprueba que ambos están en la misma sala.
+    //  CERRADO también el alta: "resource == null" dejaba crear temas
+    //  a nombre de otra persona.
+    // ------------------------------------------------------------
+    match /temas/{temaId} {
+      allow create: if request.auth != null
+                    && request.resource.data.usuarioId == request.auth.uid;
+      allow read, update, delete: if request.auth != null
+                    && resource.data.usuarioId == request.auth.uid;
+    }
+
+    // ------------------------------------------------------------
+    //  APUNTES
+    // ------------------------------------------------------------
+    match /temasApuntes/{temaId} {
+      allow create: if request.auth != null
+                    && request.resource.data.usuarioId == request.auth.uid;
+      allow read, update, delete: if request.auth != null
+                    && resource.data.usuarioId == request.auth.uid;
+    }
+
+    // Colección antigua, la consulta el borrado de cuenta
+    match /apuntes/{apunteId} {
+      allow create: if request.auth != null
+                    && request.resource.data.usuarioId == request.auth.uid;
+      allow read, update, delete: if request.auth != null
+                    && resource.data.usuarioId == request.auth.uid;
+    }
+
+    // ------------------------------------------------------------
+    //  RESULTADOS Y ESTADÍSTICAS
+    // ------------------------------------------------------------
+    match /resultados/{resultadoId} {
+      allow create: if request.auth != null
+                    && request.resource.data.usuarioId == request.auth.uid;
+      allow read, update, delete: if request.auth != null
+                    && resource.data.usuarioId == request.auth.uid;
+    }
+
+    match /preguntasFalladas/{documentId} {
+      allow create: if request.auth != null
+                    && request.resource.data.usuarioId == request.auth.uid;
+      allow read, update, delete: if request.auth != null
+                    && resource.data.usuarioId == request.auth.uid;
+    }
+
+    match /preguntasDominadas/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ------------------------------------------------------------
+    //  PROGRESO Y PLANIFICACIÓN (un documento por usuario)
+    // ------------------------------------------------------------
+    match /progreso/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /progresoSimple/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /planning/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /planningSimple/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ------------------------------------------------------------
+    //  SALAS MULTIJUGADOR
+    //  ACOTADO: antes cualquier usuario podía escribir o borrar la
+    //  partida de otros. Ahora solo escriben los dos jugadores, y
+    //  quien entra a una sala que aún no tiene rival.
+    //  La lectura sigue abierta: hace falta para encontrar la sala
+    //  por su clave antes de unirse, y solo expone nombres y marcador.
+    // ------------------------------------------------------------
+    match /salas/{salaId} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+                    && request.resource.data.anfitrion == request.auth.uid;
+
+      allow update: if request.auth != null && (
+                       resource.data.anfitrion == request.auth.uid
+                    || resource.data.jugadores.jugador1.uid == request.auth.uid
+                    || resource.data.jugadores.jugador2 == null
+                    || resource.data.jugadores.jugador2.uid == request.auth.uid
+                    );
+
+      allow delete: if request.auth != null
+                    && resource.data.anfitrion == request.auth.uid;
+    }
+
+    // ------------------------------------------------------------
+    //  SUBRAYADOS Y EXPLICACIONES PROPIAS
+    //  El id del documento empieza por el uid, así queda atado a su dueño
+    // ------------------------------------------------------------
+    match /subrayados/{docId} {
+      allow read, write: if request.auth != null
+                    && docId.matches('^' + request.auth.uid + '_.*');
+    }
+    match /explicacionesPropias/{docId} {
+      allow read, write: if request.auth != null
+                    && docId.matches('^' + request.auth.uid + '_.*');
+    }
+
+    // ------------------------------------------------------------
+    //  EXPLICACIONES DE IA
+    //  Caché compartida a propósito: si un usuario ya pagó la
+    //  explicación de una pregunta, los demás la aprovechan. El
+    //  Multijugador también la lee.
+    // ------------------------------------------------------------
+    match /explicacionesGemini/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ------------------------------------------------------------
+    //  CONFIGURACIÓN
+    //  CERRADO DEL TODO: aquí vivía config/keys con la clave de
+    //  Google TTS, que cualquier usuario registrado podía leer y
+    //  gastar. La clave está ahora en Vercel y la síntesis pasa por
+    //  /api/tts. Ya no hay nada que el navegador necesite leer aquí.
+    // ------------------------------------------------------------
+    match /config/{doc} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------
+    //  CONTADOR MENSUAL DE TTS
+    //  Solo lectura: lo escribe /api/tts con permisos de servidor.
+    //  Antes lo escribía el navegador, así que cualquiera podía
+    //  ponerlo a cero y seguir gastando sin que constara.
+    // ------------------------------------------------------------
+    match /ttsUsage/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ------------------------------------------------------------
+    //  CONSUMO DE IA
+    //  Solo lectura de lo propio. Lo escribe el servidor: un libro de
+    //  cuentas que pudiera editar el interesado no valdría de nada.
+    // ------------------------------------------------------------
+    match /consumoApi/{registroId} {
+      allow read: if request.auth != null
+                  && resource.data.usuarioId == request.auth.uid;
+      allow write: if false;
+    }
+    match /consumoResumen/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // Cualquier colección no listada queda denegada por defecto.
+  }
+}
