@@ -4,6 +4,54 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gsta
 
 let temaActualDigital = null;
 let documentoActual = null;
+// Evita que una carga lenta de un tema anterior pise la UI del tema actual
+let peticionCargaActual = 0;
+
+/* ------------------------------------------------------------------
+   Estados del modal. Solo uno visible a la vez.
+   'cargando'      -> consultando Firestore
+   'sin-documento' -> el tema no tiene tema digital: se ofrece subirlo
+   'con-documento' -> el tema sí lo tiene: se muestra
+   'procesando'    -> subiendo/extrayendo texto
+   'error'         -> no se ha podido consultar; con botón de reintento
+------------------------------------------------------------------ */
+function mostrarEstado(estado, opciones = {}) {
+    const bloqueEstado = document.getElementById('temaDigitalEstado');
+    const uploadArea = document.getElementById('uploadArea');
+    const documentoInfo = document.getElementById('documentoInfo');
+    const icono = document.getElementById('temaDigitalEstadoIcono');
+    const texto = document.getElementById('temaDigitalEstadoTexto');
+    const boton = document.getElementById('temaDigitalEstadoBoton');
+
+    if (!bloqueEstado || !uploadArea || !documentoInfo) return;
+
+    const transitorio = estado === 'cargando' || estado === 'procesando' || estado === 'error';
+
+    bloqueEstado.style.display = transitorio ? 'block' : 'none';
+    uploadArea.style.display = estado === 'sin-documento' ? 'block' : 'none';
+    documentoInfo.style.display = estado === 'con-documento' ? 'block' : 'none';
+    bloqueEstado.classList.toggle('is-error', estado === 'error');
+
+    if (transitorio) {
+        const porDefecto = {
+            cargando: { icono: '⏳', texto: 'Comprobando si este tema tiene documento…' },
+            procesando: { icono: '⏳', texto: 'Procesando documento…' },
+            error: { icono: '⚠️', texto: 'No se ha podido comprobar el tema digital.' }
+        }[estado];
+
+        icono.textContent = opciones.icono || porDefecto.icono;
+        texto.textContent = opciones.texto || porDefecto.texto;
+
+        if (opciones.boton) {
+            boton.style.display = 'inline-block';
+            boton.textContent = opciones.boton;
+            boton.onclick = opciones.onBoton || null;
+        } else {
+            boton.style.display = 'none';
+            boton.onclick = null;
+        }
+    }
+}
 
 // Inicializar eventos del modal
 export function inicializarTemaDigital() {
@@ -47,11 +95,17 @@ export function inicializarTemaDigital() {
 // Abrir modal de tema digital
 export async function abrirModalTemaDigital(temaId) {
     temaActualDigital = temaId;
-    
+    documentoActual = null;
+
     const modal = document.getElementById('modalTemaDigital');
     modal.classList.add('active');
-    
-    // Cargar documento si existe
+
+    // Partimos siempre de cero: nada de heredar el estado del tema anterior
+    document.getElementById('documentoInput').value = '';
+    document.getElementById('documentoExtracto').style.display = 'none';
+    document.getElementById('documentoExtracto').textContent = '';
+    mostrarEstado('cargando');
+
     await cargarDocumentoTema(temaId);
 }
 
@@ -61,15 +115,19 @@ window.cerrarModalTemaDigital = function() {
     modal.classList.remove('active');
     temaActualDigital = null;
     documentoActual = null;
-    
+    peticionCargaActual++; // invalida cualquier carga en vuelo
+
     // Limpiar UI
-    document.getElementById('uploadArea').style.display = 'block';
-    document.getElementById('documentoInfo').style.display = 'none';
+    mostrarEstado('cargando');
     document.getElementById('documentoInput').value = '';
+    document.getElementById('documentoExtracto').style.display = 'none';
+    document.getElementById('documentoExtracto').textContent = '';
 };
 
 // Procesar documento subido
 async function procesarDocumento(archivo) {
+    if (!temaActualDigital) return;
+
     // Validar tipo
     const tiposPermitidos = [
         'application/pdf',
@@ -79,20 +137,20 @@ async function procesarDocumento(archivo) {
     ];
     if (!tiposPermitidos.includes(archivo.type)) {
         alert('Formato no permitido. Solo PDF, Word o TXT.');
+        document.getElementById('documentoInput').value = '';
         return;
     }
-    
+
     // Validar tamaño (10MB)
     if (archivo.size > 10 * 1024 * 1024) {
         alert('Archivo muy grande. Máximo 10MB.');
+        document.getElementById('documentoInput').value = '';
         return;
     }
-    
+
     try {
-        // Mostrar loading
-        const uploadArea = document.getElementById('uploadArea');
-        uploadArea.innerHTML = '<div class="upload-icon">⏳</div><p>Procesando documento...</p>';
-        
+        mostrarEstado('procesando', { texto: `Procesando "${archivo.name}"…` });
+
         // Extraer texto según tipo
         let textoExtraido = '';
         
@@ -107,10 +165,12 @@ async function procesarDocumento(archivo) {
             textoExtraido = await extraerTextoWord(archivo);
         }
         
-                // Subir a Firebase Storage
+        // Subir a Firebase Storage
         const currentUser = auth.currentUser;
         if (!currentUser) {
             alert('Error: Usuario no autenticado');
+            mostrarEstado('sin-documento');
+            document.getElementById('documentoInput').value = '';
             return;
         }
         const storageRef = ref(storage, `temas-digitales/${currentUser.uid}/${archivo.name}`);
@@ -141,23 +201,20 @@ async function procesarDocumento(archivo) {
         
         // Mostrar info del documento
         mostrarInfoDocumento();
-        
+        document.getElementById('documentoInput').value = '';
+
         alert('✅ Documento subido correctamente');
-        
+
         // Actualizar botón en la lista de temas
         actualizarBotonTemaDigital(temaActualDigital, true);
-        
+
     } catch (error) {
         console.error('Error procesando documento:', error);
         alert('Error al procesar el documento. Inténtalo de nuevo.');
-        
-        // Restaurar UI
-        document.getElementById('uploadArea').innerHTML = `
-            <div class="upload-icon">📁</div>
-            <p><strong>Arrastra tu documento aquí</strong></p>
-            <p>o haz clic para seleccionar</p>
-            <p class="file-types">Formatos: PDF, Word, TXT (máx. 10MB)</p>
-        `;
+
+        // Volvemos al estado "sin documento" para poder reintentar la subida
+        document.getElementById('documentoInput').value = '';
+        mostrarEstado('sin-documento');
     }
 }
 
@@ -211,37 +268,71 @@ async function extraerTextoPDF(archivo) {
 
 // Cargar documento existente
 async function cargarDocumentoTema(temaId) {
+    const idPeticion = ++peticionCargaActual;
+
     try {
         const temaRef = doc(db, 'temas', temaId);
         const temaSnap = await getDoc(temaRef);
-        
-        if (temaSnap.exists() && temaSnap.data().documentoDigital) {
-            documentoActual = temaSnap.data().documentoDigital;
+
+        // Si mientras tanto se ha cerrado el modal o se ha abierto otro tema, no pintamos
+        if (idPeticion !== peticionCargaActual || temaActualDigital !== temaId) return;
+
+        const documento = temaSnap.exists() ? temaSnap.data().documentoDigital : null;
+
+        if (documento && documento.nombre) {
+            documentoActual = documento;
             mostrarInfoDocumento();
+        } else {
+            // El tema no tiene documento: ofrecemos subirlo
+            documentoActual = null;
+            mostrarEstado('sin-documento');
         }
     } catch (error) {
         console.error('Error cargando documento:', error);
+
+        if (idPeticion !== peticionCargaActual) return;
+
+        documentoActual = null;
+        mostrarEstado('error', {
+            texto: 'No se ha podido comprobar si este tema tiene documento.',
+            boton: 'Reintentar',
+            onBoton: () => {
+                mostrarEstado('cargando');
+                cargarDocumentoTema(temaId);
+            }
+        });
     }
 }
 
 // Mostrar información del documento
 function mostrarInfoDocumento() {
-    document.getElementById('uploadArea').style.display = 'none';
-    document.getElementById('documentoInfo').style.display = 'block';
-    
-    const tamanoMB = (documentoActual.tamano / (1024 * 1024)).toFixed(2);
+    if (!documentoActual) {
+        mostrarEstado('sin-documento');
+        return;
+    }
+
+    mostrarEstado('con-documento');
+
+    const texto = typeof documentoActual.textoExtraido === 'string' ? documentoActual.textoExtraido : '';
+    const tamano = Number(documentoActual.tamano) || 0;
+    const tamanoMB = (tamano / (1024 * 1024)).toFixed(2);
     const tipoTexto = documentoActual.tipo === 'application/pdf' ? 'PDF'
         : (documentoActual.tipo === 'application/msword' || documentoActual.tipo === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') ? 'Word'
         : 'TXT';
-    
-    document.getElementById('documentoNombre').textContent = documentoActual.nombre;
-    document.getElementById('documentoDetalles').textContent = 
-        `Tipo: ${tipoTexto} | Tamaño: ${tamanoMB} MB | Caracteres: ${documentoActual.textoExtraido.length.toLocaleString()}`;
-    
+
+    document.getElementById('documentoNombre').textContent = documentoActual.nombre || 'Documento sin nombre';
+    document.getElementById('documentoDetalles').textContent =
+        `Tipo: ${tipoTexto} | Tamaño: ${tamanoMB} MB | Caracteres: ${texto.length.toLocaleString()}`;
+
     // Mostrar extracto
-    const extracto = documentoActual.textoExtraido.substring(0, 500);
-    document.getElementById('documentoExtracto').style.display = 'block';
-    document.getElementById('documentoExtracto').textContent = extracto + '...';
+    const extractoEl = document.getElementById('documentoExtracto');
+    if (texto.length > 0) {
+        extractoEl.style.display = 'block';
+        extractoEl.textContent = texto.substring(0, 500) + (texto.length > 500 ? '…' : '');
+    } else {
+        extractoEl.style.display = 'block';
+        extractoEl.textContent = 'No se pudo extraer texto de este documento. Elimínalo y vuelve a subirlo si quieres usarlo en las explicaciones.';
+    }
 }
 
 // Eliminar documento
@@ -250,41 +341,59 @@ window.eliminarDocumentoTema = async function() {
         return;
     }
     
+    const temaId = temaActualDigital;
+
     try {
-        const temaRef = doc(db, 'temas', temaActualDigital);
+        mostrarEstado('procesando', { icono: '🗑️', texto: 'Eliminando documento…' });
+
+        const temaRef = doc(db, 'temas', temaId);
         const temaSnap = await getDoc(temaRef);
-        
+
         if (temaSnap.exists() && temaSnap.data().documentoDigital) {
             const storagePath = temaSnap.data().documentoDigital.storagePath;
-            
-            // Eliminar de Storage
-            const storageRef = ref(storage, storagePath);
-            await deleteObject(storageRef);
-            
+
+            // Eliminar de Storage (si el fichero ya no está, seguimos igualmente)
+            if (storagePath) {
+                try {
+                    await deleteObject(ref(storage, storagePath));
+                } catch (errStorage) {
+                    console.warn('El fichero ya no estaba en Storage:', errStorage);
+                }
+            }
+
             // Eliminar de Firestore
             await updateDoc(temaRef, {
                 documentoDigital: null
             });
-            
-            // Actualizar UI
-            document.getElementById('uploadArea').style.display = 'block';
-            document.getElementById('documentoInfo').style.display = 'none';
-            documentoActual = null;
-            
-            alert('✅ Documento eliminado');
-            
-            // Actualizar botón
-            actualizarBotonTemaDigital(temaActualDigital, false);
         }
+
+        // Actualizar UI
+        documentoActual = null;
+        document.getElementById('documentoInput').value = '';
+        document.getElementById('documentoExtracto').style.display = 'none';
+        document.getElementById('documentoExtracto').textContent = '';
+        mostrarEstado('sin-documento');
+
+        alert('✅ Documento eliminado');
+
+        // Actualizar botón
+        actualizarBotonTemaDigital(temaId, false);
+
     } catch (error) {
         console.error('Error eliminando documento:', error);
         alert('Error al eliminar el documento');
+
+        // Recuperamos el estado real consultando de nuevo
+        mostrarEstado('cargando');
+        await cargarDocumentoTema(temaId);
     }
 };
 
 // Actualizar botón de tema digital en la lista
 function actualizarBotonTemaDigital(temaId, tieneDocumento) {
-    const btn = document.querySelector(`[data-tema-id="${temaId}"] .btn-tema-digital`);
+    // La lista de temas no lleva data-tema-id, así que localizamos el botón por su onclick
+    const btn = document.querySelector(`.btn-tema-digital[onclick*="'${temaId}'"]`)
+        || document.querySelector(`[data-tema-id="${temaId}"] .btn-tema-digital`);
     if (btn) {
         if (tieneDocumento) {
             btn.classList.add('has-document');
