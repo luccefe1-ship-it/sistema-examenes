@@ -1,6 +1,7 @@
 import { auth, db, storage } from './firebase-config.js';
 import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 import { inicializarTemaDigital, abrirModalTemaDigital, abrirVisorTemaDigital } from './tema-digital.js';
+import { quitarRepetidas } from './preguntas-repetidas.js';
 import {
     montarDocumentoSubrayable,
     obtenerFragmentos,
@@ -3593,14 +3594,57 @@ function elegirFragmentos(trozos, cuantos) {
     return indices.slice(0, cuantos).sort((a, b) => a - b).map(i => trozos[i]);
 }
 
+function unirFragmentos(elegidos) {
+    let texto = elegidos.join('\n\n---\n\n');
+    if (texto.length > IA_MAX_CARACTERES) texto = texto.slice(0, IA_MAX_CARACTERES);
+    return texto;
+}
+
 function prepararTextoParaLote(trozos, numPreguntas) {
     // Dos fragmentos por pregunta: suficiente para que elija y no dispara
     // el coste. Con tope, porque quien paga la entrada eres tú.
     const cuantos = Math.min(Math.max(4, numPreguntas * 2), IA_MAX_FRAGMENTOS_LOTE);
-    const elegidos = elegirFragmentos(trozos, cuantos);
-    let texto = elegidos.join('\n\n---\n\n');
-    if (texto.length > IA_MAX_CARACTERES) texto = texto.slice(0, IA_MAX_CARACTERES);
-    return texto;
+    return unirFragmentos(elegirFragmentos(trozos, cuantos));
+}
+
+/* Reparte los fragmentos del temario entre los lotes SIN SOLAPES.
+   Antes cada lote elegía sus fragmentos al azar por su cuenta, así que
+   dos lotes podían recibir el mismo trozo y preguntar lo mismo. Como
+   además los lotes viajan en paralelo, ninguno sabía lo que había
+   preguntado el otro. De ahí salían las preguntas repetidas.
+   Ahora se baraja una vez y se reparte en montones distintos. */
+function repartirFragmentosEntreLotes(trozos, cantidadesPorLote) {
+    const indices = trozos.map((_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+
+    /* Cuántos fragmentos puede llevarse cada lote sin que haya que dar
+       la vuelta al montón. Con 74 fragmentos y 10 lotes, pedir 10 cada
+       uno son 100 huecos para 74 trozos: se repetirían por narices.
+       Se reparte lo que hay, con un mínimo de 3 para que Claude tenga
+       de dónde elegir. */
+    const numLotes = cantidadesPorLote.length || 1;
+    const cabenPorLote = Math.max(3, Math.floor(indices.length / numLotes));
+
+    let cursor = 0;
+    return cantidadesPorLote.map(cantidad => {
+        const deseados = Math.min(Math.max(4, cantidad * 2), IA_MAX_FRAGMENTOS_LOTE);
+        const cuantos = Math.min(deseados, cabenPorLote);
+        const mios = [];
+
+        for (let k = 0; k < cuantos; k++) {
+            // Si el tema es corto y no da para montones disjuntos, se
+            // vuelve a empezar; ahí entra el filtro de repetidas
+            mios.push(indices[cursor % indices.length]);
+            cursor++;
+        }
+
+        // En orden del documento, para que Claude siga el hilo
+        const textos = [...new Set(mios)].sort((a, b) => a - b).map(i => trozos[i]);
+        return unirFragmentos(textos);
+    });
 }
 
 // Reparte N preguntas entre M temas lo más equitativamente posible
@@ -3642,11 +3686,11 @@ function quitarProgresoIA() {
     if (caja) caja.remove();
 }
 
-async function pedirLoteIA(texto, cantidad, nombreTema) {
+async function pedirLoteIA(texto, cantidad, nombreTema, yaPreguntado = []) {
     const respuesta = await fetch('/api/generar-preguntas-ia', {
         method: 'POST',
         headers: await cabecerasApi(),
-        body: JSON.stringify({ texto, cantidad, nombreTema })
+        body: JSON.stringify({ texto, cantidad, nombreTema, yaPreguntado })
     });
 
     const datos = await respuesta.json().catch(() => ({}));
@@ -3726,13 +3770,16 @@ async function empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionad
             if (!seguir) { quitarProgresoIA(); return; }
         }
 
-        // 3. Repartir las preguntas y montar los lotes
+        // 3. Repartir las preguntas y montar los lotes, dando a cada uno
+        //    fragmentos distintos del temario para que no se pisen
         const reparto = repartirPreguntas(cantidadTotal, conDocumento.length);
         const trabajos = [];
 
         conDocumento.forEach((tema, i) => {
-            trocearEnLotes(reparto[i], IA_PREGUNTAS_POR_LOTE).forEach(cantidad => {
-                trabajos.push({ tema, cantidad });
+            const cantidades = trocearEnLotes(reparto[i], IA_PREGUNTAS_POR_LOTE);
+            const textos = repartirFragmentosEntreLotes(tema.trozos, cantidades);
+            cantidades.forEach((cantidad, j) => {
+                trabajos.push({ tema, cantidad, texto: textos[j] });
             });
         });
 
@@ -3742,17 +3789,43 @@ async function empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionad
             return;
         }
 
-        // 4. Lanzar los lotes en tandas
+        // 4. Lanzar los lotes en tandas.
+        //    Las repetidas se descartan sobre la marcha, comparando cada
+        //    lote nuevo contra todo lo que ya se lleva generado de ese tema.
         const preguntasPorTema = new Map();
+        const huellasPorTema = new Map();
+        const enunciadosPorTema = new Map();
         let hechos = 0;
+        let repetidasDescartadas = 0;
+
         pintarProgresoIA(0, trabajos.length, `Generando ${cantidadTotal} preguntas con IA… (0 de ${trabajos.length} lotes)`);
+
+        const procesarLote = (trabajo, preguntas) => {
+            const idTema = trabajo.tema.id;
+            const previas = huellasPorTema.get(idTema) || [];
+            const { aceptadas, descartadas, huellas } = quitarRepetidas(preguntas, previas);
+
+            huellasPorTema.set(idTema, huellas);
+            preguntasPorTema.set(idTema, (preguntasPorTema.get(idTema) || []).concat(aceptadas));
+
+            const enunciados = enunciadosPorTema.get(idTema) || [];
+            aceptadas.forEach(p => enunciados.push(p.texto));
+            enunciadosPorTema.set(idTema, enunciados);
+
+            if (descartadas.length > 0) {
+                repetidasDescartadas += descartadas.length;
+                descartadas.forEach(d => console.warn(`[IA] Repetida descartada (${d.motivo}): ${d.texto.slice(0, 80)}…`));
+            }
+            return aceptadas.length;
+        };
 
         for (let i = 0; i < trabajos.length; i += IA_LOTES_EN_PARALELO) {
             const tanda = trabajos.slice(i, i + IA_LOTES_EN_PARALELO);
 
             const resultados = await Promise.allSettled(tanda.map(async trabajo => {
-                const texto = prepararTextoParaLote(trabajo.tema.trozos, trabajo.cantidad);
-                const preguntas = await pedirLoteIA(texto, trabajo.cantidad, trabajo.tema.nombre);
+                // Se le dice a Claude sobre qué ha preguntado ya en este tema
+                const yaPreguntado = (enunciadosPorTema.get(trabajo.tema.id) || []).slice(-25);
+                const preguntas = await pedirLoteIA(trabajo.texto, trabajo.cantidad, trabajo.tema.nombre, yaPreguntado);
                 return { trabajo, preguntas };
             }));
 
@@ -3762,13 +3835,37 @@ async function empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionad
                     console.error('[IA] Lote fallido:', resultado.reason);
                     return;
                 }
-                const { trabajo, preguntas } = resultado.value;
-                const acumuladas = preguntasPorTema.get(trabajo.tema.id) || [];
-                preguntasPorTema.set(trabajo.tema.id, acumuladas.concat(preguntas));
+                procesarLote(resultado.value.trabajo, resultado.value.preguntas);
             });
 
             pintarProgresoIA(hechos, trabajos.length,
                 `Generando ${cantidadTotal} preguntas con IA… (${hechos} de ${trabajos.length} lotes)`);
+        }
+
+        /* 4b. Si al quitar repetidas faltan preguntas, una ronda de relleno.
+           Se pide solo lo que falta y se le pasa la lista de lo ya
+           preguntado para que no vuelva sobre lo mismo. */
+        const contar = () => Array.from(preguntasPorTema.values()).reduce((s, l) => s + l.length, 0);
+
+        if (contar() < cantidadTotal && repetidasDescartadas > 0) {
+            pintarProgresoIA(trabajos.length, trabajos.length,
+                `Rellenando ${cantidadTotal - contar()} pregunta(s) que salieron repetidas…`);
+
+            const faltan = repartirPreguntas(cantidadTotal - contar(), conDocumento.length);
+
+            await Promise.allSettled(conDocumento.map(async (tema, i) => {
+                const cuantas = Math.min(faltan[i], IA_PREGUNTAS_POR_LOTE);
+                if (cuantas <= 0) return;
+
+                const texto = prepararTextoParaLote(tema.trozos, cuantas);
+                const yaPreguntado = (enunciadosPorTema.get(tema.id) || []).slice(-25);
+                const preguntas = await pedirLoteIA(texto, cuantas, tema.nombre, yaPreguntado);
+                procesarLote({ tema }, preguntas);
+            }));
+        }
+
+        if (repetidasDescartadas > 0) {
+            console.log(`[IA] ${repetidasDescartadas} pregunta(s) repetidas descartadas en total`);
         }
 
         // 5. Montar las preguntas con los datos de tema que espera la plataforma
@@ -3805,7 +3902,10 @@ async function empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionad
         }
 
         if (preguntasFinales.length < cantidadTotal) {
-            alert(`Se han podido generar ${preguntasFinales.length} preguntas de las ${cantidadTotal} pedidas. El test empezará con las que hay.`);
+            const explicacion = repetidasDescartadas > 0
+                ? `\n\nSe descartaron ${repetidasDescartadas} por preguntar lo mismo que otra.`
+                : '';
+            alert(`Se han podido generar ${preguntasFinales.length} preguntas de las ${cantidadTotal} pedidas. El test empezará con las que hay.${explicacion}`);
         }
 
         const mezcladas = mezclarArray(preguntasFinales);

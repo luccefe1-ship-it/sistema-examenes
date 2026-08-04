@@ -49,11 +49,21 @@ REGLAS
 4. COBERTURA
    - Reparte las preguntas entre los distintos fragmentos recibidos. No hagas todas del primero.
    - Prioriza lo memorizable de una oposición: plazos, competencias, órganos, mayorías, requisitos, excepciones y numeraciones de artículos cuando el texto las dé.
-   - No repitas el mismo dato en dos preguntas.
 
-5. QUÉ NO HACER
-   - No expliques nada, no comentes, no añadas encabezados.
-   - No devuelvas menos preguntas de las pedidas.`;
+5. PROHIBIDO REPETIR (regla crítica)
+   Cada pregunta debe versar sobre un dato DISTINTO. Dos preguntas son la misma aunque estén escritas con otras palabras si comparten la respuesta correcta y el asunto.
+
+   Ejemplo de lo que NO debes hacer, dos preguntas del mismo dato con la redacción cambiada:
+     "Solicitada la acumulación de procesos pendientes ante un mismo tribunal, si todas las partes se muestran conformes con ella:"
+     "En la acumulación de procesos pendientes ante un mismo tribunal, si todas las partes se muestran conformes con la acumulación:"
+   Las dos se responden con "El tribunal la otorgará sin más trámites". Es una sola pregunta, no dos.
+
+   Antes de escribir cada pregunta, comprueba que su respuesta correcta no coincide en fondo con la de ninguna anterior. Si el fragmento del que ibas a preguntar ya está cubierto, cambia de fragmento.
+   No vale reformular: ni cambiando el verbo, ni pasando de afirmativa a interrogativa, ni preguntando por el mismo plazo desde otro ángulo.
+   Si el material recibido no da para tantas preguntas distintas, devuelve MENOS preguntas antes que repetir.
+
+6. QUÉ NO HACER
+   - No expliques nada, no comentes, no añadas encabezados.`;
 
 const SCHEMA = {
     type: 'object',
@@ -162,13 +172,27 @@ module.exports = async (req, res) => {
             return;
         }
 
+        /* Enunciados ya generados en este mismo test, para que no vuelva
+           sobre lo mismo. Los lotes viajan en paralelo, así que esto no
+           lo cubre todo: por eso el cliente filtra además las repetidas. */
+        const previos = Array.isArray(cuerpo.yaPreguntado)
+            ? cuerpo.yaPreguntado
+                .filter(t => typeof t === 'string' && t.trim())
+                .slice(-25)
+                .map(t => t.trim().slice(0, 300))
+            : [];
+
+        const bloqueYaPreguntado = previos.length > 0
+            ? `\n\nEn este test YA se ha preguntado por esto. Cada una de tus preguntas debe versar sobre un dato distinto a todos estos, y no vale reformularlos:\n<ya_preguntado>\n${previos.map(t => `- ${t}`).join('\n')}\n</ya_preguntado>`
+            : '';
+
         const { data, cuenta } = await llamarClaude({
             model: MODELO,
             max_tokens: MAX_TOKENS,
             system: SYSTEM_PROMPT,
             messages: [{
                 role: 'user',
-                content: `Redacta exactamente ${numPreguntas} preguntas tipo test sobre estos fragmentos del temario${nombreTema ? ` de "${String(nombreTema).slice(0, 120)}"` : ''}. Reparte las preguntas entre los distintos fragmentos.\n\n<fragmentos>\n${contenido}\n</fragmentos>`
+                content: `Redacta ${numPreguntas} preguntas tipo test sobre estos fragmentos del temario${nombreTema ? ` de "${String(nombreTema).slice(0, 120)}"` : ''}. Reparte las preguntas entre los distintos fragmentos y que cada una pregunte por un dato diferente.\n\n<fragmentos>\n${contenido}\n</fragmentos>${bloqueYaPreguntado}`
             }],
             output_config: {
                 effort: ESFUERZO,
