@@ -20,6 +20,7 @@ const MAX_PREGUNTAS_POR_PETICION = 10;
 
 const { peticionValida, obtenerCuentas, llamarClaude } = require('./_claude');
 const { usuarioConCupo } = require('./_auth');
+const { anotarConsumo } = require('./_consumo');
 
 const SYSTEM_PROMPT = `Eres un redactor de preguntas tipo test para oposiciones españolas de la Administración de Justicia (Tramitación y Gestión Procesal y Administrativa).
 
@@ -175,6 +176,18 @@ module.exports = async (req, res) => {
             }
         }, cuentas);
 
+        // Se anota el gasto antes de nada: la llamada ya está pagada,
+        // salga bien o mal el resto
+        const coste = await anotarConsumo({
+            uid: usuario.uid,
+            email: usuario.email,
+            funcion: 'generar-preguntas-ia',
+            modelo: MODELO,
+            uso: data.usage,
+            cuenta,
+            detalle: { preguntasPedidas: numPreguntas, caracteres: contenido.length }
+        });
+
         if (data.stop_reason === 'max_tokens') {
             res.status(500).json({ error: 'La respuesta se cortó por longitud. Pide menos preguntas por lote.' });
             return;
@@ -193,7 +206,8 @@ module.exports = async (req, res) => {
             preguntas: validas,
             avisos,
             cuenta,
-            uso: data.usage || {}
+            uso: data.usage || {},
+            costeDolares: coste.costeDolares
         });
 
     } catch (error) {

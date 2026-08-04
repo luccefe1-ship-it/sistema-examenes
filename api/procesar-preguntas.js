@@ -15,6 +15,7 @@ const MAX_TOKENS = 16000;
 
 const { peticionValida, obtenerCuentas, llamarClaude } = require('./_claude');
 const { usuarioConCupo } = require('./_auth');
+const { anotarConsumo } = require('./_consumo');
 
 // ------------------------------------------------------------
 //  Instrucciones para Claude (equivalente al antiguo prompt de
@@ -270,6 +271,17 @@ module.exports = async function handler(req, res) {
         const numeroInicial = lote * PREGUNTAS_POR_LOTE + 1;
 
         const { preguntas, uso, cuenta } = await pedirLote(fragmento, numPreguntas, cuentas);
+
+        const coste = await anotarConsumo({
+            uid: usuario.uid,
+            email: usuario.email,
+            funcion: 'procesar-preguntas',
+            modelo: MODELO,
+            uso,
+            cuenta,
+            detalle: { lote, preguntasEnLote: numPreguntas }
+        });
+
         const { validas, avisos } = aFormatoPlataforma(preguntas, numeroInicial);
 
         if (preguntas.length !== numPreguntas) {

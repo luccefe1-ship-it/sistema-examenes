@@ -10,6 +10,7 @@
 
 const { peticionValida, obtenerCuentas, llamarClaude, textoDeRespuesta } = require('./_claude');
 const { usuarioConCupo } = require('./_auth');
+const { anotarConsumo } = require('./_consumo');
 
 const MODELO = 'claude-opus-4-8';
 const MAX_TOKENS = 1000;
@@ -105,13 +106,24 @@ module.exports = async function handler(req, res) {
             messages: [{ role: 'user', content: prompt }]
         }, cuentas);
 
+        const coste = await anotarConsumo({
+            uid: usuario.uid,
+            email: usuario.email,
+            funcion: 'explicacion',
+            modelo: MODELO,
+            uso: data.usage,
+            cuenta,
+            detalle: { modo }
+        });
+
         return res.status(200).json({
             texto: textoDeRespuesta(data),
             cuenta,
             uso: {
                 tokensEntrada: (data.usage && data.usage.input_tokens) || 0,
                 tokensSalida: (data.usage && data.usage.output_tokens) || 0
-            }
+            },
+            costeDolares: coste.costeDolares
         });
 
     } catch (error) {

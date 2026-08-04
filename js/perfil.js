@@ -63,10 +63,77 @@ onAuthStateChanged(auth, async (user) => {
         console.log('Usuario autenticado:', user.email);
         await cargarDatosUsuario();
         setupEventListeners();
+        cargarConsumoIA();
     } else {
         window.location.href = 'index.html';
     }
 });
+
+/* ==================================================================
+   CONSUMO DE IA
+   El acumulado lo escribe el servidor en consumoResumen; aquí solo
+   se lee. Sirve para saber cuánto cuesta de verdad un usuario antes
+   de ponerle precio a nada.
+================================================================== */
+
+// Cambio orientativo para enseñar el gasto en euros
+const DOLARES_A_EUROS = 0.92;
+
+const NOMBRES_FUNCION = {
+    'generar-preguntas-ia': 'Tests con IA',
+    'explicacion': 'Explicaciones',
+    'procesar-preguntas': 'Subir Word'
+};
+
+async function cargarConsumoIA() {
+    const caja = document.getElementById('consumoIACifras');
+    if (!caja) return;
+
+    try {
+        const resumen = await getDoc(doc(db, 'consumoResumen', currentUser.uid));
+
+        if (!resumen.exists()) {
+            caja.innerHTML = '<p class="consumo-ia-vacio">Todavía no has usado ninguna función con IA.</p>';
+            return;
+        }
+
+        const d = resumen.data();
+        const dolares = Number(d.costeTotalDolares) || 0;
+        const euros = dolares * DOLARES_A_EUROS;
+        const llamadas = Number(d.llamadas) || 0;
+        const tokens = (Number(d.tokensEntradaTotal) || 0) + (Number(d.tokensSalidaTotal) || 0);
+        const media = llamadas > 0 ? dolares / llamadas : 0;
+
+        // Firestore guarda porFuncion.X como campos anidados
+        const porFuncion = d.porFuncion || {};
+        const desglose = Object.entries(porFuncion)
+            .filter(([, valor]) => Number(valor) > 0)
+            .sort((a, b) => b[1] - a[1])
+            .map(([clave, valor]) => `
+                <li>
+                    <span>${NOMBRES_FUNCION[clave] || clave}</span>
+                    <strong>${(Number(valor) * DOLARES_A_EUROS).toFixed(2)} €</strong>
+                </li>
+            `).join('');
+
+        caja.innerHTML = `
+            <div class="consumo-ia-total">
+                <span class="cifra">${euros.toFixed(2)} €</span>
+                <span class="etiqueta">${dolares.toFixed(3)} $ · ${llamadas} llamada${llamadas === 1 ? '' : 's'}</span>
+            </div>
+            <div class="consumo-ia-detalles">
+                <div><span>Coste medio por llamada</span><strong>${(media * DOLARES_A_EUROS).toFixed(3)} €</strong></div>
+                <div><span>Tokens totales</span><strong>${tokens.toLocaleString('es-ES')}</strong></div>
+            </div>
+            ${desglose ? `<ul class="consumo-ia-desglose">${desglose}</ul>` : ''}
+            <p class="consumo-ia-nota">Cambio orientativo a ${DOLARES_A_EUROS} € por dólar. La factura real la emite Anthropic en dólares.</p>
+        `;
+
+    } catch (error) {
+        console.error('Error cargando el consumo de IA:', error);
+        caja.innerHTML = '<p class="consumo-ia-vacio">No se ha podido cargar tu consumo.</p>';
+    }
+}
 
 // Cargar datos del usuario
 async function cargarDatosUsuario() {
