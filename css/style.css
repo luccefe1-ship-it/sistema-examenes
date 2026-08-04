@@ -7,8 +7,14 @@
 body {
     font-family: 'Arial', sans-serif;
     min-height: 100vh;
+    /* overflow-y en auto, no hidden: el navegador decide solo si hace
+       falta barra de desplazamiento. En las pantallas que caben, como la
+       portada, no aparece nada; en las largas, como Mi Perfil o el
+       registro, se puede bajar. Antes había un "overflow: hidden" que
+       cortaba el contenido en todas las páginas, y conexiones.css tenía
+       que pelearse con él a base de !important. */
     overflow-x: hidden;
-    overflow: hidden;
+    overflow-y: auto;
     transition: background 1s ease;
     /* FONDO CELESTE CLARO POR DEFECTO PARA EL DÍA */
     background: 
@@ -68,12 +74,18 @@ body.noche {
 .container {
     display: flex;
     justify-content: center;
-    align-items: center;
+    /* flex-start con "margin: auto" en el hijo en vez de align-items:center.
+       Con centrado clásico, si el formulario es más alto que la pantalla
+       —como ahora en el registro con el selector de avatar— la parte de
+       arriba se sale del contenedor y NO se puede alcanzar con el scroll.
+       Con margin auto se centra si cabe y se puede bajar si no cabe. */
+    align-items: flex-start;
     min-height: 100vh;
     padding: 20px;
 }
 
 .login-form {
+    margin: auto;
     background: white;
     padding: 40px;
     border-radius: 10px;
