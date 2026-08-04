@@ -238,6 +238,9 @@ async function extraerTextoWord(archivo) {
 
 // Extraer texto de PDF usando pdf.js
 async function extraerTextoPDF(archivo) {
+    if (typeof pdfjsLib === 'undefined') {
+        throw new Error('pdf.js no está cargado: no se puede extraer el texto del PDF');
+    }
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         
@@ -437,6 +440,48 @@ const TIPOS_WORD = [
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 ];
 
+// docx-preview se carga bajo demanda y una sola vez por sesión.
+// Vía ESM a propósito: la build UMD ocuparía window.docx, que ya usa la
+// librería docx@8.5.0 de generación cargada en tests.html.
+let docxPreviewPromesa = null;
+function cargarDocxPreview() {
+    if (!docxPreviewPromesa) {
+        docxPreviewPromesa = import('https://esm.sh/docx-preview@0.3.5')
+            .catch(error => {
+                docxPreviewPromesa = null; // permite reintentar en la siguiente apertura
+                throw error;
+            });
+    }
+    return docxPreviewPromesa;
+}
+
+// Los enlaces del documento se abren fuera, no dentro del visor
+function abrirEnlacesFuera(contenedor) {
+    contenedor.querySelectorAll('a[href]').forEach(a => {
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+    });
+}
+
+// Respaldo si docx-preview no está disponible: HTML plano con mammoth
+async function renderizarConMammoth(blob, documento) {
+    const cuerpo = document.getElementById('visorTemaCuerpo');
+    if (typeof mammoth === 'undefined') {
+        mostrarTextoPlanoVisor(documento, 'No se ha podido cargar el conversor de Word.');
+        return;
+    }
+
+    const arrayBuffer = await blob.arrayBuffer();
+    const resultado = await mammoth.convertToHtml({ arrayBuffer });
+
+    cuerpo.innerHTML = '';
+    const hoja = document.createElement('div');
+    hoja.className = 'visor-doc';
+    hoja.innerHTML = resultado.value;
+    abrirEnlacesFuera(hoja);
+    cuerpo.appendChild(hoja);
+}
+
 function pintarEstadoVisor(icono, mensaje) {
     const cuerpo = document.getElementById('visorTemaCuerpo');
     if (!cuerpo) return;
@@ -516,29 +561,41 @@ export async function abrirVisorTemaDigital(temaId) {
             return;
         }
 
-        // --- Word: se convierte a HTML conservando negritas, listas, tablas e imágenes ---
+        // --- Word: se maqueta en páginas conservando fuentes, márgenes e imágenes ---
         if (TIPOS_WORD.includes(documento.tipo)) {
-            if (typeof mammoth === 'undefined') {
-                mostrarTextoPlanoVisor(documento, 'No se ha podido cargar el conversor de Word.');
+            pintarEstadoVisor('⏳', 'Maquetando el documento…');
+            const blob = await descargarOriginal(documento);
+
+            try {
+                const docxPreview = await cargarDocxPreview();
+
+                cuerpo.innerHTML = '';
+                const contenedorEstilos = document.createElement('div');
+                const contenedorPaginas = document.createElement('div');
+                cuerpo.append(contenedorEstilos, contenedorPaginas);
+
+                await docxPreview.renderAsync(blob, contenedorPaginas, contenedorEstilos, {
+                    inWrapper: true,
+                    breakPages: true,       // respeta los saltos de página del original
+                    ignoreWidth: false,     // respeta el ancho de página real
+                    ignoreHeight: false,
+                    ignoreFonts: false,     // usa las fuentes del documento
+                    renderHeaders: true,
+                    renderFooters: true,
+                    renderFootnotes: true,
+                    renderEndnotes: true,
+                    useBase64URL: true,     // incrusta las imágenes
+                    experimental: true
+                });
+
+                abrirEnlacesFuera(contenedorPaginas);
+                return;
+
+            } catch (error) {
+                console.warn('docx-preview falló, uso mammoth como respaldo:', error);
+                await renderizarConMammoth(blob, documento);
                 return;
             }
-
-            pintarEstadoVisor('⏳', 'Convirtiendo el documento…');
-            const blob = await descargarOriginal(documento);
-            const arrayBuffer = await blob.arrayBuffer();
-            const resultado = await mammoth.convertToHtml({ arrayBuffer });
-
-            cuerpo.innerHTML = '';
-            const hoja = document.createElement('div');
-            hoja.className = 'visor-doc';
-            hoja.innerHTML = resultado.value;
-            // Los enlaces del documento se abren fuera, no dentro del visor
-            hoja.querySelectorAll('a[href]').forEach(a => {
-                a.target = '_blank';
-                a.rel = 'noopener noreferrer';
-            });
-            cuerpo.appendChild(hoja);
-            return;
         }
 
         // --- TXT y cualquier otro caso ---
