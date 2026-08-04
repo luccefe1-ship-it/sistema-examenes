@@ -252,41 +252,102 @@ export function obtenerFragmentos(contenedor) {
 /* ------------------------------------------------------------------
    Acciones del usuario
 ------------------------------------------------------------------ */
+/* Envuelve lo que abarca un Range recorriendo los nodos del índice.
+   Se trabaja con el propio rango y no con posiciones globales a
+   propósito: docx-preview inserta etiquetas <style> dentro del panel y
+   Range.toString() sí cuenta ese CSS mientras que el índice lo ignora,
+   así que las dos numeraciones no coinciden. */
+function envolverRango(indice, rango, clase, datos) {
+    const creados = [];
+
+    for (let i = indice.nodos.length - 1; i >= 0; i--) {
+        const item = indice.nodos[i];
+
+        let intersecta;
+        try {
+            intersecta = rango.intersectsNode(item.nodo);
+        } catch (error) {
+            continue;
+        }
+        if (!intersecta) continue;
+
+        let desde = 0;
+        let hasta = item.largo;
+        if (rango.startContainer === item.nodo) desde = rango.startOffset;
+        if (rango.endContainer === item.nodo) hasta = rango.endOffset;
+        if (hasta <= desde) continue;
+
+        try {
+            const trozo = document.createRange();
+            trozo.setStart(item.nodo, desde);
+            trozo.setEnd(item.nodo, hasta);
+
+            const span = document.createElement('span');
+            span.className = clase;
+            if (datos) {
+                Object.entries(datos).forEach(([clave, valor]) => {
+                    span.dataset[clave] = valor;
+                });
+            }
+            trozo.surroundContents(span);
+            creados.push(span);
+        } catch (error) {
+            console.warn('No se pudo subrayar un nodo:', error);
+        }
+    }
+
+    return creados;
+}
+
+/* Red de seguridad: se recuerda la última selección válida por si al
+   pulsar el botón el navegador ya la ha soltado. */
+let ultimaSeleccion = null;
+if (typeof document !== 'undefined') {
+    document.addEventListener('selectionchange', () => {
+        const seleccion = window.getSelection();
+        if (!seleccion || seleccion.rangeCount === 0 || seleccion.isCollapsed) return;
+        ultimaSeleccion = seleccion.getRangeAt(0).cloneRange();
+    });
+}
+
+function rangoUtilizable(contenedor) {
+    const seleccion = window.getSelection();
+
+    if (seleccion && seleccion.rangeCount > 0 && !seleccion.isCollapsed) {
+        const rango = seleccion.getRangeAt(0);
+        if (contenedor.contains(rango.commonAncestorContainer)) return rango;
+        return { fuera: true };
+    }
+
+    // La selección se ha perdido: recuperamos la última buena si sigue viva
+    if (ultimaSeleccion
+        && ultimaSeleccion.commonAncestorContainer.isConnected
+        && contenedor.contains(ultimaSeleccion.commonAncestorContainer)) {
+        return ultimaSeleccion;
+    }
+
+    return null;
+}
+
 export function subrayarSeleccion(contenedor) {
     if (!contenedor) return { ok: false, motivo: 'sin-contenedor' };
 
-    const seleccion = window.getSelection();
-    if (!seleccion || seleccion.rangeCount === 0 || seleccion.isCollapsed) {
-        return { ok: false, motivo: 'sin-seleccion' };
-    }
+    const rango = rangoUtilizable(contenedor);
+    if (!rango) return { ok: false, motivo: 'sin-seleccion' };
+    if (rango.fuera) return { ok: false, motivo: 'fuera' };
 
-    const rango = seleccion.getRangeAt(0);
-    if (!contenedor.contains(rango.commonAncestorContainer)) {
-        return { ok: false, motivo: 'fuera' };
-    }
+    if (!rango.toString().trim()) return { ok: false, motivo: 'sin-seleccion' };
 
-    const seleccionado = rango.toString();
-    if (!seleccionado.trim()) return { ok: false, motivo: 'sin-seleccion' };
-
-    // Las marcas de búsqueda estorban al calcular posiciones y no deben guardarse
-    limpiarBusqueda(contenedor);
-
-    // Posición global de la selección medida sobre el propio contenedor
-    const previo = document.createRange();
-    previo.selectNodeContents(contenedor);
-    try {
-        previo.setEnd(rango.startContainer, rango.startOffset);
-    } catch (error) {
-        return { ok: false, motivo: 'rango-invalido' };
-    }
-    const inicio = previo.toString().length;
-    const fin = inicio + seleccionado.length;
-
+    // Ojo: no se limpian aquí las marcas de búsqueda. Hacerlo modificaría
+    // el DOM y dejaría inservible el rango que acabamos de leer.
     const indice = indexar(contenedor);
     const grupo = `g${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    const creados = envolverTramo(indice, inicio, fin, CLASE_SUBRAYADO, { grupo });
+    const creados = envolverRango(indice, rango, CLASE_SUBRAYADO, { grupo });
 
-    seleccion.removeAllRanges();
+    const seleccion = window.getSelection();
+    if (seleccion) seleccion.removeAllRanges();
+    ultimaSeleccion = null;
+
     return { ok: creados.length > 0, motivo: creados.length ? null : 'no-envuelto' };
 }
 
@@ -344,7 +405,9 @@ export function buscarEnDocumento(contenedor, termino) {
     });
 
     const primera = contenedor.querySelector(`.${CLASE_BUSQUEDA}`);
-    if (primera) primera.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (primera && typeof primera.scrollIntoView === 'function') {
+        primera.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 
     return encontrados.length;
 }
@@ -352,7 +415,9 @@ export function buscarEnDocumento(contenedor, termino) {
 export function irAlPrimerSubrayado(contenedor) {
     if (!contenedor) return;
     const primero = contenedor.querySelector(`.${CLASE_SUBRAYADO}`);
-    if (primero) primero.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (primero && typeof primero.scrollIntoView === 'function') {
+        primero.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 }
 
 /* ------------------------------------------------------------------
