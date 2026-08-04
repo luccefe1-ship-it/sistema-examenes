@@ -568,3 +568,145 @@
     width: 100%;
     height: 100%;
 }
+
+/* Fuera de la portada, la burbuja del asistente es solo el círculo */
+.burbuja-flotante.solo-circulo {
+    padding: 12px;
+    width: 56px;
+    height: 56px;
+    justify-content: center;
+}
+
+.burbuja-flotante.solo-circulo .burbuja-avatar {
+    width: 40px;
+    height: 40px;
+}
+
+/* ==================================================================
+   MULTIJUGADOR CON AVATARES
+================================================================== */
+.jugador-con-avatar {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.avatar-jugador {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex: 0 0 auto;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    transition: box-shadow 0.3s, transform 0.3s;
+}
+
+.avatar-jugador svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* Se resalta a quien tiene el turno */
+.avatar-jugador.en-turno {
+    box-shadow: 0 0 0 3px #22c55e, 0 4px 14px rgba(34, 197, 94, 0.45);
+    transform: scale(1.06);
+}
+
+/* Cartel central de "está preguntando" */
+.turno-cartel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 30px 20px;
+    text-align: center;
+    animation: entrarCartel 0.4s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+@keyframes entrarCartel {
+    from { opacity: 0; transform: translateY(12px) scale(0.94); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.turno-cartel-avatar {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+}
+
+.turno-cartel-avatar svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* Aro que late alrededor del avatar de quien pregunta */
+.turno-cartel-aro {
+    position: absolute;
+    inset: -10px;
+    border-radius: 50%;
+    border: 4px solid #7c3aed;
+    opacity: 0;
+    animation: aroLatido 2s ease-out infinite;
+    pointer-events: none;
+}
+
+.turno-cartel.es-mi-turno .turno-cartel-aro {
+    border-color: #22c55e;
+}
+
+@keyframes aroLatido {
+    0%   { transform: scale(0.94); opacity: 0.75; }
+    75%  { transform: scale(1.12); opacity: 0; }
+    100% { transform: scale(1.12); opacity: 0; }
+}
+
+.turno-cartel-texto {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.turno-cartel-texto strong {
+    color: #c4b5fd;
+}
+
+.turno-cartel.es-mi-turno .turno-cartel-texto strong {
+    color: #86efac;
+}
+
+.turno-cartel-pista {
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.75);
+    max-width: 320px;
+    line-height: 1.5;
+}
+
+/* Puntitos de "pensando" bajo el avatar del rival */
+.turno-cartel-puntos {
+    display: flex;
+    gap: 7px;
+}
+
+.turno-cartel-puntos span {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.7);
+    animation: puntito 1.3s infinite ease-in-out;
+}
+
+.turno-cartel-puntos span:nth-child(2) { animation-delay: 0.18s; }
+.turno-cartel-puntos span:nth-child(3) { animation-delay: 0.36s; }
+
+@media (max-width: 640px) {
+    .turno-cartel-avatar { width: 110px; height: 110px; }
+    .turno-cartel-texto { font-size: 1.02rem; }
+}

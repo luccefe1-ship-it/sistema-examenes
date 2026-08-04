@@ -41,6 +41,92 @@ async function cabecerasApi() {
 
 const $ = id => document.getElementById(id);
 
+/* ------------------------------------------------------------
+   El widget se construye solo.
+   Antes el HTML estaba escrito a mano en homepage.html; así habría
+   que repetir el mismo bloque en las doce páginas y mantenerlo
+   sincronizado. Se inyecta desde aquí y basta con una línea de
+   script en cada página.
+------------------------------------------------------------ */
+function esPortada() {
+    const ruta = window.location.pathname.toLowerCase();
+    return ruta.endsWith('/homepage.html') || ruta.endsWith('/') || ruta === '';
+}
+
+function inyectarWidget() {
+    if ($('btnAsistente')) return; // ya estaba puesto a mano
+
+    const enPortada = esPortada();
+
+    const trozos = [`
+        <button class="burbuja-flotante burbuja-asistente ${enPortada ? '' : 'solo-circulo'}"
+                id="btnAsistente" title="Pregúntame cómo funciona la plataforma">
+            <span class="burbuja-emoji">🦉</span>
+            ${enPortada ? '<span class="burbuja-etiqueta">¿Te ayudo?</span>' : ''}
+            <span class="burbuja-pulso"></span>
+        </button>
+
+        <div class="panel-flotante panel-asistente" id="panelAsistente">
+            <div class="panel-cabecera">
+                <div class="panel-titulo">
+                    <span class="panel-avatar">🦉</span>
+                    <div>
+                        <strong>Asistente de la plataforma</strong>
+                        <small>Te explico cómo funciona cada parte</small>
+                    </div>
+                </div>
+                <button class="panel-cerrar" id="cerrarAsistente" title="Cerrar">×</button>
+            </div>
+
+            <div class="chat-mensajes" id="chatMensajes"></div>
+
+            <div class="chat-sugerencias" id="chatSugerencias">
+                <button type="button">¿Qué es un tema digital?</button>
+                <button type="button">¿Cómo hago un test con IA?</button>
+                <button type="button">¿Cómo funciona el repaso?</button>
+                <button type="button">¿Para qué sirve el multijugador?</button>
+            </div>
+
+            <form class="chat-entrada" id="chatForm">
+                <input type="text" id="chatInput" placeholder="Escribe tu pregunta…" autocomplete="off" maxlength="500">
+                <button type="submit" id="chatEnviar" title="Enviar">➤</button>
+            </form>
+        </div>
+    `];
+
+    // El contador de gasto solo en la portada, para no llenar de burbujas
+    // pantallas que ya están cargadas de botones
+    if (enPortada) {
+        trozos.push(`
+            <button class="burbuja-flotante burbuja-consumo" id="btnConsumo" title="Ver lo que llevas gastado en IA">
+                <span class="burbuja-emoji">✨</span>
+                <span class="burbuja-etiqueta" id="consumoResumido">Consumo IA</span>
+            </button>
+
+            <div class="panel-flotante panel-consumo" id="panelConsumo">
+                <div class="panel-cabecera">
+                    <div class="panel-titulo">
+                        <span class="panel-avatar">✨</span>
+                        <div>
+                            <strong>Tu consumo de IA</strong>
+                            <small>Desde que empezó a registrarse</small>
+                        </div>
+                    </div>
+                    <button class="panel-cerrar" id="cerrarConsumo" title="Cerrar">×</button>
+                </div>
+                <div class="panel-cuerpo" id="consumoCuerpo">
+                    <p class="consumo-cargando">Cargando…</p>
+                </div>
+            </div>
+        `);
+    }
+
+    const caja = document.createElement('div');
+    caja.id = 'widgetsFlotantes';
+    caja.innerHTML = trozos.join('');
+    document.body.appendChild(caja);
+}
+
 function abrirPanel(panel, boton) {
     cerrarTodo();
     panel.classList.add('abierto');
@@ -159,6 +245,7 @@ function prepararChat() {
 // ------------------------------------------------------------
 async function cargarConsumo() {
     const cuerpo = $('consumoCuerpo');
+    if (!cuerpo) return;
 
     try {
         const resumen = await getDoc(doc(db, 'consumoResumen', usuarioActual.uid));
@@ -200,7 +287,8 @@ async function cargarConsumo() {
         `;
 
         // Resumen en la propia burbuja
-        $('consumoResumido').textContent = `${euros.toFixed(2)} € en IA`;
+        const rotulo = $('consumoResumido');
+        if (rotulo) rotulo.textContent = `${euros.toFixed(2)} € en IA`;
 
     } catch (error) {
         console.error('Error cargando el consumo:', error);
@@ -209,6 +297,8 @@ async function cargarConsumo() {
 }
 
 function prepararConsumo() {
+    if (!$('btnConsumo')) return;   // fuera de la portada no existe
+
     $('btnConsumo').addEventListener('click', () => {
         const panel = $('panelConsumo');
         if (panel.classList.contains('abierto')) {
@@ -262,6 +352,7 @@ onAuthStateChanged(auth, (user) => {
     if (!user) return;
     usuarioActual = user;
 
+    inyectarWidget();
     prepararChat();
     prepararConsumo();
     ponerAvatarDeAsistente();

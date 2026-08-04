@@ -1,6 +1,37 @@
 import { auth, db } from './firebase-config.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
+import { dibujarAvatar, sanearAvatar } from './avatar.js';
+
+/* El avatar propio se lleva DENTRO del documento de la sala.
+   Las reglas de Firestore impiden que un usuario lea el perfil de
+   otro, así que no hay forma de mirar el avatar del rival en su
+   ficha. La sala sí es legible por ambos, y un avatar no es un dato
+   sensible: son diez etiquetas de colores. */
+let miAvatar = null;
+
+async function cargarMiAvatar() {
+    if (miAvatar) return miAvatar;
+    try {
+        const perfil = await getDoc(doc(db, 'usuarios', currentUser.uid));
+        miAvatar = perfil.exists() && perfil.data().avatar
+            ? sanearAvatar(perfil.data().avatar)
+            : null;
+    } catch (error) {
+        console.warn('No se pudo cargar el avatar propio:', error);
+        miAvatar = null;
+    }
+    return miAvatar;
+}
+
+// Pinta un avatar dentro de un contenedor; si no hay, deja el hueco vacío
+function pintarAvatarEn(idContenedor, avatar) {
+    const caja = document.getElementById(idContenedor);
+    if (!caja) return;
+    caja.innerHTML = avatar ? dibujarAvatar(sanearAvatar(avatar)) : '';
+    caja.style.display = avatar ? '' : 'none';
+}
+
 /* Cabecera con el token de sesión: los endpoints propios comprueban
    quién llama antes de devolver nada. */
 async function cabecerasApi() {
@@ -500,6 +531,7 @@ async function crearSala() {
                 jugador1: {
                     uid: currentUser.uid,
                     nombre: nombreAnfitrion,
+                    avatar: await cargarMiAvatar(),
                     errores: 0,
                     aciertos: 0,
                     preguntasRecibidas: 0,
@@ -563,6 +595,7 @@ async function unirseSala() {
             'jugadores.jugador2': {
                 uid: currentUser.uid,
                 nombre: nombreInvitado,
+                avatar: await cargarMiAvatar(),
                 errores: 0,
                 aciertos: 0,
                 preguntasRecibidas: 0,
@@ -675,14 +708,17 @@ function actualizarSalaEspera(salaData) {
     if (salaData.jugadores.jugador1) {
         nombreJugador1.textContent = salaData.jugadores.jugador1.nombre;
         estadoJugador1.textContent = salaData.jugadores.jugador1.listo ? 'Listo' : 'Esperando...';
+        pintarAvatarEn('avatarEspera1', salaData.jugadores.jugador1.avatar);
     }
-    
+
     if (salaData.jugadores.jugador2) {
         nombreJugador2.textContent = salaData.jugadores.jugador2.nombre;
         estadoJugador2.textContent = salaData.jugadores.jugador2.listo ? 'Listo' : 'Esperando...';
+        pintarAvatarEn('avatarEspera2', salaData.jugadores.jugador2.avatar);
     } else {
         nombreJugador2.textContent = '';
         estadoJugador2.textContent = 'Esperando segundo jugador...';
+        pintarAvatarEn('avatarEspera2', null);
     }
     
     const misDatos = salaData.jugadores[jugadorActual];
@@ -745,9 +781,74 @@ async function mostrarInterfazJuego(salaData) {
     cargarPreguntasRival(jugador1.uid, temasRival);
 }
     
+    // Avatares de los dos jugadores en sus respectivas ventanas
+    const yo = jugadorActual === 'jugador1' ? jugador1 : jugador2;
+    const elRival = jugadorActual === 'jugador1' ? jugador2 : jugador1;
+    pintarAvatarEn('avatarUsuarioActual', yo && yo.avatar);
+    pintarAvatarEn('avatarRival', elRival && elRival.avatar);
+
     actualizarMarcadores(salaData);
     mostrarTemasUsuario();
     actualizarTurno(salaData);
+}
+
+/* ------------------------------------------------------------------
+   Cartel central de turno
+   Ocupa el sitio de la pregunta mientras no hay ninguna elegida.
+   No se destruyen #textoPregunta ni #opcionesPregunta: se ocultan,
+   porque el resto del juego cuenta con que existan.
+------------------------------------------------------------------ */
+function mostrarCartelTurno(esMiTurno, salaData) {
+    const cartel = document.getElementById('cartelTurno');
+    const texto = document.getElementById('textoPregunta');
+    const opciones = document.getElementById('opcionesPregunta');
+    if (!cartel) return;
+
+    const jugadores = (salaData && salaData.jugadores) || {};
+    const quien = esMiTurno
+        ? (jugadores[jugadorActual] || {})
+        : (jugadores[rival] || {});
+
+    const nombre = quien.nombre || (esMiTurno ? 'Tú' : 'El rival');
+    const avatar = quien.avatar ? dibujarAvatar(sanearAvatar(quien.avatar)) : '';
+
+    cartel.className = esMiTurno ? 'turno-cartel es-mi-turno' : 'turno-cartel';
+    cartel.innerHTML = `
+        ${avatar ? `
+            <div class="turno-cartel-avatar">
+                ${avatar}
+                <span class="turno-cartel-aro"></span>
+            </div>` : ''}
+        <div class="turno-cartel-texto">
+            <strong>${esMiTurno ? 'Tú' : nombre}</strong> ${esMiTurno ? 'estás preguntando' : 'está preguntando'}
+        </div>
+        <div class="turno-cartel-pista">
+            ${esMiTurno
+                ? 'Elige una pregunta del banco de tu rival, ahí a la derecha.'
+                : 'Espera a que elija una pregunta de tu banco.'}
+        </div>
+        ${esMiTurno ? '' : '<div class="turno-cartel-puntos"><span></span><span></span><span></span></div>'}
+    `;
+
+    cartel.style.display = 'flex';
+    if (texto) texto.style.display = 'none';
+    if (opciones) opciones.style.display = 'none';
+
+    // Se resalta el avatar de quien tiene el turno
+    const mio = document.getElementById('avatarUsuarioActual');
+    const suyo = document.getElementById('avatarRival');
+    if (mio) mio.classList.toggle('en-turno', esMiTurno);
+    if (suyo) suyo.classList.toggle('en-turno', !esMiTurno);
+}
+
+function ocultarCartelTurno() {
+    const cartel = document.getElementById('cartelTurno');
+    const texto = document.getElementById('textoPregunta');
+    const opciones = document.getElementById('opcionesPregunta');
+
+    if (cartel) { cartel.style.display = 'none'; cartel.innerHTML = ''; }
+    if (texto) texto.style.display = '';
+    if (opciones) opciones.style.display = '';
 }
 
 function actualizarMarcadores(salaData) {
@@ -983,6 +1084,9 @@ function actualizarTurno(salaData) {
     });
     
     if (salaData.juego?.preguntaActual) {
+        // Hay pregunta en juego: fuera el cartel, que vuelva la pregunta
+        ocultarCartelTurno();
+
         if (salaData.juego.respondiendo === jugadorActual) {
             textoTurno.textContent = 'TE TOCA RESPONDER';
             
@@ -1032,6 +1136,7 @@ function actualizarTurno(salaData) {
             deshabilitarSeleccionPreguntas();
         }
         limpiarVentanaCentral();
+        mostrarCartelTurno(esMiTurno, salaData);
     }
 }
 
@@ -1110,9 +1215,10 @@ async function seleccionarPregunta(pregunta) {
 // SISTEMA DE RESPUESTAS COMPLETAMENTE NUEVO
 // ===============================================
 async function mostrarPreguntaParaResponder(pregunta) {
+    ocultarCartelTurno();
     const textoPregunta = document.getElementById('textoPregunta');
     const opcionesPregunta = document.getElementById('opcionesPregunta');
-    
+
     textoPregunta.textContent = pregunta.pregunta;
     // Badge oficial en multijugador
     let oficialBadgeMulti = document.getElementById('oficialBadgeMulti');
@@ -1148,9 +1254,10 @@ setTimeout(() => {
 }
 
 function mostrarPreguntaEsperando(pregunta, salaData) {
+    ocultarCartelTurno();
     const textoPregunta = document.getElementById('textoPregunta');
     const opcionesPregunta = document.getElementById('opcionesPregunta');
-    
+
     textoPregunta.textContent = pregunta.pregunta;
     opcionesPregunta.innerHTML = '';
     
