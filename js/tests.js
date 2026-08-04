@@ -121,14 +121,25 @@ document.addEventListener('DOMContentLoaded', () => {
  // Selector de modo
     let modoTest = 'completo';
     const modeBtns = document.querySelectorAll('.mode-btn');
-    
+
     modeBtns.forEach(btn => {
         btn.addEventListener('click', function() {
+            if (this.classList.contains('no-disponible')) return;
             modeBtns.forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             modoTest = this.dataset.mode;
         });
-    });   
+    });
+
+    // Selector de origen: preguntas subidas o inventadas por la IA
+    document.querySelectorAll('.origen-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.origen-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            aplicarRestriccionesOrigen();
+        });
+    });
+    aplicarRestriccionesOrigen();
     // Verificar autenticación
     onAuthStateChanged(auth, async (user) => {
         if (user) {
@@ -3343,6 +3354,504 @@ function obtenerTemasSeleccionados() {
 
 // Empezar test
 // Empezar test
+/* ==================================================================
+   TEST CON PREGUNTAS INVENTADAS POR LA IA
+   Las preguntas se generan a partir del texto del tema digital que
+   el usuario tenga subido en cada tema marcado.
+================================================================== */
+
+const IA_MAX_PREGUNTAS = 50;
+const IA_PREGUNTAS_POR_LOTE = 5;      // debe ser <= MAX_PREGUNTAS_POR_PETICION del endpoint
+const IA_LOTES_EN_PARALELO = 3;
+const IA_TAM_FRAGMENTO = 2500;        // caracteres por fragmento de temario
+const IA_MAX_FRAGMENTOS_LOTE = 12;    // tope de contexto por lote (controla el coste)
+const IA_MAX_CARACTERES = 55000;      // margen bajo el tope del endpoint
+const CLAVE_IA_PENDIENTE = 'preguntasIAPendientes';
+
+function obtenerOrigenPreguntas() {
+    const btn = document.querySelector('.origen-btn.active');
+    return btn ? btn.dataset.origen : 'subidas';
+}
+
+// Activa o desactiva las opciones que no tienen sentido en modo IA
+function aplicarRestriccionesOrigen() {
+    const esIA = obtenerOrigenPreguntas() === 'ia';
+
+    const aviso = document.getElementById('avisoOrigenIA');
+    if (aviso) aviso.style.display = esIA ? 'block' : 'none';
+
+    // Modos: en IA solo Pregunta a Pregunta
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        const bloqueado = esIA && btn.dataset.mode !== 'pregunta';
+        btn.classList.toggle('no-disponible', bloqueado);
+        btn.disabled = bloqueado;
+        btn.title = bloqueado ? 'No disponible con preguntas IA' : '';
+    });
+
+    if (esIA) {
+        const btnPregunta = document.querySelector('.mode-btn[data-mode="pregunta"]');
+        if (btnPregunta && !btnPregunta.classList.contains('active')) {
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            btnPregunta.classList.add('active');
+        }
+    }
+
+    // Cantidades: en IA como mucho 50
+    document.querySelectorAll('.btn-cantidad').forEach(btn => {
+        const valor = btn.dataset.cantidad;
+        const bloqueado = esIA && (valor === 'todas' || parseInt(valor, 10) > IA_MAX_PREGUNTAS);
+        btn.classList.toggle('no-disponible', bloqueado);
+        btn.disabled = bloqueado;
+        btn.title = bloqueado ? `Con preguntas IA el máximo son ${IA_MAX_PREGUNTAS}` : '';
+
+        // Si estaba elegida una cantidad ya no válida, bajamos a 50
+        if (bloqueado && btn.classList.contains('active')) {
+            btn.classList.remove('active');
+            const alternativa = document.querySelector('.btn-cantidad[data-cantidad="50"]');
+            if (alternativa) {
+                alternativa.classList.add('active');
+                const campo = document.getElementById('preguntasSeleccionadas');
+                if (campo) campo.value = '50';
+            }
+        }
+    });
+
+    // Filtros: no aplican a preguntas que aún no existen
+    const grupoFiltros = document.getElementById('grupoFiltrosPreguntas');
+    if (grupoFiltros) grupoFiltros.classList.toggle('filtro-no-disponible', esIA);
+
+    ['soloPreguntasNuevas', 'soloPreguntasFalladas', 'soloPreguntasOficiales'].forEach(id => {
+        const casilla = document.getElementById(id);
+        if (!casilla) return;
+        casilla.disabled = esIA;
+        if (esIA) casilla.checked = false;
+    });
+}
+window.aplicarRestriccionesOrigen = aplicarRestriccionesOrigen;
+
+/* ------------------------------------------------------------------
+   Muestreo del temario
+   No se manda el documento entero: se trocea por párrafos y se eligen
+   fragmentos al azar. Sale mucho más barato y además da variedad
+   entre un test y el siguiente.
+------------------------------------------------------------------ */
+function trocearTemario(texto) {
+    const limpio = String(texto || '').replace(/\r/g, '').trim();
+    if (!limpio) return [];
+
+    const parrafos = limpio.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 40);
+    const origen = parrafos.length > 0 ? parrafos : [limpio];
+
+    const trozos = [];
+    let acumulado = '';
+
+    origen.forEach(parrafo => {
+        if ((acumulado + '\n\n' + parrafo).length > IA_TAM_FRAGMENTO && acumulado) {
+            trozos.push(acumulado.trim());
+            acumulado = parrafo;
+        } else {
+            acumulado = acumulado ? `${acumulado}\n\n${parrafo}` : parrafo;
+        }
+    });
+    if (acumulado.trim()) trozos.push(acumulado.trim());
+
+    return trozos;
+}
+
+function elegirFragmentos(trozos, cuantos) {
+    if (trozos.length <= cuantos) return trozos.slice();
+
+    const indices = trozos.map((_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    // Se devuelven en orden del documento para que Claude siga el hilo
+    return indices.slice(0, cuantos).sort((a, b) => a - b).map(i => trozos[i]);
+}
+
+function prepararTextoParaLote(trozos, numPreguntas) {
+    // Dos fragmentos por pregunta: suficiente para que elija y no dispara
+    // el coste. Con tope, porque quien paga la entrada eres tú.
+    const cuantos = Math.min(Math.max(4, numPreguntas * 2), IA_MAX_FRAGMENTOS_LOTE);
+    const elegidos = elegirFragmentos(trozos, cuantos);
+    let texto = elegidos.join('\n\n---\n\n');
+    if (texto.length > IA_MAX_CARACTERES) texto = texto.slice(0, IA_MAX_CARACTERES);
+    return texto;
+}
+
+// Reparte N preguntas entre M temas lo más equitativamente posible
+function repartirPreguntas(total, numTemas) {
+    const base = Math.floor(total / numTemas);
+    const resto = total % numTemas;
+    return Array.from({ length: numTemas }, (_, i) => base + (i < resto ? 1 : 0));
+}
+
+function trocearEnLotes(cantidad, tam) {
+    const lotes = [];
+    let restante = cantidad;
+    while (restante > 0) {
+        lotes.push(Math.min(tam, restante));
+        restante -= tam;
+    }
+    return lotes;
+}
+
+function pintarProgresoIA(hechas, totales, mensaje) {
+    let caja = document.getElementById('progresoTestIA');
+    if (!caja) {
+        caja = document.createElement('div');
+        caja.id = 'progresoTestIA';
+        caja.className = 'generando-ia';
+        const boton = document.getElementById('empezarTestBtn');
+        if (boton && boton.parentNode) boton.parentNode.insertBefore(caja, boton);
+        else return;
+    }
+    const porcentaje = totales > 0 ? Math.round((hechas / totales) * 100) : 0;
+    caja.innerHTML = `
+        <div>✨ ${mensaje}</div>
+        <div class="barra"><span style="width:${porcentaje}%"></span></div>
+    `;
+}
+
+function quitarProgresoIA() {
+    const caja = document.getElementById('progresoTestIA');
+    if (caja) caja.remove();
+}
+
+async function pedirLoteIA(texto, cantidad, nombreTema) {
+    const respuesta = await fetch('/api/generar-preguntas-ia', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ texto, cantidad, nombreTema })
+    });
+
+    const datos = await respuesta.json().catch(() => ({}));
+
+    if (!respuesta.ok) {
+        const error = new Error(datos.error || `El servidor devolvió ${respuesta.status}`);
+        error.enlace = datos.enlace;
+        throw error;
+    }
+
+    if (Array.isArray(datos.avisos) && datos.avisos.length > 0) {
+        console.warn('[IA] Avisos al generar preguntas:', datos.avisos);
+    }
+    if (datos.cuenta) console.log('[IA] Cuenta usada:', datos.cuenta);
+
+    return datos.preguntas || [];
+}
+
+/* ------------------------------------------------------------------
+   Flujo completo del test IA
+------------------------------------------------------------------ */
+async function empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionado, nombreTest) {
+    const botonEmpezar = document.getElementById('empezarTestBtn');
+
+    if (temasSeleccionados === 'todos') {
+        alert('Para un test con preguntas IA elige los temas concretos, no "todos".');
+        return;
+    }
+
+    const cantidadTotal = Math.min(parseInt(numPreguntas, 10) || 15, IA_MAX_PREGUNTAS);
+
+    try {
+        if (botonEmpezar) botonEmpezar.disabled = true;
+        pintarProgresoIA(0, 1, 'Comprobando los temas digitales…');
+
+        // 1. Qué temas tienen documento y cuáles no
+        const documentos = await Promise.all(
+            temasSeleccionados.map(id => getDoc(doc(db, 'temas', id)))
+        );
+
+        const conDocumento = [];
+        const sinDocumento = [];
+
+        documentos.forEach((snap, i) => {
+            const id = temasSeleccionados[i];
+            if (!snap.exists()) { sinDocumento.push({ id, nombre: 'Tema desconocido' }); return; }
+
+            const datos = snap.data();
+            const texto = datos.documentoDigital && datos.documentoDigital.textoExtraido;
+
+            if (texto && texto.trim().length > 200) {
+                conDocumento.push({
+                    id,
+                    nombre: datos.nombre || 'Tema',
+                    temaPadreId: datos.temaPadreId || null,
+                    trozos: trocearTemario(texto)
+                });
+            } else {
+                sinDocumento.push({ id, nombre: datos.nombre || 'Tema' });
+            }
+        });
+
+        // 2. Avisar de los que no se pueden usar
+        if (sinDocumento.length > 0) {
+            const listado = sinDocumento.map(t => `• ${t.nombre}`).join('\n');
+
+            if (conDocumento.length === 0) {
+                quitarProgresoIA();
+                alert(`No se puede hacer un test con IA: ninguno de los temas elegidos tiene tema digital subido.\n\n${listado}\n\nSube el documento desde el Banco de Preguntas → Acciones → Tema Digital.`);
+                return;
+            }
+
+            const seguir = confirm(
+                `Estos temas no tienen tema digital subido y se quedarán fuera:\n\n${listado}\n\n` +
+                `¿Genero el test solo con los ${conDocumento.length} tema(s) que sí lo tienen?`
+            );
+            if (!seguir) { quitarProgresoIA(); return; }
+        }
+
+        // 3. Repartir las preguntas y montar los lotes
+        const reparto = repartirPreguntas(cantidadTotal, conDocumento.length);
+        const trabajos = [];
+
+        conDocumento.forEach((tema, i) => {
+            trocearEnLotes(reparto[i], IA_PREGUNTAS_POR_LOTE).forEach(cantidad => {
+                trabajos.push({ tema, cantidad });
+            });
+        });
+
+        if (trabajos.length === 0) {
+            quitarProgresoIA();
+            alert('No hay nada que generar.');
+            return;
+        }
+
+        // 4. Lanzar los lotes en tandas
+        const preguntasPorTema = new Map();
+        let hechos = 0;
+        pintarProgresoIA(0, trabajos.length, `Generando ${cantidadTotal} preguntas con IA… (0 de ${trabajos.length} lotes)`);
+
+        for (let i = 0; i < trabajos.length; i += IA_LOTES_EN_PARALELO) {
+            const tanda = trabajos.slice(i, i + IA_LOTES_EN_PARALELO);
+
+            const resultados = await Promise.allSettled(tanda.map(async trabajo => {
+                const texto = prepararTextoParaLote(trabajo.tema.trozos, trabajo.cantidad);
+                const preguntas = await pedirLoteIA(texto, trabajo.cantidad, trabajo.tema.nombre);
+                return { trabajo, preguntas };
+            }));
+
+            resultados.forEach(resultado => {
+                hechos++;
+                if (resultado.status !== 'fulfilled') {
+                    console.error('[IA] Lote fallido:', resultado.reason);
+                    return;
+                }
+                const { trabajo, preguntas } = resultado.value;
+                const acumuladas = preguntasPorTema.get(trabajo.tema.id) || [];
+                preguntasPorTema.set(trabajo.tema.id, acumuladas.concat(preguntas));
+            });
+
+            pintarProgresoIA(hechos, trabajos.length,
+                `Generando ${cantidadTotal} preguntas con IA… (${hechos} de ${trabajos.length} lotes)`);
+        }
+
+        // 5. Montar las preguntas con los datos de tema que espera la plataforma
+        const preguntasFinales = [];
+        const guardadoPendiente = [];
+
+        conDocumento.forEach(tema => {
+            const generadas = preguntasPorTema.get(tema.id) || [];
+            if (generadas.length === 0) return;
+
+            const conTema = generadas.map(p => ({
+                ...p,
+                temaId: tema.id,
+                temaIdProgreso: tema.temaPadreId || tema.id,
+                temaNombre: tema.nombre,
+                temaPadreId: tema.temaPadreId || null,
+                temaPadreNombre: null,
+                temaEpigrafe: ''
+            }));
+
+            preguntasFinales.push(...conTema);
+            guardadoPendiente.push({
+                temaId: tema.id,
+                temaNombre: tema.nombre,
+                preguntas: generadas
+            });
+        });
+
+        quitarProgresoIA();
+
+        if (preguntasFinales.length === 0) {
+            alert('La IA no ha devuelto ninguna pregunta. Revisa la consola e inténtalo de nuevo.');
+            return;
+        }
+
+        if (preguntasFinales.length < cantidadTotal) {
+            alert(`Se han podido generar ${preguntasFinales.length} preguntas de las ${cantidadTotal} pedidas. El test empezará con las que hay.`);
+        }
+
+        const mezcladas = mezclarArray(preguntasFinales);
+
+        // 6. Dejar constancia para poder guardarlas al terminar
+        localStorage.setItem(CLAVE_IA_PENDIENTE, JSON.stringify({
+            nombreTest,
+            fecha: new Date().toISOString(),
+            temas: guardadoPendiente
+        }));
+
+        localStorage.setItem('testConfig', JSON.stringify({
+            nombreTest,
+            temas: conDocumento.map(t => t.id),
+            preguntas: mezcladas,
+            numPreguntas: mezcladas.length,
+            tiempoLimite: tiempoSeleccionado,
+            origen: 'ia'
+        }));
+
+        window.location.href = 'tests-pregunta.html';
+
+    } catch (error) {
+        console.error('Error generando el test con IA:', error);
+        quitarProgresoIA();
+        const extra = error.enlace ? `\n\nRecarga saldo aquí: ${error.enlace}` : '';
+        alert(`No se ha podido generar el test con IA.\n\n${error.message}${extra}`);
+    } finally {
+        if (botonEmpezar) botonEmpezar.disabled = false;
+    }
+}
+
+/* ------------------------------------------------------------------
+   Guardar las preguntas IA al terminar el test
+   Se crea (o se reutiliza) un subtema "Preguntas IA <tema padre>"
+   colgando de cada tema que se usó en el test.
+------------------------------------------------------------------ */
+function leerPreguntasIAPendientes() {
+    try {
+        const crudo = localStorage.getItem(CLAVE_IA_PENDIENTE);
+        if (!crudo) return null;
+        const datos = JSON.parse(crudo);
+        if (!datos || !Array.isArray(datos.temas) || datos.temas.length === 0) return null;
+        return datos;
+    } catch (error) {
+        console.error('No se pudieron leer las preguntas IA pendientes:', error);
+        return null;
+    }
+}
+
+function mostrarBannerPreguntasIA() {
+    const anterior = document.getElementById('bannerPreguntasIA');
+    if (anterior) anterior.remove();
+
+    const pendientes = leerPreguntasIAPendientes();
+    if (!pendientes) return;
+
+    const lista = document.getElementById('listaResultados');
+    if (!lista || !lista.parentNode) return;
+
+    const total = pendientes.temas.reduce((suma, t) => suma + t.preguntas.length, 0);
+    const nombres = pendientes.temas.map(t => `Preguntas IA ${t.temaNombre}`).join(', ');
+
+    const banner = document.createElement('div');
+    banner.id = 'bannerPreguntasIA';
+    banner.className = 'guardar-ia-banner';
+    banner.innerHTML = `
+        <div class="texto">
+            <strong>✨ ${total} preguntas generadas por IA sin guardar</strong>
+            Se guardarán en: ${nombres}
+        </div>
+        <button class="btn-guardar-ia" onclick="guardarPreguntasIA()">💾 Guardar preguntas</button>
+        <button class="btn-descartar-ia" onclick="descartarPreguntasIA()">Descartar</button>
+    `;
+
+    lista.parentNode.insertBefore(banner, lista);
+}
+
+// Busca el subtema "Preguntas IA X" bajo un tema; si no existe, lo crea
+async function obtenerOCrearSubtemaIA(temaId, nombreTemaPadre) {
+    const nombreSubtema = `Preguntas IA ${nombreTemaPadre}`;
+
+    const consulta = query(
+        collection(db, 'temas'),
+        where('usuarioId', '==', currentUser.uid),
+        where('temaPadreId', '==', temaId)
+    );
+    const encontrados = await getDocs(consulta);
+
+    let existente = null;
+    encontrados.forEach(d => {
+        if (d.data().nombre === nombreSubtema) existente = d.id;
+    });
+    if (existente) return { id: existente, creado: false, nombre: nombreSubtema };
+
+    const nuevo = await addDoc(collection(db, 'temas'), {
+        nombre: nombreSubtema,
+        descripcion: 'Preguntas inventadas por la IA a partir del tema digital',
+        fechaCreacion: new Date(),
+        usuarioId: currentUser.uid,
+        preguntas: [],
+        esSubtema: true,
+        temaPadreId: temaId
+    });
+
+    return { id: nuevo.id, creado: true, nombre: nombreSubtema };
+}
+
+window.guardarPreguntasIA = async function() {
+    const pendientes = leerPreguntasIAPendientes();
+    if (!pendientes) return;
+
+    const banner = document.getElementById('bannerPreguntasIA');
+    const boton = banner ? banner.querySelector('.btn-guardar-ia') : null;
+    if (boton) { boton.disabled = true; boton.textContent = 'Guardando…'; }
+
+    try {
+        const resumen = [];
+
+        for (const tema of pendientes.temas) {
+            if (!tema.preguntas || tema.preguntas.length === 0) continue;
+
+            const subtema = await obtenerOCrearSubtemaIA(tema.temaId, tema.temaNombre);
+            const snap = await getDoc(doc(db, 'temas', subtema.id));
+            const existentes = snap.exists() ? (snap.data().preguntas || []) : [];
+
+            const nuevas = tema.preguntas.map(p => ({
+                texto: p.texto,
+                opciones: p.opciones,
+                respuestaCorrecta: p.respuestaCorrecta,
+                verificada: false,
+                esOficial: false,
+                esIA: true,
+                fechaCreacion: new Date()
+            }));
+
+            await updateDoc(doc(db, 'temas', subtema.id), {
+                preguntas: [...existentes, ...nuevas],
+                ultimaActualizacion: new Date()
+            });
+
+            resumen.push(`${nuevas.length} en "${subtema.nombre}"${subtema.creado ? ' (creada)' : ''}`);
+        }
+
+        localStorage.removeItem(CLAVE_IA_PENDIENTE);
+        if (banner) banner.remove();
+
+        // Invalidar caché para que el banco muestre las subcarpetas nuevas
+        cacheTemas = null;
+        cacheTimestamp = null;
+        sessionStorage.removeItem('cacheTemas');
+        sessionStorage.removeItem('cacheTemasTimestamp');
+
+        alert(`✅ Preguntas guardadas:\n\n${resumen.join('\n')}`);
+
+    } catch (error) {
+        console.error('Error guardando las preguntas IA:', error);
+        alert(`No se han podido guardar las preguntas: ${error.message}`);
+        if (boton) { boton.disabled = false; boton.textContent = '💾 Guardar preguntas'; }
+    }
+};
+
+window.descartarPreguntasIA = function() {
+    if (!confirm('¿Descartar las preguntas generadas? No se podrán recuperar.')) return;
+    localStorage.removeItem(CLAVE_IA_PENDIENTE);
+    const banner = document.getElementById('bannerPreguntasIA');
+    if (banner) banner.remove();
+};
+
 async function empezarTest() {
     console.log('=== DEBUG EMPEZAR TEST ===');
     
@@ -3380,8 +3889,15 @@ async function empezarTest() {
         temas: temasSeleccionados,
         numPreguntas,
         tiempo: tiempoSeleccionado,
-        nombreTest
+        nombreTest,
+        origen: obtenerOrigenPreguntas()
     });
+
+    // Desvío: las preguntas las inventa la IA a partir de los temas digitales
+    if (obtenerOrigenPreguntas() === 'ia') {
+        await empezarTestIA(temasSeleccionados, numPreguntas, tiempoSeleccionado, nombreTest);
+        return;
+    }
 
     try {
         // Obtener preguntas verificadas
@@ -4771,6 +5287,9 @@ async function cargarResultados() {
             cargandoResultados = false;
             return;
         }
+
+        // Si el último test fue con IA, ofrecer guardar las preguntas generadas
+        mostrarBannerPreguntasIA();
         
         let querySnapshot;
         
@@ -9527,7 +10046,7 @@ function ocultarAvisosWord() {
 const CLAVE_ULTIMOS_PARAMETROS = 'ultimosParametrosTest';
 
 const NOMBRES_MODO = {
-    completo: 'Test Completo',
+    completo: 'Modelo oficial',
     pregunta: 'Pregunta a Pregunta',
     oral: 'Test Oral'
 };
@@ -9609,10 +10128,11 @@ window.mostrarTarjetaUltimosParametros = function() {
     }
 
     const partes = [
+        p.origen === 'ia' ? '✨ Preguntas IA' : null,
         NOMBRES_MODO[p.modo] || p.modo,
         p.numPreguntas === 'todas' ? 'todas las preguntas' : `${p.numPreguntas} preguntas`,
         p.tiempo === 'sin' ? 'sin tiempo' : `${p.tiempo} min`
-    ];
+    ].filter(Boolean);
 
     const filtrosActivos = [];
     if (p.filtros?.nuevas) filtrosActivos.push('🆕 solo nuevas');
@@ -9636,9 +10156,13 @@ window.aplicarUltimosParametros = function() {
     // pise lo que acabamos de aplicar
     window._ultimosParametrosAplicados = Date.now();
 
+    // 0. Origen de las preguntas (antes que el modo: condiciona qué está disponible)
+    const btnOrigen = document.querySelector(`.origen-btn[data-origen="${p.origen || 'subidas'}"]`);
+    if (btnOrigen) btnOrigen.click();
+
     // 1. Modo
     const btnModo = document.querySelector(`.mode-btn[data-mode="${p.modo}"]`);
-    if (btnModo) btnModo.click();
+    if (btnModo && !btnModo.classList.contains('no-disponible')) btnModo.click();
 
     // 2. Temas
     const todos = document.getElementById('todosLosTemas');
