@@ -6,6 +6,11 @@ import {
     onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { montarSelectorAvatar } from './avatar-selector.js';
+
+// Selector de avatar del formulario de registro
+const contenedorAvatar = document.getElementById('contenedorAvatarRegistro');
+const selectorAvatar = contenedorAvatar ? montarSelectorAvatar(contenedorAvatar) : null;
 
 // Elementos del DOM
 const loginSection = document.getElementById('loginSection');
@@ -127,6 +132,8 @@ registerForm.addEventListener('submit', async (e) => {
             nombre: name,
             email: email,
             fechaRegistro: new Date(),
+            // El avatar es el que hará de asistente dentro de la plataforma
+            avatar: selectorAvatar ? selectorAvatar.obtener() : null,
             progreso: {
                 testsRealizados: 0,
                 puntuacionTotal: 0,

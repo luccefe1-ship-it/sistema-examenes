@@ -18,6 +18,7 @@ import {
     where, 
     writeBatch 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { montarSelectorAvatar } from './avatar-selector.js';
 
 // Variables globales
 let currentUser = null;
@@ -64,10 +65,47 @@ onAuthStateChanged(auth, async (user) => {
         await cargarDatosUsuario();
         setupEventListeners();
         cargarConsumoIA();
+        prepararAvatar();
     } else {
         window.location.href = 'index.html';
     }
 });
+
+/* ==================================================================
+   AVATAR
+   El mismo selector que en el registro, para no tener dos versiones.
+================================================================== */
+let selectorAvatarPerfil = null;
+
+function prepararAvatar() {
+    const contenedor = document.getElementById('contenedorAvatarPerfil');
+    const boton = document.getElementById('guardarAvatarBtn');
+    if (!contenedor || !boton) return;
+
+    // userData ya está cargado por cargarDatosUsuario()
+    selectorAvatarPerfil = montarSelectorAvatar(contenedor, userData && userData.avatar);
+
+    boton.addEventListener('click', async () => {
+        boton.disabled = true;
+        const textoOriginal = boton.textContent;
+        boton.textContent = 'Guardando…';
+
+        try {
+            await setDoc(doc(db, 'usuarios', currentUser.uid),
+                { avatar: selectorAvatarPerfil.obtener() },
+                { merge: true });
+
+            boton.textContent = '✅ Guardado';
+            setTimeout(() => { boton.textContent = textoOriginal; boton.disabled = false; }, 1800);
+
+        } catch (error) {
+            console.error('Error guardando el avatar:', error);
+            alert('No se ha podido guardar el avatar.');
+            boton.textContent = textoOriginal;
+            boton.disabled = false;
+        }
+    });
+}
 
 /* ==================================================================
    CONSUMO DE IA

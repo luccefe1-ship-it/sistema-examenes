@@ -8,6 +8,7 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { dibujarAvatar, sanearAvatar } from './avatar.js';
 
 const DOLARES_A_EUROS = 0.92;
 
@@ -18,9 +19,10 @@ const NOMBRES_FUNCION = {
     'asistente': 'Asistente'
 };
 
-const SALUDO = 'Hola. Soy el asistente de la plataforma. Pregúntame lo que quieras sobre cómo funciona: los tests, los temas digitales, el repaso, el multijugador… lo que necesites.';
+const SALUDO = 'Hola. Soy tu asistente en la plataforma. Pregúntame lo que quieras sobre cómo funciona: los tests, los temas digitales, el repaso, el multijugador… lo que necesites.';
 
 let usuarioActual = null;
+let avatarUsuario = null;
 let conversacion = [];      // historial que se manda al servidor
 let esperando = false;
 
@@ -223,12 +225,46 @@ function prepararConsumo() {
 // ------------------------------------------------------------
 //  Arranque
 // ------------------------------------------------------------
+/* El asistente lleva la cara que el usuario eligió al registrarse.
+   Si es una cuenta antigua sin avatar, se queda el búho. */
+async function ponerAvatarDeAsistente() {
+    try {
+        const perfil = await getDoc(doc(db, 'usuarios', usuarioActual.uid));
+        if (!perfil.exists() || !perfil.data().avatar) return;
+
+        avatarUsuario = sanearAvatar(perfil.data().avatar);
+        const svg = dibujarAvatar(avatarUsuario);
+
+        const enBurbuja = document.querySelector('#btnAsistente .burbuja-emoji');
+        if (enBurbuja) {
+            enBurbuja.classList.remove('burbuja-emoji');
+            enBurbuja.classList.add('burbuja-avatar');
+            enBurbuja.innerHTML = svg;
+        }
+
+        const enPanel = document.querySelector('#panelAsistente .panel-avatar');
+        if (enPanel) {
+            enPanel.classList.remove('panel-avatar');
+            enPanel.classList.add('panel-avatar-img');
+            enPanel.innerHTML = svg;
+        }
+
+        const nombre = perfil.data().nombre;
+        const rotulo = document.querySelector('#panelAsistente .panel-titulo strong');
+        if (rotulo && nombre) rotulo.textContent = `Asistente de ${String(nombre).split(' ')[0]}`;
+
+    } catch (error) {
+        console.error('No se pudo cargar el avatar:', error);
+    }
+}
+
 onAuthStateChanged(auth, (user) => {
     if (!user) return;
     usuarioActual = user;
 
     prepararChat();
     prepararConsumo();
+    ponerAvatarDeAsistente();
 
     // El total en la burbuja, sin necesidad de abrir el panel
     cargarConsumo().catch(() => {});
