@@ -15,6 +15,20 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { buscarContextoEnDocumento } from './tema-digital.js';
 
+/* Cabeceras para llamar a los endpoints propios.
+   El servidor comprueba el ID token de Firebase: sin él, cualquiera
+   que descubriese la URL podría gastar el saldo de la API. */
+async function cabecerasApi() {
+    const cabeceras = { 'Content-Type': 'application/json' };
+    try {
+        const usuario = auth.currentUser;
+        if (usuario) cabeceras.Authorization = `Bearer ${await usuario.getIdToken()}`;
+    } catch (error) {
+        console.error('No se pudo obtener el token de sesión:', error);
+    }
+    return cabeceras;
+}
+
 let currentUser = null;
 let testConfig = null;
 let preguntaActual = 0;
@@ -1850,7 +1864,7 @@ window.generarExplicacionIA = async function() {
         // la clave de la API nunca llega al navegador.
         const response = await fetch('/api/explicacion', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await cabecerasApi(),
             body: JSON.stringify({
                 modo: 'test',
                 texto: preguntaTexto,

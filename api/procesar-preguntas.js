@@ -14,6 +14,7 @@ const PREGUNTAS_POR_LOTE = 8;        // troceado para no agotar el tiempo
 const MAX_TOKENS = 16000;
 
 const { peticionValida, obtenerCuentas, llamarClaude } = require('./_claude');
+const { usuarioConCupo } = require('./_auth');
 
 // ------------------------------------------------------------
 //  Instrucciones para Claude (equivalente al antiguo prompt de
@@ -236,6 +237,9 @@ function aFormatoPlataforma(preguntasClaude, numeroInicial) {
 // ------------------------------------------------------------
 module.exports = async function handler(req, res) {
     if (!peticionValida(req, res)) return;
+
+    const usuario = await usuarioConCupo(req, res);
+    if (!usuario) return;
 
     const cuentas = obtenerCuentas();
     if (cuentas.length === 0) {

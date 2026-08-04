@@ -9,6 +9,7 @@
 // ============================================================
 
 const { peticionValida, obtenerCuentas, llamarClaude, textoDeRespuesta } = require('./_claude');
+const { usuarioConCupo } = require('./_auth');
 
 const MODELO = 'claude-opus-4-8';
 const MAX_TOKENS = 1000;
@@ -61,6 +62,9 @@ ${REGLAS}`;
 // ------------------------------------------------------------
 module.exports = async function handler(req, res) {
     if (!peticionValida(req, res)) return;
+
+    const usuario = await usuarioConCupo(req, res);
+    if (!usuario) return;
 
     const cuentas = obtenerCuentas();
     if (cuentas.length === 0) {

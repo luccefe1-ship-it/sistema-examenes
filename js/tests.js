@@ -3434,6 +3434,21 @@ function obtenerTemasSeleccionados() {
    el usuario tenga subido en cada tema marcado.
 ================================================================== */
 
+/* Cabeceras para llamar a los endpoints propios.
+   El servidor comprueba el ID token de Firebase: sin él, cualquiera
+   que descubriese la URL podría gastar el saldo de la API. */
+async function cabecerasApi() {
+    const cabeceras = { 'Content-Type': 'application/json' };
+    try {
+        const usuario = auth.currentUser;
+        if (usuario) cabeceras.Authorization = `Bearer ${await usuario.getIdToken()}`;
+    } catch (error) {
+        console.error('No se pudo obtener el token de sesión:', error);
+    }
+    return cabeceras;
+}
+window.cabecerasApi = cabecerasApi;
+
 const IA_MAX_PREGUNTAS = 50;
 const IA_PREGUNTAS_POR_LOTE = 5;      // debe ser <= MAX_PREGUNTAS_POR_PETICION del endpoint
 const IA_LOTES_EN_PARALELO = 3;
@@ -3596,7 +3611,7 @@ function quitarProgresoIA() {
 async function pedirLoteIA(texto, cantidad, nombreTema) {
     const respuesta = await fetch('/api/generar-preguntas-ia', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: await cabecerasApi(),
         body: JSON.stringify({ texto, cantidad, nombreTema })
     });
 
@@ -8829,7 +8844,7 @@ window.generarExplicacionIAModal = async function() {
         // la clave de la API nunca llega al navegador.
         const response = await fetch('/api/explicacion', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await cabecerasApi(),
             body: JSON.stringify({
                 modo: 'banco',
                 texto: pregunta.texto,
@@ -10110,7 +10125,7 @@ function extraerTextoDeWord(archivo) {
 async function pedirLoteAClaude(texto, lote) {
     const respuesta = await fetch(ENDPOINT_CLAUDE, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await cabecerasApi(),
         body: JSON.stringify({ texto, lote })
     });
 

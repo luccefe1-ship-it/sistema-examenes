@@ -19,6 +19,7 @@ const MAX_CARACTERES = 60000;
 const MAX_PREGUNTAS_POR_PETICION = 10;
 
 const { peticionValida, obtenerCuentas, llamarClaude } = require('./_claude');
+const { usuarioConCupo } = require('./_auth');
 
 const SYSTEM_PROMPT = `Eres un redactor de preguntas tipo test para oposiciones españolas de la Administración de Justicia (Tramitación y Gestión Procesal y Administrativa).
 
@@ -129,6 +130,11 @@ function aFormatoPlataforma(preguntasClaude, nombreTema) {
 
 module.exports = async (req, res) => {
     if (!peticionValida(req, res)) return;
+
+    // Este endpoint recibe texto del navegador, así que sin sesión válida
+    // sería una pasarela gratuita a Claude a costa de nuestro saldo
+    const usuario = await usuarioConCupo(req, res);
+    if (!usuario) return;
 
     try {
         const { texto, cantidad, nombreTema } = req.body || {};
