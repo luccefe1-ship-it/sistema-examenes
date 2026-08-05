@@ -210,6 +210,70 @@ function quitarEscribiendo() {
     $('chatEscribiendo')?.remove();
 }
 
+/* ------------------------------------------------------------------
+   Inventario de lo que hay en pantalla
+
+   El asistente llegó a negar la existencia de un botón que estaba a la
+   vista, porque su conocimiento era un texto escrito a mano en el
+   servidor. Con esto sabe qué tiene delante el usuario sin que haya
+   que documentar cada botón nuevo.
+
+   Solo se recogen ETIQUETAS VISIBLES de elementos de interacción y
+   títulos de sección. Nada de contenido: ni preguntas, ni temario, ni
+   datos personales. El servidor vuelve a sanearlo y a acotarlo por su
+   cuenta en api/_interfaz.js; esto de aquí es solo la primera criba.
+------------------------------------------------------------------ */
+
+const MAX_ELEMENTOS_INTERFAZ = 60;
+
+// Lo que se lee: botones, pestañas, enlaces de navegación y encabezados
+const SELECTOR_INTERFAZ = [
+    'button', '[role="button"]', '.btn', '.tab-btn', '.sub-nav-btn',
+    'nav a', 'h1', 'h2', 'h3', 'label', 'summary'
+].join(',');
+
+// El propio chat no cuenta: no tiene sentido que se describa a sí mismo
+const SELECTOR_EXCLUIDO = '#asistenteWidget, .asistente-widget, .chat-mensajes';
+
+function estaVisible(el) {
+    if (!el || el.hidden) return false;
+    if (el.closest(SELECTOR_EXCLUIDO)) return false;
+    // offsetParent es null si el elemento o algún padre está oculto
+    if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return false;
+    const caja = el.getBoundingClientRect();
+    return caja.width > 0 && caja.height > 0;
+}
+
+function leerInterfaz() {
+    try {
+        const etiquetas = [];
+        const vistos = new Set();
+
+        document.querySelectorAll(SELECTOR_INTERFAZ).forEach(el => {
+            if (etiquetas.length >= MAX_ELEMENTOS_INTERFAZ) return;
+            if (!estaVisible(el)) return;
+
+            const texto = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            if (texto.length < 2 || texto.length > 60) return;
+
+            const clave = texto.toLowerCase();
+            if (vistos.has(clave)) return;
+
+            vistos.add(clave);
+            etiquetas.push(texto);
+        });
+
+        return {
+            pagina: (document.title || location.pathname).replace(/\s+/g, ' ').trim().slice(0, 60),
+            elementos: etiquetas
+        };
+    } catch (e) {
+        // Si esto falla, el asistente sigue funcionando con solo el manual
+        console.warn('No se pudo leer la interfaz para el asistente:', e);
+        return null;
+    }
+}
+
 async function preguntar(texto) {
     const pregunta = texto.trim();
     if (!pregunta || esperando) return;
@@ -226,7 +290,7 @@ async function preguntar(texto) {
         const respuesta = await fetch('/api/asistente', {
             method: 'POST',
             headers: await cabecerasApi(),
-            body: JSON.stringify({ mensajes: conversacion })
+            body: JSON.stringify({ mensajes: conversacion, interfaz: leerInterfaz() })
         });
 
         const datos = await respuesta.json().catch(() => ({}));

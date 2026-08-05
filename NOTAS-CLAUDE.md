@@ -51,9 +51,11 @@ Módulos internos (Vercel ignora los que empiezan por `_`): `_claude.js`, `_auth
 ## Decisiones importantes y por qué
 
 **El prompt del sistema se arma siempre en el servidor.** Si el navegador pudiera
-mandar texto libre, el endpoint sería una pasarela gratuita a Claude. La única
-excepción es `generar-preguntas-ia`, que recibe fragmentos del temario; por eso
-lleva topes de 60.000 caracteres y 10 preguntas por petición.
+mandar texto libre, el endpoint sería una pasarela gratuita a Claude. Dos
+excepciones acotadas: `generar-preguntas-ia`, que recibe fragmentos del temario
+y lleva topes de 60.000 caracteres y 10 preguntas por petición; y `asistente`,
+que recibe el inventario de la pantalla saneado por `_interfaz.js` (solo
+etiquetas cortas, ver la sección del asistente).
 
 **El avatar del rival viaja dentro del documento de la sala.** Las reglas de
 Firestore impiden leer el perfil de otro usuario, así que no hay forma de mirar su
@@ -166,6 +168,31 @@ Peor caso con 3 temas: 9 llamadas extra. Si aun así falta, se avisa con un
 `alert` breve antes de empezar y el test arranca con las que haya. Si sobran
 (por pedir de más) se recorta al número pedido, pero el sobrante se guarda
 igualmente en el banco al terminar: ya está pagado.
+
+---
+
+## Asistente: dónde se documenta la plataforma
+
+**Si añades una función a la web, descríbela en `api/_manual.js`.** Es el único
+sitio. `api/asistente.js` ya no lleva el texto dentro; lo monta a partir de ahí.
+
+Es un `.js` y no un `.md` porque Vercel solo empaqueta en la función los
+archivos que alguien hace `require`: un `.md` suelto podría no llegar al
+servidor y el asistente se quedaría sin manual.
+
+**Además el asistente ve lo que hay en pantalla.** El widget recoge las
+etiquetas visibles de botones, pestañas y encabezados de la página y las manda
+con la pregunta. Así reconoce un botón nuevo aunque nadie lo haya documentado
+todavía; antes negaba que existiera (pasó con "Recargar banco").
+
+Esto es la única parte del prompt que viene del navegador, así que está muy
+acotada en `api/_interfaz.js`: solo etiquetas, 60 como mucho, 60 caracteres
+cada una, 1.500 en total, sin saltos de línea ni `<` ni `>`, y en un bloque
+marcado como datos no fiables. En ese hueco no caben instrucciones útiles para
+secuestrar el modelo. Hay pruebas de intento de fuga en
+`pruebas/interfaz.prueba.mjs`.
+
+Cuesta unos 150 tokens de entrada por mensaje, del orden de 0,001 $.
 
 ---
 

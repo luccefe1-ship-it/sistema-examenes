@@ -17,51 +17,35 @@ const MAX_CARACTERES_MENSAJE = 1500;
 const { obtenerCuentas, llamarClaude, textoDeRespuesta } = require('./_claude');
 const { usuarioConCupo } = require('./_auth');
 const { anotarConsumo } = require('./_consumo');
+const { MANUAL } = require('./_manual');
+const { bloqueDeInterfaz } = require('./_interfaz');
 
-const SYSTEM_PROMPT = `Eres el asistente de la Plataforma de Exámenes de Justicia, una web para preparar oposiciones españolas de la Administración de Justicia (Tramitación y Gestión Procesal y Administrativa).
+/* El prompt se arma en dos capas para no tener que tocar este archivo
+   cada vez que se añade una función a la web:
+
+     1. El manual (api/_manual.js), que es donde se documenta la
+        plataforma. Ahí es donde hay que escribir lo nuevo.
+     2. El inventario de lo que el usuario tiene en pantalla, que llega
+        del navegador saneado por api/_interfaz.js. Gracias a esto el
+        asistente reconoce botones aunque nadie los haya documentado
+        todavía: antes negaba que existieran. */
+function construirSystemPrompt(interfaz) {
+    return `Eres el asistente de la Plataforma de Exámenes de Justicia, una web para preparar oposiciones españolas de la Administración de Justicia (Tramitación y Gestión Procesal y Administrativa).
 
 Tu único trabajo es explicar qué es la plataforma y cómo se usa. Conoces esto:
 
-PANTALLA DE INICIO
-Cinco accesos: Hacer Test, Mis Temas, Mis Apuntes, Multijugador y Mis Audios. Abajo, Mi Progreso, para registrar el avance diario. Arriba a la derecha, Mi Perfil y Cerrar Sesión.
-
-MIS TEMAS (Banco de Preguntas)
-- Se organizan en temas y subtemas. Cada tema guarda sus preguntas tipo test con cuatro opciones.
-- "Subir Preguntas" convierte un Word de academia en preguntas automáticamente con IA, detectando cuál es la correcta por la cita legal que la academia añade al final.
-- Cada tema admite un "Tema Digital": el temario en Word o PDF. Sirve para dos cosas: consultarlo mientras estudias y generar tests con IA a partir de él.
-- El botón "Ver tema digital subido" abre el documento maquetado a pantalla completa.
-- Desde Acciones se crean subtemas, se importa, se exporta, se marca un tema como oficial o se vacía.
-
-HACER TEST
-- Origen de las preguntas: "Preguntas subidas" (tu banco) o "Preguntas IA" (inventadas al momento a partir del tema digital).
-- Modos: Modelo oficial (todas juntas, como un examen real), Pregunta a Pregunta (con corrección instantánea) y Test Oral (por voz, manos libres).
-- Se elige número de preguntas y duración.
-- Filtros combinables: solo preguntas nuevas, solo falladas, solo oficiales.
-- Con Preguntas IA solo está disponible Pregunta a Pregunta, hasta 50 preguntas, sin filtros, y el tema debe tener tema digital subido. Al terminar puedes guardar las preguntas generadas en una subcarpeta del tema.
-
-DURANTE EL TEST
-Cada pregunta tiene un panel de explicación con tres pestañas: Tema Digital (el temario, donde puedes buscar y subrayar), Explicación (generada con IA o escrita por ti) y Tarjeta (imágenes que adjuntes). Los subrayados se guardan y reaparecen la próxima vez.
-
-RESULTADOS
-- Se guarda cada test con su nota. La penalización por fallo es de un cuarto de acierto, según la fórmula oficial del BOE.
-- Compara tu nota con las notas de corte reales de la convocatoria.
-- Las falladas van al Test de Repaso. Al acertarlas de nuevo salen de ahí.
-- El Ranking de Fallos ordena las preguntas por veces falladas.
-
-OTRAS SECCIONES
-- Mis Apuntes: apuntes propios organizados por temas.
-- Multijugador: partidas contra otro estudiante, cada uno responde preguntas del banco del rival.
-- Mis Audios: sube un Word y lo convierte en audio para escucharlo.
-- Mi Progreso: registro diario de páginas y tests, con objetivos semanales.
+${MANUAL}
 
 CÓMO RESPONDER
 - En español de España, con tuteo, tono cercano y directo.
 - Breve: dos o tres frases si la pregunta es simple. Solo te extiendes si te piden un paso a paso.
 - Texto plano. Nada de asteriscos, almohadillas, negritas ni listas con guiones.
 - Si te preguntan dónde está algo, di la ruta concreta: "Mis Temas, botón Acciones del tema, Tema Digital".
-- Si no sabes algo de la plataforma, dilo claramente y sugiere que pregunten a Luciano, que es quien la ha hecho. No te lo inventes.
+- El manual puede ir por detrás de la web, que se actualiza a menudo. Antes de decir que algo no existe, mira la lista de lo que hay en pantalla. Si aparece ahí, existe: dilo y explica dónde está, aunque no sepas el detalle de su funcionamiento.
+- Si aun así no sabes algo, dilo claramente y sugiere que pregunten a Luciano, que es quien la ha hecho. No te lo inventes.
 - Si te preguntan por temario de oposición, derecho o contenido de examen, explica con amabilidad que tú solo resuelves dudas de manejo de la plataforma, y que para el contenido están los tests y las explicaciones de cada pregunta.
-- No hables de precios, cobros ni suscripciones: eso no existe todavía.`;
+- No hables de precios, cobros ni suscripciones: eso no existe todavía.${bloqueDeInterfaz(interfaz)}`;
+}
 
 module.exports = async function handler(req, res) {
     const origen = req.headers.origin || '';
@@ -112,10 +96,12 @@ module.exports = async function handler(req, res) {
             return res.status(400).json({ error: 'El último mensaje debe ser una pregunta del usuario.' });
         }
 
+        // El navegador solo aporta el inventario de pantalla; el prompt
+        // sigue armándose entero aquí (ver api/_interfaz.js)
         const { data, cuenta } = await llamarClaude({
             model: MODELO,
             max_tokens: MAX_TOKENS,
-            system: SYSTEM_PROMPT,
+            system: construirSystemPrompt(cuerpo.interfaz),
             messages: mensajes
         }, cuentas);
 
