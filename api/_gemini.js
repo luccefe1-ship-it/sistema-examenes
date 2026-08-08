@@ -117,6 +117,38 @@ function motivoDeGoogle(detalle) {
     return String(detalle || '').slice(0, 200);
 }
 
+/* Saca qué cuota concreta se ha pasado y cuánto valía.
+
+   Es la diferencia entre "te has gastado tus 250 peticiones de hoy" y
+   "este modelo no tiene plan gratuito y tu límite es 0". Las dos cosas
+   llegan como el mismo 429 con el mismo texto, y solo se distinguen
+   mirando el valor de la cuota. Sin esto no hay forma de saber si hay
+   que esperar a mañana o cambiar de modelo. */
+function detalleDeCuota(detalle) {
+    try {
+        const json = JSON.parse(detalle);
+        const bloques = (json && json.error && json.error.details) || [];
+        for (const bloque of bloques) {
+            const violacion = (bloque.violations || [])[0];
+            if (violacion && violacion.quotaId) {
+                return {
+                    id: violacion.quotaId,
+                    valor: violacion.quotaValue !== undefined ? String(violacion.quotaValue) : '?'
+                };
+            }
+        }
+    } catch (e) { /* el error no venía en JSON */ }
+    return null;
+}
+
+// Formatea la cuota para enseñársela al usuario
+function textoDeCuota(cuota) {
+    if (!cuota) return '';
+    return cuota.valor === '0'
+        ? ` — este modelo NO tiene plan gratuito (tu límite es 0)`
+        : ` — límite ${cuota.valor} (${cuota.id})`;
+}
+
 // ------------------------------------------------------------
 //  Cuerpo de la petición.
 //
@@ -172,6 +204,7 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
 
     const cuerpos = montarCuerpos({ instrucciones, prompt, esquema, maxTokens });
     const fallos = [];
+    const diagnostico = [];   // qué le pasa a cada modelo, para poder enseñarlo
     let sinCupo = 0;
     let ritmo = false;
     let ultimoMotivo = '';
@@ -227,8 +260,10 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
                        bastaba con que el primer modelo no tuviera cupo
                        gratuito para que no funcionase nada. */
                     if (cupoDiarioAgotado(detalle)) {
-                        console.warn(`[gemini] Sin cupo diario en ${modelo} (${clave.nombre}), probando el siguiente modelo.`);
+                        const cuota = detalleDeCuota(detalle);
+                        console.warn(`[gemini] Sin cupo diario en ${modelo} (${clave.nombre})${textoDeCuota(cuota)}. Probando el siguiente modelo.`);
                         modelosSinCupo++;
+                        diagnostico.push(`${modelo}${textoDeCuota(cuota) || ': sin cupo'}`);
                         ultimoMotivo = motivoDeGoogle(detalle);
                         continue siguienteModelo;
                     }
@@ -266,13 +301,26 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
         }
     }
 
-    if (sinCupo > 0) {
+    /* Si ningún modelo respondió y alguno dijo que no le queda cupo diario,
+       el problema es de cuota, aunque otros modelos fallaran por otra cosa
+       (por ejemplo, que ya no existan). Antes se exigía que TODOS fallasen
+       por cuota, y bastaba con un 404 de un modelo jubilado para que el
+       usuario recibiera un error genérico ilegible en vez de esta
+       explicación. */
+    if (sinCupo > 0 || diagnostico.length > 0) {
+        const sinPlanGratuito = diagnostico.filter(d => d.includes('NO tiene plan gratuito'));
+
         const error = new Error(
-            'Se ha agotado el cupo gratuito de Google por hoy. Se reinicia cada noche; ' +
-            'mientras tanto puedes subir las preguntas mañana o añadir una segunda clave. ' +
-            `(Google dice: ${ultimoMotivo})`
+            sinPlanGratuito.length === diagnostico.length && diagnostico.length > 0
+                ? 'Tu clave de Google no tiene plan gratuito en ninguno de los modelos que usa la plataforma. ' +
+                  'Mira qué modelos tienes disponibles en aistudio.google.com/rate-limit y dime cuál, ' +
+                  'o activa la facturación. Detalle: ' + diagnostico.join(' · ')
+                : 'Se ha agotado el cupo gratuito de Google por hoy. Se reinicia cada noche; ' +
+                  'mientras tanto puedes subir las preguntas mañana o añadir una segunda clave. ' +
+                  'Detalle: ' + diagnostico.join(' · ')
         );
         error.cupoAgotado = true;
+        error.diagnostico = diagnostico;
         throw error;
     }
 
