@@ -1,7 +1,7 @@
 import { auth, db, storage } from './firebase-config.js';
 import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 import { inicializarTemaDigital, abrirModalTemaDigital, abrirVisorTemaDigital } from './tema-digital.js';
-import { quitarRepetidas, huella, clavePorTexto } from './preguntas-repetidas.js';
+import { quitarRepetidas, huella, clavePorTexto, sonLaMisma, parecido } from './preguntas-repetidas.js';
 import {
     montarDocumentoSubrayable,
     obtenerFragmentos,
@@ -866,6 +866,13 @@ invalidarCacheTemas();
 textoPreguntas.value = '';
         preguntasProcesadas = [];
         preguntasProcesadasDiv.style.display = 'none';
+
+        // La barra verde de "25 preguntas listas" ya no pinta nada una vez
+        // asignadas: se oculta junto con los avisos de esa tanda.
+        const progreso = document.getElementById('progresoWord');
+        if (progreso) progreso.style.display = 'none';
+        ocultarAvisosWord();
+
         actualizarTemaSeleccionado();
         
         // Recargar banco de preguntas si está activo
@@ -2377,9 +2384,9 @@ async function detectarPreguntasDuplicadas() {
                             ? pregunta.options.map(op => normTexto(typeof op === 'string' ? op : op.texto || ''))
                             : []);
                     const opcionesOrdenadas = opcionesArray.sort().join('|||');
-                    
+
                     const firmaCompleta = textoNormalizado + '###' + opcionesOrdenadas;
-                    
+
                     todasLasPreguntas.push({
                         firma: firmaCompleta,
                         texto: textoNormalizado,
@@ -2388,13 +2395,16 @@ async function detectarPreguntasDuplicadas() {
                         temaPadreNombre: temaPadreNombre,
                         preguntaIndex: index,
                         preguntaCompleta: pregunta,
+                        // Huella con palabras clave, para cazar también las que
+                        // no son idénticas carácter a carácter
+                        huella: huella(pregunta),
                         fechaCreacion: pregunta.fechaCreacion || tema.fechaCreacion || new Date('2020-01-01')
                     });
                 });
             }
         });
-        
-        // Encontrar duplicadas EXACTAS - AGRUPAR por firma (soporta 3+ temas)
+
+        // ---- 1. Duplicadas EXACTAS: agrupar por firma (soporta 3+ temas) ----
         const gruposPorFirma = {};
         todasLasPreguntas.forEach(p => {
             if (!gruposPorFirma[p.firma]) {
@@ -2402,18 +2412,29 @@ async function detectarPreguntasDuplicadas() {
             }
             gruposPorFirma[p.firma].push(p);
         });
-        
+
+        const yaAgrupadas = new Set();
+
         for (const firma in gruposPorFirma) {
             if (gruposPorFirma[firma].length >= 2) {
                 duplicadas.push({
                     firma: firma,
+                    motivo: 'idénticas',
                     preguntas: gruposPorFirma[firma]
                 });
+                gruposPorFirma[firma].forEach(p => yaAgrupadas.add(p));
             }
         }
-        
+
+        // ---- 2. Duplicadas PARECIDAS ----
+        // La comparación exacta se escapa por nada: una coma, una errata
+        // corregida o una cita legal que quedó en una versión y en la otra
+        // no. Aquí se comparan por contenido, con la misma lógica que ya
+        // filtra las preguntas generadas con IA.
+        duplicadas.push(...buscarParecidas(todasLasPreguntas, yaAgrupadas));
+
         if (duplicadas.length === 0) {
-            alert('✅ No se encontraron preguntas duplicadas (con enunciado y opciones idénticas)');
+            alert('✅ No se encontraron preguntas repetidas ni parecidas en tu banco');
             return;
         }
         
@@ -2425,7 +2446,104 @@ async function detectarPreguntasDuplicadas() {
     }
 }
 
-// Mostrar preguntas duplicadas - VERSION AGRUPADA CON CHECKBOXES Y FILTRO POR TEMA
+/* ------------------------------------------------------------------
+   Busca preguntas que dicen lo mismo aunque no estén escritas igual.
+
+   El problema es de coste: comparar todas contra todas en un banco de
+   varios miles sería lento. La solución es no comparar a ciegas, sino
+   solo entre candidatas plausibles, agrupándolas antes por tres pistas
+   baratas de calcular:
+
+     · el juego de opciones (mismas cuatro respuestas)
+     · el principio del enunciado (los primeros 60 caracteres)
+     · las palabras clave de la respuesta correcta
+
+   Con que coincida UNA de las tres, las dos preguntas se comparan a
+   fondo. Así se cazan tanto las que cambian el enunciado manteniendo
+   las opciones como las que cambian una opción manteniendo el resto.
+------------------------------------------------------------------- */
+
+/* Suelo de parecido entre enunciados para el banco entero.
+
+   Hace falta porque la comparación pensada para los tests con IA da por
+   repetidas dos preguntas con las mismas cuatro opciones y la misma
+   solución. Eso vale dentro de un mismo tema, pero en un banco completo
+   es un desastre: media oposición comparte el juego "3 / 5 / 10 / 20
+   días" con la misma respuesta correcta preguntando por plazos de cosas
+   distintas. Sin este suelo, un banco de 5.000 preguntas montaba grupos
+   falsos de 400 preguntas que no tenían nada que ver entre sí.
+
+   Con él se exige, además de lo anterior, que las dos hablen de lo mismo. */
+const PARECIDO_MINIMO_ENUNCIADO = 0.55;
+
+function buscarParecidas(todasLasPreguntas, yaAgrupadas) {
+    const cubos = new Map();
+
+    const meterEnCubo = (clave, pregunta) => {
+        if (!clave) return;
+        if (!cubos.has(clave)) cubos.set(clave, []);
+        cubos.get(clave).push(pregunta);
+    };
+
+    todasLasPreguntas.forEach(p => {
+        if (yaAgrupadas.has(p)) return;
+        meterEnCubo('op:' + p.huella.juegoOpciones, p);
+        meterEnCubo('en:' + p.texto.slice(0, 60), p);
+        meterEnCubo('co:' + [...p.huella.correcta].sort().join(' '), p);
+    });
+
+    const grupos = [];
+
+    cubos.forEach((cubo, clave) => {
+        if (cubo.length < 2) return;
+
+        /* Freno de seguridad. Hay respuestas correctas que se repiten
+           muchísimo en una oposición ("Ninguna de las anteriores es
+           correcta"), y su cubo puede acabar con miles de preguntas que
+           no tienen nada que ver. Compararlas todas contra todas sería
+           cuadrático y colgaría el navegador. Ese cubo se descarta: las
+           que de verdad sean repetidas caerán igual por el cubo del
+           enunciado o el de las opciones, que sí discriminan. */
+        if (clave.startsWith('co:') && cubo.length > 600) return;
+
+        const pendientes = cubo.filter(p => !yaAgrupadas.has(p));
+
+        while (pendientes.length > 1) {
+            const base = pendientes.shift();
+            if (yaAgrupadas.has(base)) continue;
+
+            const grupo = [base];
+            let motivo = '';
+
+            for (let i = pendientes.length - 1; i >= 0; i--) {
+                const otra = pendientes[i];
+                if (yaAgrupadas.has(otra)) { pendientes.splice(i, 1); continue; }
+
+                const veredicto = sonLaMisma(base.huella, otra.huella);
+                const hablanDeLoMismo =
+                    parecido(base.huella.enunciado, otra.huella.enunciado) >= PARECIDO_MINIMO_ENUNCIADO;
+
+                if (veredicto.repetida && hablanDeLoMismo) {
+                    grupo.push(otra);
+                    motivo = veredicto.motivo;
+                    pendientes.splice(i, 1);
+                }
+            }
+
+            if (grupo.length >= 2) {
+                grupo.forEach(p => yaAgrupadas.add(p));
+                grupos.push({
+                    firma: 'parecidas-' + grupos.length,
+                    motivo: motivo,
+                    preguntas: grupo
+                });
+            }
+        }
+    });
+
+    return grupos;
+}
+
 // Mostrar preguntas duplicadas - VERSION AGRUPADA CON CHECKBOXES Y FILTRO POR TEMA
 function mostrarPreguntasDuplicadas(duplicadas) {
     const modal = document.createElement('div');
@@ -2521,7 +2639,16 @@ function mostrarPreguntasDuplicadas(duplicadas) {
         duplicadaItem.setAttribute('data-temas-grupo', JSON.stringify(temasDelGrupo));
         duplicadaItem.style.cssText = 'border:2px solid #e2e8f0;margin:0 0 16px;padding:16px;border-radius:10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.08);';
         
-        let html = '<div style="font-size:12px;color:#64748b;margin-bottom:8px;">Grupo ' + (index + 1) + ' — ' + grupo.preguntas.length + ' apariciones</div>';
+        // El motivo importa: no es lo mismo un calco exacto que dos
+        // preguntas parecidas, donde conviene mirar antes de borrar.
+        const exactas = grupo.motivo === 'idénticas';
+        const etiqueta = exactas
+            ? '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:999px;font-weight:600;">idénticas</span>'
+            : `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;font-weight:600;">parecidas: ${grupo.motivo || 'contenido equivalente'}</span>`;
+
+        let html = '<div style="font-size:12px;color:#64748b;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+            + '<span>Grupo ' + (index + 1) + ' — ' + grupo.preguntas.length + ' apariciones</span>'
+            + etiqueta + '</div>';
         
         grupo.preguntas.forEach((p, pIndex) => {
             const pregunta = p.preguntaCompleta;
