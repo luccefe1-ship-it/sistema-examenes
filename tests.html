@@ -938,28 +938,28 @@
     margin-left: 8px;
 }
 
-/* ===== Subida de Word con Claude ===== */
-.claude-upload {
+/* ===== Subida de preguntas (Word o texto pegado) ===== */
+.subida {
     background: #fff;
     border-radius: 12px;
     padding: 20px;
     margin-bottom: 20px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
-.claude-upload-header { margin-bottom: 14px; }
-.claude-upload-titulo {
+.subida-header { margin-bottom: 14px; }
+.subida-titulo {
     display: block;
     font-size: 1.05rem;
     font-weight: 600;
     color: #333;
 }
-.claude-upload-sub {
+.subida-sub {
     display: block;
     font-size: 0.85rem;
     color: #777;
     margin-top: 2px;
 }
-.claude-dropzone {
+.subida-dropzone {
     border: 2px dashed #a5b4fc;
     border-radius: 10px;
     padding: 28px 20px;
@@ -968,31 +968,102 @@
     transition: background .15s, border-color .15s;
     background: #f8f9ff;
 }
-.claude-dropzone:hover,
-.claude-dropzone.arrastrando {
+.subida-dropzone:hover,
+.subida-dropzone.arrastrando {
     background: #eef0ff;
     border-color: #6366f1;
 }
-.claude-dropzone.procesando {
+.subida-dropzone.procesando {
     opacity: .55;
     pointer-events: none;
 }
-.claude-dropzone-icono { font-size: 2rem; margin-bottom: 6px; }
-.claude-dropzone-texto { color: #555; font-size: 0.95rem; }
+.subida-dropzone-icono { font-size: 2rem; margin-bottom: 6px; }
+.subida-dropzone-texto { color: #555; font-size: 0.95rem; }
 
-.claude-progreso { margin-top: 16px; }
-.claude-progreso-texto {
+/* Separador "o" entre arrastrar el Word y pegar el texto */
+.subida-o {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0 14px;
+    color: #9ca3af;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+.subida-o::before,
+.subida-o::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #e5e7eb;
+}
+
+.subida-textarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 12px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color .15s, box-shadow .15s;
+}
+.subida-textarea:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+}
+
+.subida-acciones {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+.subida-boton {
+    padding: 12px 26px;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(79,70,229,.28);
+    transition: transform .12s, box-shadow .12s, opacity .12s;
+}
+.subida-boton:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(79,70,229,.34);
+}
+.subida-boton:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+.subida-nota {
+    font-size: 0.82rem;
+    color: #6b7280;
+}
+
+.subida-progreso { margin-top: 16px; }
+.subida-progreso-texto {
     font-size: 0.9rem;
     color: #444;
     margin-bottom: 8px;
 }
-.claude-progreso-barra {
+.subida-progreso-barra {
     height: 8px;
     background: #e5e7eb;
     border-radius: 999px;
     overflow: hidden;
 }
-.claude-progreso-relleno {
+.subida-progreso-relleno {
     height: 100%;
     width: 0%;
     background: linear-gradient(90deg, #6366f1, #818cf8);
@@ -1000,24 +1071,24 @@
     transition: width .35s ease;
 }
 
-.claude-avisos {
+.subida-avisos {
     margin-top: 16px;
     background: #fffbeb;
     border: 1px solid #fcd34d;
     border-radius: 8px;
     padding: 12px 14px;
 }
-.claude-avisos-titulo {
+.subida-avisos-titulo {
     font-weight: 600;
     color: #92400e;
     margin-bottom: 6px;
     font-size: 0.9rem;
 }
-.claude-avisos ul {
+.subida-avisos ul {
     margin: 0;
     padding-left: 18px;
 }
-.claude-avisos li {
+.subida-avisos li {
     font-size: 0.85rem;
     color: #78350f;
     margin-bottom: 3px;
@@ -1066,48 +1137,47 @@
                     </div>
                 </div>
 
-                <!-- Subida directa de Word con Claude -->
-                <div class="claude-upload">
-                    <div class="claude-upload-header">
-                        <span class="claude-upload-titulo">Subir Word de la academia</span>
-                        <span class="claude-upload-sub">Claude Opus 5 extrae las preguntas y detecta la respuesta correcta automáticamente</span>
+                <!-- Subida de preguntas: una sola caja para todo.
+                     Da igual el formato de origen (Word de academia, PDF
+                     copiado, apuntes): el modelo lo interpreta y devuelve
+                     las preguntas listas. No hay que pasar por ninguna
+                     herramienta externa antes. -->
+                <div class="subida">
+                    <div class="subida-header">
+                        <span class="subida-titulo">Sube tus preguntas</span>
+                        <span class="subida-sub">Arrastra el Word o pega el texto, en el formato que sea. Se procesan automáticamente y sin coste.</span>
                     </div>
 
-                    <div id="zonaWord" class="claude-dropzone">
-                        <div class="claude-dropzone-icono">📄</div>
-                        <div class="claude-dropzone-texto">
+                    <div id="zonaWord" class="subida-dropzone">
+                        <div class="subida-dropzone-icono">📄</div>
+                        <div class="subida-dropzone-texto">
                             Arrastra aquí el archivo <strong>.docx</strong> o haz clic para seleccionarlo
                         </div>
                     </div>
                     <input type="file" id="wordInput" accept=".docx" style="display: none;">
 
-                    <div id="progresoWord" class="claude-progreso" style="display: none;">
-                        <div class="claude-progreso-texto" id="progresoWordTexto">Leyendo el documento...</div>
-                        <div class="claude-progreso-barra">
-                            <div class="claude-progreso-relleno" id="progresoWordBarra"></div>
+                    <div class="subida-o">o pega el texto</div>
+
+                    <textarea id="textoPreguntas" class="subida-textarea" placeholder="Pega aquí las preguntas, tal cual las tengas.
+
+Da igual cómo vengan numeradas o cómo esté señalada la respuesta correcta: con la cita del artículo al final, en negrita, con asteriscos o con un solucionario al final. Si no viene señalada, se deduce y se te avisa para que la revises."></textarea>
+
+                    <div class="subida-acciones">
+                        <button id="procesarTextoBtn" class="subida-boton">Procesar preguntas</button>
+                        <span class="subida-nota">Recuerda seleccionar antes el tema de destino.</span>
+                    </div>
+
+                    <div id="progresoWord" class="subida-progreso" style="display: none;">
+                        <div class="subida-progreso-texto" id="progresoWordTexto">Leyendo el documento...</div>
+                        <div class="subida-progreso-barra">
+                            <div class="subida-progreso-relleno" id="progresoWordBarra"></div>
                         </div>
                     </div>
 
-                    <div id="avisosWord" class="claude-avisos" style="display: none;">
-                        <div class="claude-avisos-titulo">⚠️ Revisa estas preguntas antes de asignarlas</div>
+                    <div id="avisosWord" class="subida-avisos" style="display: none;">
+                        <div class="subida-avisos-titulo">⚠️ Revisa estas preguntas antes de asignarlas</div>
                         <ul id="avisosWordLista"></ul>
                     </div>
-                </div>
-
-                <!-- Área de texto para pegar preguntas (método manual con DeepSeek).
-                     Se mantiene como alternativa gratuita: si se agota el saldo de la
-                     API de Claude, este camino sigue funcionando sin coste. -->
-                <div class="upload-area">
-                    <label for="textoPreguntas">Alternativa sin coste — pega aquí el texto de DeepSeek:</label>
-                    <textarea id="textoPreguntas" placeholder="Pega aquí el texto formateado por DeepSeek...
-
-Ejemplo:
-01 . El Príncipe Heredero tendrá la dignidad de Príncipe de Asturias:
-A) Desde que se le atribuyan por el Rey.
-B)**Desde su nacimiento o desde que se produzca el hecho que origine el llamamiento.
-C) Desde que se le reconozcan por las Cortes Generales.
-D) Desde que alcance la mayoría de edad."></textarea>
-                    <button id="procesarTextoBtn" class="btn-primary">Procesar Texto</button>
                 </div>
 
                 <!-- Vista previa de preguntas procesadas -->

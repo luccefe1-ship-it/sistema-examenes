@@ -132,7 +132,9 @@ const DOLARES_A_EUROS = 0.92;
 const NOMBRES_FUNCION = {
     'generar-preguntas-ia': 'Tests con IA',
     'explicacion': 'Explicaciones',
-    'procesar-preguntas': 'Subir Word'
+    // Subir preguntas ya no gasta: pasó a Gemini, que es gratis. La etiqueta
+    // se queda para que el gasto antiguo siga viéndose con su nombre.
+    'procesar-preguntas': 'Subir preguntas (histórico)'
 };
 
 async function cargarConsumoIA() {

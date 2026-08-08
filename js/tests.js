@@ -791,97 +791,20 @@ function actualizarTemaSeleccionado() {
     }
 }
 
-// Procesar texto de preguntas
+// Procesar el texto pegado en el cuadro.
+//
+// Antes esto era un lector de expresiones regulares que solo entendía
+// un formato exacto y descartaba en silencio lo que no encajara. Ahora
+// pasa por el mismo motor que el Word: da igual cómo venga escrito.
 function procesarTextoPreguntas() {
     const texto = textoPreguntas.value.trim();
-    
+
     if (!texto) {
-        alert('Pega el texto de las preguntas primero');
+        alert('Pega el texto de las preguntas o arrastra un Word.');
         return;
     }
 
-    try {
-        preguntasProcesadas = parsearPreguntas(texto);
-        
-        if (preguntasProcesadas.length === 0) {
-            alert('No se encontraron preguntas válidas en el texto');
-            return;
-        }
-
-        mostrarVistaPreviaPreguntas();
-        
-    } catch (error) {
-        console.error('Error procesando preguntas:', error);
-        alert('Error al procesar las preguntas. Verifica el formato.');
-    }
-}
-
-// Parsear preguntas del texto
-// Parsear preguntas del texto
-function parsearPreguntas(texto) {
-    const preguntas = [];
-    const lineas = texto.split('\n');
-    let preguntaActual = null;
-
-    for (let i = 0; i < lineas.length; i++) {
-        const linea = lineas[i].trim();
-        
-        // Detectar nueva pregunta (formato: "01 . Texto pregunta:")
-        const matchPregunta = linea.match(/^(\d+)\s*\.\s*(.+)[:?]?\s*$/);
-        
-        if (matchPregunta) {
-            // Guardar pregunta anterior si existe
-            if (preguntaActual) {
-                preguntas.push(preguntaActual);
-            }
-            
-            preguntaActual = {
-                numero: parseInt(matchPregunta[1]),
-                texto: matchPregunta[2],
-                opciones: [],
-                respuestaCorrecta: null,
-                fechaCreacion: new Date()
-            };
-        }
-        // Detectar opciones - PATRÓN MEJORADO
-        else if (preguntaActual && linea.match(/^[A-D]\)/)) {
-            // Detectar si es respuesta correcta (con ** antes o después del texto)
-            const esCorrecta = linea.includes(')**') || linea.includes('**');
-            
-            // Limpiar el texto de la opción (remover A), B), etc. y los asteriscos)
-            let textoOpcion = linea.replace(/^[A-D]\)/, '').trim();
-            textoOpcion = textoOpcion.replace(/\*\*/g, '').trim();
-            
-            const letra = linea.charAt(0);
-            
-            preguntaActual.opciones.push({
-                letra: letra,
-                texto: textoOpcion,
-                esCorrecta: esCorrecta
-            });
-            
-            if (esCorrecta) {
-                preguntaActual.respuestaCorrecta = letra;
-            }
-        }
-    }
-    
-    // Agregar última pregunta
-    if (preguntaActual) {
-        preguntas.push(preguntaActual);
-    }
-    
-    // Validar preguntas - logging para debug
-    const preguntasValidas = preguntas.filter(p => {
-        const esValida = p.opciones.length === 4 && p.respuestaCorrecta && p.texto.length > 0;
-        if (!esValida) {
-            console.log('Pregunta inválida:', p);
-        }
-        return esValida;
-    });
-    
-    console.log(`Procesadas ${preguntas.length} preguntas, ${preguntasValidas.length} válidas`);
-    return preguntasValidas;
+    return procesarEntrada(texto, 'texto pegado');
 }
 
 // Mostrar vista previa de preguntas
@@ -10237,14 +10160,25 @@ async function moverSeleccionadasA(destinoId) {
 
 
 // ============================================================
-//  SUBIDA DE WORD CON CLAUDE (API Opus 5, esfuerzo medio)
-//  Sustituye el paso manual por DeepSeek: el Word de la academia
-//  se convierte directamente en preguntas con el formato de la
-//  plataforma y se vuelca en la vista previa existente.
+//  SUBIDA DE PREGUNTAS
+//
+//  Un solo camino para todo: arrastrar un Word o pegar texto
+//  acaban en la misma función. El servidor (Gemini Flash) es
+//  quien entiende el formato, así que el navegador no necesita
+//  saber nada de cómo vienen escritas las preguntas.
+//
+//  Es gratis: se usa el cupo diario del plan gratuito de Google.
+//  Si algún día se agota, el servidor lo dice con claridad y
+//  basta con esperar al reinicio de esa noche.
 // ============================================================
 
-const ENDPOINT_CLAUDE = '/api/procesar-preguntas';
-const LOTES_EN_PARALELO = 3;   // bloques que se procesan a la vez
+const ENDPOINT_PROCESAR = '/api/procesar-preguntas';
+
+// El plan gratuito limita las peticiones por minuto, así que no se
+// puede disparar todo a la vez. Dos en paralelo con una pausa entre
+// medias va sobrado y no roza el límite.
+const LOTES_EN_PARALELO = 2;
+const PAUSA_ENTRE_LOTES_MS = 1200;
 
 function inicializarSubidaWord() {
     const zona = document.getElementById('zonaWord');
@@ -10266,67 +10200,88 @@ function inicializarSubidaWord() {
         e.preventDefault();
         zona.classList.remove('arrastrando');
         const archivo = e.dataTransfer.files[0];
-        if (archivo) procesarWordConClaude(archivo);
+        if (archivo) procesarArchivoWord(archivo);
     });
 
     input.addEventListener('change', (e) => {
         const archivo = e.target.files[0];
-        if (archivo) procesarWordConClaude(archivo);
+        if (archivo) procesarArchivoWord(archivo);
         input.value = ''; // permite volver a subir el mismo archivo
     });
 }
 
 // ------------------------------------------------------------
-//  Flujo principal
+//  Entrada por archivo: se extrae el texto y sigue el camino común
 // ------------------------------------------------------------
-async function procesarWordConClaude(archivo) {
+async function procesarArchivoWord(archivo) {
+    if (!archivo.name.toLowerCase().endsWith('.docx')) {
+        alert('El archivo debe ser un Word en formato .docx (no .doc ni PDF).\n\nSi lo que tienes es un PDF, copia el texto y pégalo en el cuadro de abajo.');
+        return;
+    }
+
+    mostrarProgresoWord('Leyendo el documento...', 5);
+
+    try {
+        const texto = await extraerTextoDeWord(archivo);
+        if (!texto || texto.trim().length < 40) {
+            throw new Error('No se ha podido leer texto del documento. ¿Está vacío o es un escaneado en imagen?');
+        }
+        await procesarEntrada(texto, archivo.name);
+    } catch (error) {
+        console.error('Error leyendo el Word:', error);
+        mostrarProgresoWord(`❌ ${error.message}`, 100, true);
+    }
+}
+
+// ------------------------------------------------------------
+//  Flujo principal: común al Word y al texto pegado
+// ------------------------------------------------------------
+let procesandoPreguntas = false;
+
+async function procesarEntrada(texto, origen) {
     if (!temaSeleccionado) {
         alert('Selecciona primero el tema o subtema al que quieres subir las preguntas.');
         return;
     }
-    if (!archivo.name.toLowerCase().endsWith('.docx')) {
-        alert('El archivo debe ser un Word en formato .docx (no .doc ni PDF).');
+    if (procesandoPreguntas) {
+        alert('Espera a que termine el envío anterior.');
         return;
     }
 
+    procesandoPreguntas = true;
     const zona = document.getElementById('zonaWord');
-    zona.classList.add('procesando');
+    const boton = document.getElementById('procesarTextoBtn');
+    if (zona) zona.classList.add('procesando');
+    if (boton) boton.disabled = true;
     ocultarAvisosWord();
-    mostrarProgresoWord('Leyendo el documento...', 5);
 
     try {
-        // 1. Extraer el texto del Word en el navegador
-        const texto = await extraerTextoDeWord(archivo);
-        if (!texto || texto.trim().length < 40) {
-            throw new Error('No se ha podido leer texto del documento. ¿Está vacío o es una imagen escaneada?');
-        }
-
-        // 2. Procesar por lotes contra Claude.
-        //    El primer lote nos dice cuántos hay; el resto se lanzan de
-        //    LOTES_EN_PARALELO en LOTES_EN_PARALELO para ir más rápido.
-        mostrarProgresoWord('Analizando con Claude Opus 5...', 12);
+        // El servidor trocea el texto y devuelve cuántos bloques hay.
+        // El primero se pide solo; el resto se reparten entre unos pocos
+        // trabajadores, con pausa, para no pasarse del límite por minuto.
+        mostrarProgresoWord('Analizando las preguntas...', 12);
 
         const todosLosAvisos = [];
-        const cuentasUsadas = new Set();
         let tokensEntrada = 0;
         let tokensSalida = 0;
         let completados = 0;
+        let modeloUsado = '';
 
-        const primero = await pedirLoteAClaude(texto, 0);
+        const primero = await pedirLote(texto, 0);
         const totalLotes = primero.totalLotes;
         const resultados = new Array(totalLotes);
 
         const registrar = (datos) => {
             resultados[datos.lote] = datos.preguntas;
             todosLosAvisos.push(...(datos.avisos || []));
-            if (datos.cuenta) cuentasUsadas.add(datos.cuenta);
+            if (datos.modelo) modeloUsado = datos.modelo;
             tokensEntrada += (datos.uso && datos.uso.tokensEntrada) || 0;
             tokensSalida += (datos.uso && datos.uso.tokensSalida) || 0;
 
             completados++;
             const extraidas = resultados.reduce((suma, lote) => suma + (lote ? lote.length : 0), 0);
             mostrarProgresoWord(
-                `Analizando con Claude Opus 5... ${completados} de ${totalLotes} bloques · ${extraidas} preguntas extraídas`,
+                `Analizando las preguntas... ${completados} de ${totalLotes} bloques · ${extraidas} extraídas`,
                 12 + Math.round((completados / totalLotes) * 85)
             );
         };
@@ -10340,7 +10295,8 @@ async function procesarWordConClaude(archivo) {
         const trabajador = async () => {
             while (pendientes.length > 0) {
                 const siguiente = pendientes.shift();
-                registrar(await pedirLoteAClaude(texto, siguiente));
+                registrar(await pedirLote(texto, siguiente));
+                if (pendientes.length > 0) await pausa(PAUSA_ENTRE_LOTES_MS);
             }
         };
 
@@ -10353,10 +10309,10 @@ async function procesarWordConClaude(archivo) {
         const todasLasPreguntas = resultados.flat().filter(Boolean);
 
         if (todasLasPreguntas.length === 0) {
-            throw new Error('Claude no ha podido extraer ninguna pregunta válida del documento.');
+            throw new Error('No se ha podido extraer ninguna pregunta válida. Comprueba que el texto contiene preguntas con sus opciones.');
         }
 
-        // 3. Renumerar y volcar en la vista previa existente
+        // Renumerar y volcar en la vista previa existente
         preguntasProcesadas = todasLasPreguntas.map((pregunta, indice) => ({
             numero: indice + 1,
             texto: pregunta.texto,
@@ -10373,17 +10329,23 @@ async function procesarWordConClaude(archivo) {
         mostrarVistaPreviaPreguntas();
         if (todosLosAvisos.length > 0) mostrarAvisosWord(todosLosAvisos);
 
-        console.log(`[Claude] ${preguntasProcesadas.length} preguntas · ${tokensEntrada} tokens de entrada · ${tokensSalida} de salida · cuenta: ${[...cuentasUsadas].join(' + ') || 'desconocida'}`);
+        console.log(`[preguntas] ${preguntasProcesadas.length} extraídas de ${origen} · ${modeloUsado} · ${tokensEntrada}+${tokensSalida} tokens`);
 
         document.getElementById('preguntasProcesadas')
             .scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     } catch (error) {
-        console.error('Error procesando el Word con Claude:', error);
-        mostrarProgresoWord(`❌ ${error.message}`, 100, true, error.enlace);
+        console.error('Error procesando las preguntas:', error);
+        mostrarProgresoWord(`❌ ${error.message}`, 100, true);
     } finally {
-        zona.classList.remove('procesando');
+        procesandoPreguntas = false;
+        if (zona) zona.classList.remove('procesando');
+        if (boton) boton.disabled = false;
     }
+}
+
+function pausa(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // ------------------------------------------------------------
@@ -10405,8 +10367,8 @@ function extraerTextoDeWord(archivo) {
     });
 }
 
-async function pedirLoteAClaude(texto, lote) {
-    const respuesta = await fetch(ENDPOINT_CLAUDE, {
+async function pedirLote(texto, lote) {
+    const respuesta = await fetch(ENDPOINT_PROCESAR, {
         method: 'POST',
         headers: await cabecerasApi(),
         body: JSON.stringify({ texto, lote })
@@ -10420,14 +10382,12 @@ async function pedirLoteAClaude(texto, lote) {
     }
 
     if (!respuesta.ok) {
-        const error = new Error(datos.error || `Error ${respuesta.status} del servidor.`);
-        error.enlace = datos.enlace || null;
-        throw error;
+        throw new Error(datos.error || `Error ${respuesta.status} del servidor.`);
     }
     return datos;
 }
 
-function mostrarProgresoWord(mensaje, porcentaje, esError = false, enlace = null) {
+function mostrarProgresoWord(mensaje, porcentaje, esError = false) {
     const contenedor = document.getElementById('progresoWord');
     const textoEl = document.getElementById('progresoWordTexto');
     const barra = document.getElementById('progresoWordBarra');
@@ -10437,16 +10397,6 @@ function mostrarProgresoWord(mensaje, porcentaje, esError = false, enlace = null
     textoEl.textContent = mensaje;
     textoEl.style.color = esError ? '#b91c1c' : '#444';
 
-    // Enlace de recarga cuando se acaban los fondos
-    if (enlace) {
-        const a = document.createElement('a');
-        a.href = enlace;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.textContent = ' Recargar saldo →';
-        a.style.cssText = 'color:#b91c1c;font-weight:600;text-decoration:underline;margin-left:6px;';
-        textoEl.appendChild(a);
-    }
     barra.style.width = porcentaje + '%';
     barra.style.background = esError
         ? '#ef4444'

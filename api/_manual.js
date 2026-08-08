@@ -20,7 +20,7 @@ Cinco accesos: Hacer Test, Mis Temas, Mis Apuntes, Multijugador y Mis Audios. Ab
 
 MIS TEMAS (Banco de Preguntas)
 - Se organizan en temas y subtemas. Cada tema guarda sus preguntas tipo test con cuatro opciones.
-- "Subir Preguntas" convierte un Word de academia en preguntas automáticamente con IA, detectando cuál es la correcta por la cita legal que la academia añade al final.
+- "Subir Preguntas" convierte preguntas en el formato de la plataforma automáticamente con IA. Hay una sola caja: se arrastra el Word de la academia o se pega el texto directamente, en el formato que sea (un PDF copiado, apuntes, un correo). No hay que pasar por ninguna herramienta externa antes ni dejar el texto de una forma concreta. Detecta cuál es la respuesta correcta por la cita legal que la academia añade al final, por marcas como asteriscos o negritas, o por el solucionario si lo hay. Si en el original no viene señalada, la deduce y avisa en un panel amarillo para que la revises antes de asignarla. Esta función no consume saldo de IA: usa el cupo gratuito diario de Google. Si algún día se agota, avisa y se reinicia esa misma noche.
 - Cada tema admite un "Tema Digital": el temario en Word o PDF. Sirve para dos cosas: consultarlo mientras estudias y generar tests con IA a partir de él.
 - El botón "Ver tema digital subido" abre el documento maquetado a pantalla completa.
 - Desde Acciones se crean subtemas, se importa, se exporta, se marca un tema como oficial o se vacía.

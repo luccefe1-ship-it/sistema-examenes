@@ -35,16 +35,20 @@ Usuarios reales ahora mismo: Luciano y Sandra. Dos cuentas más están muertas d
 Todos exigen sesión: verifican el ID token de Firebase (`api/_auth.js`) y llevan un
 freno de 120 llamadas/hora por usuario.
 
-| Endpoint | Qué hace |
-|---|---|
-| `api/procesar-preguntas.js` | Convierte un Word de academia en preguntas |
-| `api/explicacion.js` | Explicación de una pregunta |
-| `api/generar-preguntas-ia.js` | Inventa preguntas desde el tema digital |
-| `api/asistente.js` | Chat de ayuda sobre la plataforma |
-| `api/tts.js` | Texto a audio |
-| `api/preguntas-rival.js` | Preguntas del rival en multijugador |
+| Endpoint | Qué hace | Modelo |
+|---|---|---|
+| `api/procesar-preguntas.js` | Convierte cualquier texto con preguntas al formato de la plataforma | **Gemini Flash (gratis)** |
+| `api/explicacion.js` | Explicación de una pregunta | Claude |
+| `api/generar-preguntas-ia.js` | Inventa preguntas desde el tema digital | Claude |
+| `api/asistente.js` | Chat de ayuda sobre la plataforma | Claude |
+| `api/tts.js` | Texto a audio | Claude |
+| `api/preguntas-rival.js` | Preguntas del rival en multijugador | Claude |
 
-Módulos internos (Vercel ignora los que empiezan por `_`): `_claude.js`, `_auth.js`, `_consumo.js`.
+Módulos internos (Vercel ignora los que empiezan por `_`): `_gemini.js`, `_claude.js`,
+`_auth.js`, `_consumo.js`, `_manual.js`, `_interfaz.js`.
+
+Subir preguntas usa el cupo gratuito de Google y **no gasta saldo de Anthropic**. Requiere la
+variable `GEMINI_API_KEY`. Ver `api/LEEME.md`.
 
 ---
 
