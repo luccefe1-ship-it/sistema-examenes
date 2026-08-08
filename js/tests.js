@@ -2349,6 +2349,34 @@ window.diagnosticarTemas = async function() {
     }
 };
 
+/* Quita la cita legal que las academias cuelgan al final de una opción.
+
+   No es contenido de la pregunta: es la referencia con la que la academia
+   justifica la respuesta. La misma pregunta puede estar en el banco con
+   ella y sin ella según cómo se subiera, y sin quitarla no se detectan
+   como repetidas aunque sean idénticas palabra por palabra.
+
+   Ejemplos que se recortan:
+     "... resolución judicial. (Art. 131 LEC)."
+     "... a ese tribunal. (Art. 227 LEC. Art. 240 LOPJ)."
+     "Al tribunal que conozca del proceso más antiguo. Art. 79. LEC."
+
+   Para no comerse contenido de verdad se exige que la cita llegue hasta
+   el final y que sea SOLO cita: "Art." + numeración + siglas en
+   mayúsculas. Así, "los requisitos del artículo 87 ter de la Ley
+   Orgánica del Poder Judicial" se conserva, porque forma parte de la
+   redacción de la respuesta, y "El plazo del Art. 5 LEC es de 3 días"
+   también, porque detrás de las siglas sigue habiendo texto. */
+/* Ojo: no lleva el flag "i" a propósito. Las siglas de la ley tienen que
+   ir en MAYÚSCULAS (LEC, LOPJ, LJV...), que es lo que distingue una cita
+   de una frase cualquiera que mencione un artículo. "Art" sí se admite
+   en cualquier caja, escrito de las tres formas posibles. */
+const CITA_LEGAL_FINAL = /[\s(]*\b[Aa][Rr][Tt][Ss]?\.\s*[\d\s.,ºª°\/-]*[A-ZÁÉÍÓÚ]{2,8}[\s.,)\]]*(?:\b[Aa][Rr][Tt][Ss]?\.\s*[\d\s.,ºª°\/-]*[A-ZÁÉÍÓÚ]{2,8}[\s.,)\]]*)*$/;
+
+function quitarCitaLegal(texto) {
+    return String(texto || '').replace(CITA_LEGAL_FINAL, '').trim();
+}
+
 // Detectar preguntas duplicadas
 async function detectarPreguntasDuplicadas() {
     try {
@@ -2386,8 +2414,11 @@ async function detectarPreguntasDuplicadas() {
                        siguen siendo dos preguntas distintas.
 
                        clavePorTexto hace justo eso, y es la misma que ya se
-                       usa para vetar repetidas al generar tests con IA. */
-                    const normTexto = (t) => clavePorTexto(t || '');
+                       usa para vetar repetidas al generar tests con IA.
+
+                       Además se recorta la cita legal del final, que es un
+                       añadido de la academia y no parte de la pregunta. */
+                    const normTexto = (t) => clavePorTexto(quitarCitaLegal(t || ''));
                     const textoNormalizado = normTexto(pregunta.texto || pregunta.question || '');
                     const opcionesArray = pregunta.opciones
                         ? pregunta.opciones.map(op => normTexto(typeof op === 'string' ? op : op.texto || ''))

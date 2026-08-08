@@ -46,21 +46,36 @@ REGLAS DE EXTRACCIÓN
 4. CÓMO SE IDENTIFICA LA RESPUESTA CORRECTA  (regla crítica)
    Busca, POR ESTE ORDEN, cualquiera de estas señales:
 
-   a) CITA LEGAL AL FINAL DE UNA SOLA OPCIÓN. Es el caso típico de los Word de academia: la opción correcta es la ÚNICA que lleva añadida la referencia al precepto en el que se apoya. Ejemplos: "Art. 84.2 LEC.", "Art. 52.1º.6ª LEC.", "Art. 2.2 LJV.", "Art. 87.1 LOTC.", "Art. 49.3 bis LEC."
+   a) CITA LEGAL SUELTA, SIN PARÉNTESIS. Es el caso típico de los Word de academia: la opción correcta lleva al final la referencia al precepto en el que se apoya, escrita directamente y sin paréntesis. Ejemplos: "Art. 84.2 LEC.", "Art. 52.1º.6ª LEC.", "Art. 2.2 LJV.", "Art. 87.1 LOTC.", "Art. 236 LOPJ."
+
+      MUY IMPORTANTE — LOS PARÉNTESIS LO CAMBIAN TODO:
+      Una cita ENTRE PARÉNTESIS, como "(Art. 131 LEC).", NO señala la respuesta correcta. Es una nota de apoyo que la academia pone sobre las demás opciones, y suele aparecer en varias a la vez.
+      Por tanto: si en una pregunta hay varias opciones con cita, la correcta es la que la lleva SUELTA (sin paréntesis), y las que la llevan entre paréntesis se descartan como candidatas.
+      Esto pasa sobre todo en las preguntas del tipo "Señale la afirmación que resulte INCORRECTA": ahí la academia pone entre paréntesis el precepto de las tres afirmaciones verdaderas, y deja la cita suelta en la falsa, que es la que hay que marcar como correcta.
+      Ejemplo real:
+        a) La publicidad de los edictos... Art. 236 LOPJ.          <- SUELTA  -> esta es la correcta
+        b) Se considerarán urgentes... (Art. 131 LEC).             <- entre paréntesis
+        c) Las actuaciones de carácter reservado... (Art. 140 LEC). <- entre paréntesis
+        d) En ningún caso podrá el tribunal... (Art. 227 LEC).      <- entre paréntesis
    b) MARCA TIPOGRÁFICA sobre una opción: asteriscos (**), negrita marcada con símbolos, "[X]", "(correcta)", una X delante, mayúsculas anómalas.
    c) SOLUCIÓN DECLARADA en el propio texto: "Respuesta correcta: B", "Solución: b)", "R: 3", o un solucionario al final del documento que relacione número de pregunta con letra.
 
    Cuando encuentres cualquiera de esas señales, devuelve esa letra en "respuestaCorrecta" (A, B, C o D, según la POSICIÓN de la opción en el array) y marca "marcaDetectada": true.
 
-5. LIMPIEZA DE LA OPCIÓN CORRECTA
-   - ELIMINA del texto de la opción la cita legal que la delataba. Ejemplo:
-       Original: "Al tribunal que conozca del proceso más antiguo. Art. 79. LEC."
-       Devuelto: "Al tribunal que conozca del proceso más antiguo."
+5. LIMPIEZA DE TODAS LAS OPCIONES  (regla crítica)
+   - ELIMINA la cita legal del final de CUALQUIER opción que la lleve, no solo de la correcta. Da igual si va suelta o entre paréntesis: las citas son anotaciones de la academia y NUNCA deben aparecer en el texto devuelto. Todas las opciones tienen que quedar limpias e indistinguibles entre sí, para que al hacer el test no se adivine la respuesta por la cita.
+       Original:  "Al tribunal que conozca del proceso más antiguo. Art. 79. LEC."
+       Devuelto:  "Al tribunal que conozca del proceso más antiguo."
+       Original:  "Se considerarán urgentes las actuaciones del tribunal... (Art. 131 LEC)."
+       Devuelto:  "Se considerarán urgentes las actuaciones del tribunal..."
    - Elimina la cita SOLO cuando va al final como referencia. Si el precepto forma parte de la redacción de la respuesta (por ejemplo "Si verifica la concurrencia de los requisitos del párrafo tercero del artículo 87 ter de la Ley Orgánica del Poder Judicial"), CONSÉRVALO, porque es parte del contenido.
-   - Elimina también los comentarios aclaratorios añadidos entre paréntesis después de la cita. Ejemplo:
-       Original: "Ninguna es correcta. Art. 54.2 LEC. (Serían las dos correctas si la pregunta se refiriera a la sumisión expresa)."
-       Devuelto: "Ninguna es correcta."
+   - Elimina también los comentarios aclaratorios añadidos entre paréntesis después de la cita. Ejemplos:
+       Original:  "Ninguna es correcta. Art. 54.2 LEC. (Serían las dos correctas si la pregunta se refiriera a la sumisión expresa)."
+       Devuelto:  "Ninguna es correcta."
+       Original:  "Sí puede hacerlo, siempre y cuando no perjudique la competencia del Juez. Art. 275 LOPJ. (También relacionado el artículo 169 LEC)."
+       Devuelto:  "Sí puede hacerlo, siempre y cuando no perjudique la competencia del Juez."
    - Elimina las marcas tipográficas (asteriscos, "[X]", "(correcta)") de la opción. El texto devuelto debe quedar limpio, igual que las demás.
+   - Antes de devolver la pregunta, repasa las cuatro opciones: si alguna sigue conteniendo "Art." seguido de un número al final, no has terminado.
 
 6. SI NO HAY NINGUNA SEÑAL
    - Deduce la correcta por tus conocimientos jurídicos y marca "marcaDetectada": false.
