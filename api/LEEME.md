@@ -75,9 +75,17 @@ Si algún día Google cambia las cifras, se ven en tiempo real en
 
 ## Detalles técnicos
 
-- Modelo: el primero disponible de `gemini-flash-latest`, `gemini-2.5-flash`, `gemini-2.0-flash`.
-  Google jubila modelos cada pocos meses; si el primero desaparece se prueba el siguiente en
-  vez de dejar la plataforma muerta.
+- Modelos, en este orden: `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.0-flash`,
+  `gemini-2.0-flash-lite` y, de último recurso, `gemini-flash-latest`.
+
+  **El orden importa y no es capricho.** El cupo gratuito va *por modelo*, y los alias `-latest`
+  apuntan siempre al modelo más nuevo, que suele salir **sin cupo gratuito**. Con `-latest` en
+  primer lugar, Google contestaba "cuota diaria agotada" ya en la primera petición del día.
+  Delante van las versiones concretas y veteranas, que sí tienen cupo de sobra.
+
+  El orden funciona además como cascada: si un modelo se queda sin cupo diario, se pasa al
+  siguiente automáticamente. Solo cuando se agotan los cinco se avisa al usuario. Igual con las
+  claves: primero se recorren todos los modelos de una clave, y solo entonces se pasa a la otra.
 - Salida estructurada con `responseSchema`: la respuesta es siempre JSON válido con cuatro
   opciones y una letra. No hay texto libre que interpretar, así que no se pierden preguntas
   por un formato inesperado.

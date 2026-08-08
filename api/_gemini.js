@@ -28,12 +28,27 @@ const MAX_REINTENTOS = 3;
 // cada pocos meses; si el primero ya no existe se pasa al
 // siguiente en vez de dejar la plataforma muerta.
 // Se puede forzar uno concreto con la variable GEMINI_MODELO.
+/* OJO CON EL ORDEN. El cupo gratuito va POR MODELO, y no todos tienen.
+   Los alias tipo "-latest" apuntan siempre al modelo más nuevo, y los
+   modelos recién salidos suelen entrar SIN cupo gratuito: se paga desde
+   la primera petición. Poniendo "gemini-flash-latest" el primero, la
+   plataforma pedía a un modelo de pago y Google respondía "cuota diaria
+   agotada" ya en la primera llamada del día.
+
+   Por eso van delante las versiones concretas y veteranas, que son las
+   que tienen cupo gratuito de sobra, y los alias quedan de último
+   recurso por si algún día jubilan a las demás.
+
+   Además el orden hace de cascada: si se agota el cupo diario de la
+   primera, se sigue con la siguiente sin que te enteres. */
 function modelosDisponibles() {
     const forzado = (process.env.GEMINI_MODELO || '').trim();
     const lista = [
-        'gemini-flash-latest',
-        'gemini-2.5-flash',
-        'gemini-2.0-flash'
+        'gemini-2.5-flash',        // equilibrio calidad/cupo
+        'gemini-2.5-flash-lite',   // menos fina, pero con mucho más cupo
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-lite',
+        'gemini-flash-latest'      // último recurso: puede no ser gratis
     ];
     return forzado ? [forzado, ...lista.filter(m => m !== forzado)] : lista;
 }
@@ -162,12 +177,16 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
     let ultimoMotivo = '';
 
     // Tres bucles anidados, de fuera adentro:
-    //   clave  -> si una está caducada o sin cupo, se prueba la otra
-    //   modelo -> si Google ha jubilado uno, se prueba el siguiente
+    //   clave  -> si una está caducada, se prueba la otra
+    //   modelo -> si uno ya no existe o se quedó sin cupo, el siguiente
     //   cuerpo -> si el modelo no admite una opción, se simplifica
     siguienteClave:
     for (const clave of claves) {
-        for (const modelo of modelosDisponibles()) {
+        const modelos = modelosDisponibles();
+        let modelosSinCupo = 0;
+
+        siguienteModelo:
+        for (const modelo of modelos) {
             let modeloVivo = true;
 
             for (let variante = 0; variante < cuerpos.length && modeloVivo; variante++) {
@@ -200,13 +219,18 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
                         continue siguienteClave;
                     }
 
-                    // Cupo del día agotado de verdad: con esta clave no hay
-                    // nada que hacer hasta la noche, se pasa a la siguiente.
+                    /* Cupo del día agotado. El cupo es POR MODELO, así que
+                       esto no significa que la clave esté acabada: se pasa
+                       al siguiente modelo de la lista, que tiene el suyo
+                       propio. Solo cuando se agotan todos se da por perdida
+                       la clave. Antes se abandonaba la clave entera aquí, y
+                       bastaba con que el primer modelo no tuviera cupo
+                       gratuito para que no funcionase nada. */
                     if (cupoDiarioAgotado(detalle)) {
-                        console.warn(`[gemini] Cupo diario agotado en ${clave.nombre}: ${motivoDeGoogle(detalle)}`);
-                        sinCupo++;
+                        console.warn(`[gemini] Sin cupo diario en ${modelo} (${clave.nombre}), probando el siguiente modelo.`);
+                        modelosSinCupo++;
                         ultimoMotivo = motivoDeGoogle(detalle);
-                        continue siguienteClave;
+                        continue siguienteModelo;
                     }
 
                     // Ir demasiado rápido NO es quedarse sin cupo: se espera
@@ -233,6 +257,12 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
                     break;
                 }
             }
+        }
+
+        // Ningún modelo de esta clave tiene cupo hoy: se prueba la siguiente
+        if (modelosSinCupo >= modelos.length) {
+            console.warn(`[gemini] La clave ${clave.nombre} se ha quedado sin cupo en todos los modelos.`);
+            sinCupo++;
         }
     }
 
