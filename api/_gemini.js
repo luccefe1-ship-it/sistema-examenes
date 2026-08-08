@@ -4,8 +4,12 @@
 //
 //  Por qué existe: procesar preguntas es una tarea de COPIAR
 //  BIEN, no de razonar. Gemini Flash lo hace igual que un modelo
-//  caro y su cupo gratuito diario sobra de largo para el uso de
-//  la plataforma, así que subir preguntas no cuesta dinero.
+//  caro y es gratis, así que subir preguntas no cuesta dinero.
+//
+//  EL CUPO GRATUITO ES PEQUEÑO: 20 peticiones al día por modelo y
+//  5 por minuto. Y Google descuenta también las que fallan. Todo
+//  este archivo está escrito con esa idea en la cabeza: no gastar
+//  una petición que no vaya a servir para nada.
 //
 //  Requiere la variable de entorno GEMINI_API_KEY en Vercel.
 //  Se puede añadir GEMINI_API_KEY_2 como segunda cuenta: si la
@@ -22,13 +26,24 @@
 const { peticionValida } = require('./_claude');
 
 const RAIZ = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MAX_REINTENTOS = 3;
 
-// Modelos a probar, en orden. Google renombra y jubila modelos
-// cada pocos meses; si el primero ya no existe se pasa al
-// siguiente en vez de dejar la plataforma muerta.
-// Se puede forzar uno concreto con la variable GEMINI_MODELO.
-/* OJO CON EL ORDEN. El cupo gratuito va POR MODELO, y no todos tienen.
+/* Reintentos deliberadamente cortos: en el plan gratuito cada petición
+   cuenta contra el cupo AUNQUE FALLE, así que insistir es tirar cupo. */
+const MAX_REINTENTOS_RITMO = 1;   // 429 por ir rápido: una segunda oportunidad
+const MAX_REINTENTOS_CAIDA = 2;   // 5xx: culpa de Google, ahí sí se insiste
+
+// Google dice en el error cuánto conviene esperar; si no, se dobla la espera
+function pausaSugerida(detalle, intento) {
+    const sugerido = /"retryDelay"\s*:\s*"(\d+)s"/.exec(String(detalle || ''));
+    return sugerido
+        ? Math.min(parseInt(sugerido[1], 10) * 1000, 15000)
+        : Math.min(3000 * Math.pow(2, intento - 1), 15000);
+}
+
+/* Modelos a probar, en orden. Se puede forzar uno concreto con la
+   variable de entorno GEMINI_MODELO.
+
+   OJO CON EL ORDEN. El cupo gratuito va POR MODELO, y no todos tienen.
    Los alias tipo "-latest" apuntan siempre al modelo más nuevo, y los
    modelos recién salidos suelen entrar SIN cupo gratuito: se paga desde
    la primera petición. Poniendo "gemini-flash-latest" el primero, la
@@ -43,12 +58,15 @@ const MAX_REINTENTOS = 3;
    primera, se sigue con la siguiente sin que te enteres. */
 function modelosDisponibles() {
     const forzado = (process.env.GEMINI_MODELO || '').trim();
+    /* Solo modelos que existen de verdad en el plan gratuito. Los
+       Gemini 2.0 estaban aquí y NO aparecen en el panel de límites: no
+       existen ya para las cuentas nuevas. Google no responde 404 a esos,
+       responde 429 diciendo que no hay cupo, así que cada intento gastaba
+       una petición del cupo real para nada. */
     const lista = [
         'gemini-2.5-flash',        // equilibrio calidad/cupo
-        'gemini-2.5-flash-lite',   // menos fina, pero con mucho más cupo
-        'gemini-2.0-flash',
-        'gemini-2.0-flash-lite',
-        'gemini-flash-latest'      // último recurso: puede no ser gratis
+        'gemini-2.5-flash-lite',   // menos fina, pero admite más por minuto
+        'gemini-flash-latest'      // el más nuevo; cupo pequeño, va de reserva
     ];
     return forzado ? [forzado, ...lista.filter(m => m !== forzado)] : lista;
 }
@@ -67,11 +85,6 @@ function esperar(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// 429 = cupo agotado (o demasiadas peticiones por minuto).
-// 500/502/503 = Google de mal día. En ambos casos se reintenta.
-function esTemporal(estado) {
-    return estado === 429 || estado === 500 || estado === 502 || estado === 503;
-}
 
 // Clave mal puesta o revocada -> no insistas, prueba la siguiente
 function claveInvalida(estado, detalle) {
@@ -108,11 +121,6 @@ function cupoDiarioAgotado(detalle) {
     return texto.includes('perday');
 }
 
-// Solo se ha ido por encima del ritmo permitido: se espera y se reintenta
-function ritmoExcedido(estado, detalle) {
-    if (estado !== 429) return false;
-    return !cupoDiarioAgotado(detalle);
-}
 
 // Saca el motivo que da Google, para poder enseñarlo en vez de adivinar
 function motivoDeGoogle(detalle) {
@@ -221,6 +229,7 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
     const cuerpos = montarCuerpos({ instrucciones, prompt, esquema, maxTokens });
     const fallos = [];
     const diagnostico = [];   // qué le pasa a cada modelo, para poder enseñarlo
+    const cuotaDiaria = [];   // solo los que se han quedado sin cupo del DÍA
     let sinCupo = 0;
     let ritmo = false;
     let ultimoMotivo = '';
@@ -236,77 +245,95 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
 
         siguienteModelo:
         for (const modelo of modelos) {
-            let modeloVivo = true;
+            let variante = 0;
+            let reintentosRitmo = 0;
+            let reintentosCaida = 0;
 
-            for (let variante = 0; variante < cuerpos.length && modeloVivo; variante++) {
+            /* REGLA DE ORO DE ESTE BUCLE: cada vuelta es UNA petición a
+               Google, y Google descuenta del cupo TODAS las peticiones,
+               también las que fallan. Con 20 al día, insistir sale
+               carísimo. Así que solo se repite cuando repetir puede
+               cambiar el resultado.
 
-                for (let reintento = 0; reintento <= MAX_REINTENTOS; reintento++) {
-                    const intento = await fetch(`${RAIZ}/${modelo}:generateContent`, {
-                        method: 'POST',
-                        headers: {
-                            'content-type': 'application/json',
-                            'x-goog-api-key': clave.clave.trim()
-                        },
-                        body: JSON.stringify(cuerpos[variante])
-                    });
+               La versión anterior probaba 3 variantes de cuerpo con 4
+               intentos cada una: hasta 12 peticiones por modelo. Con eso
+               se fundía el cupo de un día entero en un solo documento. */
+            while (variante < cuerpos.length) {
+                const intento = await fetch(`${RAIZ}/${modelo}:generateContent`, {
+                    method: 'POST',
+                    headers: {
+                        'content-type': 'application/json',
+                        'x-goog-api-key': clave.clave.trim()
+                    },
+                    body: JSON.stringify(cuerpos[variante])
+                });
 
-                    if (intento.ok) {
-                        const data = await intento.json();
-                        return { ...interpretarRespuesta(data), modelo, cuenta: clave.nombre };
-                    }
+                if (intento.ok) {
+                    const data = await intento.json();
+                    return { ...interpretarRespuesta(data), modelo, cuenta: clave.nombre };
+                }
 
-                    const detalle = await intento.text();
-                    fallos.push(`${clave.nombre}/${modelo}: ${intento.status} ${detalle.slice(0, 160)}`);
+                const detalle = await intento.text();
+                fallos.push(`${clave.nombre}/${modelo}: ${intento.status} ${detalle.slice(0, 160)}`);
 
-                    if (modeloNoExiste(intento.status, detalle)) {
-                        modeloVivo = false;
-                        break;
-                    }
+                // El modelo no existe: no insistas, no gastes más
+                if (modeloNoExiste(intento.status, detalle)) {
+                    diagnostico.push(`${modelo}: no disponible`);
+                    continue siguienteModelo;
+                }
 
-                    if (claveInvalida(intento.status, detalle)) {
-                        console.warn(`[gemini] Clave ${clave.nombre} no válida, probando la siguiente.`);
-                        continue siguienteClave;
-                    }
+                if (claveInvalida(intento.status, detalle)) {
+                    console.warn(`[gemini] Clave ${clave.nombre} no válida, probando la siguiente.`);
+                    continue siguienteClave;
+                }
+
+                if (intento.status === 429) {
+                    const cuota = detalleDeCuota(detalle);
+                    ultimoMotivo = motivoDeGoogle(detalle);
 
                     /* Cupo del día agotado. El cupo es POR MODELO, así que
-                       esto no significa que la clave esté acabada: se pasa
-                       al siguiente modelo de la lista, que tiene el suyo
-                       propio. Solo cuando se agotan todos se da por perdida
-                       la clave. Antes se abandonaba la clave entera aquí, y
-                       bastaba con que el primer modelo no tuviera cupo
-                       gratuito para que no funcionase nada. */
+                       esto no deja inservible la clave: se pasa al siguiente
+                       modelo, que tiene el suyo. Reintentar aquí no sirve de
+                       nada y encima gasta. */
                     if (cupoDiarioAgotado(detalle)) {
-                        const cuota = detalleDeCuota(detalle);
-                        console.warn(`[gemini] Sin cupo diario en ${modelo} (${clave.nombre})${textoDeCuota(cuota)}. Probando el siguiente modelo.`);
+                        console.warn(`[gemini] Sin cupo diario en ${modelo} (${clave.nombre})${textoDeCuota(cuota)}.`);
                         modelosSinCupo++;
-                        diagnostico.push(`${modelo}${textoDeCuota(cuota) || ': sin cupo'}`);
-                        ultimoMotivo = motivoDeGoogle(detalle);
+                        const linea = `${modelo}${textoDeCuota(cuota) || ': sin cupo'}`;
+                        diagnostico.push(linea);
+                        cuotaDiaria.push(linea);
                         continue siguienteModelo;
                     }
 
-                    // Ir demasiado rápido NO es quedarse sin cupo: se espera
-                    // lo que pida Google y se vuelve a intentar.
-                    if (esTemporal(intento.status) && reintento < MAX_REINTENTOS) {
-                        // Google dice cuánto esperar en el cuerpo del error; si no, se dobla la espera
-                        const sugerido = /"retryDelay"\s*:\s*"(\d+)s"/.exec(detalle);
-                        const pausa = sugerido
-                            ? Math.min(parseInt(sugerido[1], 10) * 1000, 12000)
-                            : 2000 * Math.pow(2, reintento);
-                        console.warn(`[gemini] ${intento.status}, reintento ${reintento + 1} en ${pausa} ms.`);
+                    // Solo cuestión de ritmo: se espera lo que pida Google y
+                    // se prueba UNA vez más. Si vuelve a fallar, a otro modelo.
+                    if (reintentosRitmo < MAX_REINTENTOS_RITMO) {
+                        reintentosRitmo++;
+                        const pausa = pausaSugerida(detalle, reintentosRitmo);
+                        console.warn(`[gemini] Ritmo excedido en ${modelo}, esperando ${pausa} ms.`);
                         await esperar(pausa);
                         continue;
                     }
 
-                    // Se agotaron los reintentos y seguía siendo cuestión de ritmo
-                    if (ritmoExcedido(intento.status, detalle)) {
-                        ritmo = true;
-                        ultimoMotivo = motivoDeGoogle(detalle);
-                        break;
-                    }
-
-                    // 400 u otro error del cuerpo: se prueba la variante más simple
-                    break;
+                    ritmo = true;
+                    diagnostico.push(`${modelo}: límite por minuto`);
+                    continue siguienteModelo;
                 }
+
+                // Google caído o saturado: no es culpa nuestra, se reintenta
+                if (intento.status >= 500 && reintentosCaida < MAX_REINTENTOS_CAIDA) {
+                    reintentosCaida++;
+                    await esperar(pausaSugerida(detalle, reintentosCaida));
+                    continue;
+                }
+
+                // 400: el modelo no admite alguna opción del cuerpo. Es el
+                // ÚNICO caso en que cambiar el cuerpo puede arreglarlo.
+                if (intento.status === 400) {
+                    variante++;
+                    continue;
+                }
+
+                continue siguienteModelo;
             }
         }
 
@@ -323,21 +350,21 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
        por cuota, y bastaba con un 404 de un modelo jubilado para que el
        usuario recibiera un error genérico ilegible en vez de esta
        explicación. */
-    if (sinCupo > 0 || diagnostico.length > 0) {
-        const sinPlanGratuito = diagnostico.filter(d => d.includes('NO tiene plan gratuito'));
+    if (cuotaDiaria.length > 0) {
+        const sinPlanGratuito = cuotaDiaria.filter(d => d.includes('NO tiene plan gratuito'));
 
         const error = new Error(
-            sinPlanGratuito.length === diagnostico.length && diagnostico.length > 0
+            sinPlanGratuito.length === cuotaDiaria.length
                 ? 'Tu clave de Google no tiene plan gratuito en ninguno de los modelos que usa la plataforma. ' +
                   'Mira qué modelos tienes disponibles en aistudio.google.com/rate-limit y dime cuál, ' +
-                  'o activa la facturación. Detalle: ' + diagnostico.join(' · ')
+                  'o activa la facturación. Detalle: ' + cuotaDiaria.join(' · ')
                 : 'Se ha agotado el cupo gratuito de Google por hoy en los modelos disponibles. ' +
                   'Se reinicia cada noche; mientras tanto puedes esperar a mañana o añadir una ' +
-                  'segunda clave de otra cuenta de Google. Detalle: ' + diagnostico.join(' · ') +
+                  'segunda clave de otra cuenta de Google. Detalle: ' + cuotaDiaria.join(' · ') +
                   // Los modelos que fallaron por otro motivo (no existen, petición
                   // rechazada) no salen en el diagnóstico de cuota y quedarían
                   // invisibles. Se añaden para no dejar huecos sin explicar.
-                  (fallos.length > diagnostico.length ? ` | Otros fallos: ${fallos.slice(-2).join(' | ')}` : '')
+                  (fallos.length > cuotaDiaria.length ? ` | Otros fallos: ${fallos.slice(-2).join(' | ')}` : '')
         );
         error.cupoAgotado = true;
         error.diagnostico = diagnostico;
