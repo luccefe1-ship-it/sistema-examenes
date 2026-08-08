@@ -89,17 +89,32 @@ Las cifras las cambia Google cuando quiere; las tuyas están siempre en
 
 ## Detalles técnicos
 
-- Modelos, en este orden: `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.0-flash`,
-  `gemini-2.0-flash-lite` y, de último recurso, `gemini-flash-latest`.
+- **La lista de modelos no está escrita a mano: se le pregunta a Google.** Llevarla a mano no
+  funcionaba. Google jubila modelos sin avisar (`This model is no longer available to new
+  users`) y los nombres del panel de AI Studio **no coinciden** con los identificadores de la
+  API. Cada nombre inventado costaba una petición del cupo diario solo para descubrir que ya no
+  existía.
 
-  **El orden importa y no es capricho.** El cupo gratuito va *por modelo*, y los alias `-latest`
-  apuntan siempre al modelo más nuevo, que suele salir **sin cupo gratuito**. Con `-latest` en
-  primer lugar, Google contestaba "cuota diaria agotada" ya en la primera petición del día.
-  Delante van las versiones concretas y veteranas, que sí tienen cupo de sobra.
+  Al arrancar se pide el listado de modelos (no gasta cupo de generación) y se queda guardado
+  mientras la función siga viva. Del listado se filtran solo los Flash — los Pro no tienen plan
+  gratuito — y se descartan los de imagen, audio, TTS, embeddings y los `preview`.
 
-  El orden funciona además como cascada: si un modelo se queda sin cupo diario, se pasa al
-  siguiente automáticamente. Solo cuando se agotan los cinco se avisa al usuario. Igual con las
-  claves: primero se recorren todos los modelos de una clave, y solo entonces se pasa a la otra.
+  Orden: los más nuevos primero (son los que no están en vías de retirada), los `lite` delante
+  a igualdad de versión porque admiten más peticiones por minuto, y los alias `-latest` al final
+  porque apuntan a un modelo que cambia solo.
+
+  Es una **cascada**: el cupo va por modelo, así que cuando uno se agota se pasa al siguiente y
+  el cupo total es la suma de todos. Con 6 modelos disponibles salen ~120 peticiones al día. Si
+  un modelo responde que ya no existe, se borra de la lista y no se vuelve a intentar.
+
+  Se puede forzar uno concreto con la variable `GEMINI_MODELO`.
+
+- **Los reintentos son cortos a propósito.** Google descuenta del cupo también las peticiones
+  que fallan. Una versión anterior probaba 3 variantes de cuerpo con 4 intentos cada una: hasta
+  12 peticiones por modelo, capaces de fundir el cupo de un día en un solo documento. Ahora cada
+  vuelta del bucle es una petición y solo se repite cuando repetir puede cambiar el resultado:
+  429 por ritmo → un reintento; 5xx → dos; 400 → se prueba un cuerpo más simple; cupo diario o
+  modelo inexistente → siguiente modelo, sin insistir.
 - Salida estructurada con `responseSchema`: la respuesta es siempre JSON válido con cuatro
   opciones y una letra. No hay texto libre que interpretar, así que no se pierden preguntas
   por un formato inesperado.

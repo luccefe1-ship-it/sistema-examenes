@@ -40,35 +40,86 @@ function pausaSugerida(detalle, intento) {
         : Math.min(3000 * Math.pow(2, intento - 1), 15000);
 }
 
-/* Modelos a probar, en orden. Se puede forzar uno concreto con la
-   variable de entorno GEMINI_MODELO.
+/* QUÉ MODELOS USAR: se lo preguntamos a Google, no lo adivinamos.
 
-   OJO CON EL ORDEN. El cupo gratuito va POR MODELO, y no todos tienen.
-   Los alias tipo "-latest" apuntan siempre al modelo más nuevo, y los
-   modelos recién salidos suelen entrar SIN cupo gratuito: se paga desde
-   la primera petición. Poniendo "gemini-flash-latest" el primero, la
-   plataforma pedía a un modelo de pago y Google respondía "cuota diaria
-   agotada" ya en la primera llamada del día.
+   Llevar la lista escrita a mano no funciona. Google jubila modelos
+   constantemente y sin avisar ("This model is no longer available to new
+   users"), y los nombres del panel de AI Studio no coinciden con los
+   identificadores de la API. Cada nombre inventado costaba una petición
+   del cupo diario para nada.
 
-   Por eso van delante las versiones concretas y veteranas, que son las
-   que tienen cupo gratuito de sobra, y los alias quedan de último
-   recurso por si algún día jubilan a las demás.
+   El endpoint de listado dice exactamente qué modelos admite ESTA clave.
+   No gasta cupo de generación, y el resultado se guarda mientras la
+   función siga viva en Vercel, así que se pide una vez y ya. */
+const LISTA_RESPALDO = ['gemini-flash-latest', 'gemini-2.5-flash'];
+let cacheModelos = null;
 
-   Además el orden hace de cascada: si se agota el cupo diario de la
-   primera, se sigue con la siguiente sin que te enteres. */
-function modelosDisponibles() {
+async function descubrirModelos(clave) {
     const forzado = (process.env.GEMINI_MODELO || '').trim();
-    /* Solo modelos que existen de verdad en el plan gratuito. Los
-       Gemini 2.0 estaban aquí y NO aparecen en el panel de límites: no
-       existen ya para las cuentas nuevas. Google no responde 404 a esos,
-       responde 429 diciendo que no hay cupo, así que cada intento gastaba
-       una petición del cupo real para nada. */
-    const lista = [
-        'gemini-2.5-flash',        // equilibrio calidad/cupo
-        'gemini-2.5-flash-lite',   // menos fina, pero admite más por minuto
-        'gemini-flash-latest'      // el más nuevo; cupo pequeño, va de reserva
-    ];
-    return forzado ? [forzado, ...lista.filter(m => m !== forzado)] : lista;
+    if (forzado) return [forzado];
+    if (cacheModelos) return cacheModelos;
+
+    try {
+        const respuesta = await fetch(`${RAIZ}?pageSize=200`, {
+            headers: { 'x-goog-api-key': clave.trim() }
+        });
+        if (!respuesta.ok) throw new Error(`listado ${respuesta.status}`);
+
+        const data = await respuesta.json();
+        const candidatos = (data.models || [])
+            .filter(m => {
+                const metodos = m.supportedGenerationMethods;
+                // Si Google deja de mandar el campo, no se descarta nada
+                return !metodos || metodos.includes('generateContent');
+            })
+            .map(m => String(m.name || '').replace(/^models\//, ''))
+            // Solo los Flash: los Pro no tienen plan gratuito
+            .filter(n => /flash/i.test(n))
+            // Fuera lo que no sirve para texto o no es estable
+            .filter(n => !/(image|imagen|audio|tts|live|veo|embedding|vision|learnlm|exp|preview)/i.test(n));
+
+        if (candidatos.length === 0) throw new Error('el listado no trae modelos Flash');
+
+        cacheModelos = ordenarPorConveniencia(candidatos);
+        console.log(`[gemini] Modelos disponibles para esta clave: ${cacheModelos.join(', ')}`);
+        return cacheModelos;
+
+    } catch (error) {
+        console.warn(`[gemini] No se pudo listar modelos (${error.message}), se usa la lista de respaldo.`);
+        return LISTA_RESPALDO;
+    }
+}
+
+/* El orden importa porque el cupo va POR MODELO: cuando uno se agota se
+   pasa al siguiente, así que la lista entera es cupo acumulado.
+
+   Delante los que no son alias, porque un alias tipo "-latest" apunta al
+   modelo más nuevo y los recién salidos suelen entrar sin plan gratuito.
+   Y dentro de esos, los "lite" primero: admiten más peticiones por minuto
+   y para copiar preguntas dan la misma calidad. */
+function ordenarPorConveniencia(modelos) {
+    // Versión que lleva el nombre: "gemini-3.1-flash-lite" -> 3.1
+    const version = (n) => {
+        const m = /gemini-(\d+)(?:\.(\d+))?/.exec(n);
+        return m ? parseInt(m[1], 10) * 100 + parseInt(m[2] || '0', 10) : 0;
+    };
+
+    return [...new Set(modelos)].sort((a, b) => {
+        // Los alias "-latest" al final: apuntan a un modelo que cambia solo
+        const aliasA = /latest/.test(a) ? 1 : 0;
+        const aliasB = /latest/.test(b) ? 1 : 0;
+        if (aliasA !== aliasB) return aliasA - aliasB;
+
+        /* Después, los más NUEVOS primero. Los viejos son justo los que
+           Google va retirando ("no longer available to new users"), y cada
+           uno retirado cuesta una petición del cupo en descubrirlo. */
+        if (version(a) !== version(b)) return version(b) - version(a);
+
+        // A igual versión, el "lite" delante: admite más peticiones por minuto
+        const liteA = /lite/.test(a) ? 0 : 1;
+        const liteB = /lite/.test(b) ? 0 : 1;
+        return liteA - liteB || a.localeCompare(b);
+    });
 }
 
 // ------------------------------------------------------------
@@ -240,7 +291,7 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
     //   cuerpo -> si el modelo no admite una opción, se simplifica
     siguienteClave:
     for (const clave of claves) {
-        const modelos = modelosDisponibles();
+        const modelos = await descubrirModelos(clave.clave);
         let modelosSinCupo = 0;
 
         siguienteModelo:
@@ -276,9 +327,13 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
                 const detalle = await intento.text();
                 fallos.push(`${clave.nombre}/${modelo}: ${intento.status} ${detalle.slice(0, 160)}`);
 
-                // El modelo no existe: no insistas, no gastes más
+                // El modelo ya no existe. Además de saltarlo, se borra de la
+                // lista guardada para no volver a gastar una petición en él
+                // mientras esta instancia siga viva.
                 if (modeloNoExiste(intento.status, detalle)) {
-                    diagnostico.push(`${modelo}: no disponible`);
+                    console.warn(`[gemini] ${modelo} ya no está disponible, se descarta.`);
+                    if (cacheModelos) cacheModelos = cacheModelos.filter(m => m !== modelo);
+                    diagnostico.push(`${modelo}: ya no existe`);
                     continue siguienteModelo;
                 }
 
@@ -426,6 +481,7 @@ function interpretarRespuesta(data) {
 }
 
 module.exports = {
+    descubrirModelos,
     peticionValida,
     obtenerClaves,
     llamarGemini
