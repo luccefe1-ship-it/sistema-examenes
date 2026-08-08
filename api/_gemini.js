@@ -71,11 +71,35 @@ function modeloNoExiste(estado, detalle) {
     return estado === 404 || texto.includes('not found for api version') || texto.includes('is not supported');
 }
 
-// Distingue "se acabó el cupo del día" de "vas muy rápido".
-// El mensaje de Google incluye el nombre de la métrica agotada.
+/* Distingue "se acabó el cupo del día" de "vas muy rápido".
+
+   CUIDADO CON ESTO. La primera versión daba por agotado el cupo diario en
+   cuanto el error contenía "quota_limit_value", y ese campo viene en
+   PRÁCTICAMENTE TODOS los 429 de Google, incluidos los de límite por
+   minuto. Resultado: a la que dos peticiones iban demasiado seguidas, la
+   plataforma anunciaba que no quedaba cupo hasta el día siguiente.
+
+   Lo único que distingue de verdad un límite del otro es el identificador
+   de la cuota, que dice explícitamente si es PerDay o PerMinute. */
 function cupoDiarioAgotado(detalle) {
-    const texto = String(detalle || '').toLowerCase();
-    return texto.includes('per day') || texto.includes('perday') || texto.includes('quota_limit_value');
+    const texto = String(detalle || '').toLowerCase().replace(/[\s_-]/g, '');
+    return texto.includes('perday');
+}
+
+// Solo se ha ido por encima del ritmo permitido: se espera y se reintenta
+function ritmoExcedido(estado, detalle) {
+    if (estado !== 429) return false;
+    return !cupoDiarioAgotado(detalle);
+}
+
+// Saca el motivo que da Google, para poder enseñarlo en vez de adivinar
+function motivoDeGoogle(detalle) {
+    try {
+        const json = JSON.parse(detalle);
+        const mensaje = json && json.error && json.error.message;
+        if (mensaje) return String(mensaje).slice(0, 200);
+    } catch (e) { /* el error no venía en JSON */ }
+    return String(detalle || '').slice(0, 200);
 }
 
 // ------------------------------------------------------------
@@ -134,6 +158,8 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
     const cuerpos = montarCuerpos({ instrucciones, prompt, esquema, maxTokens });
     const fallos = [];
     let sinCupo = 0;
+    let ritmo = false;
+    let ultimoMotivo = '';
 
     // Tres bucles anidados, de fuera adentro:
     //   clave  -> si una está caducada o sin cupo, se prueba la otra
@@ -174,21 +200,33 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
                         continue siguienteClave;
                     }
 
-                    if (intento.status === 429 && cupoDiarioAgotado(detalle)) {
-                        console.warn(`[gemini] Cupo diario agotado en ${clave.nombre}.`);
+                    // Cupo del día agotado de verdad: con esta clave no hay
+                    // nada que hacer hasta la noche, se pasa a la siguiente.
+                    if (cupoDiarioAgotado(detalle)) {
+                        console.warn(`[gemini] Cupo diario agotado en ${clave.nombre}: ${motivoDeGoogle(detalle)}`);
                         sinCupo++;
+                        ultimoMotivo = motivoDeGoogle(detalle);
                         continue siguienteClave;
                     }
 
+                    // Ir demasiado rápido NO es quedarse sin cupo: se espera
+                    // lo que pida Google y se vuelve a intentar.
                     if (esTemporal(intento.status) && reintento < MAX_REINTENTOS) {
                         // Google dice cuánto esperar en el cuerpo del error; si no, se dobla la espera
                         const sugerido = /"retryDelay"\s*:\s*"(\d+)s"/.exec(detalle);
                         const pausa = sugerido
-                            ? Math.min(parseInt(sugerido[1], 10) * 1000, 15000)
+                            ? Math.min(parseInt(sugerido[1], 10) * 1000, 12000)
                             : 2000 * Math.pow(2, reintento);
                         console.warn(`[gemini] ${intento.status}, reintento ${reintento + 1} en ${pausa} ms.`);
                         await esperar(pausa);
                         continue;
+                    }
+
+                    // Se agotaron los reintentos y seguía siendo cuestión de ritmo
+                    if (ritmoExcedido(intento.status, detalle)) {
+                        ritmo = true;
+                        ultimoMotivo = motivoDeGoogle(detalle);
+                        break;
                     }
 
                     // 400 u otro error del cuerpo: se prueba la variante más simple
@@ -201,9 +239,20 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
     if (sinCupo > 0) {
         const error = new Error(
             'Se ha agotado el cupo gratuito de Google por hoy. Se reinicia cada noche; ' +
-            'mientras tanto puedes subir las preguntas mañana o añadir una segunda clave.'
+            'mientras tanto puedes subir las preguntas mañana o añadir una segunda clave. ' +
+            `(Google dice: ${ultimoMotivo})`
         );
         error.cupoAgotado = true;
+        throw error;
+    }
+
+    if (ritmo) {
+        const error = new Error(
+            'Google está limitando el ritmo de peticiones. NO es que se haya acabado el cupo del día: ' +
+            'espera un minuto y vuelve a darle a Procesar. ' +
+            `(Google dice: ${ultimoMotivo})`
+        );
+        error.ritmo = true;
         throw error;
     }
 

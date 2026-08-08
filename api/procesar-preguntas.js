@@ -370,9 +370,10 @@ module.exports = async function handler(req, res) {
 
     } catch (error) {
         console.error('[procesar-preguntas]', error);
-        return res.status(error.cupoAgotado ? 429 : 500).json({
+        return res.status((error.cupoAgotado || error.ritmo) ? 429 : 500).json({
             error: error.message || 'Error procesando el texto',
-            cupoAgotado: !!error.cupoAgotado
+            cupoAgotado: !!error.cupoAgotado,
+            ritmo: !!error.ritmo
         });
     }
 };

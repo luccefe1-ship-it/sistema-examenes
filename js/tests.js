@@ -10222,11 +10222,12 @@ async function moverSeleccionadasA(destinoId) {
 
 const ENDPOINT_PROCESAR = '/api/procesar-preguntas';
 
-// El plan gratuito limita las peticiones por minuto, así que no se
-// puede disparar todo a la vez. Dos en paralelo con una pausa entre
-// medias va sobrado y no roza el límite.
-const LOTES_EN_PARALELO = 2;
-const PAUSA_ENTRE_LOTES_MS = 1200;
+// El plan gratuito limita las peticiones por minuto, y ese límite es
+// bastante bajo. Se va de uno en uno con una pausa entre medias: un
+// documento de 25 preguntas son 3 peticiones, así que se pierde poco
+// y a cambio no se roza el límite ni yendo con prisa.
+const LOTES_EN_PARALELO = 1;
+const PAUSA_ENTRE_LOTES_MS = 2500;
 
 function inicializarSubidaWord() {
     const zona = document.getElementById('zonaWord');

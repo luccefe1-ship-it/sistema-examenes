@@ -104,7 +104,8 @@ Si algún día Google cambia las cifras, se ven en tiempo real en
 | Mensaje | Causa |
 |---|---|
 | `Falta la variable de entorno GEMINI_API_KEY` | No se guardó la variable en Vercel o no se redesplegó. |
-| `Se ha agotado el cupo gratuito de Google por hoy` | Se reinicia esa misma noche. Para no esperar, añade `GEMINI_API_KEY_2`. |
+| `Se ha agotado el cupo gratuito de Google por hoy` | Se reinicia esa misma noche. Para no esperar, añade `GEMINI_API_KEY_2`. El mensaje incluye entre paréntesis lo que dice Google literalmente. |
+| `Google está limitando el ritmo de peticiones` | No es el cupo del día: han ido demasiadas peticiones seguidas. Espera un minuto y vuelve a darle. |
 | `La clave de Google no es válida` | Clave mal copiada o borrada en AI Studio. |
 | `Origen no autorizado` | La plataforma se sirve desde otro dominio: añádelo a `ORIGENES_EXTRA_PERMITIDOS` en `api/_claude.js`. |
 | `No se ha detectado ninguna pregunta` | El texto no tiene formato de test, o está vacío. |
