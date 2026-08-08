@@ -43,19 +43,33 @@ No hace falta salvo que vayas a subir muchísimo en un mismo día.
 
 ## Cuánto cupo se gasta
 
-El texto se trocea en lotes de 12 preguntas y **cada lote es una petición**.
+**Los límites reales del plan gratuito son bajos.** Comprobados en el panel en agosto de 2026:
+
+| Modelo | Peticiones/minuto | Peticiones/día |
+|---|---|---|
+| Gemini 2.5 Flash | 5 | 20 |
+| Gemini 2.5 Flash Lite | 10 | 20 |
+| Gemini 3.6 Flash (`-latest`) | 5 | 20 |
+
+Los tokens no son problema (250.000 por minuto, no se rozan). **El recurso escaso es la
+petición.** Por eso los lotes son de 25 preguntas: un documento de academia entero cabe en una
+sola llamada.
 
 | Documento | Peticiones |
 |---|---|
-| 25 preguntas | 3 |
-| 100 preguntas | 9 |
+| 25 preguntas | **1** |
+| 50 preguntas | 2 |
+| 100 preguntas | 4 |
 
-El cupo diario del plan gratuito está en varios cientos de peticiones, así que el techo real
-son decenas de documentos al día. El límite que sí se puede rozar es el de **peticiones por
-minuto**: por eso los lotes van de 2 en 2 con una pausa de 1,2 s entre medias
-(`LOTES_EN_PARALELO` y `PAUSA_ENTRE_LOTES_MS` en `js/tests.js`).
+Con 20 peticiones al día por modelo y la cascada entre los cinco de la lista, salen del orden
+de **100 documentos de 25 preguntas al día**. De sobra para el uso normal, pero conviene saber
+que el techo existe.
 
-Si algún día Google cambia las cifras, se ven en tiempo real en
+El límite de 5 por minuto es el que se toca yendo rápido: por eso los lotes van de uno en uno
+con 12,5 s de pausa (`LOTES_EN_PARALELO` y `PAUSA_ENTRE_LOTES_MS` en `js/tests.js`). Con
+documentos de 25 preguntas esa pausa ni aparece, porque solo hay un lote.
+
+Las cifras las cambia Google cuando quiere; las tuyas están siempre en
 [el panel de AI Studio](https://aistudio.google.com/rate-limit).
 
 ## Qué hace el modelo con el texto

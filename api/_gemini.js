@@ -97,6 +97,13 @@ function modeloNoExiste(estado, detalle) {
    Lo único que distingue de verdad un límite del otro es el identificador
    de la cuota, que dice explícitamente si es PerDay o PerMinute. */
 function cupoDiarioAgotado(detalle) {
+    // Si se puede leer la violación concreta, se mira ESA y no el texto
+    // entero: un mismo error puede traer varias violaciones a la vez, y
+    // buscar "perday" en todo el cuerpo daba por agotado el día cuando lo
+    // que se había pasado era el límite de tokens por minuto.
+    const cuota = detalleDeCuota(detalle);
+    if (cuota) return /perday/i.test(cuota.id.replace(/[\s_-]/g, ''));
+
     const texto = String(detalle || '').toLowerCase().replace(/[\s_-]/g, '');
     return texto.includes('perday');
 }
@@ -128,15 +135,24 @@ function detalleDeCuota(detalle) {
     try {
         const json = JSON.parse(detalle);
         const bloques = (json && json.error && json.error.details) || [];
+
+        const todas = [];
         for (const bloque of bloques) {
-            const violacion = (bloque.violations || [])[0];
-            if (violacion && violacion.quotaId) {
-                return {
-                    id: violacion.quotaId,
-                    valor: violacion.quotaValue !== undefined ? String(violacion.quotaValue) : '?'
-                };
+            for (const violacion of (bloque.violations || [])) {
+                if (violacion && violacion.quotaId) {
+                    todas.push({
+                        id: violacion.quotaId,
+                        valor: violacion.quotaValue !== undefined ? String(violacion.quotaValue) : '?'
+                    });
+                }
             }
         }
+        if (todas.length === 0) return null;
+
+        // Si hay varias violaciones, manda la diaria: es la que de verdad
+        // deja el modelo inservible hasta mañana. Las de por minuto se
+        // arreglan solas esperando.
+        return todas.find(c => /perday/i.test(c.id.replace(/[\s_-]/g, ''))) || todas[0];
     } catch (e) { /* el error no venía en JSON */ }
     return null;
 }
@@ -315,9 +331,13 @@ async function llamarGemini({ instrucciones, prompt, esquema, maxTokens = 32000 
                 ? 'Tu clave de Google no tiene plan gratuito en ninguno de los modelos que usa la plataforma. ' +
                   'Mira qué modelos tienes disponibles en aistudio.google.com/rate-limit y dime cuál, ' +
                   'o activa la facturación. Detalle: ' + diagnostico.join(' · ')
-                : 'Se ha agotado el cupo gratuito de Google por hoy. Se reinicia cada noche; ' +
-                  'mientras tanto puedes subir las preguntas mañana o añadir una segunda clave. ' +
-                  'Detalle: ' + diagnostico.join(' · ')
+                : 'Se ha agotado el cupo gratuito de Google por hoy en los modelos disponibles. ' +
+                  'Se reinicia cada noche; mientras tanto puedes esperar a mañana o añadir una ' +
+                  'segunda clave de otra cuenta de Google. Detalle: ' + diagnostico.join(' · ') +
+                  // Los modelos que fallaron por otro motivo (no existen, petición
+                  // rechazada) no salen en el diagnóstico de cuota y quedarían
+                  // invisibles. Se añaden para no dejar huecos sin explicar.
+                  (fallos.length > diagnostico.length ? ` | Otros fallos: ${fallos.slice(-2).join(' | ')}` : '')
         );
         error.cupoAgotado = true;
         error.diagnostico = diagnostico;

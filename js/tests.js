@@ -10222,12 +10222,12 @@ async function moverSeleccionadasA(destinoId) {
 
 const ENDPOINT_PROCESAR = '/api/procesar-preguntas';
 
-// El plan gratuito limita las peticiones por minuto, y ese límite es
-// bastante bajo. Se va de uno en uno con una pausa entre medias: un
-// documento de 25 preguntas son 3 peticiones, así que se pierde poco
-// y a cambio no se roza el límite ni yendo con prisa.
+// El plan gratuito da 5 peticiones por minuto, o sea una cada 12 segundos.
+// Se va de una en una y se espera ese hueco antes de la siguiente. Como un
+// documento de academia normal cabe en una sola petición, esta pausa casi
+// nunca llega a notarse: solo aparece en documentos de más de 25 preguntas.
 const LOTES_EN_PARALELO = 1;
-const PAUSA_ENTRE_LOTES_MS = 2500;
+const PAUSA_ENTRE_LOTES_MS = 12500;
 
 function inicializarSubidaWord() {
     const zona = document.getElementById('zonaWord');
@@ -10329,8 +10329,13 @@ async function procesarEntrada(texto, origen) {
 
             completados++;
             const extraidas = resultados.reduce((suma, lote) => suma + (lote ? lote.length : 0), 0);
+            // Con varios bloques hay que esperar entre uno y otro por el límite
+            // de peticiones por minuto; se avisa para que no parezca colgado.
+            const espera = completados < totalLotes && totalLotes > 1
+                ? ' · esperando unos segundos para no pasarse del límite de Google'
+                : '';
             mostrarProgresoWord(
-                `Analizando las preguntas... ${completados} de ${totalLotes} bloques · ${extraidas} extraídas`,
+                `Analizando las preguntas... ${completados} de ${totalLotes} bloques · ${extraidas} extraídas${espera}`,
                 12 + Math.round((completados / totalLotes) * 85)
             );
         };

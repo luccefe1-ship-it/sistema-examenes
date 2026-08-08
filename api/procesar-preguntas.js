@@ -14,9 +14,14 @@
 //  El tiempo máximo de ejecución se configura en vercel.json.
 // ============================================================
 
-const PREGUNTAS_POR_LOTE = 12;       // troceado para no agotar el tiempo
+/* El plan gratuito de Google da 20 peticiones AL DÍA por modelo, así que
+   la petición es el recurso escaso: no los tokens (250.000 por minuto,
+   que no se rozan) ni el tiempo. Por eso los lotes son grandes. Con 25
+   preguntas por lote, un documento de academia entero se resuelve en una
+   sola petición en vez de tres. */
+const PREGUNTAS_POR_LOTE = 25;
 const MAX_TOKENS = 32000;
-const MAX_CARACTERES_BLOQUE = 6000;  // corte de emergencia si no hay numeración
+const MAX_CARACTERES_BLOQUE = 14000; // corte de emergencia si no hay numeración
 
 const { peticionValida, obtenerClaves, llamarGemini } = require('./_gemini');
 const { usuarioConCupo } = require('./_auth');
