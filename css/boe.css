@@ -5,10 +5,13 @@
    franja de color a la izquierda para la importancia.
    ============================================================ */
 
+/* La navbar es position:fixed, así que sin este hueco el contenido
+   arranca DEBAJO de ella y las cifras de arriba salen cortadas. Son
+   ~56px de barra más aire. */
 .boe-container {
     max-width: 1000px;
-    margin: 30px auto 60px;
-    padding: 0 20px;
+    margin: 0 auto;
+    padding: 100px 20px 60px;
 }
 
 /* --- Cabecera con cifras --------------------------------- */
@@ -53,11 +56,43 @@
 }
 
 /* --- Filtros ---------------------------------------------- */
+.boe-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 22px;
+}
+
 .boe-filtros {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    margin-bottom: 22px;
+}
+
+.boe-marcar-todos {
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid #d8d8ea;
+    color: #667eea;
+    padding: 9px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.boe-marcar-todos:hover {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
+}
+
+.boe-marcar-todos:disabled {
+    opacity: 0.45;
+    cursor: default;
 }
 
 .boe-filtro {
@@ -307,10 +342,152 @@
     line-height: 1.4;
 }
 
+/* ============================================================
+   MODO TARDE Y NOCHE
+   El fondo de la plataforma cambia con la hora (body.dia / .tarde /
+   .noche, en css/style.css). Las tarjetas blancas sobre el fondo azul
+   oscuro de la noche deslumbran, así que aquí se oscurecen.
+
+   Se agrupan tarde y noche porque el fondo de la tarde ya es lo
+   bastante oscuro como para que el texto gris claro no se lea.
+   ============================================================ */
+body.noche .boe-stat,
+body.noche .boe-aviso,
+body.tarde .boe-stat,
+body.tarde .boe-aviso {
+    background: rgba(30, 32, 55, 0.92);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+body.noche .boe-titulo,
+body.tarde .boe-titulo {
+    color: #ececf5;
+}
+
+body.noche .boe-resumen,
+body.noche .boe-preguntas li,
+body.tarde .boe-resumen,
+body.tarde .boe-preguntas li {
+    color: #b9b9cc;
+}
+
+body.noche .boe-stat-label,
+body.noche .boe-motivo,
+body.noche .boe-nota,
+body.tarde .boe-stat-label,
+body.tarde .boe-motivo,
+body.tarde .boe-nota {
+    color: #9a9ab0;
+}
+
+/* El morado corporativo pierde contraste sobre fondo oscuro:
+   se sube el tono en vez de cambiar de color. */
+body.noche .boe-stat-numero,
+body.noche .boe-stat-numero-pequeno,
+body.noche .boe-fecha,
+body.noche .boe-enlaces a,
+body.tarde .boe-stat-numero,
+body.tarde .boe-stat-numero-pequeno,
+body.tarde .boe-fecha,
+body.tarde .boe-enlaces a {
+    color: #a5b0ff;
+}
+
+body.noche .boe-filtro,
+body.noche .boe-marcar-todos,
+body.tarde .boe-filtro,
+body.tarde .boe-marcar-todos {
+    background: rgba(30, 32, 55, 0.9);
+    border-color: #40446b;
+    color: #c3c3d6;
+}
+
+body.noche .boe-filtro.activo,
+body.tarde .boe-filtro.activo {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: transparent;
+    color: white;
+}
+
+body.noche .boe-marcar,
+body.tarde .boe-marcar {
+    background: #33375c;
+    color: #a5b0ff;
+}
+
+body.noche .boe-marcar:hover,
+body.tarde .boe-marcar:hover {
+    background: #3d426c;
+}
+
+body.noche .boe-etiqueta,
+body.tarde .boe-etiqueta {
+    background: #32365c;
+    color: #b3bcff;
+}
+
+body.noche .boe-etiqueta-art,
+body.tarde .boe-etiqueta-art {
+    background: #4a3a26;
+    color: #f0bd7e;
+}
+
+body.noche .boe-preguntas,
+body.tarde .boe-preguntas {
+    background: rgba(60, 46, 28, 0.55);
+    border-color: #5c4830;
+}
+
+body.noche .boe-preguntas summary,
+body.noche .boe-pregunta-art,
+body.tarde .boe-preguntas summary,
+body.tarde .boe-pregunta-art {
+    color: #f0bd7e;
+}
+
+body.noche .boe-pregunta-tema,
+body.tarde .boe-pregunta-tema {
+    background: #2b2f4d;
+    border-color: #5c4830;
+    color: #e8b878;
+}
+
+body.noche .boe-vacio,
+body.noche .boe-cargando,
+body.tarde .boe-vacio,
+body.tarde .boe-cargando {
+    color: #a8a8bd;
+}
+
+body.noche .boe-vacio h3,
+body.tarde .boe-vacio h3 {
+    color: #dcdcea;
+}
+
+/* De noche el "leído" al 55% de opacidad ya no se lee. Se apaga
+   menos y se compensa quitándole color al borde. */
+body.noche .boe-aviso.leido,
+body.tarde .boe-aviso.leido {
+    opacity: 0.72;
+    border-left-color: #4a4a63;
+}
+
 /* --- Móvil ------------------------------------------------ */
 @media (max-width: 768px) {
+    .boe-container {
+        padding-top: 90px;
+    }
+
     .boe-cabecera {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .boe-barra {
+        justify-content: flex-start;
+    }
+
+    .boe-marcar-todos {
+        width: 100%;
     }
 
     .boe-aviso-cabecera {

@@ -211,6 +211,27 @@ const PISTAS_CONVOCATORIA = [
     'oferta de empleo'
 ];
 
+/* RUIDO. Lo que el Ministerio publica a diario y no cambia ni una coma
+   del temario ni abre ningún plazo.
+
+   Esta lista no salió de imaginar qué podría molestar: salió de mirar
+   los 90 avisos de la primera ejecución real. Casi todos eran convenios
+   ("Convenio con el Banco de España en materia de cesión de información
+   para el análisis de pymes"). Con el filtro anterior pasaban solo por
+   venir del Ministerio de Justicia, y enterraban lo que sí importa.
+
+   Un aviso que no se lee es peor que ninguno: enseña a ignorar la
+   pantalla entera. */
+const RUIDO_ADMINISTRATIVO = [
+    'convenio', 'addenda', 'adenda', 'protocolo general',
+    'encomienda de gestion', 'delegacion de competencias',
+    'subvencion', 'subvenciones', 'premio', 'premios',
+    'cuentas anuales', 'presupuesto', 'contrato', 'licitacion',
+    'carta de servicios', 'sello de calidad', 'convenio colectivo',
+    'expropiacion', 'condecoracion', 'cruz de san raimundo',
+    'medalla', 'indulto', 'nacionalidad por carta de naturaleza'
+];
+
 /* Sin acentos, sin mayúsculas y sin espacios de más.
    Comparar "Administración" con "administracion" falla siempre y es
    el fallo más aburrido de encontrar. */
@@ -245,23 +266,46 @@ function clasificarDisposicion(disposicion) {
         return { tipo: 'convocatoria', motivo: 'Convocatoria o proceso selectivo de tu cuerpo' };
     }
 
-    if (!esDeCasa && !hablaDeLoNuestro) return null;
-
-    // Una convocatoria puede colarse por la sección 3
+    /* Una convocatoria de tu cuerpo entra SIEMPRE, aunque venga por otra
+       sección y aunque el título lleve la palabra "convenio". Se mira
+       antes que el filtro de ruido a propósito: perderse un plazo cuesta
+       una convocatoria entera. */
     if (contieneAlguna(texto, PISTAS_CONVOCATORIA) && contieneAlguna(texto, CUERPOS_PROPIOS)) {
         return { tipo: 'convocatoria', motivo: 'Convocatoria o proceso selectivo de tu cuerpo' };
     }
 
+    if (contieneAlguna(texto, RUIDO_ADMINISTRATIVO)) return null;
+
+    /* SECCIÓN I - Disposiciones generales: aquí van las leyes y los
+       reglamentos, que es lo que puede cambiar el temario. Basta con
+       que venga de un departamento de los tuyos. */
     if (seccion === '1') {
+        if (!esDeCasa && !hablaDeLoNuestro) return null;
         return {
             tipo: 'disposicion',
             motivo: hablaDeLoNuestro
-                ? 'Disposición general que menciona la Administración de Justicia'
+                ? 'Disposición general sobre la Administración de Justicia'
                 : `Disposición general de ${disposicion.departamento}`
         };
     }
 
-    return { tipo: 'otra', motivo: `Publicación de ${disposicion.departamento}` };
+    /* SECCIÓN III - Otras disposiciones: aquí el departamento NO basta.
+       El Ministerio de Justicia publica en esta sección decenas de cosas
+       al mes que no tienen que ver con el temario, y por dejar pasar
+       todo lo suyo salieron 90 avisos el primer día.
+
+       Se exige que el título hable de lo tuyo, o que venga del CGPJ,
+       cuyos acuerdos sí regulan la oficina judicial. */
+    const esDelCGPJ = contieneAlguna(disposicion.departamento, ['consejo general del poder judicial']);
+
+    if (!hablaDeLoNuestro && !esDelCGPJ) return null;
+
+    return {
+        tipo: 'otra',
+        motivo: esDelCGPJ
+            ? 'Acuerdo del Consejo General del Poder Judicial'
+            : 'Publicación sobre la Administración de Justicia'
+    };
 }
 
 /* Qué normas del catálogo se citan en un texto. Se busca por nombre y

@@ -200,6 +200,21 @@ y el Reglamento de ingreso a una circular de la Mutualidad Judicial). Por eso
 existe `?verificar=1`, que pregunta al BOE por cada ID y devuelve el título real.
 **Ejecutarlo cada vez que se añada una norma a `_normas.js`.**
 
+**El filtro se apretó DESPUÉS de verlo en producción.** La primera
+ejecución real dejó 90 avisos y casi todos eran convenios del Ministerio
+("Convenio con el Banco de España sobre cesión de datos para análisis de
+pymes"). Pasaban solo por venir de un departamento vigilado. Ahora la
+sección III exige que el título hable de lo tuyo —el departamento no basta— y
+hay una lista de `RUIDO_ADMINISTRATIVO` en `_normas.js` con convenios,
+encomiendas, subvenciones y demás. Las pruebas llevan esos tres títulos reales
+para que no vuelvan a colarse. Un aviso que no se lee es peor que ninguno:
+enseña a ignorar la pantalla entera.
+
+**Las convocatorias se miran ANTES que el filtro de ruido.** Si una
+convocatoria de tu cuerpo lleva la palabra "convenio" en el título, tiene que
+entrar igual: perderse un plazo cuesta mucho más que un aviso de más. El orden
+de esas dos comprobaciones en `clasificarDisposicion` no es casual.
+
 **El cruce con el banco exige norma Y artículo.** Si cambia el art. 45 de la LEC,
 se marcan las preguntas que citan *la LEC* y *el 45*. Solo con el número, "artículo
 24" salta en media plataforma. Aun así es una heurística: **señala, no borra**. Un

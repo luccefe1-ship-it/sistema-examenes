@@ -23,6 +23,11 @@ let avisos = [];
 let leidos = new Set();
 let filtroActivo = 'todos';
 
+/* Se guarda aparte porque el resumen se repinta cada vez que se marca
+   un aviso, y si dependiera del parámetro la fecha de "última revisión"
+   se borraría al primer clic. */
+let ultimaRevision = null;
+
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'index.html'; return; }
     usuario = user;
@@ -61,7 +66,10 @@ async function cargar() {
             return datos;
         }));
 
-        pintarResumen(estado);
+        const datosEstado = estado?.exists?.() ? estado.data() : null;
+        ultimaRevision = datosEstado?.momento || null;
+
+        pintarResumen();
         pintar();
 
     } catch (error) {
@@ -74,7 +82,7 @@ async function cargar() {
     }
 }
 
-function pintarResumen(estado) {
+function pintarResumen() {
     const sinLeer = avisos.filter(a => !leidos.has(a.id)).length;
     const altas = avisos.filter(a => a.importancia === 'alta' && !leidos.has(a.id)).length;
     const preguntas = avisos.reduce((suma, a) => suma + (a.preguntas?.length || 0), 0);
@@ -83,10 +91,13 @@ function pintarResumen(estado) {
     document.getElementById('statAltas').textContent = altas;
     document.getElementById('statPreguntas').textContent = preguntas;
 
-    const momento = estado?.exists?.() ? estado.data().momento : null;
-    document.getElementById('statUltima').textContent = momento?.toDate
-        ? momento.toDate().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    document.getElementById('statUltima').textContent = ultimaRevision?.toDate
+        ? ultimaRevision.toDate().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
         : '—';
+
+    // El botón de marcar todo no pinta nada si ya está todo leído
+    const marcarTodos = document.getElementById('marcarTodos');
+    if (marcarTodos) marcarTodos.style.display = sinLeer > 0 ? '' : 'none';
 }
 
 function coincideFiltro(aviso) {
@@ -179,7 +190,7 @@ document.addEventListener('click', async (evento) => {
     // Se pinta antes de guardar: la respuesta es instantánea y, si
     // Firestore falla, se avisa y se deshace.
     pintar();
-    pintarResumen(null);
+    pintarResumen();
 
     try {
         await setDoc(doc(db, 'boeLeidos', usuario.uid), {
@@ -201,4 +212,42 @@ document.querySelectorAll('.boe-filtro').forEach(boton => {
         filtroActivo = boton.dataset.filtro;
         pintar();
     });
+});
+
+/* Marcar todo de golpe.
+
+   Hace falta porque la primera ejecución dejó 90 avisos acumulados y
+   apagarlos de uno en uno son 90 clics. Marca lo que hay CARGADO en
+   pantalla, no la colección entera: si algún día hay miles, no tiene
+   sentido traérselos todos para tacharlos. */
+document.getElementById('marcarTodos')?.addEventListener('click', async (evento) => {
+    const boton = evento.currentTarget;
+    const sinLeer = avisos.filter(a => !leidos.has(a.id));
+
+    if (!sinLeer.length) return;
+    if (!confirm(`¿Marcar como leídos los ${sinLeer.length} avisos sin leer?`)) return;
+
+    const copia = new Set(leidos);
+    sinLeer.forEach(a => leidos.add(a.id));
+
+    boton.disabled = true;
+    pintar();
+    pintarResumen();
+
+    try {
+        await setDoc(doc(db, 'boeLeidos', usuario.uid), {
+            usuarioId: usuario.uid,
+            claves: [...leidos],
+            actualizado: new Date()
+        }, { merge: true });
+    } catch (error) {
+        console.error('[boe] No se pudieron guardar las marcas:', error);
+        // Se deshace entero: dejar la mitad marcada sería peor
+        leidos = copia;
+        pintar();
+        pintarResumen();
+        alert('No se pudieron guardar las marcas. Inténtalo de nuevo.');
+    } finally {
+        boton.disabled = false;
+    }
 });

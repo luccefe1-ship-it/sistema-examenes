@@ -193,6 +193,81 @@ registrar('\n── 3. El filtro separa el grano de la paja ──');
 }
 
 // ============================================================
+registrar('\n── 3b. El ruido de verdad que salió el primer día ──');
+// ============================================================
+{
+    /* TÍTULOS REALES de la primera ejecución en producción. Salieron 90
+       avisos y casi todos eran esto: convenios del Ministerio que no
+       tocan el temario. Pasaban solo por venir de un departamento
+       vigilado. Estas pruebas existen para que no vuelvan a colarse. */
+    const ruidoReal = [
+        {
+            seccion: '3',
+            departamento: 'MINISTERIO DE LA PRESIDENCIA, JUSTICIA Y RELACIONES CON LAS CORTES',
+            epigrafe: '',
+            titulo: 'Resolución de 7 de agosto de 2026, de la Secretaría de Estado de Justicia, por la que se publica el Convenio con la Unión Española de Entidades Aseguradoras y Reaseguradoras y la Entidad de Tecnologías de la Información y Redes para las Entidades Aseguradoras, en materia de información de seguros implicada en investigaciones o decisiones judiciales.'
+        },
+        {
+            seccion: '3',
+            departamento: 'MINISTERIO PARA LA TRANSFORMACIÓN DIGITAL Y DE LA FUNCIÓN PÚBLICA',
+            epigrafe: '',
+            titulo: 'Resolución de 24 de julio de 2026, de la Entidad Pública Empresarial, Red.es, M.P., por la que se publica el Convenio con el Banco de España, en materia de cesión de información para la evaluación y análisis de la digitalización y asesoramiento para la transformación de pymes y autónomos.'
+        },
+        {
+            seccion: '3',
+            departamento: 'MINISTERIO DE LA PRESIDENCIA, JUSTICIA Y RELACIONES CON LAS CORTES',
+            epigrafe: '',
+            titulo: 'Resolución de 5 de agosto de 2026, de la Subsecretaría, por la que se publica el Convenio de asistencia jurídica entre la Abogacía General del Estado y la Fundación Pública Escuela de Organización Industrial, F.S.P.'
+        }
+    ];
+
+    ruidoReal.forEach((d, i) => {
+        comprobar(`Descarta el convenio real ${i + 1}`,
+            normas.clasificarDisposicion(d) === null,
+            JSON.stringify(normas.clasificarDisposicion(d)));
+    });
+
+    // Lo que SÍ tiene que seguir pasando por la sección III
+    const acuerdoCGPJ = normas.clasificarDisposicion({
+        seccion: '3',
+        departamento: 'CONSEJO GENERAL DEL PODER JUDICIAL',
+        epigrafe: '',
+        titulo: 'Acuerdo de 10 de julio de 2026, de la Comisión Permanente, sobre creación de plazas'
+    });
+    comprobar('Deja pasar un acuerdo del CGPJ', acuerdoCGPJ !== null);
+
+    const sobreOficina = normas.clasificarDisposicion({
+        seccion: '3',
+        departamento: 'MINISTERIO DE LA PRESIDENCIA, JUSTICIA Y RELACIONES CON LAS CORTES',
+        epigrafe: '',
+        titulo: 'Resolución sobre el despliegue de la oficina judicial en los tribunales de instancia'
+    });
+    comprobar('Deja pasar lo que sí habla de la oficina judicial', sobreOficina !== null);
+
+    // Una ley nueva en sección I no se descarta aunque venga sin más contexto
+    const leyNueva = normas.clasificarDisposicion({
+        seccion: '1',
+        departamento: 'JEFATURA DEL ESTADO',
+        epigrafe: '',
+        titulo: 'Ley Orgánica 5/2026, de 3 de agosto, de medidas de eficiencia del Servicio Público de Justicia'
+    });
+    comprobar('Una ley nueva de Jefatura del Estado pasa siempre', leyNueva?.tipo === 'disposicion');
+
+    /* Y el caso que justifica el orden del código: una convocatoria de
+       tu cuerpo con la palabra "convenio" en el título NO puede caerse
+       por el filtro de ruido. Perder un plazo cuesta demasiado. */
+    const convocatoriaConRuido = normas.clasificarDisposicion({
+        seccion: '3',
+        departamento: 'MINISTERIO DE LA PRESIDENCIA, JUSTICIA Y RELACIONES CON LAS CORTES',
+        epigrafe: '',
+        titulo: 'Resolución por la que se convoca proceso selectivo del Cuerpo de Tramitación Procesal al amparo del Convenio con las comunidades autónomas'
+    });
+    comprobar('Una convocatoria de tu cuerpo entra aunque diga "Convenio"',
+        convocatoriaConRuido?.tipo === 'convocatoria',
+        JSON.stringify(convocatoriaConRuido));
+}
+
+// ============================================================
 registrar('\n── 4. Artículos citados en un texto ──');
 // ============================================================
 {

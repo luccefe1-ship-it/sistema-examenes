@@ -22,7 +22,7 @@
     <div class="boe-container">
 
         <!-- Resumen de arriba -->
-        <div class="boe-cabecera">
+        <div class="boe-cabecera" id="boeCabecera">
             <div class="boe-stat">
                 <span class="boe-stat-numero" id="statSinLeer">0</span>
                 <span class="boe-stat-label">Sin leer</span>
@@ -42,12 +42,15 @@
         </div>
 
         <!-- Filtros -->
-        <div class="boe-filtros">
-            <button class="boe-filtro activo" data-filtro="todos">Todos</button>
-            <button class="boe-filtro" data-filtro="sinleer">Sin leer</button>
-            <button class="boe-filtro" data-filtro="modificacion">Cambios en normas</button>
-            <button class="boe-filtro" data-filtro="convocatoria">Convocatorias</button>
-            <button class="boe-filtro" data-filtro="disposicion">Disposiciones</button>
+        <div class="boe-barra">
+            <div class="boe-filtros">
+                <button class="boe-filtro activo" data-filtro="todos">Todos</button>
+                <button class="boe-filtro" data-filtro="sinleer">Sin leer</button>
+                <button class="boe-filtro" data-filtro="modificacion">Cambios en normas</button>
+                <button class="boe-filtro" data-filtro="convocatoria">Convocatorias</button>
+                <button class="boe-filtro" data-filtro="disposicion">Disposiciones</button>
+            </div>
+            <button id="marcarTodos" class="boe-marcar-todos">Marcar todos como leídos</button>
         </div>
 
         <div id="cargando" class="boe-cargando">
@@ -68,6 +71,29 @@
             son una <strong>sugerencia de revisión</strong>: nada se borra ni se corrige solo.
         </p>
     </div>
+
+    <script>
+    /* Fondo según la hora, igual que el resto de la plataforma.
+       Las clases dia/tarde/noche están en css/style.css; aquí solo se
+       elige cuál toca. Se hace antes de cargar los avisos para que no
+       parpadee de claro a oscuro al entrar de noche. */
+    function actualizarFondoHora() {
+        const hora = new Date().getHours();
+        const body = document.body;
+
+        body.classList.remove('dia', 'tarde', 'noche');
+
+        if (hora >= 6 && hora < 18) body.classList.add('dia');
+        else if (hora >= 18 && hora < 21) body.classList.add('tarde');
+        else body.classList.add('noche');
+    }
+
+    actualizarFondoHora();
+    document.addEventListener('DOMContentLoaded', actualizarFondoHora);
+
+    // Si se deja la pestaña abierta toda la tarde, que cambie sola
+    setInterval(actualizarFondoHora, 60000 * 10);
+    </script>
 
     <script type="module" src="js/boe.js"></script>
 
