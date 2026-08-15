@@ -33,18 +33,13 @@
 // ============================================================
 
 const {
-    obtenerSumario, obtenerAnalisis, existeNorma,
+    obtenerSumario, obtenerAnalisis, obtenerMetadatos, existeNorma,
     articulosCitados, fechaHoyMadrid, fechaValida, fechaLegible
 } = require('./_boe');
 
 const { NORMAS, clasificarDisposicion, normasCitadas, normalizar } = require('./_normas');
 const { obtenerFirestore } = require('./_consumo');
 const { llamarGemini, obtenerClaves } = require('./_gemini');
-
-// Cuántos días atrás mira el análisis de cada norma. El cron va a
-// diario, así que con una ventana corta sobra; se deja holgura para
-// que un día caído no deje un hueco permanente.
-const DIAS_VENTANA_MODIFICACIONES = 10;
 
 // Tope de días en una llamada manual, para que un ?dias=400 por error
 // no encadene 400 peticiones al BOE.
@@ -129,20 +124,30 @@ async function revisarSumario(fecha) {
 //  Paso 2: ¿han tocado alguna norma del temario?
 // ------------------------------------------------------------
 
-/* La fecha de las referencias del BOE viene en formatos variados.
-   Se acepta lo que se pueda y, si no se entiende, se deja pasar la
-   referencia: mejor un aviso de más que perderse una reforma. */
-function dentroDeVentana(fechaRef, desde) {
-    if (!fechaRef) return true;
+/* CÓMO SE SABE QUÉ ES NUEVO, Y POR QUÉ ASÍ.
 
-    const soloDigitos = String(fechaRef).replace(/\D/g, '');
-    if (soloDigitos.length !== 8) return true;
+   La idea original era filtrar las referencias por fecha: "dame lo
+   modificado en los últimos 10 días". No se puede: la API de
+   legislación consolidada NO devuelve fecha en las referencias. Cada
+   una trae solo quién la tocó, qué relación y una frase de detalle.
+   La LOPJ tiene 146 referencias posteriores y ninguna lleva fecha.
 
-    // Puede venir AAAAMMDD o DDMMAAAA
-    const comoISO = soloDigitos.slice(0, 4) > '1800' ? soloDigitos : null;
-    if (!comoISO) return true;
+   Así que se hace por comparación: cada ejecución guarda los
+   identificadores de las referencias que ha visto, y a la siguiente
+   avisa de las que no estaban. No depende de ningún campo que el BOE
+   pueda no darnos.
 
-    return comoISO >= desde;
+   LA PRIMERA VEZ NO AVISA DE NADA. Solo siembra la línea base. Si no,
+   la primera ejecución soltaría cientos de avisos de reformas de los
+   años ochenta. Queda anotado en el informe como "sembradas". */
+const COLECCION_ESTADO_NORMAS = 'boeNormasEstado';
+
+/* Relaciones que cambian lo que hay que estudiar. Las demás
+   (recursos y cuestiones de inconstitucionalidad) se avisan también,
+   pero con menos importancia: interesan, pero no reescriben la ley
+   hasta que se resuelven. */
+function esCambioDeContenido(relacion) {
+    return /modific|deroga|añad|anad|renumera|sustituy|corrig/i.test(String(relacion || ''));
 }
 
 function restarDias(fecha, dias) {
@@ -171,14 +176,45 @@ async function enTandas(elementos, tamano, tarea) {
     return resultados;
 }
 
-async function revisarModificaciones(hasta) {
-    const desde = restarDias(hasta, DIAS_VENTANA_MODIFICACIONES);
+/* Lee la foto anterior de cada norma. Sin Firestore no hay memoria,
+   así que se devuelve vacío y no se avisará de nada: preferible a
+   soltar 146 avisos históricos de golpe. */
+async function cargarEstadoNormas(db) {
+    if (!db) return {};
+
+    const instantanea = await db.collection(COLECCION_ESTADO_NORMAS).get();
+    const estado = {};
+    instantanea.docs.forEach(doc => { estado[doc.id] = doc.data(); });
+    return estado;
+}
+
+async function guardarEstadoNorma(db, idNorma, datos) {
+    if (!db) return;
+    await db.collection(COLECCION_ESTADO_NORMAS).doc(idNorma).set({
+        ...datos,
+        actualizado: new Date()
+    }, { merge: true });
+}
+
+/* En modo seco se LEE la memoria pero no se escribe. Si no se leyera,
+   el modo seco diría siempre "todas sembradas, nada nuevo" y no
+   serviría para ver qué habría detectado, que es justo para lo que
+   está. */
+async function revisarModificaciones(hasta, db, soloLectura = false) {
+    const anotar = soloLectura ? async () => {} : guardarEstadoNorma;
     const hallazgos = [];
     const fallos = [];
+    const sembradas = [];
+
+    const estadoPrevio = await cargarEstadoNormas(db);
 
     const analisisPorNorma = await enTandas(NORMAS, NORMAS_A_LA_VEZ, async (norma) => {
         try {
-            return { norma, analisis: await obtenerAnalisis(norma.id) };
+            const [analisis, metadatos] = await Promise.all([
+                obtenerAnalisis(norma.id),
+                obtenerMetadatos(norma.id)
+            ]);
+            return { norma, analisis, metadatos };
         } catch (error) {
             // Que falle una norma no debe tumbar la revisión entera:
             // se anota y se sigue con las demás.
@@ -186,7 +222,7 @@ async function revisarModificaciones(hasta) {
         }
     });
 
-    for (const { norma, analisis, error } of analisisPorNorma) {
+    for (const { norma, analisis, metadatos, error } of analisisPorNorma) {
         if (error) {
             fallos.push(`${norma.id} (${norma.nombre}): ${error}`);
             continue;
@@ -197,29 +233,66 @@ async function revisarModificaciones(hasta) {
             continue;
         }
 
-        const recientes = analisis.referencias.filter(ref => dentroDeVentana(ref.fecha, desde));
+        // Una referencia se identifica por quién la hizo más su texto:
+        // una misma norma modificadora puede tocar varias cosas.
+        const huella = ref => `${ref.idModificadora}|${String(ref.texto).slice(0, 120)}`;
+        const vistasAhora = analisis.referencias.map(huella);
 
-        for (const ref of recientes) {
+        const previo = estadoPrevio[norma.id];
+        const yaConocidas = new Set(previo?.referencias || []);
+
+        // Primera vez que se mira esta norma: se guarda la foto y punto.
+        if (!previo) {
+            sembradas.push(norma.id);
+            await anotar(db, norma.id, {
+                idNorma: norma.id,
+                nombre: norma.nombre,
+                tituloOficial: metadatos?.titulo || '',
+                fechaActualizacion: metadatos?.fechaActualizacion || '',
+                referencias: vistasAhora,
+                total: vistasAhora.length
+            });
+            continue;
+        }
+
+        const nuevas = analisis.referencias.filter(ref => !yaConocidas.has(huella(ref)));
+
+        for (const ref of nuevas) {
             const articulos = articulosCitados(ref.texto);
+            const deContenido = esCambioDeContenido(ref.relacion);
 
             hallazgos.push({
-                clave: `mod-${norma.id}-${(ref.idModificadora || ref.fecha || '').replace(/[^\w-]/g, '')}`,
+                clave: `mod-${norma.id}-${String(ref.idModificadora).replace(/[^\w-]/g, '')}`,
                 tipo: 'modificacion',
-                motivo: `Modificación de ${norma.nombre}`,
-                fecha: String(ref.fecha || hasta).replace(/\D/g, '').slice(0, 8) || hasta,
-                titulo: `${norma.nombre}: ${ref.relacion || 'modificación'}${articulos.length ? ` (arts. ${articulos.join(', ')})` : ''}`,
+                motivo: `${norma.nombre}: ${ref.relacion || 'referencia nueva'}`,
+                fecha: hasta,
+                titulo: `${norma.nombre} — ${ref.relacion || 'modificada'}${articulos.length ? ` (arts. ${articulos.join(', ')})` : ''}`,
                 detalle: ref.texto,
-                urlHtml: `https://www.boe.es/buscar/act.php?id=${norma.id}`,
+                urlHtml: metadatos?.urlConsolidada || `https://www.boe.es/buscar/act.php?id=${norma.id}`,
                 urlPdf: '',
                 departamento: '',
                 seccion: 'Legislación consolidada',
                 normas: [{ id: norma.id, nombre: norma.nombre, bloque: norma.bloque }],
-                articulos
+                articulos,
+                // Un recurso de inconstitucionalidad interesa, pero todavía
+                // no cambia el texto: no merece el mismo rojo que una reforma.
+                importanciaMinima: deContenido ? 'alta' : 'media'
+            });
+        }
+
+        if (nuevas.length) {
+            await anotar(db, norma.id, {
+                idNorma: norma.id,
+                nombre: norma.nombre,
+                tituloOficial: metadatos?.titulo || previo.tituloOficial || '',
+                fechaActualizacion: metadatos?.fechaActualizacion || '',
+                referencias: vistasAhora,
+                total: vistasAhora.length
             });
         }
     }
 
-    return { hallazgos, fallos };
+    return { hallazgos, fallos, sembradas };
 }
 
 // ------------------------------------------------------------
@@ -398,7 +471,7 @@ async function guardarAvisos(db, hallazgos, resumenes, afectadosPorClave) {
             normas: hallazgo.normas || [],
             articulos: hallazgo.articulos || [],
             resumen: extra.resumen || '',
-            importancia: extra.importancia || (hallazgo.tipo === 'modificacion' ? 'alta' : 'media'),
+            importancia: extra.importancia || hallazgo.importanciaMinima || 'media',
             actualizado: new Date()
         };
 
@@ -508,6 +581,10 @@ module.exports = async function handler(req, res) {
         const fechas = [];
         for (let i = 0; i < dias; i++) fechas.push(restarDias(hasta, i));
 
+        // La memoria del vigilante vive en Firestore, así que hace
+        // falta desde el paso 2 y no solo para guardar.
+        const db = obtenerFirestore();
+
         // --- Paso 1: sumarios ----------------------------------
         const hallazgos = [];
         const diasSinBoletin = [];
@@ -519,11 +596,10 @@ module.exports = async function handler(req, res) {
         }
 
         // --- Paso 2: modificaciones de las normas del temario ---
-        const modificaciones = await revisarModificaciones(hasta);
+        const modificaciones = await revisarModificaciones(hasta, db, seco);
         hallazgos.push(...modificaciones.hallazgos);
 
         // --- Paso 3: preguntas en entredicho -------------------
-        const db = obtenerFirestore();
         const afectadosPorClave = {};
 
         const conArticulos = hallazgos.filter(h => h.articulos.length && h.normas.length);
@@ -549,6 +625,9 @@ module.exports = async function handler(req, res) {
             hallazgos: hallazgos.length,
             avisosNuevos: guardado.nuevos,
             normasConProblema: modificaciones.fallos,
+            // Normas vistas por primera vez: se guarda su foto y NO se
+            // avisa de su historial. En la primera ejecución salen las 19.
+            normasSembradas: modificaciones.sembradas,
             seco
         };
 
@@ -577,6 +656,6 @@ module.exports.paraPruebas = {
     revisarModificaciones,
     preguntasQueCitan,
     verificarCatalogo,
-    restarDias,
-    dentroDeVentana
+    esCambioDeContenido,
+    restarDias
 };

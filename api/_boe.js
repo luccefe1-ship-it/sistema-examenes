@@ -205,48 +205,73 @@ async function obtenerSumario(fecha) {
 //  LEGISLACIÓN CONSOLIDADA
 // ------------------------------------------------------------
 
-/* El análisis de una norma trae, entre otras cosas, sus "referencias
-   posteriores": las normas que la han tocado después, con la fecha y
-   una frase que dice qué le hicieron ("MODIFICA los arts. 23 y 45").
+/* OJO CON LA FORMA DE LA RESPUESTA. Aquí "data" es un ARRAY con un
+   único elemento dentro, no un objeto. Comprobado contra la API real:
 
-   Eso es exactamente lo que hace falta: no "hoy salió algo de
-   Justicia", sino "el art. 456 de la LOPJ cambió el 3 de marzo". */
+     { "status": {...}, "data": [ { "materias": [...], "referencias": {...} } ] }
+
+   Y dentro, "posteriores" es una lista de UN objeto que contiene la
+   lista de verdad:
+
+     referencias.posteriores[0].posterior[] -> { id_norma, relacion, texto }
+
+   Escribir esto de memoria sale mal: la primera versión leía
+   data.analisis y data.metadatos, que no existen, así que las 19
+   normas del catálogo daban "no existe". */
+function primerElemento(datos) {
+    const data = datos?.data;
+    if (Array.isArray(data)) return data[0] || {};
+    return data || {};
+}
+
+/* Referencias posteriores: las normas que han tocado esta después.
+
+   LO QUE NO HAY, Y CONDICIONA TODO: aquí NO viene la fecha. Solo
+   quién, qué relación y una frase con el detalle. Por eso el
+   vigilante no puede preguntar "¿qué ha cambiado esta semana?" y en
+   su lugar compara esta lista con la que vio la última vez. */
 async function obtenerAnalisis(idNorma) {
     const datos = await pedirJson(`/legislacion-consolidada/id/${encodeURIComponent(idNorma)}/analisis`);
     if (datos === SIN_BOLETIN) return null;
 
-    const analisis = datos?.data?.analisis || datos?.data || {};
-    const posteriores = analisis?.referencias?.posteriores || analisis?.posteriores;
+    const nodo = primerElemento(datos);
+    const referencias = [];
 
-    const referencias = comoLista(posteriores?.posterior || posteriores).map(ref => {
-        if (!ref || typeof ref !== 'object') return null;
-        return {
-            // Quién modifica: identificador BOE de la norma modificadora
-            idModificadora: ref.referencia?.texto || ref.referencia || ref.id_norma || '',
-            // Qué le hace: "Modificación", "Derogación"...
-            relacion: ref.relacion?.texto || ref.relacion || '',
-            // Detalle en texto: aquí es donde vienen los artículos
-            texto: ref.texto?.texto || ref.texto || ref.detalle || '',
-            fecha: ref.fecha_publicacion || ref.fecha || ''
-        };
-    }).filter(Boolean);
+    for (const grupo of comoLista(nodo?.referencias?.posteriores)) {
+        for (const ref of comoLista(grupo?.posterior || grupo)) {
+            if (!ref || typeof ref !== 'object' || !ref.id_norma) continue;
+
+            referencias.push({
+                // Quién la tocó: identificador BOE de la norma modificadora
+                idModificadora: ref.id_norma,
+                // Qué le hizo: "SE MODIFICA", "SE DEROGA", "Recurso"...
+                relacion: ref.relacion?.texto || ref.relacion || '',
+                codigoRelacion: ref.relacion?.codigo || '',
+                // El detalle, que es de donde salen los artículos
+                texto: ref.texto || ''
+            });
+        }
+    }
 
     return { referencias };
 }
 
-/* Metadatos: sirven para dos cosas. Confirmar que un identificador del
-   catálogo existe de verdad, y quedarse con el título oficial en vez
-   del que hayamos escrito a mano. */
+/* Metadatos: sirven para tres cosas. Confirmar que un identificador
+   del catálogo existe de verdad, quedarse con el título oficial, y
+   saber cuándo se actualizó por última vez la versión consolidada. */
 async function obtenerMetadatos(idNorma) {
     const datos = await pedirJson(`/legislacion-consolidada/id/${encodeURIComponent(idNorma)}/metadatos`);
     if (datos === SIN_BOLETIN) return null;
 
-    const meta = datos?.data?.metadatos || datos?.data || {};
+    const meta = primerElemento(datos);
+    if (!meta.titulo) return null;
+
     return {
-        id: idNorma,
-        titulo: meta.titulo || '',
-        fechaActualizacion: meta.fecha_actualizacion || meta.fecha_publicacion || '',
-        vigencia: meta.estado_consolidacion?.texto || meta.vigencia_agotada || ''
+        id: meta.identificador || idNorma,
+        titulo: meta.titulo,
+        fechaActualizacion: meta.fecha_actualizacion || '',
+        derogada: meta.estatus_derogacion === 'S',
+        urlConsolidada: meta.url_html_consolidada || `https://www.boe.es/buscar/act.php?id=${idNorma}`
     };
 }
 
@@ -296,7 +321,11 @@ function articulosCitados(texto) {
             }
         }
 
-        for (const numero of trozo.matchAll(/\d+/g)) {
+        /* El (?<![\d.]) descarta los apartados. En el BOE se cita
+           "el art. 175.3" y "los arts. 570 bis.1 y 599.1": sin esto
+           entrarían también el 3 y el 1 como si fueran artículos, y
+           el artículo 1 lo menciona media plataforma. */
+        for (const numero of trozo.matchAll(/(?<![\d.])\d+/g)) {
             const n = parseInt(numero[0], 10);
             // Por encima de 2000 casi siempre es un año colado
             if (n > 0 && n < 2000) encontrados.add(n);

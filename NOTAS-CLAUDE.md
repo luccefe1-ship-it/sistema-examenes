@@ -169,6 +169,25 @@ un elemento, y como array cuando hay varios. Sin `comoLista()` el código funcio
 en pruebas y revienta el día que una sección trae una sola disposición. Hay una
 prueba dedicada a esto.
 
+**En consolidada, `data` es un ARRAY.** No un objeto. La forma real es
+`{ status, data: [ {...} ] }`, y dentro las referencias van dos niveles más
+abajo: `referencias.posteriores[0].posterior[]`. La primera versión de este
+código se escribió suponiendo `data.metadatos` y `data.analisis`, que no
+existen; el resultado fue que las 19 normas daban "no existe" y el fallo pasó
+las pruebas porque las pruebas usaban la estructura inventada, no la real.
+**Las pruebas de `_boe.js` llevan ahora la respuesta copiada de la API de
+verdad.** Si se toca el parseo, copiar antes una respuesta real con
+`curl -H "Accept: application/json"`.
+
+**LAS REFERENCIAS NO TRAEN FECHA.** Solo `id_norma`, `relacion` y un `texto` con
+el detalle. Por eso no se puede preguntar "¿qué cambió esta semana?" y el
+vigilante compara con lo que vio la vez anterior (colección
+`boeNormasEstado`, un documento por norma con la lista de referencias vistas).
+**La primera ejecución no avisa de nada: siembra la línea base.** Sin eso, el
+estreno soltaría cientos de avisos de reformas de los años ochenta — la LOPJ
+sola tiene 146 referencias posteriores. En el informe salen como
+`normasSembradas`.
+
 **Un 404 no es una avería: es domingo.** El BOE no publica domingos ni festivos.
 `obtenerSumario` devuelve `{ hayBoletin: false }` en vez de lanzar; si no, el cron
 avisaría de una avería todos los domingos.
@@ -309,9 +328,10 @@ ids, así que hacerlo en cada montaje duplicaba listeners o se olvidaba en algun
 
 ## Pendiente
 
-**Poner en marcha el vigilante del BOE.** Falta crear `CRON_SECRET` en Vercel,
-pegar las reglas nuevas de Firestore y ejecutar `?verificar=1` una vez. Hasta que
-eso esté, la pantalla de avisos sale vacía (no da error, simplemente no hay nada).
+**Vigilante del BOE: hecho el 15/08/2026.** `CRON_SECRET` creada, reglas
+publicadas y catálogo verificado. Queda por ver una detección real: hasta que el
+BOE no toque una de las 19 normas, no habrá ningún aviso de modificación que
+comprobar de verdad.
 
 **Completar el catálogo de normas.** Están las diecinueve grandes. Faltan cosas
 que también entran en el temario y no tienen ID confirmado: el Reglamento 1/2005

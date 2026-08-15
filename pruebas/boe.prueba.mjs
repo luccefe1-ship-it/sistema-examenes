@@ -263,6 +263,152 @@ registrar('\n── 5. El cruce con el banco exige norma Y artículo ──');
 }
 
 // ============================================================
+registrar('\n── 5b. Análisis de legislación consolidada ──');
+// ============================================================
+{
+    /* Estructura COPIADA DE LA RESPUESTA REAL del BOE (agosto 2026).
+       La primera versión del código se escribió de memoria suponiendo
+       data.analisis y data.metadatos, y no existen: "data" es un ARRAY
+       y las referencias van anidadas dos niveles más abajo. Las 19
+       normas del catálogo daban "no existe" por esto. */
+    respuestas = {
+        '/legislacion-consolidada/id/BOE-A-1985-12666/analisis': {
+            cuerpo: {
+                status: { code: '200', text: 'ok' },
+                data: [{
+                    materias: [{ materia: { codigo: '6981', texto: 'Tribunales Tutelares de Menores' } }],
+                    referencias: {
+                        anteriores: [{ anterior: [{ id_norma: 'BOE-A-1984-9845', relacion: { codigo: '210', texto: 'DEROGA' }, texto: 'Ley Orgánica 4/1984' }] }],
+                        posteriores: [{
+                            posterior: [
+                                {
+                                    id_norma: 'BOE-A-2011-12627',
+                                    relacion: { codigo: '210', texto: 'SE DEROGA' },
+                                    texto: 'el art. 86, SE MODIFICA los arts. 2, 100, 445 y 521, con efectos desde el 22 de julio de 2014, por Ley Orgánica 8/2011, de 21 de julio'
+                                },
+                                {
+                                    id_norma: 'BOE-A-2021-15305',
+                                    relacion: { codigo: '552', texto: 'Recurso' },
+                                    texto: '3101/2021 promovido contra los arts. 570 bis y 598 bis, en la redacción dada por la Ley Orgánica 4/2021'
+                                }
+                            ]
+                        }]
+                    }
+                }]
+            }
+        },
+        '/legislacion-consolidada/id/BOE-A-1985-12666/metadatos': {
+            cuerpo: {
+                status: { code: '200', text: 'ok' },
+                data: [{
+                    fecha_actualizacion: '20260729T100815Z',
+                    identificador: 'BOE-A-1985-12666',
+                    titulo: 'Ley Orgánica 6/1985, de 1 de julio, del Poder Judicial.',
+                    estatus_derogacion: 'N',
+                    url_html_consolidada: 'https://www.boe.es/buscar/act.php?id=BOE-A-1985-12666'
+                }]
+            }
+        }
+    };
+
+    const analisis = await boe.obtenerAnalisis('BOE-A-1985-12666');
+    comprobar('Lee las referencias aunque "data" sea un array',
+        analisis && analisis.referencias.length === 2,
+        JSON.stringify(analisis));
+    comprobar('Saca quién modifica',
+        analisis.referencias[0].idModificadora === 'BOE-A-2011-12627');
+    comprobar('Saca la relación como texto',
+        analisis.referencias[0].relacion === 'SE DEROGA');
+
+    const arts = boe.articulosCitados(analisis.referencias[0].texto);
+    comprobar('Saca los artículos del texto de la referencia',
+        JSON.stringify(arts) === JSON.stringify([2, 86, 100, 445, 521]),
+        JSON.stringify(arts));
+    comprobar('El año 2014 no se cuela como artículo', !arts.includes(2014));
+
+    const metadatos = await boe.obtenerMetadatos('BOE-A-1985-12666');
+    comprobar('Los metadatos dan el título oficial',
+        metadatos?.titulo.includes('Poder Judicial'), JSON.stringify(metadatos));
+    comprobar('Y la fecha de actualización',
+        metadatos?.fechaActualizacion === '20260729T100815Z');
+
+    const noExiste = await boe.obtenerMetadatos('BOE-A-9999-1');
+    comprobar('Un identificador inventado devuelve null', noExiste === null);
+
+    // Los apartados no son artículos
+    const conApartados = boe.articulosCitados('SE MODIFICA el art. 175.3 y los arts. 570 bis.1 y 599.1');
+    comprobar('"175.3" cuenta como artículo 175, no como el 3',
+        JSON.stringify(conApartados) === JSON.stringify([175, 570, 599]),
+        JSON.stringify(conApartados));
+
+    const { esCambioDeContenido } = require(rutaDe('../api/boe-vigilante.js')).paraPruebas;
+    comprobar('"SE DEROGA" es cambio de contenido', esCambioDeContenido('SE DEROGA'));
+    comprobar('"SE MODIFICA" es cambio de contenido', esCambioDeContenido('SE MODIFICA'));
+    comprobar('"Recurso" NO es cambio de contenido', !esCambioDeContenido('Recurso'));
+    comprobar('"Cuestión" NO es cambio de contenido', !esCambioDeContenido('Cuestión'));
+}
+
+// ============================================================
+registrar('\n── 5c. Solo se avisa de lo que no se había visto ──');
+// ============================================================
+{
+    const { revisarModificaciones } = require(rutaDe('../api/boe-vigilante.js')).paraPruebas;
+
+    // Firestore de mentira: guarda en memoria lo que le escriban
+    const almacen = {};
+    const dbFalsa = {
+        collection: (nombre) => ({
+            get: async () => ({
+                docs: Object.entries(almacen[nombre] || {}).map(([id, data]) => ({ id, data: () => data }))
+            }),
+            doc: (id) => ({
+                set: async (datos) => {
+                    almacen[nombre] = almacen[nombre] || {};
+                    almacen[nombre][id] = { ...(almacen[nombre][id] || {}), ...datos };
+                }
+            })
+        })
+    };
+
+    // Solo responde la LOPJ; las demás normas del catálogo darán 404,
+    // que es justo lo que hay que comprobar que no rompe nada.
+    const primera = await revisarModificaciones('20260815', dbFalsa);
+    comprobar('La primera vez NO avisa de nada (solo siembra)',
+        primera.hallazgos.length === 0, `avisó de ${primera.hallazgos.length}`);
+    comprobar('Y deja sembrada la norma que sí respondió',
+        primera.sembradas.includes('BOE-A-1985-12666'));
+    comprobar('Las normas que no responden se anotan como problema, no rompen',
+        primera.fallos.length > 0);
+
+    // Segunda pasada sin cambios en el BOE: silencio
+    const segunda = await revisarModificaciones('20260816', dbFalsa);
+    comprobar('Sin novedades en el BOE, no avisa',
+        segunda.hallazgos.length === 0, `avisó de ${segunda.hallazgos.length}`);
+
+    // Ahora aparece una reforma nueva
+    respuestas['/legislacion-consolidada/id/BOE-A-1985-12666/analisis'].cuerpo.data[0]
+        .referencias.posteriores[0].posterior.push({
+            id_norma: 'BOE-A-2026-99999',
+            relacion: { codigo: '210', texto: 'SE MODIFICA' },
+            texto: 'los arts. 456 y 457, por Ley Orgánica 5/2026'
+        });
+
+    const tercera = await revisarModificaciones('20260817', dbFalsa);
+    comprobar('Detecta la reforma nueva', tercera.hallazgos.length === 1,
+        `detectó ${tercera.hallazgos.length}`);
+    comprobar('Con sus artículos',
+        JSON.stringify(tercera.hallazgos[0]?.articulos) === JSON.stringify([456, 457]),
+        JSON.stringify(tercera.hallazgos[0]?.articulos));
+    comprobar('Marcada como importante, porque cambia el texto',
+        tercera.hallazgos[0]?.importanciaMinima === 'alta');
+
+    // Y no la repite al día siguiente
+    const cuarta = await revisarModificaciones('20260818', dbFalsa);
+    comprobar('No vuelve a avisar de la misma al día siguiente',
+        cuarta.hallazgos.length === 0, `repitió ${cuarta.hallazgos.length}`);
+}
+
+// ============================================================
 registrar('\n── 6. La puerta está cerrada ──');
 // ============================================================
 {
