@@ -49,12 +49,13 @@ RESULTADOS
 - Las falladas van al Test de Repaso. Al acertarlas de nuevo salen de ahí.
 - El Ranking de Fallos ordena las preguntas por veces falladas.
 
-AVISOS DEL BOE
-- La plataforma revisa el BOE sola cada mañana y avisa de lo que afecta al temario de Gestión y Tramitación Procesal. Se entra desde la portada, en "Avisos del BOE". Si hay avisos sin leer, sale un número rojo en la tarjeta.
-- Vigila dos cosas a la vez: lo que se publica cada día (disposiciones de Justicia y convocatorias de tu cuerpo) y si alguna de las leyes del temario ha sido modificada, indicando qué artículos.
-- Cada aviso trae un resumen en lenguaje llano, las normas afectadas, los artículos tocados y enlace al BOE.
-- Cuando cambia un artículo, la plataforma busca en tu banco las preguntas que lo citan y las muestra bajo el aviso, para que las revises. No borra ni corrige ninguna pregunta: solo las señala, porque la búsqueda es aproximada y puede marcar alguna de más.
-- Los avisos se pueden filtrar por tipo y marcar como leídos. Lo leído se apaga pero no desaparece.
+MI OPOSICIÓN
+- Pantalla que reúne todo lo de la convocatoria. Se entra desde la portada, en "Mi Oposición". Tiene tres pestañas.
+- Arriba del todo, los días que faltan para el examen y tres cifras: temas a revisar, preguntas a corregir y avisos sin leer. Las que están en rojo piden hacer algo.
+- Cada usuario elige su cuerpo la primera vez que entra (Gestión o Tramitación) y se guarda en su perfil, así que Luciano ve sus datos y Sandra los suyos. Se cambia pulsando el nombre del cuerpo en la cabecera morada.
+- Pestaña "Qué revisar": busca en los temas digitales subidos y en las preguntas del banco el vocabulario que la Ley Orgánica 1/2025 dejó atrás ("Juzgado de Primera Instancia", "Secretario Judicial"...) y enseña el párrafo exacto donde aparece y por qué se sustituye ahora. No corrige ni borra nada: solo señala, porque hay casos en que el término antiguo es correcto. Si un tema digital se subió sin texto extraíble, avisa de que hay que volver a subirlo.
+- Pestaña "Mi convocatoria": cómo es el examen (ejercicios, preguntas, tiempo, puntos y nota mínima), plazas, titulación exigida, el calendario oficial con su referencia del BOE y los temas del programa que han cambiado o son nuevos respecto a la convocatoria anterior.
+- Pestaña "Avisos del BOE": lo que se publica cada día y afecta al temario. Se filtran por tipo y se marcan como leídos, de uno en uno o todos de golpe.
 - No consume saldo de IA: los datos son del portal de datos abiertos del BOE y el resumen usa el cupo gratuito de Google.
 
 OTRAS SECCIONES

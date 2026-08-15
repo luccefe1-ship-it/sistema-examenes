@@ -121,7 +121,32 @@ const NORMAS = [
         bloque: 'Función pública'
     },
 
+    /* LA REFORMA QUE MÁS TE AFECTA AHORA MISMO.
+       Cambió la organización judicial entera: juzgados -> tribunales de
+       instancia. Efectos desde el 3 de abril de 2025, así que ya estaba
+       en vigor cuando se convocó tu oposición. Cualquier pregunta del
+       banco escrita antes de esa fecha sobre organización judicial es
+       sospechosa. */
+    {
+        id: 'BOE-A-2025-76',
+        nombre: 'LO 1/2025 de medidas en materia de eficiencia del Servicio Público de Justicia',
+        alias: ['LO 1/2025', 'Ley Orgánica 1/2025', 'eficiencia del Servicio Público de Justicia'],
+        bloque: 'Organización judicial'
+    },
+
     // --- Transversales --------------------------------------------
+    {
+        id: 'BOE-A-2023-5366',
+        nombre: 'Ley 4/2023 para la igualdad real y efectiva de las personas trans',
+        alias: ['Ley 4/2023'],
+        bloque: 'Transversales'
+    },
+    {
+        id: 'BOE-A-2022-11589',
+        nombre: 'Ley 15/2022 integral para la igualdad de trato y la no discriminación',
+        alias: ['Ley 15/2022'],
+        bloque: 'Transversales'
+    },
     {
         id: 'BOE-A-2011-11605',
         nombre: 'Ley 18/2011 sobre el uso de las TIC en la Administración de Justicia',

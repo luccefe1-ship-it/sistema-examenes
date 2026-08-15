@@ -29,6 +29,8 @@
 //    GET /api/boe-vigilante?fecha=20260814  -> un día concreto
 //    GET /api/boe-vigilante?dias=7          -> los últimos 7 días
 //    GET /api/boe-vigilante?verificar=1     -> comprueba el catálogo
+//    GET /api/boe-vigilante?revisar=BOE-A-2025-76
+//                                           -> qué preguntas tocó esa reforma
 //    GET /api/boe-vigilante?seco=1          -> no escribe nada
 // ============================================================
 
@@ -523,6 +525,76 @@ async function anotarEjecucion(db, informe) {
    Existe porque un ID mal escrito es un fallo silencioso: esa norma
    deja de vigilarse y no lo notas hasta que te sorprende una reforma
    en el examen. */
+/* ------------------------------------------------------------
+   REPASO DE UNA REFORMA CONCRETA
+
+   El vigilante diario solo avisa de lo que cambia a partir de hoy.
+   Pero una reforma anterior a la puesta en marcha puede haber dejado
+   medio banco desactualizado sin que nadie lo note, y eso no lo
+   arregla esperar.
+
+   Con ?revisar=BOE-A-2025-76 se recorre el catálogo buscando esa
+   norma modificadora, se sacan los artículos que tocó en cada ley y
+   se cruzan con las preguntas. No escribe avisos: devuelve el informe
+   para mirarlo. Es una herramienta de auditoría, no del día a día.
+   ------------------------------------------------------------ */
+async function repasarReforma(idReforma, db) {
+    const porNorma = [];
+
+    const analisisPorNorma = await enTandas(NORMAS, NORMAS_A_LA_VEZ, async (norma) => {
+        try {
+            return { norma, analisis: await obtenerAnalisis(norma.id) };
+        } catch (error) {
+            return { norma, analisis: null, error: error.message };
+        }
+    });
+
+    for (const { norma, analisis } of analisisPorNorma) {
+        if (!analisis) continue;
+
+        const tocadas = analisis.referencias.filter(ref => ref.idModificadora === idReforma);
+        if (!tocadas.length) continue;
+
+        const articulos = [...new Set(tocadas.flatMap(ref => articulosCitados(ref.texto)))]
+            .sort((a, b) => a - b);
+
+        porNorma.push({
+            norma,
+            articulos,
+            detalle: tocadas.map(ref => `${ref.relacion}: ${ref.texto}`)
+        });
+    }
+
+    // Una sola lectura del banco para todas las normas afectadas
+    const temas = db ? await cargarTemas(db) : [];
+
+    const resultado = porNorma.map(entrada => {
+        const afectados = temas.length
+            ? preguntasQueCitan(temas, [{ id: entrada.norma.id, nombre: entrada.norma.nombre }], entrada.articulos)
+            : {};
+
+        const preguntas = Object.values(afectados).flat();
+
+        return {
+            norma: entrada.norma.nombre,
+            id: entrada.norma.id,
+            articulos: entrada.articulos,
+            detalle: entrada.detalle,
+            preguntasAfectadas: preguntas.length,
+            preguntas: preguntas.slice(0, MAX_PREGUNTAS_SENALADAS)
+        };
+    });
+
+    return {
+        reforma: idReforma,
+        urlReforma: `https://www.boe.es/buscar/doc.php?id=${idReforma}`,
+        normasAfectadas: resultado.length,
+        totalPreguntas: resultado.reduce((s, r) => s + r.preguntasAfectadas, 0),
+        bancoLeido: temas.length > 0,
+        detalle: resultado
+    };
+}
+
 async function verificarCatalogo() {
     const bien = [];
     const mal = [];
@@ -571,6 +643,18 @@ module.exports = async function handler(req, res) {
         if (req.query?.verificar === '1' || req.query?.verificar === 'true') {
             const informe = await verificarCatalogo();
             res.status(200).json({ modo: 'verificacion', ...informe });
+            return;
+        }
+
+        // --- Repaso de una reforma concreta --------------------
+        const idReforma = String(req.query?.revisar || '').trim();
+        if (idReforma) {
+            if (!/^BOE-A-\d{4}-\d+$/.test(idReforma)) {
+                res.status(400).json({ error: 'El identificador debe tener la forma BOE-A-2025-76' });
+                return;
+            }
+            const informe = await repasarReforma(idReforma, obtenerFirestore());
+            res.status(200).json({ modo: 'repaso', ...informe });
             return;
         }
 
@@ -656,6 +740,7 @@ module.exports.paraPruebas = {
     revisarModificaciones,
     preguntasQueCitan,
     verificarCatalogo,
+    repasarReforma,
     esCambioDeContenido,
     restarDias
 };
