@@ -1,6 +1,6 @@
 import { auth, db } from './firebase-config.js';
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // Elementos del DOM
 const userNameSpan = document.getElementById('userName');
@@ -175,7 +175,10 @@ onAuthStateChanged(auth, async (user) => {
         // Cargar objetivos semanales
         console.log('Iniciando carga de objetivos...');
         cargarObjetivosSemana();
-        
+
+        // Contador de avisos del BOE sin leer
+        cargarBadgeBoe(user);
+
     } else {
         // Usuario no logueado, redirigir al login
         window.location.href = 'index.html';
@@ -789,5 +792,36 @@ async function cargarWidgetPlanning() {
 }
 // Hacer función accesible globalmente
 window.cerrarModalResultado = cerrarModalResultado;
+
+/* Contador rojo de avisos del BOE sin leer.
+
+   Se piden solo los 50 más recientes: el badge es un "tienes cosas
+   que mirar", no un inventario, y traerse meses de avisos para pintar
+   un número en la portada sería tirar lecturas de Firestore cada vez
+   que alguien entra.
+
+   Si algo falla, el badge simplemente no aparece. La portada no debe
+   quedarse a medias porque el BOE tenga un mal día. */
+async function cargarBadgeBoe(user) {
+    const badge = document.getElementById('boeBadge');
+    if (!badge) return;
+
+    try {
+        const [avisos, marcas] = await Promise.all([
+            getDocs(query(collection(db, 'boeAvisos'), orderBy('fecha', 'desc'), limit(50))),
+            getDoc(doc(db, 'boeLeidos', user.uid))
+        ]);
+
+        const leidos = new Set(marcas.exists() ? (marcas.data().claves || []) : []);
+        const sinLeer = avisos.docs.filter(d => !leidos.has(d.id)).length;
+
+        if (sinLeer > 0) {
+            badge.textContent = sinLeer > 99 ? '99+' : String(sinLeer);
+            badge.style.display = 'inline-block';
+        }
+    } catch (error) {
+        console.warn('No se pudo cargar el contador del BOE:', error.message);
+    }
+}
 
 

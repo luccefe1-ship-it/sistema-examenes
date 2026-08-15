@@ -49,6 +49,14 @@ RESULTADOS
 - Las falladas van al Test de Repaso. Al acertarlas de nuevo salen de ahí.
 - El Ranking de Fallos ordena las preguntas por veces falladas.
 
+AVISOS DEL BOE
+- La plataforma revisa el BOE sola cada mañana y avisa de lo que afecta al temario de Gestión y Tramitación Procesal. Se entra desde la portada, en "Avisos del BOE". Si hay avisos sin leer, sale un número rojo en la tarjeta.
+- Vigila dos cosas a la vez: lo que se publica cada día (disposiciones de Justicia y convocatorias de tu cuerpo) y si alguna de las leyes del temario ha sido modificada, indicando qué artículos.
+- Cada aviso trae un resumen en lenguaje llano, las normas afectadas, los artículos tocados y enlace al BOE.
+- Cuando cambia un artículo, la plataforma busca en tu banco las preguntas que lo citan y las muestra bajo el aviso, para que las revises. No borra ni corrige ninguna pregunta: solo las señala, porque la búsqueda es aproximada y puede marcar alguna de más.
+- Los avisos se pueden filtrar por tipo y marcar como leídos. Lo leído se apaga pero no desaparece.
+- No consume saldo de IA: los datos son del portal de datos abiertos del BOE y el resumen usa el cupo gratuito de Google.
+
 OTRAS SECCIONES
 - Mis Apuntes: apuntes propios organizados por temas.
 - Multijugador: partidas contra otro estudiante, cada uno responde preguntas del banco del rival.

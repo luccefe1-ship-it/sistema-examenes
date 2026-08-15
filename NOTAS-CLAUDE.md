@@ -1,7 +1,7 @@
 # Notas de traspaso
 
 Documento para retomar el trabajo en una conversación nueva.
-Última actualización: 5 de agosto de 2026 (caché del banco).
+Última actualización: 15 de agosto de 2026 (vigilante del BOE).
 
 ---
 
@@ -25,6 +25,7 @@ Usuarios reales ahora mismo: Luciano y Sandra. Dos cuentas más están muertas d
 |---|---|
 | `ANTHROPIC_API_KEY` | Clave principal de Claude |
 | `ANTHROPIC_API_KEY_2` | Se usa cuando se agota la primera |
+| `CRON_SECRET` | Protege `/api/boe-vigilante`. Sin ella el vigilante devuelve 401 a todo, también al cron |
 | `FIREBASE_SERVICE_ACCOUNT` | JSON de cuenta de servicio, para escribir desde el servidor |
 | `GOOGLE_TTS_API_KEY` | Text-to-Speech de Google |
 
@@ -43,6 +44,7 @@ freno de 120 llamadas/hora por usuario.
 | `api/asistente.js` | Chat de ayuda sobre la plataforma | Claude |
 | `api/tts.js` | Texto a audio | Claude |
 | `api/preguntas-rival.js` | Preguntas del rival en multijugador | Claude |
+| `api/boe-vigilante.js` | Revisa el BOE a diario (lo dispara el cron, no el navegador) | **Gemini Flash (gratis)** |
 
 Módulos internos (Vercel ignora los que empiezan por `_`): `_gemini.js`, `_claude.js`,
 `_auth.js`, `_consumo.js`, `_manual.js`, `_interfaz.js`.
@@ -135,6 +137,75 @@ tocado algo desde la app móvil u otro ordenador.
 Pruebas: `npm test` (necesita `npm install` una vez). Cubre borrado, carreras de
 invalidación, aislamiento entre usuarios, caducidad, caché corrupta y ausencia
 de IndexedDB. No toca Firebase ni datos reales.
+
+---
+
+## Vigilante del BOE
+
+Revisa el Boletín Oficial del Estado cada mañana y deja avisos de lo que afecta
+al temario. Piezas: `api/_boe.js` (cliente), `api/_normas.js` (qué vigilar),
+`api/boe-vigilante.js` (el cron), `boe.html` + `js/boe.js` (la pantalla).
+
+**Puesta en marcha, tres cosas que hay que hacer a mano:**
+
+1. Crear `CRON_SECRET` en Vercel (cualquier cadena larga). Sin ella el endpoint
+   devuelve 401 **también al cron**: es preferible que falle a la vista antes que
+   quedarse abierto.
+2. Pegar las reglas nuevas de `firestore.rules` en la consola de Firebase.
+3. Ejecutar una vez `GET /api/boe-vigilante?verificar=1` con la cabecera
+   `x-cron-secret`. Ver más abajo por qué.
+
+**Dos APIs distintas, y hacen falta las dos.** El *sumario* diario
+(`/boe/sumario/AAAAMMDD`) dice qué se ha publicado hoy: sirve para convocatorias.
+La *legislación consolidada* (`/legislacion-consolidada/id/{id}/analisis`) dice si
+una norma concreta del temario ha sido modificada y qué artículos. Lo segundo es lo
+que de verdad afecta a las preguntas; lo primero solo avisa de que "salió algo".
+Ambas son gratis y sin clave.
+
+**La trampa del JSON del BOE.** El JSON se genera desde XML, y en XML no se
+distingue "una cosa" de "una lista de una cosa". Los campos `diario`, `seccion`,
+`departamento`, `epigrafe` e `item` llegan como **objeto suelto** cuando solo hay
+un elemento, y como array cuando hay varios. Sin `comoLista()` el código funciona
+en pruebas y revienta el día que una sección trae una sola disposición. Hay una
+prueba dedicada a esto.
+
+**Un 404 no es una avería: es domingo.** El BOE no publica domingos ni festivos.
+`obtenerSumario` devuelve `{ hayBoletin: false }` en vez de lanzar; si no, el cron
+avisaría de una avería todos los domingos.
+
+**LOS IDENTIFICADORES DEL CATÁLOGO HAY QUE VERIFICARLOS.** Un ID mal escrito no
+rompe nada visible: esa norma deja de vigilarse y no te enteras hasta que te
+sorprende una reforma. Montando esto, dos de los diecinueve estaban mal (el
+Estatuto del Ministerio Fiscal apuntaba a una convocatoria de cátedras de Física
+y el Reglamento de ingreso a una circular de la Mutualidad Judicial). Por eso
+existe `?verificar=1`, que pregunta al BOE por cada ID y devuelve el título real.
+**Ejecutarlo cada vez que se añada una norma a `_normas.js`.**
+
+**El cruce con el banco exige norma Y artículo.** Si cambia el art. 45 de la LEC,
+se marcan las preguntas que citan *la LEC* y *el 45*. Solo con el número, "artículo
+24" salta en media plataforma. Aun así es una heurística: **señala, no borra**. Un
+falso positivo cuesta una ojeada; borrar una pregunta buena cuesta mucho más.
+
+**Las preguntas señaladas van en `boeAvisos/{id}/afectados/{usuarioId}`**, no en el
+documento del aviso. El aviso del BOE es público, el banco de preguntas de cada
+uno no: colgándolo del aviso, Sandra vería los enunciados de Luciano.
+
+**No toca la colección `temas`.** Podría marcar las preguntas ahí mismo, pero la
+regla de la caché (toda escritura invalida) solo la cumple el navegador; escribir
+desde el cron dejaría a todo el mundo con una caché mentirosa hasta que caducara.
+Los avisos viven aparte y se leen aparte.
+
+**Coste: 0 €.** Los datos del BOE son abiertos y el resumen usa el cupo gratuito de
+Gemini, una petición al día de las 20 que da Google. Si Gemini falla, el aviso se
+guarda sin resumen: el dato que importa sale del BOE, no del modelo.
+
+**Modos del endpoint:** `?fecha=AAAAMMDD` para un día concreto, `?dias=7` para
+recuperar una semana perdida, `?seco=1` para ver qué encontraría sin escribir nada,
+`?verificar=1` para el catálogo.
+
+**Si Vercel corta por tiempo:** el plan Hobby da 60 segundos y las normas se
+consultan de cuatro en cuatro para caber. Si el catálogo crece mucho, subir
+`NORMAS_A_LA_VEZ` o partir la revisión en dos crons.
 
 ---
 
@@ -237,6 +308,16 @@ ids, así que hacerlo en cada montaje duplicaba listeners o se olvidaba en algun
 ---
 
 ## Pendiente
+
+**Poner en marcha el vigilante del BOE.** Falta crear `CRON_SECRET` en Vercel,
+pegar las reglas nuevas de Firestore y ejecutar `?verificar=1` una vez. Hasta que
+eso esté, la pantalla de avisos sale vacía (no da error, simplemente no hay nada).
+
+**Completar el catálogo de normas.** Están las diecinueve grandes. Faltan cosas
+que también entran en el temario y no tienen ID confirmado: el Reglamento 1/2005
+de aspectos accesorios, los reglamentos del CGPJ y las últimas leyes de eficiencia
+del servicio público de Justicia (tribunales de instancia). Añadirlas a
+`_normas.js` y pasar `?verificar=1`.
 
 **URL de acción de Firebase.** Falla al guardar en la consola de Firebase con
 "Se produjo un error mientras se actualizaba la URL de acción", incluso con el

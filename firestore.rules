@@ -189,6 +189,43 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ------------------------------------------------------------
+    //  AVISOS DEL BOE
+    //  Los escribe /api/boe-vigilante con permisos de servidor. El
+    //  navegador solo lee: si pudiera escribir aquí, cualquiera
+    //  podría inventarse una reforma legal en su propia plataforma.
+    //
+    //  El aviso en sí es público (el BOE lo es), pero las preguntas
+    //  del banco que quedan en entredicho NO: van en la subcolección
+    //  "afectados", un documento por usuario, y cada uno solo puede
+    //  leer el suyo. Si colgaran del aviso, Sandra vería los
+    //  enunciados de Luciano y al revés.
+    // ------------------------------------------------------------
+    match /boeAvisos/{avisoId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+
+      match /afectados/{userId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+    }
+
+    // Estado de la última ejecución del vigilante: sirve para enseñar
+    // "última revisión: hoy a las 6:04" y para notar que lleva días
+    // sin correr.
+    match /boeEstado/{doc} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Qué avisos ha marcado como leídos cada uno. Esto sí lo escribe
+    // el navegador: es una preferencia personal, no cuesta dinero y
+    // falsearla solo se perjudica a uno mismo.
+    match /boeLeidos/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Cualquier colección no listada queda denegada por defecto.
   }
 }
