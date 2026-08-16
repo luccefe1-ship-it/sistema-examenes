@@ -177,13 +177,20 @@ function montarDesplegableDeTemas() {
 
     for (const tema of temario) {
         const reformas = reformasDelTema(tema);
-        if (reformas.length) conReforma++;
+        const avisos = reformas.length + (tema.cambio ? 1 : 0);
+        if (avisos) conReforma++;
 
         const opcion = document.createElement('option');
         opcion.value = String(tema.numero);
-        opcion.textContent = `Tema ${tema.numero} — ${reformas.length
-            ? `con modificación (${reformas.length})`
-            : 'sin modificaciones'}`;
+
+        /* Tres estados, no dos. "Sin modificaciones" solo se dice
+           cuando de verdad se ha comparado con la convocatoria
+           anterior; si no hay con qué comparar se dice eso, porque
+           callar equivale a decir que está todo bien. */
+        opcion.textContent = `Tema ${tema.numero} — ${avisos
+            ? `con modificación (${avisos})`
+            : tema.comparado ? 'sin modificaciones' : 'sin comparar'}`;
+
         selector.appendChild(opcion);
     }
 
@@ -214,15 +221,80 @@ function mostrarTema(numero) {
             <span class="op-tema-numero">Tema ${tema.numero}</span>
             <p class="op-detalle-titulo">${escapar(tema.titulo)}</p>
         </div>
-        ${reformas.length
-            ? reformas.map((r, i) => bloqueReforma(r, i)).join('')
-            : `<p class="op-tema-nota limpio">
-                   Sin modificaciones. Ninguna de las leyes de este tema se ha tocado en el BOE.
-               </p>`}`;
+        ${tema.cambio ? bloqueCambioDeTemario(tema.cambio) : ''}
+        ${reformas.map((r, i) => bloqueReforma(r, i)).join('')}
+        ${!tema.cambio && !reformas.length
+            ? tema.comparado
+                ? `<p class="op-tema-nota limpio">
+                       Sin modificaciones. El enunciado es el mismo que en la convocatoria anterior
+                       y ninguna de sus leyes se ha tocado en el BOE.
+                   </p>`
+                : `<p class="op-tema-nota">
+                       No hay con qué comparar: todavía no está cargado el programa anterior de este
+                       cuerpo, así que de este tema solo se vigilan sus leyes en el BOE.
+                   </p>`
+            : ''}`;
 
     // El texto literal se pide después de pintar, para que la ficha
     // aparezca ya y los artículos se vayan rellenando.
     reformas.forEach((reforma, i) => cargarTextoArticulos(reforma, i));
+}
+
+/* El enunciado del tema ha cambiado respecto a la convocatoria
+   anterior. Se enseñan los dos textos con la parte distinta en
+   amarillo, que es lo único que hay que releer. */
+function bloqueCambioDeTemario(cambio) {
+    if (cambio.alcance === 'nuevo') {
+        return `
+            <div class="op-reforma cambio-temario">
+                <div class="op-cambio-cabecera">
+                    <span class="op-cambio-tipo temario">Tema nuevo</span>
+                </div>
+                <p class="op-cambio-resumen">Este tema no existía en la convocatoria anterior.</p>
+            </div>`;
+    }
+
+    return `
+        <div class="op-reforma cambio-temario">
+            <div class="op-cambio-cabecera">
+                <span class="op-cambio-tipo temario">
+                    ${cambio.alcance === 'fondo' ? 'Cambia el temario' : 'Retoque de redacción'}
+                </span>
+                <span class="op-cambio-veces">respecto a la convocatoria anterior</span>
+            </div>
+
+            <div class="op-versiones">
+                <div class="op-version antes">
+                    <h4>Antes</h4>
+                    <p>${marcarDiferencia(cambio.antes, cambio.desde, cambio.hasta)}</p>
+                </div>
+                <div class="op-version ahora">
+                    <h4>Ahora</h4>
+                    <p>${marcarDiferencia(cambio.ahora, cambio.desde, cambio.hasta)}</p>
+                </div>
+            </div>
+        </div>`;
+}
+
+/* Pinta en amarillo las palabras que van entre el trozo común del
+   principio y el trozo común del final. Se corta por palabras, no
+   por caracteres, porque los índices vienen contados en palabras. */
+function marcarDiferencia(texto, desde, hasta) {
+    const trozos = String(texto || '').split(/\s+/);
+    if (!trozos.length) return '';
+
+    const fin = trozos.length - (hasta || 0);
+    const inicio = Math.min(desde || 0, fin);
+
+    const antes = trozos.slice(0, inicio).join(' ');
+    const medio = trozos.slice(inicio, fin).join(' ');
+    const despues = trozos.slice(fin).join(' ');
+
+    return [
+        antes ? escapar(antes) : '',
+        medio ? `<mark>${escapar(medio)}</mark>` : '',
+        despues ? escapar(despues) : ''
+    ].filter(Boolean).join(' ');
 }
 
 function bloqueReforma(reforma, indice) {

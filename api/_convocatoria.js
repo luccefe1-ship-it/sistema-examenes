@@ -184,23 +184,13 @@ const CONVOCATORIA = {
                 { nombre: '3.º Procesal', contenido: 'Cinco preguntas a desarrollar por escrito (temas 17 a 39 y 43 a 67)', preguntas: '5', tiempo: '45 min', puntos: 'A criterio del Tribunal', minimo: '—' }
             ],
 
-            /* Temas que cambiaron respecto a la convocatoria anterior
-               (OEP 2024). Comprobado comparando los dos anexos. */
-            temasCambiados: [
-                { numero: 8,  antes: 'Juzgados de Primera Instancia e Instrucción, de lo Penal, de lo Contencioso-administrativo', ahora: 'De los Tribunales de Instancia y del Tribunal Central de Instancia' },
-                { numero: 9,  antes: 'La Justicia de Paz. El Secretario del Juzgado de Paz', ahora: 'La Justicia de Paz. La Oficina de Justicia en el Municipio y las Agrupaciones' },
-                { numero: 11, antes: 'La nueva oficina judicial en la LOPJ', ahora: 'Nuevo modelo de organización judicial: la eficiencia organizativa del Servicio Público de Justicia' },
-                { numero: 34, antes: 'Redacción anterior', ahora: 'Retoque de redacción, sin cambio de fondo' },
-                { numero: 41, antes: 'Títulos que acceden al Registro Civil. Los asientos registrales', ahora: 'Los asientos registrales y sus clases' },
-                { numero: 52, antes: 'La tutela judicial ante los Juzgados de violencia sobre la mujer', ahora: 'La tutela judicial ante los Tribunales de Instancia, Secciones de violencia sobre la mujer' },
-                { numero: 56, antes: 'Los Juzgados y Tribunales sentenciadores; Juzgados de Vigilancia Penitenciaria', ahora: 'Los Tribunales sentenciadores; el Tribunal de Instancia, Sección de Vigilancia Penitenciaria' }
-            ],
+            /* LA COMPARACIÓN CON LA CONVOCATORIA ANTERIOR YA NO VIVE
+               AQUÍ. Estaba escrita a mano y tenía errores: daba por
+               nuevos los temas 67 y 68 de Gestión, que ya existían con
+               el mismo enunciado en la Orden PJC/1437/2024. Ahora se
+               calcula comparando los dos anexos palabra por palabra en
+               _temario-anterior.js. */
 
-            // El programa pasó de 66 a 68 temas: estos dos son nuevos.
-            temasNuevos: [
-                { numero: 67, titulo: 'Procesos especiales laborales: despidos, Seguridad Social, conflictos colectivos, impugnación de convenios' },
-                { numero: 68, titulo: 'El concurso de acreedores: concepto y clases, competencia, el administrador concursal' }
-            ]
         },
 
         tramitacion: {
@@ -217,16 +207,13 @@ const CONVOCATORIA = {
                 { nombre: '3.º Ofimática', contenido: 'Windows 10/11 y Microsoft 365 (temas 32 a 37)', preguntas: '20', tiempo: '40 min', puntos: '0 a 20', minimo: '—' }
             ],
 
-            /* En Tramitación el programa se reescribió entero para esta
-               convocatoria, así que no hay una comparación tema a tema
-               con el anterior. Los de organización judicial ya vienen
-               con los tribunales de instancia. */
-            temasCambiados: [
-                { numero: 8,  antes: 'Juzgados unipersonales', ahora: 'De los Tribunales de Instancia y del Tribunal Central de Instancia' },
-                { numero: 10, antes: 'La nueva oficina judicial', ahora: 'Nuevo modelo de organización judicial: la eficiencia organizativa del Servicio Público de Justicia' }
-            ],
+            /* LA COMPARACIÓN CON LA CONVOCATORIA ANTERIOR YA NO VIVE
+               AQUÍ. Estaba escrita a mano y tenía errores: daba por
+               nuevos los temas 67 y 68 de Gestión, que ya existían con
+               el mismo enunciado en la Orden PJC/1437/2024. Ahora se
+               calcula comparando los dos anexos palabra por palabra en
+               _temario-anterior.js. */
 
-            temasNuevos: []
         },
 
         /* Auxilio Judicial. Datos de la Orden PJC/1549/2025 (BOE de 30
@@ -246,12 +233,12 @@ const CONVOCATORIA = {
                 { nombre: '2.º Práctico', contenido: 'Dos casos prácticos de diligencia judicial', preguntas: '40 (+2 de reserva)', tiempo: '60 min', puntos: '0 a 40', minimo: '—', acierto: 1, fallo: 0.25 }
             ],
 
-            /* Pendiente de comparar anexo con anexo contra la
-               convocatoria anterior, como se hizo con los otros dos
-               cuerpos. Se deja vacío antes que poner algo sin
-               contrastar. */
-            temasCambiados: [],
-            temasNuevos: []
+            /* LA COMPARACIÓN CON LA CONVOCATORIA ANTERIOR YA NO VIVE
+               AQUÍ. Estaba escrita a mano y tenía errores: daba por
+               nuevos los temas 67 y 68 de Gestión, que ya existían con
+               el mismo enunciado en la Orden PJC/1437/2024. Ahora se
+               calcula comparando los dos anexos palabra por palabra en
+               _temario-anterior.js. */
         }
     }
 };

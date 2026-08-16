@@ -116,10 +116,35 @@ registrar('\n── 5. La ficha de convocatoria ──');
     comprobar('Después del examen sale negativo',
         diasParaExamen(new Date(Date.UTC(2026, 9, 10))) === -7);
 
-    comprobar('Gestión avisa de los dos temas nuevos',
-        gestion.cuerpo.temasNuevos.length === 2);
-    comprobar('Y de los siete que cambiaron',
-        gestion.cuerpo.temasCambiados.length === 7);
+    /* La comparación con la convocatoria anterior se calcula, no se
+       escribe a mano. Antes había aquí dos comprobaciones que daban
+       por buena una lista equivocada: decía que los temas 67 y 68 de
+       Gestión eran nuevos y ya estaban en el programa de 2024. */
+    const { temarioDe } = require(rutaDe('../api/_temarios.js'));
+
+    const temario = temarioDe('gestion');
+    comprobar('El temario oficial de Gestión tiene 68 temas',
+        temario.length === 68);
+    comprobar('Se compara con la convocatoria anterior',
+        temario.every(t => t.comparado));
+
+    const cambiados = temario.filter(t => t.cambio);
+    comprobar('Diez temas de Gestión cambian de enunciado',
+        cambiados.length === 10, String(cambiados.map(t => t.numero)));
+
+    const tema8 = temario.find(t => t.numero === 8);
+    comprobar('El tema 8 cambia de fondo: ya no son juzgados unipersonales',
+        tema8.cambio.alcance === 'fondo' &&
+        /juzgados de primera instancia/i.test(tema8.cambio.antes) &&
+        /tribunales de instancia/i.test(tema8.cambio.ahora));
+
+    comprobar('El tema 68 NO es nuevo: ya estaba en 2024',
+        temario.find(t => t.numero === 68).cambio === null);
+
+    /* Sin el programa anterior no se puede decir "sin cambios": hay
+       que poder distinguir "no ha cambiado" de "no lo sé". */
+    comprobar('Tramitación admite que no tiene comparación',
+        temarioDe('tramitacion').every(t => !t.comparado));
 }
 
 registrar(`\n${fallidas === 0 ? '✅' : '❌'} ${pasadas} pasadas, ${fallidas} fallidas`);

@@ -23,7 +23,7 @@ const GESTION = [
     { numero: 2, titulo: 'Derecho de igualdad y no discriminación por razón de género: especial referencia a la Ley Orgánica 3/2007, para la Igualdad Efectiva de Mujeres y Hombres. La Ley Orgánica 1/2004, de Medidas de Protección Integral contra la Violencia de Género. Antecedentes. Objeto y principios rectores. Medidas de sensibilización, prevención y detección. Derechos de las mujeres víctimas de la violencia de género. Tutela institucional. La Ley 15/2022, de 12 de julio, integral para la igualdad de trato y la no discriminación. La Ley 4/2023, de 28 de febrero, para la igualdad real y efectiva de las personas trans y para la garantía de los derechos de las personas LGTBI.' },
     { numero: 3, titulo: 'El Gobierno y la Administración. El Presidente del Gobierno. El Consejo de Ministros. Organización administrativa española: Ministros, Secretarios de Estado, Subsecretarios y Directores Generales. La Administración periférica del Estado. Los Delegados de Gobierno en la Comunidad Autónoma y los Subdelegados de Gobierno. La Secretaría de Estado de Justicia: Principales competencias.' },
     { numero: 4, titulo: 'Organización territorial del Estado en la Constitución. El Estado de las Autonomías. Las Comunidades Autónomas: Su constitución y competencias. Los Estatutos de Autonomía. La Administración Local. La provincia y el municipio.' },
-    { numero: 5, titulo: 'La Unión Europea. Competencias de la UE. Instituciones y órganos de la Unión Europea: El Parlamento Europeo, el Consejo Europeo, el Consejo de la Unión Europea, la Comisión Europea, el Tribunal de Justicia de la Unión Europea, el Tribunal de Cuentas. Organización y Estructura del Poder Judicial' },
+    { numero: 5, titulo: 'La Unión Europea. Competencias de la UE. Instituciones y órganos de la Unión Europea: El Parlamento Europeo, el Consejo Europeo, el Consejo de la Unión Europea, la Comisión Europea, el Tribunal de Justicia de la Unión Europea, el Tribunal de Cuentas.' },
     { numero: 6, titulo: 'El Poder Judicial. El Consejo General del Poder Judicial: composición y funciones. La jurisdicción: Jueces y Magistrados: Funciones y competencias. La independencia judicial. El Ministerio Fiscal: Organización y funciones. Sistemas de acceso a las carreras judicial y fiscal.' },
     { numero: 7, titulo: 'Examen de la organización y competencia del Tribunal Supremo, de la Audiencia Nacional, de los Tribunales Superiores y de las Audiencias Provinciales.' },
     { numero: 8, titulo: 'De los Tribunales de Instancia y del Tribunal Central de Instancia. Examen de la organización y competencia de los Tribunales de Instancia: Sección Única, Secciones Civil, De Instrucción, De Familia, Infancia y Capacidad, De lo Mercantil, De Violencia sobre la Mujer, De Violencia contra la Infancia y la Adolescencia, De lo Penal, De Menores, De Vigilancia Penitenciaria, De lo Contencioso-Administrativo y De lo Social. La Sección de lo Mercantil del Tribunal de Instancia de Alicante: Tribunal de Marca de la Unión Europea.' },
@@ -34,7 +34,7 @@ const GESTION = [
     { numero: 13, titulo: 'Cuerpos de Funcionarios al servicio de la Administración de Justicia. Cuerpos Generales y Cuerpos Especiales: Definición y Cuerpos que los integran. Cuerpos Especiales: El Cuerpo de Médicos Forenses: Funciones.' },
     { numero: 14, titulo: 'Los Cuerpos Generales (I): Funciones. Formas de acceso. Promoción interna. Adquisición y pérdida de la condición de funcionarios. La rehabilitación. Derechos, deberes e incompatibilidades. Jornada y horarios. Vacaciones, permisos, días y licencias.' },
     { numero: 15, titulo: 'Los Cuerpos Generales (II): Situaciones administrativas. Ordenación de la actividad profesional. Provisión de puestos de trabajo. Régimen disciplinario.' },
-    { numero: 16, titulo: 'Libertad sindical: El Sindicato en la Constitución Española. Elecciones sindicales según la Ley de órganos de representación y el Estatuto Básico del Empleado Público. El derecho de huelga. Salud y prevención de riesgos laborales. Procedimientos Judiciales A) Normas Comunes a todos los Procedimientos Civiles.' },
+    { numero: 16, titulo: 'Libertad sindical: El Sindicato en la Constitución Española. Elecciones sindicales según la Ley de órganos de representación y el Estatuto Básico del Empleado Público. El derecho de huelga. Salud y prevención de riesgos laborales.' },
     { numero: 17, titulo: 'Cuestiones generales sobre el proceso civil: Las partes en el proceso civil: Capacidad procesal y capacidad para ser parte. Pluralidad de partes. Litisconsorcio activo y pasivo, su tratamiento procesal.' },
     { numero: 18, titulo: 'La representación y sus clases. Legitimación en el proceso civil. Asistencia letrada y representación procesal, estatuto jurídico, derechos y deberes. Intervención no preceptiva de estos profesionales. La intervención en los procesos civiles del Ministerio Fiscal y del Abogado del Estado.' },
     { numero: 19, titulo: 'Jurisdicción y competencia. Acumulación de acciones y de procedimientos, concepto. La tramitación de las cuestiones de jurisdicción y competencia. La competencia de los Tribunales Civiles: Objetiva, funcional y territorial, los fueros legales disponibles e indisponibles. Concepto y tramitación.' },
@@ -42,7 +42,7 @@ const GESTION = [
     { numero: 21, titulo: 'Las resoluciones de los órganos judiciales. Clases de resoluciones judiciales: Contenido y características. Las resoluciones de los órganos judiciales colegiados. Las resoluciones del Letrado de la Administración de Justicia.' },
     { numero: 22, titulo: 'Los actos de comunicación con otros Tribunales y Autoridades: Oficios y mandamientos. El auxilio judicial: los exhortos y los mandamientos en el proceso penal. Cooperación jurídica internacional: las comisiones rogatorias.' },
     { numero: 23, titulo: 'Actos de comunicación a las partes y otros intervinientes en el proceso: Notificaciones, requerimientos, citaciones y emplazamientos. Notificaciones, citaciones y mandamientos en el proceso penal. Formas de notificación y nuevas tecnologías.' },
-    { numero: 24, titulo: 'Conceptos de archivo judicial y de documentación judicial en relación con la legislación vigente en materia de archivos judiciales. Formas de remisión de documentación judicial y relaciones documentales. Nuevas tecnologías en los archivos judiciales de gestión. Las juntas de expurgo de la documentación judicial. B) Procedimientos Civiles.' },
+    { numero: 24, titulo: 'Conceptos de archivo judicial y de documentación judicial en relación con la legislación vigente en materia de archivos judiciales. Formas de remisión de documentación judicial y relaciones documentales. Nuevas tecnologías en los archivos judiciales de gestión. Las juntas de expurgo de la documentación judicial.' },
     { numero: 25, titulo: 'Los procedimientos declarativos en la Ley de Enjuiciamiento Civil 1/2000: Diligencias preparatorias, diligencias preliminares. Averiguación de hechos, aseguramiento y práctica anticipada de la prueba. Medios adecuados de solución de controversias en vía no jurisdiccional.' },
     { numero: 26, titulo: 'Juicio ordinario. Procesos que se sustancian por los trámites del juicio declarativo ordinario. La demanda y su objeto, documentos que deben acompañarla. La contestación a la demanda y otras actitudes del demandado: la rebeldía. Problemas derivados de la ampliación de la demanda y la reconvención. Audiencia previa. Vista de juicio. Diligencias finales. Terminación del procedimiento por medio de sentencia, auto o decreto, aspectos formales de estas resoluciones. Allanamiento, desistimiento, transacción, satisfacción extraprocesal.' },
     { numero: 27, titulo: 'El juicio verbal. Procesos que se sustancian por el trámite del juicio verbal. Clases de demandas. Admisión y traslado de la demanda y citación para la vista. Inasistencia de las partes a la vista. Desarrollo de la vista. Recursos frente a las resoluciones interlocutorias. Juicios verbales de carácter plenario y sumario. El verbal de desahucio. El precario. El juicio sobre tutela posesoria. La tutela de derechos reales inscritos. El juicio de alimentos. La rectificación de hechos. El juicio verbal en materias de compraventas a plazos y arrendamientos financieros.' },
@@ -57,10 +57,10 @@ const GESTION = [
     { numero: 36, titulo: 'El procedimiento de apremio. Valoración de los bienes embargados. La subasta de los bienes trabados. Alternativas a la subasta judicial: El convenio de realización y la realización por persona o entidad especializada. La administración para pago. Tercería de mejor derecho. Especialidades de la ejecución sobre bienes hipotecados, pignorados o con garantía real.' },
     { numero: 37, titulo: 'Ejecuciones no dinerarias. Ejecuciones de dar, de hacer y de no hacer. Determinación de frutos y rentas. Liquidación de daños y perjuicios. Ejecución de sentencias que llevan aparejada la entrega de la posesión de un inmueble, especial referencia a las sentencias de ejecución de desahucios.' },
     { numero: 38, titulo: 'Las medidas cautelares: Concepto. Tipos de medidas cautelares. Tramitación con audiencia y sin audiencia al demandado. Oposición a las medidas cautelares. Ejecución de las medidas cautelares. Caución y caución sustitutoria.' },
-    { numero: 39, titulo: 'Costas y gastos procesales. La condena en costas. La tasación de costas. La impugnación de las costas. Los intereses y su liquidación. La tasa judicial. Pagos, depósitos y consignaciones judiciales. Ingresos en el Tesoro Público. La Asistencia Jurídica Gratuita. C) Registro Civil.' },
+    { numero: 39, titulo: 'Costas y gastos procesales. La condena en costas. La tasación de costas. La impugnación de las costas. Los intereses y su liquidación. La tasa judicial. Pagos, depósitos y consignaciones judiciales. Ingresos en el Tesoro Público. La Asistencia Jurídica Gratuita.' },
     { numero: 40, titulo: 'El Registro Civil: legislación vigente. Naturaleza, contenido y competencias. Derechos y deberes ante el Registro Civil y principios de funcionamiento. Estructura del Registro Civil. Las Oficinas del Registro Civil: Oficina Central, Oficinas Generales y Oficinas Consulares y sus funciones.' },
     { numero: 41, titulo: 'Los asientos registrales y sus clases: reglas generales para su práctica, inscripciones, anotaciones registrales y cancelaciones. Hechos y actos inscribibles en el Registro Civil: Inscripción de nacimiento y filiación; inscripciones relativas al matrimonio; inscripción del fallecimiento. Otras inscripciones.' },
-    { numero: 42, titulo: 'Publicidad del Registro Civil: medios de publicidad. Las certificaciones y sus clases. Datos con publicidad restringida y acceso a asientos con datos especialmente protegidos. Régimen de recursos frente a decisiones adoptadas en materia de registro civil. Los procedimientos registrales: reglas generales para su tramitación y legitimación para promoverlos. Rectificación de los asientos del Registro Civil: rectificación judicial y rectificación por procedimiento registral. Las declaraciones con valor de simple presunción. Normas sobre derecho internacional privado. D) Procedimiento Penal.' },
+    { numero: 42, titulo: 'Publicidad del Registro Civil: medios de publicidad. Las certificaciones y sus clases. Datos con publicidad restringida y acceso a asientos con datos especialmente protegidos. Régimen de recursos frente a decisiones adoptadas en materia de registro civil. Los procedimientos registrales: reglas generales para su tramitación y legitimación para promoverlos. Rectificación de los asientos del Registro Civil: rectificación judicial y rectificación por procedimiento registral. Las declaraciones con valor de simple presunción. Normas sobre derecho internacional privado.' },
     { numero: 43, titulo: 'El sistema procesal penal de la Ley de Enjuiciamiento Criminal: Principio del juez imparcial, separación de instrucción y enjuiciamiento. Principios del proceso penal. Competencia objetiva y funcional. Justicia restaurativa. Aforamientos y privilegios procesales. Inmunidad de jurisdicción. La competencia territorial. La inhibición de oficio y a instancia de parte; cuestiones de competencia territorial.' },
     { numero: 44, titulo: 'Las partes en el proceso penal: Ministerio Fiscal; acusador particular; perjudicado y acción popular; acusador privado. El ejercicio de la acción penal: de oficio o a instancia de parte. Denuncia; querella; atestado. Extinción de la acción penal: especial referencia a la renuncia. El ejercicio de la acción civil: el actor civil. El ofrecimiento de acciones. Extinción de la acción civil. El investigado o encausado. La rebeldía. El responsable civil. Representación y defensa de las partes. Defensa de oficio y beneficio de justicia gratuita.' },
     { numero: 45, titulo: 'El Sumario: Incoación del proceso. Las actuaciones de la Policía Judicial. Comprobación del delito: Cuerpo del delito. Identificación del presunto delincuente. La inspección ocular. Declaraciones testificales. Prueba pericial y su valor. Prueba documental. Piezas de convicción.' },
@@ -74,7 +74,7 @@ const GESTION = [
     { numero: 53, titulo: 'El procedimiento de Responsabilidad Penal del Menor. Principios reguladores. Las fases del procedimiento. Sentencia y régimen de recursos. Principios generales en la ejecución de las medidas.' },
     { numero: 54, titulo: 'Tramitación del juicio sobre delitos leves. Convocatoria de la vista de juicio sobre delitos leves. Sistema de recursos a las sentencias dictadas en juicios sobre delitos leves. La ejecución de la sentencia de delitos leves: Aspectos penales y civiles.' },
     { numero: 55, titulo: 'Régimen general de recursos en el proceso penal. Los recursos no devolutivos: Reforma y súplica. Recursos devolutivos: La apelación en el proceso ordinario y en el procedimiento abreviado; El recurso de queja contra la inadmisión de otro recurso y como sustitutivo de la apelación. El recurso de casación penal. La revisión penal. El recurso de rescisión de la sentencia dictada contra reos ausentes. Los recursos contra las resoluciones del Letrado de la Administración de Justicia.' },
-    { numero: 56, titulo: 'La ejecución de sentencias penales. Los Tribunales sentenciadores; el Tribunal de Instancia –Sección de Vigilancia Penitenciaria– y Administración Penitenciaria: Sus respectivas funciones. Recursos contra las resoluciones de la Administración Penitenciaria y de los Tribunales de Instancia –Sección de Vigilancia Penitenciaria–. Tasación de costas. La ejecución civil en el proceso penal. E) Procedimiento Contencioso Administrativo y Laboral.' },
+    { numero: 56, titulo: 'La ejecución de sentencias penales. Los Tribunales sentenciadores; el Tribunal de Instancia –Sección de Vigilancia Penitenciaria– y Administración Penitenciaria: Sus respectivas funciones. Recursos contra las resoluciones de la Administración Penitenciaria y de los Tribunales de Instancia –Sección de Vigilancia Penitenciaria–. Tasación de costas. La ejecución civil en el proceso penal.' },
     { numero: 57, titulo: 'Breve referencia del recurso contencioso-administrativo. Organización de la jurisdicción contenciosa-administrativa.' },
     { numero: 58, titulo: 'Recurso contencioso-administrativo: Capacidad procesal, legitimación, representación y defensa. Actos impugnables.' },
     { numero: 59, titulo: 'Recurso contencioso-administrativo: Diligencias preliminares. Interposición del recurso y reclamación del expediente. Emplazamiento de los demandados y admisión del recurso.' },
@@ -85,7 +85,7 @@ const GESTION = [
     { numero: 64, titulo: 'Disposiciones comunes a los procedimientos contencioso-administrativos: Plazos. Medidas cautelares. Incidentes e invalidez de actos procesales. costas procesales. Ejecución de sentencias.' },
     { numero: 65, titulo: 'El proceso laboral: Principios que lo informan. Competencia objetiva y territorial. Cuestiones de competencia. Representación y defensa en el procedimiento laboral. Fondo de Garantía Salarial. Justicia gratuita.' },
     { numero: 66, titulo: 'La evitación del proceso: Conciliación previa y reclamación administrativa previa. El proceso ordinario: Demanda, conciliación y juicio. Recursos: de suplicación y de casación, con referencia al recurso de casación para la unificación de doctrina; disposiciones comunes a los recursos de suplicación y casación.' },
-    { numero: 67, titulo: 'Procesos especiales: Despidos, Seguridad Social, Conflictos Colectivos, Impugnación de los convenios colectivos. Tutela de derechos fundamentales. F) Normativa sobre Derecho Mercantil.' },
+    { numero: 67, titulo: 'Procesos especiales: Despidos, Seguridad Social, Conflictos Colectivos, Impugnación de los convenios colectivos. Tutela de derechos fundamentales.' },
     { numero: 68, titulo: 'El Concurso de acreedores. Concepto de concurso sus clases, la competencia objetiva y territorial. El administrador concursal. Aspectos procesales: Procedimiento ordinario. Las secciones del concurso; el incidente concursal. Los recursos. El preconcurso: presupuestos, Efectos de la comunicación de apertura de negociaciones sobre acciones y procedimientos ejecutivos y procedimiento de homologación. El procedimiento especial para microempresas: ámbito de aplicación y reglas procesales especiales del procedimiento.' }
 ];
 
@@ -306,14 +306,86 @@ function normasDelTema(titulo) {
 
 const TEMARIOS = { gestion: GESTION, tramitacion: TRAMITACION, auxilio: AUXILIO };
 
-/* El temario de un cuerpo, con las leyes ya resueltas por tema. */
-function temarioDe(clave) {
-    const temas = TEMARIOS[String(clave || '')] || [];
-    return temas.map(t => ({
-        numero: t.numero,
-        titulo: t.titulo,
-        normas: normasDelTema(t.titulo)
-    }));
+/* ============================================================
+   QUÉ TEMAS HAN CAMBIADO RESPECTO A LA CONVOCATORIA ANTERIOR
+
+   Se comparan los enunciados oficiales palabra por palabra. No es
+   un detalle menor: en Gestión cambian 15 de los 68, y algunos no
+   son un retoque de redacción sino otro tema (el 8 pasó de los
+   juzgados unipersonales a los Tribunales de Instancia).
+
+   Se distingue entre cambio de fondo y retoque para no dar la misma
+   voz de alarma a "el Consejo de Ministros de la UE" -> "el Consejo
+   de la UE" que a un tema reescrito entero.
+   ============================================================ */
+
+const { temarioAnteriorDe, REFERENCIA } = require('./_temario-anterior');
+
+function palabras(texto) {
+    return sinAcentos(texto).replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean);
 }
 
-module.exports = { TEMARIOS, temarioDe, normasDelTema };
+/* Compara dos enunciados y devuelve qué ha cambiado, recortando lo
+   que comparten al principio y al final: así se señala solo el trozo
+   distinto en vez de pintar el tema entero. */
+function compararEnunciados(antes, ahora) {
+    const a = palabras(antes);
+    const b = palabras(ahora);
+
+    if (a.join(' ') === b.join(' ')) return null;
+
+    let inicio = 0;
+    while (inicio < a.length && inicio < b.length && a[inicio] === b[inicio]) inicio++;
+
+    let fin = 0;
+    while (fin < a.length - inicio && fin < b.length - inicio &&
+           a[a.length - 1 - fin] === b[b.length - 1 - fin]) fin++;
+
+    const quitadas = a.length - inicio - fin;
+    const puestas = b.length - inicio - fin;
+
+    /* Un retoque es un cambio corto dentro de un tema que sigue
+       siendo el mismo. Si se toca un tercio del enunciado o más de
+       veinte palabras, es otro tema. */
+    const tocado = Math.max(quitadas, puestas);
+    const fondo = tocado > 20 || tocado > b.length / 3;
+
+    return {
+        antes,
+        ahora,
+        desde: inicio,          // palabras que se mantienen al principio
+        hasta: fin,             // palabras que se mantienen al final
+        alcance: fondo ? 'fondo' : 'retoque'
+    };
+}
+
+/* El temario de un cuerpo, con las leyes resueltas y el cambio
+   respecto a la convocatoria anterior, si se sabe. */
+function temarioDe(clave) {
+    const temas = TEMARIOS[String(clave || '')] || [];
+    const anterior = temarioAnteriorDe(clave);
+
+    return temas.map(t => {
+        let cambio = null;
+
+        if (anterior) {
+            const viejo = anterior.find(x => x.numero === t.numero);
+            cambio = viejo
+                ? compararEnunciados(viejo.titulo, t.titulo)
+                : { antes: null, ahora: t.titulo, alcance: 'nuevo' };
+        }
+
+        return {
+            numero: t.numero,
+            titulo: t.titulo,
+            normas: normasDelTema(t.titulo),
+            cambio,
+            /* null en cambio significa dos cosas distintas y hay que
+               poder distinguirlas: "no ha cambiado" (hay comparación)
+               o "no lo sé" (no tenemos el programa anterior). */
+            comparado: !!anterior
+        };
+    });
+}
+
+module.exports = { TEMARIOS, temarioDe, normasDelTema, compararEnunciados, REFERENCIA_ANTERIOR: REFERENCIA };
