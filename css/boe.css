@@ -515,7 +515,67 @@ body.tarde .boe-aviso.leido {
     margin: 0;
     font-size: 14px;
     opacity: 0.85;
-    text-transform: capitalize;
+}
+
+/* Solo la inicial. Con text-transform: capitalize salía "Sábado, 3
+   Octubre De 2026", que en español está mal escrito: los meses van
+   en minúscula. */
+.op-fecha::first-letter { text-transform: uppercase; }
+
+/* --- Selector de cuerpo -------------------------------------
+   Va en el lado opuesto a la cuenta atrás. La misma convocatoria
+   saca tres cuerpos a la vez y conviene poder mirar cualquiera de
+   los tres sin cambiar de perfil.
+   ------------------------------------------------------------ */
+.op-selector {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 14px;
+    padding: 16px 18px;
+    min-width: 290px;
+}
+
+.op-selector-titulo {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.8;
+    margin-bottom: 10px;
+}
+
+.op-selector-opciones {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.op-selector-opcion {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 10px;
+    color: white;
+    padding: 10px 14px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.op-selector-opcion:hover {
+    background: rgba(255, 255, 255, 0.24);
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+/* El elegido se ve de golpe: fondo blanco sólido, que es lo único
+   que contrasta de verdad sobre el morado de la portada. */
+.op-selector-opcion.elegido {
+    background: white;
+    border-color: white;
+    color: #5b4bc4;
+    font-weight: 700;
 }
 
 .op-portada-der {
@@ -554,6 +614,7 @@ body.tarde .boe-aviso.leido {
 .op-pestanas {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: 10px;
     margin-bottom: 24px;
 }
@@ -756,9 +817,10 @@ body.tarde .boe-aviso.leido {
     font-size: 12px;
     font-weight: 700;
     color: #667eea;
-    text-transform: capitalize;
     letter-spacing: 0.02em;
 }
+
+.op-hito-fecha::first-letter { text-transform: uppercase; }
 
 .op-hito.pendiente .op-hito-fecha { color: #b08028; }
 
@@ -1053,6 +1115,7 @@ body.tarde .op-subtitulo { color: #b9b9cc; }
     .op-portada { padding: 22px; }
     .op-dias span { font-size: 42px; }
     .op-portada-der { width: 100%; }
+    .op-selector { width: 100%; min-width: 0; }
     .op-dato { flex: 1; min-width: 88px; padding: 12px 10px; }
     .op-dato strong { font-size: 24px; }
 

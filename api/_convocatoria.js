@@ -206,6 +206,31 @@ const CONVOCATORIA = {
             ],
 
             temasNuevos: []
+        },
+
+        /* Auxilio Judicial. Datos de la Orden PJC/1549/2025 (BOE de 30
+           de diciembre de 2025). Es el único de los tres cuerpos con
+           DOS ejercicios en vez de tres, y el segundo puntúa distinto:
+           acierto 1 punto, fallo 0,25. */
+        auxilio: {
+            clave: 'auxilio',
+            nombre: 'Auxilio Judicial',
+            corto: 'Auxilio',
+            titulacion: 'Graduado en Educación Secundaria Obligatoria o equivalente',
+            plazas: { general: 382, discapacidad: 43, total: 425 },
+            temas: 26,
+
+            ejercicios: [
+                { nombre: '1.º Teórico', contenido: 'Todo el programa', preguntas: '100 (+4 de reserva)', tiempo: '100 min', puntos: '0 a 60', minimo: '30', acierto: 0.60, fallo: 0.15 },
+                { nombre: '2.º Práctico', contenido: 'Dos casos prácticos de diligencia judicial', preguntas: '40 (+2 de reserva)', tiempo: '60 min', puntos: '0 a 40', minimo: '—', acierto: 1, fallo: 0.25 }
+            ],
+
+            /* Pendiente de comparar anexo con anexo contra la
+               convocatoria anterior, como se hizo con los otros dos
+               cuerpos. Se deja vacío antes que poner algo sin
+               contrastar. */
+            temasCambiados: [],
+            temasNuevos: []
         }
     }
 };
