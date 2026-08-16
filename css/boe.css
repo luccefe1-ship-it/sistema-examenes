@@ -527,34 +527,50 @@ body.tarde .boe-aviso.leido {
 .op-dato strong { display: block; font-size: 30px; font-weight: 800; line-height: 1.1; }
 .op-dato span { display: block; font-size: 12px; opacity: 0.9; margin-top: 4px; }
 
-/* --- Pestañas ---------------------------------------------- */
+/* --- Pestañas ----------------------------------------------
+   Pastillas, no subrayado. Con tres secciones que son mundos
+   distintos (qué estudio / cómo va el proceso / el día del examen)
+   conviene que la separación se vea de golpe, y una pastilla llena
+   se distingue mejor que una línea de 3px.
+   ------------------------------------------------------------ */
 .op-pestanas {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 20px;
-    border-bottom: 2px solid rgba(150, 150, 190, 0.25);
+    gap: 10px;
+    margin-bottom: 24px;
 }
 
 .op-pestana {
-    background: none;
-    border: none;
-    border-bottom: 3px solid transparent;
-    margin-bottom: -2px;
-    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #e2e2ee;
+    border-radius: 30px;
+    padding: 11px 22px;
     font-size: 15px;
     font-weight: 600;
-    color: #777;
+    color: #666;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
-.op-pestana:hover { color: #667eea; }
+.op-pestana:hover {
+    border-color: #667eea;
+    color: #667eea;
+    transform: translateY(-1px);
+}
 
 .op-pestana.activa {
-    color: #667eea;
-    border-bottom-color: #667eea;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: transparent;
+    color: white;
+    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
 }
+
+.op-pestana.activa:hover { color: white; }
+
+.op-pestana-icono { font-size: 17px; line-height: 1; }
 
 .op-contador {
     display: inline-block;
@@ -658,37 +674,96 @@ body.tarde .boe-aviso.leido {
 .op-ficha.ancha strong { font-size: 17px; }
 .op-ficha span { display: block; font-size: 12px; color: #777; margin-top: 6px; }
 
-/* --- Calendario -------------------------------------------- */
-.op-hitos { list-style: none; padding: 0; margin: 0; }
+/* --- Calendario: línea de tiempo ----------------------------
+   Antes era una lista de tarjetas sueltas y no se veía el orden ni
+   por dónde va el proceso. Ahora es una línea vertical: punto verde
+   lo cumplido, punto morado con halo el siguiente hito, punto hueco
+   lo que aún no tiene fecha.
+   ------------------------------------------------------------ */
+.op-linea {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    background: white;
+    border-radius: 14px;
+    padding: 24px 26px 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
+}
 
 .op-hito {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    background: white;
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 12px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
-    border-left: 5px solid #95a5a6;
+    gap: 18px;
+    padding-bottom: 26px;
 }
 
-.op-hito.hecho { border-left-color: #27ae60; }
-.op-hito.pendiente { border-left-color: #f39c12; }
+/* La línea que une los puntos. El último hito no la lleva. */
+.op-hito:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 18px;
+    bottom: 0;
+    width: 2px;
+    background: #e8e8f2;
+}
+
+.op-hito-punto {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    margin-top: 3px;
+    border-radius: 50%;
+    background: #d3d3e2;
+    border: 3px solid white;
+    box-shadow: 0 0 0 2px #d3d3e2;
+}
+
+.op-hito.hecho .op-hito-punto {
+    background: #27ae60;
+    box-shadow: 0 0 0 2px #27ae60;
+}
+
+/* El siguiente hito por llegar: el que de verdad importa hoy */
+.op-hito.siguiente .op-hito-punto {
+    background: #667eea;
+    box-shadow: 0 0 0 2px #667eea, 0 0 0 7px rgba(102, 126, 234, 0.18);
+}
+
+.op-hito-cuerpo { flex: 1; min-width: 0; }
 
 .op-hito-fecha {
-    min-width: 190px;
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     color: #667eea;
     text-transform: capitalize;
+    letter-spacing: 0.02em;
 }
 
-.op-hito-cuerpo { flex: 1; min-width: 220px; }
-.op-hito-cuerpo strong { display: block; color: #2c2c40; margin-bottom: 4px; }
-.op-hito-cuerpo p { margin: 0 0 6px; font-size: 14px; color: #666; line-height: 1.5; }
-.op-hito-cuerpo a { font-size: 12px; color: #667eea; text-decoration: none; font-weight: 600; }
-.op-hito-cuerpo a:hover { text-decoration: underline; }
+.op-hito.pendiente .op-hito-fecha { color: #b08028; }
+
+.op-hito-cuerpo strong {
+    display: block;
+    color: #2c2c40;
+    font-size: 16px;
+    margin: 3px 0 5px;
+}
+
+.op-hito-cuerpo p { margin: 0 0 7px; font-size: 14px; color: #666; line-height: 1.55; }
+
+.op-hito-cuerpo a {
+    font-size: 12px;
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 600;
+    background: #eef0fd;
+    padding: 3px 10px;
+    border-radius: 10px;
+}
+
+.op-hito-cuerpo a:hover { background: #e0e4fb; }
 
 /* --- Cajas de aviso ---------------------------------------- */
 .op-aviso-caja {
@@ -729,18 +804,231 @@ body.tarde .boe-aviso.leido {
 
 .op-terminos { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; }
 
+/* ============================================================
+   BLOQUES DE SECCIÓN
+   Cada panel se divide en bloques con su título y su explicación
+   de una línea. El subtítulo no es decoración: dice QUÉ estoy
+   mirando, que es justo lo que se perdía cuando todo iba junto.
+   ============================================================ */
+.op-bloque { margin-bottom: 38px; }
+.op-bloque:last-child { margin-bottom: 0; }
+
+.op-bloque-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.op-bloque-cabecera > div { flex: 1; min-width: 240px; }
+
+.op-bloque .op-titulo-seccion { margin: 0; }
+
+.op-subtitulo {
+    margin: 5px 0 0;
+    font-size: 13px;
+    color: #7a7a90;
+    line-height: 1.55;
+    max-width: 640px;
+}
+
+/* ============================================================
+   PANEL CONVOCATORIA: estado del proceso
+   ============================================================ */
+.op-estado {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.op-estado-chip {
+    background: white;
+    border-radius: 14px;
+    padding: 16px 18px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
+    border-top: 3px solid #667eea;
+}
+
+.op-estado-chip span {
+    display: block;
+    font-size: 12px;
+    color: #888;
+    font-weight: 500;
+}
+
+.op-estado-chip strong {
+    display: block;
+    font-size: 17px;
+    color: #2c2c40;
+    margin-top: 5px;
+    line-height: 1.35;
+}
+
+.op-estado-chip.hecho { border-top-color: #27ae60; }
+.op-estado-chip.hecho strong { color: #1e8449; }
+.op-estado-chip.espera { border-top-color: #f39c12; }
+.op-estado-chip.espera strong { color: #b08028; }
+
+/* ============================================================
+   PANEL EXAMEN
+   ============================================================ */
+.op-pastillas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.op-pastilla {
+    background: white;
+    border-radius: 14px;
+    padding: 14px 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
+    min-width: 150px;
+    flex: 1;
+}
+
+.op-pastilla-icono { font-size: 18px; }
+
+.op-pastilla span {
+    display: block;
+    font-size: 12px;
+    color: #888;
+    font-weight: 500;
+    margin-top: 6px;
+}
+
+.op-pastilla strong {
+    display: block;
+    font-size: 16px;
+    color: #2c2c40;
+    margin-top: 3px;
+    line-height: 1.35;
+    text-transform: capitalize;
+}
+
+/* Lo que aún no se sabe se dice, no se deja en blanco */
+.op-pastilla.pendiente strong { color: #b08028; font-size: 14px; text-transform: none; }
+
+.op-ejercicios {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.op-ejercicio {
+    background: white;
+    border-radius: 14px;
+    padding: 20px 22px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
+    border-top: 4px solid #667eea;
+    display: flex;
+    flex-direction: column;
+}
+
+.op-ejercicio h4 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    color: #2c2c40;
+}
+
+.op-ejercicio-contenido {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.55;
+    margin: 0 0 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #f0f0f6;
+}
+
+.op-ejercicio-datos {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    margin-top: auto;
+}
+
+.op-ejercicio-dato {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 13px;
+}
+
+.op-ejercicio-dato span { color: #888; }
+.op-ejercicio-dato strong { color: #2c2c40; text-align: right; font-weight: 600; }
+
+.op-ejercicio-eliminatorio {
+    display: inline-block;
+    background: #fdeceb;
+    color: #c0392b;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    align-self: flex-start;
+}
+
+/* --- Cómo puntúa ------------------------------------------- */
+.op-puntuacion {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+}
+
+.op-punto {
+    background: white;
+    border-radius: 14px;
+    padding: 18px;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
+}
+
+.op-punto strong {
+    display: block;
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.op-punto.acierto strong { color: #27ae60; }
+.op-punto.fallo strong { color: #e74c3c; }
+.op-punto.blanco strong { color: #95a5a6; }
+
+.op-punto span { display: block; font-size: 12px; color: #777; margin-top: 6px; }
+
 /* --- Modo tarde y noche ------------------------------------ */
 body.noche .op-pestana,
-body.tarde .op-pestana { color: #b9b9cc; }
+body.tarde .op-pestana {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: #e8e8f2;
+}
+
+body.noche .op-pestana:hover,
+body.tarde .op-pestana:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #a5b0ff;
+    color: white;
+}
 
 body.noche .op-pestana.activa,
-body.tarde .op-pestana.activa { color: #a5b0ff; border-bottom-color: #a5b0ff; }
+body.tarde .op-pestana.activa {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: transparent;
+    color: white;
+}
 
 body.noche .op-titulo-seccion,
 body.tarde .op-titulo-seccion { color: #ececf5; }
 
 body.noche .op-nota,
-body.tarde .op-nota { color: #b9b9cc; }
+body.tarde .op-nota,
+body.noche .op-subtitulo,
+body.tarde .op-subtitulo { color: #b9b9cc; }
 
 /* --- Móvil -------------------------------------------------- */
 @media (max-width: 768px) {
@@ -749,6 +1037,26 @@ body.tarde .op-nota { color: #b9b9cc; }
     .op-portada-der { width: 100%; }
     .op-dato { flex: 1; min-width: 88px; padding: 12px 10px; }
     .op-dato strong { font-size: 24px; }
-    .op-pestana { padding: 10px 12px; font-size: 14px; }
-    .op-hito-fecha { min-width: 100%; }
+
+    /* Las pestañas se hacen scroll horizontal en vez de partirse en
+       dos filas: con tres, una sola línea que se arrastra se lee
+       mejor que un bloque descolocado. */
+    .op-pestanas {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .op-pestanas::-webkit-scrollbar { display: none; }
+
+    .op-pestana {
+        flex-shrink: 0;
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+
+    .op-linea { padding: 20px 18px 6px; }
+    .op-pastilla { min-width: 100%; }
 }

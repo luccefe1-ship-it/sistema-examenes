@@ -122,6 +122,8 @@ async function cargarFicha() {
         ficha = await respuesta.json();
         pintarPortada();
         pintarConvocatoria();
+        pintarExamen();
+        pintarCambiosTemario();
         pintarRevision();
 
     } catch (error) {
@@ -142,6 +144,22 @@ function fechaLarga(iso) {
     const [a, m, d] = iso.split('-').map(Number);
     return new Date(a, m - 1, d).toLocaleDateString('es-ES',
         { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function fechaCorta(iso) {
+    if (!iso) return '';
+    const [a, m, d] = iso.split('-').map(Number);
+    return new Date(a, m - 1, d).toLocaleDateString('es-ES',
+        { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/* Los datos del BOE vienen como texto ("100 (+4 de reserva)",
+   "100 min") porque así es como los publica la orden y así se
+   guardan literales en _convocatoria.js. Para sumarlos hace falta
+   sacar el primer número, que siempre es el que cuenta. */
+function primerNumero(texto) {
+    const encontrado = String(texto || '').match(/\d+/);
+    return encontrado ? Number(encontrado[0]) : 0;
 }
 
 // ------------------------------------------------------------
@@ -166,26 +184,27 @@ function pintarPortada() {
 
     const sinLeer = avisos.filter(a => !leidos.has(a.id)).length;
 
-    /* Tres cifras y solo tres. La versión anterior enseñaba cuatro
-       contadores y ninguno decía qué hacer; estos tres son acciones:
-       material que corregir, preguntas que arreglar, avisos que leer. */
+    /* Tres cifras y solo tres, y cada una lleva a una pestaña
+       distinta. La versión anterior enseñaba cuatro contadores y
+       ninguno decía qué hacer. */
     document.getElementById('opResumen').innerHTML = `
-        <a class="op-dato ${rev.temasConProblemas ? 'alerta' : ''}" href="#" data-ir="revisar">
+        <a class="op-dato ${sinLeer ? 'alerta' : ''}" href="#" data-ir="temario">
+            <strong>${sinLeer}</strong>
+            <span>avisos sin leer</span>
+        </a>
+        <a class="op-dato ${rev.temasConProblemas ? 'alerta' : ''}" href="#" data-ir="temario">
             <strong>${rev.temasConProblemas}</strong>
             <span>temas a revisar</span>
         </a>
-        <a class="op-dato ${rev.preguntasAMarcar ? 'alerta' : ''}" href="#" data-ir="revisar">
-            <strong>${rev.preguntasAMarcar}</strong>
-            <span>preguntas a corregir</span>
-        </a>
-        <a class="op-dato" href="#" data-ir="avisos">
-            <strong>${sinLeer}</strong>
-            <span>avisos sin leer</span>
+        <a class="op-dato" href="#" data-ir="convocatoria">
+            <strong>${cuerpo.plazas.total.toLocaleString('es-ES')}</strong>
+            <span>plazas convocadas</span>
         </a>`;
 
-    document.getElementById('tabRevisar').textContent =
-        rev.temasConProblemas ? rev.temasConProblemas : '';
-    document.getElementById('tabAvisos').textContent = sinLeer ? sinLeer : '';
+    /* Un solo contador en la pestaña de temario, que ahora agrupa
+       los avisos del BOE y la revisión del material propio. */
+    const pendientes = sinLeer + rev.temasConProblemas;
+    document.getElementById('tabTemario').textContent = pendientes ? pendientes : '';
 }
 
 // ------------------------------------------------------------
@@ -266,26 +285,38 @@ function pintarRevision() {
 }
 
 // ------------------------------------------------------------
-//  Panel: convocatoria
+//  Panel: mi convocatoria
+//  Cómo va el proceso. Nada de contenido de examen aquí: eso vive
+//  en su propia pestaña.
 // ------------------------------------------------------------
 function pintarConvocatoria() {
     const c = ficha.cuerpo;
 
-    document.getElementById('tablaEjercicios').innerHTML = `
-        <tr><th>Ejercicio</th><th>Contenido</th><th>Preguntas</th><th>Tiempo</th><th>Puntos</th><th>Mínimo</th></tr>
-        ${c.ejercicios.map(e => `
-            <tr>
-                <td><strong>${escapar(e.nombre)}</strong></td>
-                <td>${escapar(e.contenido)}</td>
-                <td>${escapar(e.preguntas)}</td>
-                <td>${escapar(e.tiempo)}</td>
-                <td>${escapar(e.puntos)}</td>
-                <td>${escapar(e.minimo)}</td>
-            </tr>`).join('')}`;
+    document.getElementById('refConvocatoria').textContent =
+        `${ficha.convocatoria} · ${ficha.ordenConvocatoria}`;
 
-    const primero = c.ejercicios[0];
-    document.getElementById('notaPenalizacion').textContent =
-        `Aciertos: +${primero.acierto} · Fallos: −${primero.fallo} · En blanco: 0. La penalización es de un cuarto del acierto.`;
+    /* El estado no se guarda como tal: se deduce de los hitos. El
+       último "hecho" es dónde estamos y el primer "pendiente" es lo
+       siguiente que va a pasar. Así, cuando se añada un hito nuevo
+       en _convocatoria.js, esto se actualiza solo. */
+    const hechos = ficha.hitos.filter(h => h.estado === 'hecho');
+    const pendientes = ficha.hitos.filter(h => h.estado !== 'hecho');
+    const ultimo = hechos[hechos.length - 1] || null;
+    const siguiente = pendientes[0] || null;
+
+    document.getElementById('estadoProceso').innerHTML = `
+        <div class="op-estado-chip hecho">
+            <span>Último paso dado</span>
+            <strong>${ultimo ? escapar(ultimo.titulo) : 'Sin hitos publicados'}</strong>
+        </div>
+        <div class="op-estado-chip espera">
+            <span>Siguiente paso</span>
+            <strong>${siguiente ? escapar(siguiente.titulo) : 'Proceso terminado'}</strong>
+        </div>
+        <div class="op-estado-chip">
+            <span>Tu cuerpo</span>
+            <strong>${escapar(c.nombre)}</strong>
+        </div>`;
 
     document.getElementById('fichasCuerpo').innerHTML = `
         <div class="op-ficha"><strong>${c.plazas.total.toLocaleString('es-ES')}</strong><span>plazas en total</span></div>
@@ -294,16 +325,90 @@ function pintarConvocatoria() {
         <div class="op-ficha"><strong>${c.temas}</strong><span>temas del programa</span></div>
         <div class="op-ficha ancha"><strong>${escapar(c.titulacion)}</strong><span>titulación exigida</span></div>`;
 
-    document.getElementById('listaHitos').innerHTML = ficha.hitos.map(h => `
-        <li class="op-hito ${h.estado}">
-            <div class="op-hito-fecha">${h.fecha ? fechaLarga(h.fecha) : 'Sin fecha todavía'}</div>
+    /* El primer hito sin cumplir se marca aparte: es el único que
+       hay que mirar hoy, y con la línea de tiempo se ve de un
+       vistazo dónde está el proceso. */
+    const idSiguiente = siguiente ? ficha.hitos.indexOf(siguiente) : -1;
+
+    document.getElementById('listaHitos').innerHTML = ficha.hitos.map((h, i) => `
+        <li class="op-hito ${h.estado}${i === idSiguiente ? ' siguiente' : ''}">
+            <div class="op-hito-punto"></div>
             <div class="op-hito-cuerpo">
+                <div class="op-hito-fecha">${h.fecha ? fechaLarga(h.fecha) : 'Sin fecha todavía'}</div>
                 <strong>${escapar(h.titulo)}</strong>
                 <p>${escapar(h.detalle)}</p>
                 ${h.idBoe ? `<a href="https://www.boe.es/diario_boe/txt.php?id=${escapar(h.idBoe)}" target="_blank" rel="noopener noreferrer">${escapar(h.idBoe)}</a>` : ''}
             </div>
         </li>`).join('');
+}
 
+// ------------------------------------------------------------
+//  Panel: mi examen
+//  El día D: cuándo, dónde, cuánto dura y cómo puntúa.
+// ------------------------------------------------------------
+function pintarExamen() {
+    const c = ficha.cuerpo;
+
+    const minutos = c.ejercicios.reduce((s, e) => s + primerNumero(e.tiempo), 0);
+    const preguntas = c.ejercicios.reduce((s, e) => s + primerNumero(e.preguntas), 0);
+
+    /* La sede NO está en los datos, y no se inventa. Sale del hito
+       que la publica: mientras siga pendiente, se dice que está
+       pendiente. Una sede equivocada sería peor que ninguna. */
+    const hitoSede = ficha.hitos.find(h => /sede/i.test(h.titulo || ''));
+    const sedePublicada = hitoSede && hitoSede.estado === 'hecho';
+
+    document.getElementById('pastillasExamen').innerHTML = `
+        <div class="op-pastilla">
+            <div class="op-pastilla-icono">📅</div>
+            <span>Fecha</span>
+            <strong>${fechaLarga(ficha.fechaExamen)}</strong>
+        </div>
+        <div class="op-pastilla ${sedePublicada ? '' : 'pendiente'}">
+            <div class="op-pastilla-icono">📍</div>
+            <span>Sede</span>
+            <strong>${sedePublicada ? 'Consulta el BOE de tu hito' : 'Pendiente de publicación'}</strong>
+        </div>
+        <div class="op-pastilla">
+            <div class="op-pastilla-icono">⏱️</div>
+            <span>Duración de los ejercicios</span>
+            <strong>${minutos} min</strong>
+        </div>
+        <div class="op-pastilla">
+            <div class="op-pastilla-icono">✍️</div>
+            <span>Preguntas en total</span>
+            <strong>${preguntas}</strong>
+        </div>`;
+
+    document.getElementById('tarjetasEjercicios').innerHTML = c.ejercicios.map(e => `
+        <article class="op-ejercicio">
+            ${e.minimo && e.minimo !== '—' ? '<span class="op-ejercicio-eliminatorio">Eliminatorio</span>' : ''}
+            <h4>${escapar(e.nombre)}</h4>
+            <p class="op-ejercicio-contenido">${escapar(e.contenido)}</p>
+            <div class="op-ejercicio-datos">
+                <div class="op-ejercicio-dato"><span>Preguntas</span><strong>${escapar(e.preguntas)}</strong></div>
+                <div class="op-ejercicio-dato"><span>Tiempo</span><strong>${escapar(e.tiempo)}</strong></div>
+                <div class="op-ejercicio-dato"><span>Puntuación</span><strong>${escapar(e.puntos)}</strong></div>
+                <div class="op-ejercicio-dato"><span>Mínimo para pasar</span><strong>${escapar(e.minimo)}</strong></div>
+            </div>
+        </article>`).join('');
+
+    /* Solo los ejercicios tipo test tienen acierto y fallo; el de
+       desarrollo o el de ofimática no, y no se les puede pintar
+       una penalización que no existe. */
+    const conPenalizacion = c.ejercicios.filter(e => typeof e.acierto === 'number');
+
+    document.getElementById('puntuacionExamen').innerHTML = conPenalizacion.map(e => `
+        <div class="op-punto acierto"><strong>+${e.acierto}</strong><span>acierto · ${escapar(e.nombre)}</span></div>
+        <div class="op-punto fallo"><strong>−${e.fallo}</strong><span>fallo · ${escapar(e.nombre)}</span></div>`).join('') +
+        `<div class="op-punto blanco"><strong>0</strong><span>en blanco · no penaliza</span></div>`;
+}
+
+// ------------------------------------------------------------
+//  Bloque: cambios del programa oficial (vive en "Mi temario")
+// ------------------------------------------------------------
+function pintarCambiosTemario() {
+    const c = ficha.cuerpo;
     const cambios = c.temasCambiados || [];
     const nuevos = c.temasNuevos || [];
 
@@ -313,6 +418,7 @@ function pintarConvocatoria() {
                 <strong>${nuevos.length} tema(s) nuevo(s)</strong> que no estaban en la convocatoria anterior:
                 <ul>${nuevos.map(t => `<li><strong>Tema ${t.numero}.</strong> ${escapar(t.titulo)}</li>`).join('')}</ul>
             </div>` : ''}
+        ${cambios.length ? `
         <div class="op-tabla-envoltorio">
             <table class="op-tabla">
                 <tr><th>Tema</th><th>Antes</th><th>Ahora</th></tr>
@@ -323,7 +429,7 @@ function pintarConvocatoria() {
                         <td>${escapar(t.ahora)}</td>
                     </tr>`).join('')}
             </table>
-        </div>`;
+        </div>` : '<p class="op-nota">Sin cambios registrados respecto a la convocatoria anterior.</p>'}`;
 }
 
 // ------------------------------------------------------------

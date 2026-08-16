@@ -31,78 +31,177 @@
             <div class="op-portada-der" id="opResumen"></div>
         </section>
 
-        <!-- ============ PESTAÑAS ============ -->
+        <!-- ============ PESTAÑAS ============
+             Tres, y cada una responde a una pregunta distinta:
+               temario      -> ¿lo que estudio sigue siendo válido?
+               convocatoria -> ¿cómo va el proceso?
+               examen       -> ¿a qué me enfrento el día D?
+             ================================================= -->
         <nav class="op-pestanas">
-            <button class="op-pestana activa" data-panel="revisar">
-                ⚠️ Qué revisar <span class="op-contador" id="tabRevisar"></span>
+            <button class="op-pestana activa" data-panel="temario">
+                <span class="op-pestana-icono">📚</span>
+                <span class="op-pestana-texto">Mi temario</span>
+                <span class="op-contador" id="tabTemario"></span>
             </button>
-            <button class="op-pestana" data-panel="convocatoria">📅 Mi convocatoria</button>
-            <button class="op-pestana" data-panel="avisos">
-                📜 Avisos del BOE <span class="op-contador" id="tabAvisos"></span>
+            <button class="op-pestana" data-panel="convocatoria">
+                <span class="op-pestana-icono">📋</span>
+                <span class="op-pestana-texto">Mi convocatoria</span>
+            </button>
+            <button class="op-pestana" data-panel="examen">
+                <span class="op-pestana-icono">🗓️</span>
+                <span class="op-pestana-texto">Mi examen</span>
             </button>
         </nav>
 
-        <!-- ============ PANEL: QUÉ REVISAR ============ -->
-        <section class="op-panel activo" id="panel-revisar">
-            <div id="revisarCargando" class="boe-cargando">
-                <div class="spinner"></div>
-                <p>Revisando tus temas y preguntas...</p>
-            </div>
+        <!-- ==========================================================
+             PANEL 1: MI TEMARIO
+             Todo lo que puede dejar obsoleto lo que estudias, en tres
+             bloques: lo que se publica fuera (BOE), lo que ya tienes
+             escrito mal (tus temas y preguntas) y lo que cambió en el
+             programa oficial.
+             ========================================================== -->
+        <section class="op-panel activo" id="panel-temario">
 
-            <div id="revisarLimpio" class="boe-vacio" style="display:none;">
-                <span class="boe-vacio-icono">✅</span>
-                <h3>Tu material está al día</h3>
-                <p>No he encontrado vocabulario derogado en tus temas digitales ni en tus preguntas.</p>
-            </div>
+            <!-- Bloque A: publicaciones del BOE -->
+            <div class="op-bloque">
+                <div class="op-bloque-cabecera">
+                    <div>
+                        <h3 class="op-titulo-seccion">Publicaciones que tocan tu temario</h3>
+                        <p class="op-subtitulo">Leyes reformadas y disposiciones que afectan al contenido que estudias. Se revisa el BOE cada mañana.</p>
+                    </div>
+                    <button id="marcarTodos" class="boe-marcar-todos">Marcar todos como leídos</button>
+                </div>
 
-            <div id="revisarResumen" class="op-aviso-caja" style="display:none;"></div>
-            <div id="listaTemas" class="boe-lista"></div>
-        </section>
-
-        <!-- ============ PANEL: CONVOCATORIA ============ -->
-        <section class="op-panel" id="panel-convocatoria">
-            <h3 class="op-titulo-seccion">Cómo es tu examen</h3>
-            <div class="op-tabla-envoltorio">
-                <table class="op-tabla" id="tablaEjercicios"></table>
-            </div>
-            <p class="op-nota" id="notaPenalizacion"></p>
-
-            <h3 class="op-titulo-seccion">Plazas y requisitos</h3>
-            <div class="op-fichas" id="fichasCuerpo"></div>
-
-            <h3 class="op-titulo-seccion">Calendario oficial</h3>
-            <ol class="op-hitos" id="listaHitos"></ol>
-
-            <h3 class="op-titulo-seccion">Cambios en tu temario</h3>
-            <p class="op-nota">Respecto a la convocatoria anterior. Si estudias con material viejo, empieza por aquí.</p>
-            <div id="cambiosTemario"></div>
-        </section>
-
-        <!-- ============ PANEL: AVISOS ============ -->
-        <section class="op-panel" id="panel-avisos">
-            <div class="boe-barra">
                 <div class="boe-filtros">
                     <button class="boe-filtro activo" data-filtro="todos">Todos</button>
                     <button class="boe-filtro" data-filtro="sinleer">Sin leer</button>
                     <button class="boe-filtro" data-filtro="modificacion">Cambios en normas</button>
-                    <button class="boe-filtro" data-filtro="convocatoria">Convocatorias</button>
                     <button class="boe-filtro" data-filtro="disposicion">Disposiciones</button>
                 </div>
-                <button id="marcarTodos" class="boe-marcar-todos">Marcar todos como leídos</button>
+
+                <div id="cargando" class="boe-cargando">
+                    <div class="spinner"></div>
+                    <p>Buscando publicaciones...</p>
+                </div>
+
+                <div id="vacio" class="boe-vacio" style="display: none;">
+                    <span class="boe-vacio-icono">☕</span>
+                    <h3>Nada nuevo en el BOE</h3>
+                    <p>No hay publicaciones que afecten a tu temario.</p>
+                </div>
+
+                <div id="listaAvisos" class="boe-lista"></div>
             </div>
 
-            <div id="cargando" class="boe-cargando">
-                <div class="spinner"></div>
-                <p>Buscando avisos...</p>
+            <!-- Bloque B: revisión de tu propio material -->
+            <div class="op-bloque">
+                <div class="op-bloque-cabecera">
+                    <div>
+                        <h3 class="op-titulo-seccion">Tu material desactualizado</h3>
+                        <p class="op-subtitulo">Temas y preguntas tuyas escritas con vocabulario que la ley ya cambió. Se señala, no se corrige solo.</p>
+                    </div>
+                </div>
+
+                <div id="revisarCargando" class="boe-cargando">
+                    <div class="spinner"></div>
+                    <p>Revisando tus temas y preguntas...</p>
+                </div>
+
+                <div id="revisarLimpio" class="boe-vacio" style="display:none;">
+                    <span class="boe-vacio-icono">✅</span>
+                    <h3>Tu material está al día</h3>
+                    <p>No he encontrado vocabulario derogado en tus temas digitales ni en tus preguntas.</p>
+                </div>
+
+                <div id="revisarResumen" class="op-aviso-caja" style="display:none;"></div>
+                <div id="listaTemas" class="boe-lista"></div>
             </div>
 
-            <div id="vacio" class="boe-vacio" style="display: none;">
-                <span class="boe-vacio-icono">☕</span>
-                <h3>Nada nuevo en el BOE</h3>
-                <p>No hay publicaciones que afecten a tu temario. Se revisa solo cada mañana.</p>
+            <!-- Bloque C: cambios en el programa oficial -->
+            <div class="op-bloque">
+                <div class="op-bloque-cabecera">
+                    <div>
+                        <h3 class="op-titulo-seccion">Cambios en el programa oficial</h3>
+                        <p class="op-subtitulo">Respecto a la convocatoria anterior. Si estudias con material viejo, empieza por aquí.</p>
+                    </div>
+                </div>
+                <div id="cambiosTemario"></div>
+            </div>
+        </section>
+
+        <!-- ==========================================================
+             PANEL 2: MI CONVOCATORIA
+             El estado del proceso: en qué punto está, cuántas plazas
+             hay y qué falta por publicarse.
+             ========================================================== -->
+        <section class="op-panel" id="panel-convocatoria">
+
+            <div class="op-bloque">
+                <div class="op-bloque-cabecera">
+                    <div>
+                        <h3 class="op-titulo-seccion">Estado del proceso</h3>
+                        <p class="op-subtitulo" id="refConvocatoria">—</p>
+                    </div>
+                </div>
+                <div class="op-estado" id="estadoProceso"></div>
             </div>
 
-            <div id="listaAvisos" class="boe-lista"></div>
+            <div class="op-bloque">
+                <div class="op-bloque-cabecera">
+                    <div>
+                        <h3 class="op-titulo-seccion">Plazas y requisitos</h3>
+                        <p class="op-subtitulo">Las de tu cuerpo en esta convocatoria.</p>
+                    </div>
+                </div>
+                <div class="op-fichas" id="fichasCuerpo"></div>
+            </div>
+
+            <div class="op-bloque">
+                <div class="op-bloque-cabecera">
+                    <div>
+                        <h3 class="op-titulo-seccion">Calendario oficial</h3>
+                        <p class="op-subtitulo">Cada hito con su referencia del BOE para poder comprobarlo.</p>
+                    </div>
+                </div>
+                <ol class="op-linea" id="listaHitos"></ol>
+            </div>
+        </section>
+
+        <!-- ==========================================================
+             PANEL 3: MI EXAMEN
+             El día D: cuándo, dónde, cuánto dura y cómo puntúa.
+             ========================================================== -->
+        <section class="op-panel" id="panel-examen">
+
+            <div class="op-bloque">
+                <div class="op-bloque-cabecera">
+                    <div>
+                        <h3 class="op-titulo-seccion">Dónde y cuándo</h3>
+                        <p class="op-subtitulo">Los tres ejercicios el mismo día, uno detrás de otro, en un único acto.</p>
+                    </div>
+                </div>
+                <div class="op-pastillas" id="pastillasExamen"></div>
+            </div>
+
+            <div class="op-bloque">
+                <div class="op-bloque-cabecera">
+                    <div>
+                        <h3 class="op-titulo-seccion">Los ejercicios</h3>
+                        <p class="op-subtitulo">Estructura, tiempo y puntuación de cada uno.</p>
+                    </div>
+                </div>
+                <div class="op-ejercicios" id="tarjetasEjercicios"></div>
+            </div>
+
+            <div class="op-bloque">
+                <div class="op-bloque-cabecera">
+                    <div>
+                        <h3 class="op-titulo-seccion">Cómo puntúa</h3>
+                        <p class="op-subtitulo">La penalización es de un cuarto del acierto: contestar a ciegas resta.</p>
+                    </div>
+                </div>
+                <div class="op-puntuacion" id="puntuacionExamen"></div>
+            </div>
         </section>
 
         <p class="boe-nota">
