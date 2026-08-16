@@ -23,6 +23,7 @@ const {
     TERMINOS_DEROGADOS, TERMINOS_MATIZADOS
 } = require('./_convocatoria');
 const { normasDeCuerpo, normasCitadas } = require('./_normas');
+const { temarioDe } = require('./_temarios');
 
 // Cuántos fragmentos se devuelven por tema. Con enseñar unos cuantos
 // se entiende el problema; volcar 300 coincidencias no ayuda a nadie.
@@ -247,13 +248,17 @@ module.exports = async function handler(req, res) {
         const clave = cuerpoValido(cuerpoPedido) ? cuerpoPedido : CUERPO_POR_DEFECTO;
 
         const ficha = fichaConvocatoria(clave);
-        const db = obtenerFirestore();
-        const revision = await revisarTemasDelUsuario(db, usuario.uid);
 
-        const conProblemas = revision.temas.filter(t => t.gravedad !== 'ninguna');
-
+        /* EL TEMARIO ES EL OFICIAL, el del anexo VI de la convocatoria.
+           Ya NO se leen los temas que el usuario haya subido a la
+           plataforma: ese material es suyo y sirve para hacer tests,
+           pero lo que entra en el examen es el programa del BOE y es
+           contra eso contra lo que hay que avisar. Mezclar las dos
+           cosas hacía que un aviso no se supiera de quién era. */
         res.status(200).json({
             ...ficha,
+
+            temario: temarioDe(clave),
 
             /* Las leyes que se vigilan para este cuerpo. La pantalla las
                enseña para que se vea qué se está mirando: si una norma
@@ -264,22 +269,7 @@ module.exports = async function handler(req, res) {
                 nombre: n.nombre,
                 bloque: n.bloque,
                 soloDeEsteCuerpo: Array.isArray(n.cuerpos)
-            })),
-
-            revision: {
-                temasRevisados: revision.temas.length,
-                temasConProblemas: conProblemas.length,
-                preguntasAMarcar: revision.temas.reduce((s, t) => s + t.totalPreguntasMarcadas, 0),
-                sinDocumentoRevisable: revision.temas.filter(t => t.digital.tieneDocumento && !t.digital.revisable).length,
-
-                /* SE DEVUELVEN TODOS LOS TEMAS, no solo los que tienen
-                   algo que revisar. La pantalla los lista del 1 al
-                   último y a cada uno le pone "sin avisos" o el aviso
-                   que le toque; para poder decir "sin avisos" hay que
-                   saber que el tema existe. */
-                temas: revision.temas,
-                temasLimpios: revision.temas.length - conProblemas.length
-            }
+            }))
         });
 
     } catch (error) {

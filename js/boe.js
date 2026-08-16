@@ -3,18 +3,20 @@
 //  Panel "Mi Oposición": cuenta atrás, selector de cuerpo y las
 //  tres pestañas (temario, convocatoria, examen).
 //
-//  LA PESTAÑA "MI TEMARIO" ES UNA LISTA DE TUS TEMAS, no un tablón
-//  de noticias. Cada tema lleva su aviso o dice que no tiene, y al
-//  abrirlo se ve el párrafo concreto que hay que corregir. Antes
-//  esto era un muro de avisos sueltos con filtros: se veía todo lo
-//  publicado y no se sabía a qué tema iba cada cosa.
+//  >>> "MI TEMARIO" TRABAJA SOBRE EL TEMARIO OFICIAL. <<<
+//  Los temas que salen en el desplegable son los del anexo VI de la
+//  convocatoria, no los que el usuario haya subido a la plataforma.
+//  Aquello es material de estudio propio para hacer tests; lo que
+//  entra en el examen es el programa del BOE, y es contra eso contra
+//  lo que hay que avisar.
 //
 //  DE DÓNDE SALE CADA COSA:
-//    - Tus temas y su revisión -> /api/mi-oposicion, con tu token.
-//    - Modificaciones del BOE  -> colección boeAvisos, que escribe
-//      el cron. Aquí solo se leen: si el navegador pudiera
-//      escribirlas, cualquiera podría inventarse una reforma legal
-//      en su propia plataforma.
+//    - Temario oficial y leyes por tema -> /api/mi-oposicion.
+//    - Reformas publicadas              -> colección boeAvisos, que
+//      escribe el cron. Aquí solo se leen.
+//    - Texto literal de los artículos   -> /api/articulo, que lo pide
+//      al BOE en el momento. No se guarda ni se reescribe: o es el
+//      texto oficial o no se enseña nada.
 //
 //  Lo único que escribe esta pantalla es el cuerpo elegido, en el
 //  documento del propio usuario.
@@ -41,7 +43,10 @@ let usuario = null;
 let ficha = null;
 let cuerpoElegido = 'gestion';
 let avisos = [];
-let avisosCargados = false;
+
+/* El texto de los artículos ya pedidos, para no repetir la llamada al
+   BOE cada vez que se vuelve a un tema. */
+const cacheArticulos = new Map();
 
 // ------------------------------------------------------------
 //  Arranque
@@ -54,7 +59,6 @@ onAuthStateChanged(auth, async (user) => {
     cuerpoElegido = await leerCuerpo() || 'gestion';
     document.getElementById('selectorCuerpo').value = cuerpoElegido;
 
-    // Los avisos vienen de Firestore y los temas de la API: en paralelo
     await Promise.all([cargarAvisos(), cargarFicha()]);
 });
 
@@ -86,17 +90,6 @@ function escapar(texto) {
     return div.innerHTML;
 }
 
-/* Sin acentos y en minúsculas. Los temarios vienen de Word y de PDF
-   convertidos, y ahí las tildes aparecen y desaparecen. Solo quita
-   marcas de acento y baja a minúsculas: NO cambia la longitud de la
-   cadena, y de eso depende poder recortar sobre el texto original. */
-function normalizar(texto) {
-    return String(texto || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase();
-}
-
 function fechaLarga(iso) {
     if (!iso) return '';
     const [a, m, d] = iso.split('-').map(Number);
@@ -104,34 +97,8 @@ function fechaLarga(iso) {
         { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-/* Pinta en amarillo el término caducado dentro del párrafo.
-
-   Se busca sobre el texto normalizado y se recorta del ORIGINAL, para
-   enseñar el párrafo tal y como está escrito en el tema, con sus
-   tildes y mayúsculas. Se escapa trozo a trozo, no al final: si se
-   escapara antes de cortar, las entidades HTML moverían los índices. */
-function resaltar(fragmento, termino) {
-    const original = String(fragmento || '');
-    const plano = normalizar(original);
-    const aguja = normalizar(termino);
-    if (!aguja) return escapar(original);
-
-    let salida = '';
-    let desde = 0;
-    let i = plano.indexOf(aguja);
-
-    while (i !== -1) {
-        salida += escapar(original.slice(desde, i));
-        salida += `<mark>${escapar(original.slice(i, i + aguja.length))}</mark>`;
-        desde = i + aguja.length;
-        i = plano.indexOf(aguja, desde);
-    }
-
-    return salida + escapar(original.slice(desde));
-}
-
 // ------------------------------------------------------------
-//  Ficha del cuerpo y temas
+//  Datos
 // ------------------------------------------------------------
 async function cargarFicha() {
     try {
@@ -149,12 +116,33 @@ async function cargarFicha() {
 
         ficha = await respuesta.json();
         pintarPortada();
-        pintarTemas();
+        montarDesplegableDeTemas();
 
     } catch (error) {
         console.error('[oposicion] No se pudo cargar la ficha:', error);
-        document.getElementById('cargandoTemas').innerHTML =
-            `<p>No se pudieron revisar tus temas: ${escapar(error.message)}</p>`;
+        document.getElementById('detalleTema').innerHTML =
+            `<p class="op-tema-nota">No se pudo cargar el temario: ${escapar(error.message)}</p>`;
+    }
+}
+
+async function cargarAvisos() {
+    try {
+        const instantanea = await getDocs(
+            query(collection(db, 'boeAvisos'), orderBy('fecha', 'desc'), limit(MAX_AVISOS)));
+
+        /* Solo las reformas de normas. Las convocatorias y los
+           acuerdos sueltos no cambian el texto de ninguna ley, y aquí
+           se responde a una única pregunta: ¿han tocado algo de este
+           tema? */
+        avisos = instantanea.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(a => (a.normas || []).length && (a.articulos || []).length);
+
+    } catch (error) {
+        console.error('[oposicion] No se pudieron cargar las reformas:', error);
+        avisos = [];
+    } finally {
+        if (ficha) montarDesplegableDeTemas();
     }
 }
 
@@ -162,32 +150,14 @@ function pintarPortada() {
     document.getElementById('opCuerpo').textContent = ficha.cuerpo.nombre;
     document.getElementById('opDias').textContent = ficha.examenPasado ? '—' : ficha.diasParaExamen;
     document.getElementById('opFecha').textContent = fechaLarga(ficha.fechaExamen);
+    document.getElementById('refTemario').textContent =
+        `Anexo VI de la ${ficha.ordenConvocatoria}. ${ficha.cuerpo.temas} temas.`;
 }
 
-// ------------------------------------------------------------
-//  Modificaciones publicadas en el BOE
-// ------------------------------------------------------------
-async function cargarAvisos() {
-    try {
-        const instantanea = await getDocs(
-            query(collection(db, 'boeAvisos'), orderBy('fecha', 'desc'), limit(MAX_AVISOS)));
-
-        avisos = instantanea.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    } catch (error) {
-        console.error('[oposicion] No se pudieron cargar los avisos del BOE:', error);
-        avisos = [];
-    } finally {
-        avisosCargados = true;
-        if (ficha) pintarTemas();
-    }
-}
-
-/* Las modificaciones del BOE que le tocan a un tema: las que citan
-   alguna de las leyes que ese tema estudia. Un tema que no cita la
-   LEC no tiene por qué enterarse de que han tocado la LEC. */
-function avisosDelTema(tema) {
-    const suyas = new Set((tema.normas || []).map(n => n.id));
+/* Las reformas que le tocan a un tema: las que han modificado alguna
+   de las leyes que ese tema estudia. */
+function reformasDelTema(tema) {
+    const suyas = new Set(tema.normas || []);
     if (!suyas.size) return [];
 
     return avisos.filter(aviso =>
@@ -195,169 +165,158 @@ function avisosDelTema(tema) {
 }
 
 // ------------------------------------------------------------
-//  La lista de temas
+//  El desplegable de temas
 // ------------------------------------------------------------
-function pintarTemas() {
-    const temas = ficha?.revision?.temas || [];
-    const lista = document.getElementById('listaTemas');
+function montarDesplegableDeTemas() {
+    const temario = ficha?.temario || [];
+    const selector = document.getElementById('selectorTema');
+    const elegido = selector.value;
 
-    document.getElementById('cargandoTemas').style.display = 'none';
-    document.getElementById('sinTemas').style.display = temas.length ? 'none' : 'block';
+    let conReforma = 0;
+    selector.innerHTML = '<option value="">Elige tema para revisar</option>';
 
-    let conAviso = 0;
-    lista.innerHTML = '';
+    for (const tema of temario) {
+        const reformas = reformasDelTema(tema);
+        if (reformas.length) conReforma++;
 
-    for (const tema of temas) {
-        const cambios = tema.digital?.hallazgos || [];
-        const delBoe = avisosDelTema(tema);
-        const total = cambios.length + delBoe.length;
-        if (total) conAviso++;
-
-        const articulo = document.createElement('article');
-        articulo.className = `op-tema ${total ? 'con-aviso' : ''}`;
-
-        const etiqueta = tema.numero !== null && tema.numero !== undefined
-            ? `Tema ${tema.numero}`
-            : 'Tema';
-
-        /* <details> nativo: el desplegable lo lleva el navegador, no
-           hay que sincronizar ningún estado abierto/cerrado a mano y
-           funciona igual con teclado. */
-        articulo.innerHTML = `
-            <details class="op-tema-caja">
-                <summary class="op-tema-cabecera">
-                    <span class="op-tema-numero">${escapar(etiqueta)}</span>
-                    <span class="op-tema-nombre">${escapar(tema.nombre)}</span>
-                    ${total
-                        ? `<span class="op-tema-estado alerta">${total} aviso${total === 1 ? '' : 's'} de actualización</span>`
-                        : '<span class="op-tema-estado limpio">Sin avisos</span>'}
-                </summary>
-                <div class="op-tema-cuerpo">${cuerpoDelTema(tema, cambios, delBoe)}</div>
-            </details>`;
-
-        lista.appendChild(articulo);
+        const opcion = document.createElement('option');
+        opcion.value = String(tema.numero);
+        opcion.textContent = `Tema ${tema.numero} — ${reformas.length
+            ? `con modificación (${reformas.length})`
+            : 'sin modificaciones'}`;
+        selector.appendChild(opcion);
     }
 
-    const resumen = document.getElementById('resumenTemas');
-    if (!temas.length) {
-        resumen.textContent = '';
-    } else if (!avisosCargados) {
-        resumen.textContent = `${temas.length} temas`;
-    } else {
-        resumen.textContent = conAviso
-            ? `${conAviso} de ${temas.length} temas con avisos`
-            : `${temas.length} temas al día`;
+    // Si ya había un tema abierto, se respeta al repintar
+    if (elegido) {
+        selector.value = elegido;
+        mostrarTema(elegido);
     }
+
+    document.getElementById('resumenTemas').textContent = conReforma
+        ? `${conReforma} con modificación`
+        : `${temario.length} temas`;
 }
 
-/* Lo que se ve al desplegar un tema. Tres cosas, por este orden:
-   lo que hay escrito mal en el documento, lo que se ha publicado en
-   el BOE sobre sus leyes, y el aviso de que el documento no se pudo
-   leer, que si no pasa desapercibido. */
-function cuerpoDelTema(tema, cambios, delBoe) {
-    const partes = [];
+// ------------------------------------------------------------
+//  El detalle, debajo del desplegable
+// ------------------------------------------------------------
+function mostrarTema(numero) {
+    const caja = document.getElementById('detalleTema');
+    const tema = (ficha?.temario || []).find(t => String(t.numero) === String(numero));
 
-    if (tema.digital?.tieneDocumento && !tema.digital?.revisable) {
-        partes.push(`
-            <p class="op-tema-nota">
-                El documento «${escapar(tema.digital.nombre || '')}» se subió sin texto extraíble,
-                así que no se ha podido revisar. Vuelve a subirlo desde Mis Temas.
-            </p>`);
-    }
+    if (!tema) { caja.innerHTML = ''; return; }
 
-    if (!tema.digital?.tieneDocumento) {
-        partes.push(`
-            <p class="op-tema-nota">
-                Este tema no tiene documento digital subido. Solo se han revisado sus preguntas.
-            </p>`);
-    }
+    const reformas = reformasDelTema(tema);
 
-    for (const hallazgo of cambios) partes.push(bloqueTextoCaducado(tema, hallazgo));
-    for (const aviso of delBoe) partes.push(bloqueModificacionBoe(aviso));
+    caja.innerHTML = `
+        <div class="op-detalle-cabecera">
+            <span class="op-tema-numero">Tema ${tema.numero}</span>
+            <p class="op-detalle-titulo">${escapar(tema.titulo)}</p>
+        </div>
+        ${reformas.length
+            ? reformas.map((r, i) => bloqueReforma(r, i)).join('')
+            : `<p class="op-tema-nota limpio">
+                   Sin modificaciones. Ninguna de las leyes de este tema se ha tocado en el BOE.
+               </p>`}`;
 
-    if (!partes.length) {
-        partes.push(`
-            <p class="op-tema-nota limpio">
-                Nada que corregir. Ni vocabulario derogado en el documento ni reformas publicadas
-                de las leyes que estudia este tema.
-            </p>`);
-    }
-
-    return partes.join('');
+    // El texto literal se pide después de pintar, para que la ficha
+    // aparezca ya y los artículos se vayan rellenando.
+    reformas.forEach((reforma, i) => cargarTextoArticulos(reforma, i));
 }
 
-/* Texto del tema escrito con una denominación que la ley ya cambió.
-   Se enseña el párrafo con la expresión en amarillo y, al lado, cómo
-   se dice ahora. Es lo que de verdad hay que corregir a mano. */
-function bloqueTextoCaducado(tema, hallazgo) {
-    const ley = hallazgo.ley;
+function bloqueReforma(reforma, indice) {
+    const norma = (reforma.normas || [])[0] || {};
+    const articulos = reforma.articulos || [];
 
     return `
-        <div class="op-cambio">
-            <div class="op-cambio-cabecera">
-                <span class="op-cambio-tipo caducado">Tu texto está desactualizado</span>
-                <span class="op-cambio-veces">${hallazgo.veces} ${hallazgo.veces === 1 ? 'vez' : 'veces'} en el tema</span>
-            </div>
-
-            <p class="op-cambio-regla">
-                Donde pones <strong class="op-antes">${escapar(hallazgo.termino)}</strong>,
-                ahora se dice <strong class="op-ahora">${escapar(hallazgo.ahora)}</strong>.
-            </p>
-
-            <div class="op-fragmentos">
-                ${hallazgo.fragmentos.map(f => `<p>${resaltar(f, hallazgo.termino)}</p>`).join('')}
-            </div>
-
-            ${ley ? `
-                <div class="op-cambio-enlaces">
-                    <a href="${URL_BOE}${escapar(ley.id)}" target="_blank" rel="noopener noreferrer">
-                        Ver ${escapar(ley.nombre)} entera en el BOE
-                    </a>
-                </div>` : ''}
-        </div>`;
-}
-
-/* Una reforma publicada de alguna de las leyes que estudia el tema.
-   Aquí no se puede señalar un párrafo del documento porque el cambio
-   está en la ley, no en lo que tú escribiste: se dan los artículos
-   tocados y el enlace, que es lo que hay. */
-function bloqueModificacionBoe(aviso) {
-    const normas = (aviso.normas || []).map(n => `
-        <a href="${URL_BOE}${escapar(n.id)}" target="_blank" rel="noopener noreferrer"
-           class="boe-etiqueta">${escapar(n.nombre)}</a>`).join('');
-
-    const articulos = (aviso.articulos || []).length
-        ? `<p class="op-cambio-regla">
-               Artículos tocados:
-               <strong class="op-ahora">${escapar(aviso.articulos.join(', '))}</strong>
-           </p>`
-        : '';
-
-    return `
-        <div class="op-cambio boe">
+        <div class="op-reforma">
             <div class="op-cambio-cabecera">
                 <span class="op-cambio-tipo reforma">Ley modificada</span>
-                <span class="op-cambio-veces">${escapar(aviso.fechaLegible || aviso.fecha || '')}</span>
+                <span class="op-cambio-veces">${escapar(reforma.fechaLegible || reforma.fecha || '')}</span>
             </div>
 
-            <p class="op-cambio-titulo">${escapar(aviso.titulo || '')}</p>
-            ${aviso.resumen ? `<p class="op-cambio-resumen">${escapar(aviso.resumen)}</p>` : ''}
-            ${articulos}
+            <p class="op-cambio-titulo">${escapar(norma.nombre || reforma.titulo || '')}</p>
+            ${reforma.resumen ? `<p class="op-cambio-resumen">${escapar(reforma.resumen)}</p>` : ''}
 
-            <div class="boe-etiquetas">${normas}</div>
+            <p class="op-cambio-regla">
+                Artículos modificados:
+                <strong class="op-ahora">${escapar(articulos.join(', ')) || '—'}</strong>
+            </p>
+
+            <div class="op-articulos" id="articulos-${indice}">
+                <p class="op-tema-nota">Pidiendo el texto al BOE…</p>
+            </div>
 
             <div class="op-cambio-enlaces">
-                ${aviso.urlHtml ? `<a href="${escapar(aviso.urlHtml)}" target="_blank" rel="noopener noreferrer">Ver la publicación en el BOE</a>` : ''}
-                ${aviso.urlPdf ? `<a href="${escapar(aviso.urlPdf)}" target="_blank" rel="noopener noreferrer">PDF</a>` : ''}
+                ${norma.id ? `<a href="${URL_BOE}${escapar(norma.id)}" target="_blank" rel="noopener noreferrer">Ver la ley completa</a>` : ''}
+                ${reforma.urlHtml ? `<a href="${escapar(reforma.urlHtml)}" target="_blank" rel="noopener noreferrer">Ver la reforma en el BOE</a>` : ''}
             </div>
         </div>`;
 }
+
+/* Trae el texto literal de los artículos tocados. Si el BOE no lo
+   da, se dice y se deja el enlace: NUNCA se escribe un artículo de
+   memoria, porque se estudiaría y se daría por bueno. */
+async function cargarTextoArticulos(reforma, indice) {
+    const caja = document.getElementById(`articulos-${indice}`);
+    if (!caja) return;
+
+    const norma = (reforma.normas || [])[0];
+    const articulos = reforma.articulos || [];
+
+    if (!norma?.id || !articulos.length) {
+        caja.innerHTML = '';
+        return;
+    }
+
+    const clave = `${norma.id}|${articulos.join(',')}`;
+
+    try {
+        let datos = cacheArticulos.get(clave);
+
+        if (!datos) {
+            const token = await usuario.getIdToken();
+            const respuesta = await fetch('/api/articulo', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+                body: JSON.stringify({ norma: norma.id, articulos })
+            });
+
+            if (!respuesta.ok) throw new Error(`Error ${respuesta.status}`);
+            datos = await respuesta.json();
+            cacheArticulos.set(clave, datos);
+        }
+
+        caja.innerHTML = datos.articulos.map(a => a.encontrado
+            ? `<article class="op-articulo">
+                   <h4>${escapar(a.titulo)}</h4>
+                   <div class="op-articulo-texto">${a.texto.split('\n\n').map(p => `<p>${escapar(p)}</p>`).join('')}</div>
+               </article>`
+            : `<article class="op-articulo no-encontrado">
+                   <h4>${escapar(a.titulo)}</h4>
+                   <p>No se ha podido localizar este artículo en el texto consolidado. Ábrelo en el BOE para leerlo.</p>
+               </article>`).join('');
+
+    } catch (error) {
+        console.error('[oposicion] No se pudo traer el artículo:', error);
+        caja.innerHTML = `<p class="op-tema-nota">
+            No se pudo traer el texto del BOE (${escapar(error.message)}). El enlace de abajo lleva a la ley completa.
+        </p>`;
+    }
+}
+
+document.getElementById('selectorTema')?.addEventListener('change', (evento) => {
+    mostrarTema(evento.target.value);
+});
 
 // ------------------------------------------------------------
 //  Selector de cuerpo
 // ------------------------------------------------------------
 document.getElementById('selectorCuerpo')?.addEventListener('change', async (evento) => {
     cuerpoElegido = evento.target.value;
+    document.getElementById('selectorTema').value = '';
+    document.getElementById('detalleTema').innerHTML = '';
     await guardarCuerpo(cuerpoElegido);
     await cargarFicha();
 });

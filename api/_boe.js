@@ -335,10 +335,103 @@ function articulosCitados(texto) {
     return [...encontrados].sort((a, b) => a - b);
 }
 
+/* ============================================================
+   TEXTO LITERAL DE UN ARTÍCULO
+
+   El texto consolidado del BOE viene partido en "bloques": preámbulo,
+   títulos, capítulos y un bloque por artículo. Para sacar un artículo
+   concreto hay que pedir primero el índice, buscar el bloque cuyo
+   título es "Artículo 155" y luego pedir ese bloque.
+
+   NO SE ADIVINA EL IDENTIFICADOR DEL BLOQUE. Podría parecer que basta
+   con componer algo tipo "a155", y funciona en muchas leyes, pero se
+   rompe en cuanto hay artículos bis, ter o numeración romana. Dos
+   llamadas y a lo seguro: lo que se enseña aquí es el texto de una
+   ley, y equivocarse de artículo es peor que no enseñar nada.
+   ============================================================ */
+
+/* El índice del texto consolidado, como lista de bloques. */
+async function obtenerIndice(idNorma) {
+    const datos = await pedirJson(
+        `/legislacion-consolidada/id/${encodeURIComponent(idNorma)}/texto/indice`);
+
+    if (datos === SIN_BOLETIN) return [];
+
+    // El JSON del BOE anida distinto según la versión; se prueban las
+    // rutas conocidas y se coge la primera que dé una lista.
+    const candidatos = [
+        datos?.data?.bloque,
+        datos?.data?.texto?.bloque,
+        datos?.response?.data?.bloque,
+        datos?.bloque
+    ];
+
+    for (const candidato of candidatos) {
+        const lista = comoLista(candidato);
+        if (lista.length) return lista;
+    }
+
+    return [];
+}
+
+/* Compara "Artículo 155" con lo que el usuario pidió ("155", "155
+   bis", "art. 155"). Se normaliza a dígitos y letras sueltas para
+   que "Artículo 238 bis" no se confunda con el 238 a secas. */
+function mismoArticulo(tituloBloque, pedido) {
+    const limpiar = (t) => String(t || '')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .replace(/art(?:iculo|\.)?\s*/g, '')
+        .replace(/[^\w\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return limpiar(tituloBloque) === limpiar(pedido);
+}
+
+/* Texto literal de un artículo. Devuelve null si no se encuentra:
+   quien llama decide qué contar, pero nunca se inventa el contenido. */
+async function obtenerTextoArticulo(idNorma, articulo) {
+    const bloques = await obtenerIndice(idNorma);
+    if (!bloques.length) return null;
+
+    const bloque = bloques.find(b => mismoArticulo(b?.titulo, articulo));
+    if (!bloque || !bloque.id) return null;
+
+    const datos = await pedirJson(
+        `/legislacion-consolidada/id/${encodeURIComponent(idNorma)}/texto/bloque/${encodeURIComponent(bloque.id)}`);
+
+    if (datos === SIN_BOLETIN) return null;
+
+    const crudo = datos?.data?.texto ?? datos?.data?.bloque?.texto ?? datos?.texto ?? '';
+    const texto = limpiarHtml(typeof crudo === 'string' ? crudo : JSON.stringify(crudo));
+
+    return texto ? { titulo: bloque.titulo || `Artículo ${articulo}`, texto } : null;
+}
+
+/* El bloque llega con etiquetas HTML del BOE. Se quedan los saltos de
+   párrafo y se va todo lo demás: aquí solo se enseña texto. */
+function limpiarHtml(html) {
+    return String(html || '')
+        .replace(/<\s*br\s*\/?>/gi, '\n')
+        .replace(/<\/\s*p\s*>/gi, '\n\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
 module.exports = {
     obtenerSumario,
     obtenerAnalisis,
     obtenerMetadatos,
+    obtenerTextoArticulo,
     existeNorma,
     articulosCitados,
     fechaHoyMadrid,
