@@ -22,7 +22,7 @@ const {
     fichaConvocatoria, cuerpoValido, CUERPO_POR_DEFECTO,
     TERMINOS_DEROGADOS, TERMINOS_MATIZADOS
 } = require('./_convocatoria');
-const { normasDeCuerpo } = require('./_normas');
+const { normasDeCuerpo, normasCitadas } = require('./_normas');
 
 // Cuántos fragmentos se devuelven por tema. Con enseñar unos cuantos
 // se entiende el problema; volcar 300 coincidencias no ayuda a nadie.
@@ -93,6 +93,8 @@ function revisarTexto(texto) {
             termino: entrada.termino,
             ahora: entrada.ahora,
             gravedad: entrada.gravedad,
+            // La ley que hizo el cambio, para enlazar al texto completo
+            ley: entrada.ley || null,
             veces: apariciones.length,
             fragmentos: apariciones.map(a => a.texto)
         });
@@ -173,11 +175,24 @@ async function revisarTemasDelUsuario(db, uid) {
             .some(h => h.gravedad === 'alta') ? 'alta'
             : (revisionDigital.hallazgos.length || preguntasMarcadas.length) ? 'media' : 'ninguna';
 
+        /* QUÉ LEYES ESTUDIA ESTE TEMA.
+           Se sacan del texto del tema digital y de los enunciados de
+           sus preguntas. Sirve para cruzarlas con el BOE: si mañana
+           se reforma la LEC, hay que poder decir EN QUÉ TEMAS entra
+           la LEC, no soltar un aviso suelto sin dueño. */
+        const textoParaNormas = [
+            datos.nombre || '',
+            digital && typeof digital.textoExtraido === 'string' ? digital.textoExtraido : '',
+            ...(datos.preguntas || []).slice(0, 200).map(p => p.pregunta || p.enunciado || '')
+        ].join(' ');
+
         temas.push({
             id: doc.id,
             nombre: datos.nombre || '(sin nombre)',
+            numero: numeroDeTema(datos.nombre),
             esSubtema: !!datos.temaPadreId,
             totalPreguntas: (datos.preguntas || []).length,
+            normas: normasCitadas(textoParaNormas).map(n => ({ id: n.id, nombre: n.nombre })),
             digital: revisionDigital,
             preguntasMarcadas,
             totalPreguntasMarcadas: preguntasMarcadas.length,
@@ -185,14 +200,31 @@ async function revisarTemasDelUsuario(db, uid) {
         });
     }
 
-    // Primero lo grave, y a igual gravedad lo que más preguntas toca
+    /* En el orden del temario, que es como se estudia y como se
+       busca: "el tema 12". Los que no llevan número al final. */
     temas.sort((a, b) => {
-        const orden = { alta: 0, media: 1, ninguna: 2 };
-        if (orden[a.gravedad] !== orden[b.gravedad]) return orden[a.gravedad] - orden[b.gravedad];
-        return b.totalPreguntasMarcadas - a.totalPreguntasMarcadas;
+        if (a.numero !== b.numero) {
+            if (a.numero === null) return 1;
+            if (b.numero === null) return -1;
+            return a.numero - b.numero;
+        }
+        return a.nombre.localeCompare(b.nombre, 'es');
     });
 
     return { temas, sinFirestore: false };
+}
+
+/* El número que lleva el tema en el nombre: "Tema 12 - Los actos de
+   comunicación" -> 12. Sin número, null, y se va al final de la
+   lista. Se exige que el dígito vaya al principio o tras "tema"
+   para no confundirse con "Ley 39/2015" dentro del título. */
+function numeroDeTema(nombre) {
+    const limpio = String(nombre || '').trim();
+    const conPalabra = limpio.match(/^\s*tema\s*0*(\d{1,3})\b/i);
+    if (conPalabra) return Number(conPalabra[1]);
+    const soloNumero = limpio.match(/^0*(\d{1,3})\s*[.\-–—)]/);
+    if (soloNumero) return Number(soloNumero[1]);
+    return null;
 }
 
 // ------------------------------------------------------------
@@ -239,8 +271,13 @@ module.exports = async function handler(req, res) {
                 temasConProblemas: conProblemas.length,
                 preguntasAMarcar: revision.temas.reduce((s, t) => s + t.totalPreguntasMarcadas, 0),
                 sinDocumentoRevisable: revision.temas.filter(t => t.digital.tieneDocumento && !t.digital.revisable).length,
-                temas: conProblemas,
-                // Los temas limpios se devuelven solo como recuento
+
+                /* SE DEVUELVEN TODOS LOS TEMAS, no solo los que tienen
+                   algo que revisar. La pantalla los lista del 1 al
+                   último y a cada uno le pone "sin avisos" o el aviso
+                   que le toque; para poder decir "sin avisos" hay que
+                   saber que el tema existe. */
+                temas: revision.temas,
                 temasLimpios: revision.temas.length - conProblemas.length
             }
         });

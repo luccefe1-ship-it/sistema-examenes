@@ -911,10 +911,207 @@ body.tarde .boe-aviso.leido {
 }
 
 /* ============================================================
-   PANEL TEMARIO: leyes bajo vigilancia
-   Un listado sobrio a propósito. No es contenido que se lea: es
-   una comprobación. Se mira para responder a "¿está la LEC ahí?".
+   PANEL TEMARIO: tus temas, uno por uno
+   Cada tema es una fila plegada. Cerrada dice si hay algo que
+   hacer; abierta, qué hay que hacer exactamente.
    ============================================================ */
+.op-temas {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.op-tema-caja {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.06);
+    border-left: 4px solid #d8d8e6;
+    overflow: hidden;
+}
+
+.op-tema.con-aviso .op-tema-caja { border-left-color: #f39c12; }
+
+.op-tema-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+/* La flecha por defecto de <summary> se quita en los dos motores y
+   se pone una propia, que gira al abrir. */
+.op-tema-cabecera::-webkit-details-marker { display: none; }
+
+.op-tema-cabecera::after {
+    content: '⌄';
+    margin-left: auto;
+    font-size: 18px;
+    line-height: 1;
+    color: #999;
+    transition: transform 0.2s ease;
+}
+
+.op-tema-caja[open] > .op-tema-cabecera::after { transform: rotate(180deg); }
+.op-tema-cabecera:hover { background: #fafaff; }
+
+.op-tema-numero {
+    flex-shrink: 0;
+    background: #eef0fd;
+    color: #4a4ab8;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 11px;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+
+.op-tema-nombre {
+    font-size: 14px;
+    color: #2c2c40;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.op-tema-estado {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+.op-tema-estado.limpio { background: #eaf6ec; color: #2b7a3d; }
+.op-tema-estado.alerta { background: #fdf0dc; color: #a9691a; }
+
+.op-tema-cuerpo {
+    padding: 4px 18px 18px;
+    border-top: 1px solid #f2f2f7;
+}
+
+.op-tema-nota {
+    font-size: 13px;
+    color: #777;
+    line-height: 1.6;
+    margin: 14px 0 0;
+}
+
+.op-tema-nota.limpio { color: #2b7a3d; }
+
+/* --- Un cambio concreto dentro de un tema ------------------- */
+.op-cambio {
+    background: #fffdf7;
+    border: 1px solid #f0e4cd;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-top: 14px;
+}
+
+.op-cambio.boe {
+    background: #f7f9ff;
+    border-color: #dde3f5;
+}
+
+.op-cambio-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.op-cambio-tipo {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 10px;
+    border-radius: 10px;
+}
+
+.op-cambio-tipo.caducado { background: #fdeadb; color: #a9541a; }
+.op-cambio-tipo.reforma  { background: #e4ebfd; color: #3a4fa8; }
+
+.op-cambio-veces { font-size: 12px; color: #999; }
+
+.op-cambio-regla {
+    font-size: 14px;
+    color: #444;
+    line-height: 1.65;
+    margin: 0 0 12px;
+}
+
+.op-antes {
+    color: #b03a2e;
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+}
+
+.op-ahora { color: #1e7a4a; }
+
+.op-cambio-titulo {
+    font-size: 15px;
+    font-weight: 600;
+    color: #2c2c40;
+    line-height: 1.45;
+    margin: 0 0 6px;
+}
+
+.op-cambio-resumen {
+    font-size: 14px;
+    color: #555;
+    line-height: 1.55;
+    margin: 0 0 12px;
+}
+
+.op-cambio-enlaces {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 12px;
+}
+
+.op-cambio-enlaces a {
+    font-size: 13px;
+    font-weight: 600;
+    color: #667eea;
+    text-decoration: none;
+}
+
+.op-cambio-enlaces a:hover { text-decoration: underline; }
+
+/* El párrafo del tema, tal cual está escrito, con la expresión
+   caducada en amarillo. Es la razón de ser de toda la pantalla:
+   poder abrir el documento y buscar exactamente esa frase. */
+.op-fragmentos p {
+    background: white;
+    border: 1px solid #efe6d6;
+    border-left: 3px solid #e8c07d;
+    border-radius: 0;
+    padding: 10px 13px;
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: #555;
+    line-height: 1.65;
+}
+
+.op-fragmentos p:last-child { margin-bottom: 0; }
+
+.op-fragmentos mark {
+    background: #ffe27a;
+    color: #6b4a00;
+    font-weight: 600;
+    padding: 1px 2px;
+    border-radius: 3px;
+}
+
+/* --- Contador de la cabecera -------------------------------- */
 .op-contador-normas {
     background: rgba(255, 255, 255, 0.85);
     border: 1px solid #e2e2ee;
@@ -1223,4 +1420,20 @@ body.tarde .op-subtitulo { color: #b9b9cc; }
     /* En móvil, dos columnas de leyes dejan líneas de cuatro
        palabras. Mejor una. */
     .op-normas { columns: 1; padding: 8px 18px 18px; }
+
+    /* La cabecera del tema se parte en dos líneas: el nombre
+       completo importa más que tenerlo todo en una fila. */
+    .op-tema-cabecera {
+        flex-wrap: wrap;
+        padding: 12px 14px;
+    }
+
+    .op-tema-nombre {
+        white-space: normal;
+        width: 100%;
+        order: 3;
+    }
+
+    .op-tema-cabecera::after { order: 2; }
+    .op-tema-cuerpo { padding: 4px 14px 14px; }
 }

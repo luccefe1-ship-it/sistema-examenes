@@ -3,16 +3,21 @@
 //  Panel "Mi Oposición": cuenta atrás, selector de cuerpo y las
 //  tres pestañas (temario, convocatoria, examen).
 //
-//  DE DÓNDE SALE CADA COSA:
-//    - Ficha del cuerpo y leyes vigiladas -> /api/mi-oposicion, con
-//      el token del usuario.
-//    - Novedades del BOE -> colección boeAvisos, que escribe el cron.
-//      Aquí solo se leen: si el navegador pudiera escribirlas,
-//      cualquiera podría inventarse una reforma legal en su propia
-//      plataforma.
+//  LA PESTAÑA "MI TEMARIO" ES UNA LISTA DE TUS TEMAS, no un tablón
+//  de noticias. Cada tema lleva su aviso o dice que no tiene, y al
+//  abrirlo se ve el párrafo concreto que hay que corregir. Antes
+//  esto era un muro de avisos sueltos con filtros: se veía todo lo
+//  publicado y no se sabía a qué tema iba cada cosa.
 //
-//  Lo único que escribe esta pantalla es la marca de leído y el
-//  cuerpo elegido, ambos en documentos del propio usuario.
+//  DE DÓNDE SALE CADA COSA:
+//    - Tus temas y su revisión -> /api/mi-oposicion, con tu token.
+//    - Modificaciones del BOE  -> colección boeAvisos, que escribe
+//      el cron. Aquí solo se leen: si el navegador pudiera
+//      escribirlas, cualquiera podría inventarse una reforma legal
+//      en su propia plataforma.
+//
+//  Lo único que escribe esta pantalla es el cuerpo elegido, en el
+//  documento del propio usuario.
 // ============================================================
 
 import { auth, db } from './firebase-config.js';
@@ -24,20 +29,19 @@ import {
 // Cuántos avisos se traen. Con uno o dos al día, 200 son varios meses.
 const MAX_AVISOS = 200;
 
-/* Los tres cuerpos que salen en la misma convocatoria, escritos como
-   los escribe el BOE, y cómo aparecen citados en un título. */
 const CUERPOS = {
-    gestion:     { nombre: 'Gestión Procesal y Administrativa',     pistas: ['gestion procesal'] },
-    tramitacion: { nombre: 'Tramitación Procesal y Administrativa', pistas: ['tramitacion procesal'] },
-    auxilio:     { nombre: 'Auxilio Judicial',                      pistas: ['auxilio judicial'] }
+    gestion:     'Gestión Procesal y Administrativa',
+    tramitacion: 'Tramitación Procesal y Administrativa',
+    auxilio:     'Auxilio Judicial'
 };
+
+const URL_BOE = 'https://www.boe.es/buscar/act.php?id=';
 
 let usuario = null;
 let ficha = null;
 let cuerpoElegido = 'gestion';
 let avisos = [];
-let leidos = new Set();
-let filtroActivo = 'todos';
+let avisosCargados = false;
 
 // ------------------------------------------------------------
 //  Arranque
@@ -50,7 +54,7 @@ onAuthStateChanged(auth, async (user) => {
     cuerpoElegido = await leerCuerpo() || 'gestion';
     document.getElementById('selectorCuerpo').value = cuerpoElegido;
 
-    // Los avisos vienen de Firestore y la ficha de la API: en paralelo
+    // Los avisos vienen de Firestore y los temas de la API: en paralelo
     await Promise.all([cargarAvisos(), cargarFicha()]);
 });
 
@@ -82,9 +86,10 @@ function escapar(texto) {
     return div.innerHTML;
 }
 
-/* Sin acentos y en minúsculas: comparar "Administración" con
-   "administracion" falla siempre y es el fallo más aburrido de
-   encontrar. */
+/* Sin acentos y en minúsculas. Los temarios vienen de Word y de PDF
+   convertidos, y ahí las tildes aparecen y desaparecen. Solo quita
+   marcas de acento y baja a minúsculas: NO cambia la longitud de la
+   cadena, y de eso depende poder recortar sobre el texto original. */
 function normalizar(texto) {
     return String(texto || '')
         .normalize('NFD')
@@ -99,8 +104,34 @@ function fechaLarga(iso) {
         { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+/* Pinta en amarillo el término caducado dentro del párrafo.
+
+   Se busca sobre el texto normalizado y se recorta del ORIGINAL, para
+   enseñar el párrafo tal y como está escrito en el tema, con sus
+   tildes y mayúsculas. Se escapa trozo a trozo, no al final: si se
+   escapara antes de cortar, las entidades HTML moverían los índices. */
+function resaltar(fragmento, termino) {
+    const original = String(fragmento || '');
+    const plano = normalizar(original);
+    const aguja = normalizar(termino);
+    if (!aguja) return escapar(original);
+
+    let salida = '';
+    let desde = 0;
+    let i = plano.indexOf(aguja);
+
+    while (i !== -1) {
+        salida += escapar(original.slice(desde, i));
+        salida += `<mark>${escapar(original.slice(i, i + aguja.length))}</mark>`;
+        desde = i + aguja.length;
+        i = plano.indexOf(aguja, desde);
+    }
+
+    return salida + escapar(original.slice(desde));
+}
+
 // ------------------------------------------------------------
-//  Ficha del cuerpo
+//  Ficha del cuerpo y temas
 // ------------------------------------------------------------
 async function cargarFicha() {
     try {
@@ -118,13 +149,12 @@ async function cargarFicha() {
 
         ficha = await respuesta.json();
         pintarPortada();
-        pintarNormas();
-        pintarAvisos();
+        pintarTemas();
 
     } catch (error) {
         console.error('[oposicion] No se pudo cargar la ficha:', error);
-        document.getElementById('listaNormas').innerHTML =
-            `<p class="op-nota">No se pudieron cargar las leyes vigiladas: ${escapar(error.message)}</p>`;
+        document.getElementById('cargandoTemas').innerHTML =
+            `<p>No se pudieron revisar tus temas: ${escapar(error.message)}</p>`;
     }
 }
 
@@ -132,248 +162,196 @@ function pintarPortada() {
     document.getElementById('opCuerpo').textContent = ficha.cuerpo.nombre;
     document.getElementById('opDias').textContent = ficha.examenPasado ? '—' : ficha.diasParaExamen;
     document.getElementById('opFecha').textContent = fechaLarga(ficha.fechaExamen);
-    document.getElementById('tituloCuerpoNovedades').textContent = ficha.cuerpo.nombre;
 }
 
 // ------------------------------------------------------------
-//  Bloque: leyes bajo vigilancia
-//  Se enseñan a propósito. Lo que no está en la lista no lo mira
-//  nadie, y eso hay que poder verlo de un vistazo.
-// ------------------------------------------------------------
-function pintarNormas() {
-    const normas = ficha.normasVigiladas || [];
-    const contenedor = document.getElementById('listaNormas');
-
-    document.getElementById('contadorNormas').textContent =
-        `${normas.length} normas`;
-
-    // Cuántos avisos ha generado cada norma, para poder marcarlas
-    const avisosPorNorma = new Map();
-    for (const aviso of avisos) {
-        for (const n of (aviso.normas || [])) {
-            avisosPorNorma.set(n.id, (avisosPorNorma.get(n.id) || 0) + 1);
-        }
-    }
-
-    // Agrupadas por bloque del temario, en el orden en que aparecen
-    const bloques = new Map();
-    for (const norma of normas) {
-        const clave = norma.bloque || 'Otras';
-        if (!bloques.has(clave)) bloques.set(clave, []);
-        bloques.get(clave).push(norma);
-    }
-
-    contenedor.innerHTML = [...bloques].map(([bloque, lista]) => `
-        <div class="op-normas-grupo">
-            <h4 class="op-normas-titulo">${escapar(bloque)}</h4>
-            <ul class="op-normas-lista">
-                ${lista.map(n => {
-                    const tocada = avisosPorNorma.get(n.id) || 0;
-                    return `
-                    <li class="op-norma ${tocada ? 'tocada' : ''}">
-                        <a href="https://www.boe.es/buscar/act.php?id=${escapar(n.id)}"
-                           target="_blank" rel="noopener noreferrer">${escapar(n.nombre)}</a>
-                        ${n.soloDeEsteCuerpo ? '<span class="op-norma-etiqueta">solo tu cuerpo</span>' : ''}
-                        ${tocada ? `<span class="op-norma-avisos">${tocada} aviso${tocada === 1 ? '' : 's'}</span>` : ''}
-                    </li>`;
-                }).join('')}
-            </ul>
-        </div>`).join('');
-}
-
-// ------------------------------------------------------------
-//  Novedades del BOE
+//  Modificaciones publicadas en el BOE
 // ------------------------------------------------------------
 async function cargarAvisos() {
     try {
-        const [instantanea, marcas] = await Promise.all([
-            getDocs(query(collection(db, 'boeAvisos'), orderBy('fecha', 'desc'), limit(MAX_AVISOS))),
-            getDoc(doc(db, 'boeLeidos', usuario.uid))
-        ]);
+        const instantanea = await getDocs(
+            query(collection(db, 'boeAvisos'), orderBy('fecha', 'desc'), limit(MAX_AVISOS)));
 
-        leidos = new Set(marcas.exists() ? (marcas.data().claves || []) : []);
-
-        /* Las preguntas señaladas de cada aviso viven en una
-           subcolección por usuario, no en el documento principal: el
-           aviso del BOE es público, el banco de preguntas de cada uno
-           no. Se piden en paralelo. */
-        avisos = await Promise.all(instantanea.docs.map(async (documento) => {
-            const datos = { id: documento.id, ...documento.data() };
-            try {
-                const mios = await getDoc(doc(db, 'boeAvisos', documento.id, 'afectados', usuario.uid));
-                datos.preguntas = mios.exists() ? (mios.data().preguntas || []) : [];
-            } catch (error) {
-                datos.preguntas = [];
-            }
-            return datos;
-        }));
-
-        pintarAvisos();
+        avisos = instantanea.docs.map(d => ({ id: d.id, ...d.data() }));
 
     } catch (error) {
-        console.error('[oposicion] No se pudieron cargar los avisos:', error);
-        const vacio = document.getElementById('sinAvisos');
-        vacio.style.display = 'block';
-        vacio.querySelector('h3').textContent = 'No se pudieron cargar las novedades';
-        vacio.querySelector('p').textContent = error.message;
+        console.error('[oposicion] No se pudieron cargar los avisos del BOE:', error);
+        avisos = [];
     } finally {
-        document.getElementById('cargandoAvisos').style.display = 'none';
+        avisosCargados = true;
+        if (ficha) pintarTemas();
     }
 }
 
-/* ¿Este aviso toca el temario del cuerpo elegido?
+/* Las modificaciones del BOE que le tocan a un tema: las que citan
+   alguna de las leyes que ese tema estudia. Un tema que no cita la
+   LEC no tiene por qué enterarse de que han tocado la LEC. */
+function avisosDelTema(tema) {
+    const suyas = new Set((tema.normas || []).map(n => n.id));
+    if (!suyas.size) return [];
 
-   REGLA, y el orden importa:
-   1. Si el título nombra tu cuerpo, entra.
-   2. Si es una CONVOCATORIA que nombra otro cuerpo y no el tuyo,
-      fuera: unas listas de admitidos de Auxilio no te sirven.
-      Esto solo se aplica a las convocatorias, porque "auxilio
-      judicial" también es un concepto del temario (los exhortos) y
-      una reforma sobre actos de auxilio judicial sí interesa a los
-      tres cuerpos.
-   3. Si cita normas, entra si alguna es de las que vigilas.
-   4. Si no cita ninguna norma, entra: es una publicación general
-      sobre la Administración de Justicia y más vale leerla.
-
-   Ante la duda, entra. Un aviso de más se descarta en dos segundos;
-   uno de menos no se descubre nunca. */
-function tocaMiTemario(aviso) {
-    const texto = normalizar(`${aviso.titulo} ${aviso.resumen || ''} ${aviso.motivo || ''}`);
-
-    const mias = CUERPOS[cuerpoElegido].pistas;
-    if (mias.some(p => texto.includes(p))) return true;
-
-    if (aviso.tipo === 'convocatoria') {
-        const ajenas = Object.entries(CUERPOS)
-            .filter(([clave]) => clave !== cuerpoElegido)
-            .flatMap(([, datos]) => datos.pistas);
-        if (ajenas.some(p => texto.includes(p))) return false;
-    }
-
-    const citadas = aviso.normas || [];
-    if (!citadas.length) return true;
-
-    const mios = new Set((ficha?.normasVigiladas || []).map(n => n.id));
-    if (!mios.size) return true;          // aún no ha llegado la ficha
-    return citadas.some(n => mios.has(n.id));
+    return avisos.filter(aviso =>
+        (aviso.normas || []).some(n => suyas.has(n.id)));
 }
 
-function coincideFiltro(aviso) {
-    if (filtroActivo === 'todos') return true;
-    if (filtroActivo === 'sinleer') return !leidos.has(aviso.id);
-    return aviso.tipo === filtroActivo;
-}
+// ------------------------------------------------------------
+//  La lista de temas
+// ------------------------------------------------------------
+function pintarTemas() {
+    const temas = ficha?.revision?.temas || [];
+    const lista = document.getElementById('listaTemas');
 
-const ICONOS = { modificacion: '⚖️', convocatoria: '📣', disposicion: '📄', otra: '📌' };
+    document.getElementById('cargandoTemas').style.display = 'none';
+    document.getElementById('sinTemas').style.display = temas.length ? 'none' : 'block';
 
-function pintarAvisos() {
-    const lista = document.getElementById('listaAvisos');
-    const vacio = document.getElementById('sinAvisos');
-    const visibles = avisos.filter(tocaMiTemario).filter(coincideFiltro);
-
+    let conAviso = 0;
     lista.innerHTML = '';
-    vacio.style.display = visibles.length ? 'none' : 'block';
 
-    for (const aviso of visibles) {
-        const leido = leidos.has(aviso.id);
-        const tarjeta = document.createElement('article');
-        tarjeta.className = `boe-aviso importancia-${aviso.importancia || 'media'}${leido ? ' leido' : ''}`;
+    for (const tema of temas) {
+        const cambios = tema.digital?.hallazgos || [];
+        const delBoe = avisosDelTema(tema);
+        const total = cambios.length + delBoe.length;
+        if (total) conAviso++;
 
-        const normas = (aviso.normas || []).map(n => `<span class="boe-etiqueta">${escapar(n.nombre)}</span>`).join('');
-        const articulos = (aviso.articulos || []).length
-            ? `<span class="boe-etiqueta boe-etiqueta-art">arts. ${escapar(aviso.articulos.join(', '))}</span>`
-            : '';
+        const articulo = document.createElement('article');
+        articulo.className = `op-tema ${total ? 'con-aviso' : ''}`;
 
-        const preguntas = (aviso.preguntas || []).length
-            ? `<details class="boe-preguntas">
-                   <summary>${aviso.preguntas.length} pregunta${aviso.preguntas.length === 1 ? '' : 's'} de tu banco a revisar</summary>
-                   <ul>${aviso.preguntas.map(p => `
-                       <li>
-                           <span class="boe-pregunta-tema">${escapar(p.temaNombre)}</span>
-                           ${escapar(p.enunciado)}
-                           <span class="boe-pregunta-art">art. ${escapar((p.articulos || []).join(', '))}</span>
-                       </li>`).join('')}</ul>
-               </details>`
-            : '';
+        const etiqueta = tema.numero !== null && tema.numero !== undefined
+            ? `Tema ${tema.numero}`
+            : 'Tema';
 
-        tarjeta.innerHTML = `
-            <div class="boe-aviso-cabecera">
-                <span class="boe-icono">${ICONOS[aviso.tipo] || '📌'}</span>
-                <div class="boe-aviso-meta">
-                    <span class="boe-fecha">${escapar(aviso.fechaLegible || aviso.fecha)}</span>
-                    <span class="boe-motivo">${escapar(aviso.motivo || '')}</span>
-                </div>
-                <button class="boe-marcar" data-id="${escapar(aviso.id)}">
-                    ${leido ? 'Marcar sin leer' : 'Marcar leído'}
-                </button>
+        /* <details> nativo: el desplegable lo lleva el navegador, no
+           hay que sincronizar ningún estado abierto/cerrado a mano y
+           funciona igual con teclado. */
+        articulo.innerHTML = `
+            <details class="op-tema-caja">
+                <summary class="op-tema-cabecera">
+                    <span class="op-tema-numero">${escapar(etiqueta)}</span>
+                    <span class="op-tema-nombre">${escapar(tema.nombre)}</span>
+                    ${total
+                        ? `<span class="op-tema-estado alerta">${total} aviso${total === 1 ? '' : 's'} de actualización</span>`
+                        : '<span class="op-tema-estado limpio">Sin avisos</span>'}
+                </summary>
+                <div class="op-tema-cuerpo">${cuerpoDelTema(tema, cambios, delBoe)}</div>
+            </details>`;
+
+        lista.appendChild(articulo);
+    }
+
+    const resumen = document.getElementById('resumenTemas');
+    if (!temas.length) {
+        resumen.textContent = '';
+    } else if (!avisosCargados) {
+        resumen.textContent = `${temas.length} temas`;
+    } else {
+        resumen.textContent = conAviso
+            ? `${conAviso} de ${temas.length} temas con avisos`
+            : `${temas.length} temas al día`;
+    }
+}
+
+/* Lo que se ve al desplegar un tema. Tres cosas, por este orden:
+   lo que hay escrito mal en el documento, lo que se ha publicado en
+   el BOE sobre sus leyes, y el aviso de que el documento no se pudo
+   leer, que si no pasa desapercibido. */
+function cuerpoDelTema(tema, cambios, delBoe) {
+    const partes = [];
+
+    if (tema.digital?.tieneDocumento && !tema.digital?.revisable) {
+        partes.push(`
+            <p class="op-tema-nota">
+                El documento «${escapar(tema.digital.nombre || '')}» se subió sin texto extraíble,
+                así que no se ha podido revisar. Vuelve a subirlo desde Mis Temas.
+            </p>`);
+    }
+
+    if (!tema.digital?.tieneDocumento) {
+        partes.push(`
+            <p class="op-tema-nota">
+                Este tema no tiene documento digital subido. Solo se han revisado sus preguntas.
+            </p>`);
+    }
+
+    for (const hallazgo of cambios) partes.push(bloqueTextoCaducado(tema, hallazgo));
+    for (const aviso of delBoe) partes.push(bloqueModificacionBoe(aviso));
+
+    if (!partes.length) {
+        partes.push(`
+            <p class="op-tema-nota limpio">
+                Nada que corregir. Ni vocabulario derogado en el documento ni reformas publicadas
+                de las leyes que estudia este tema.
+            </p>`);
+    }
+
+    return partes.join('');
+}
+
+/* Texto del tema escrito con una denominación que la ley ya cambió.
+   Se enseña el párrafo con la expresión en amarillo y, al lado, cómo
+   se dice ahora. Es lo que de verdad hay que corregir a mano. */
+function bloqueTextoCaducado(tema, hallazgo) {
+    const ley = hallazgo.ley;
+
+    return `
+        <div class="op-cambio">
+            <div class="op-cambio-cabecera">
+                <span class="op-cambio-tipo caducado">Tu texto está desactualizado</span>
+                <span class="op-cambio-veces">${hallazgo.veces} ${hallazgo.veces === 1 ? 'vez' : 'veces'} en el tema</span>
             </div>
 
-            <h3 class="boe-titulo">${escapar(aviso.titulo)}</h3>
-            ${aviso.resumen ? `<p class="boe-resumen">${escapar(aviso.resumen)}</p>` : ''}
+            <p class="op-cambio-regla">
+                Donde pones <strong class="op-antes">${escapar(hallazgo.termino)}</strong>,
+                ahora se dice <strong class="op-ahora">${escapar(hallazgo.ahora)}</strong>.
+            </p>
 
-            <div class="boe-etiquetas">${normas}${articulos}</div>
-            ${preguntas}
+            <div class="op-fragmentos">
+                ${hallazgo.fragmentos.map(f => `<p>${resaltar(f, hallazgo.termino)}</p>`).join('')}
+            </div>
 
-            <div class="boe-enlaces">
-                ${aviso.urlHtml ? `<a href="${escapar(aviso.urlHtml)}" target="_blank" rel="noopener noreferrer">Ver en el BOE</a>` : ''}
+            ${ley ? `
+                <div class="op-cambio-enlaces">
+                    <a href="${URL_BOE}${escapar(ley.id)}" target="_blank" rel="noopener noreferrer">
+                        Ver ${escapar(ley.nombre)} entera en el BOE
+                    </a>
+                </div>` : ''}
+        </div>`;
+}
+
+/* Una reforma publicada de alguna de las leyes que estudia el tema.
+   Aquí no se puede señalar un párrafo del documento porque el cambio
+   está en la ley, no en lo que tú escribiste: se dan los artículos
+   tocados y el enlace, que es lo que hay. */
+function bloqueModificacionBoe(aviso) {
+    const normas = (aviso.normas || []).map(n => `
+        <a href="${URL_BOE}${escapar(n.id)}" target="_blank" rel="noopener noreferrer"
+           class="boe-etiqueta">${escapar(n.nombre)}</a>`).join('');
+
+    const articulos = (aviso.articulos || []).length
+        ? `<p class="op-cambio-regla">
+               Artículos tocados:
+               <strong class="op-ahora">${escapar(aviso.articulos.join(', '))}</strong>
+           </p>`
+        : '';
+
+    return `
+        <div class="op-cambio boe">
+            <div class="op-cambio-cabecera">
+                <span class="op-cambio-tipo reforma">Ley modificada</span>
+                <span class="op-cambio-veces">${escapar(aviso.fechaLegible || aviso.fecha || '')}</span>
+            </div>
+
+            <p class="op-cambio-titulo">${escapar(aviso.titulo || '')}</p>
+            ${aviso.resumen ? `<p class="op-cambio-resumen">${escapar(aviso.resumen)}</p>` : ''}
+            ${articulos}
+
+            <div class="boe-etiquetas">${normas}</div>
+
+            <div class="op-cambio-enlaces">
+                ${aviso.urlHtml ? `<a href="${escapar(aviso.urlHtml)}" target="_blank" rel="noopener noreferrer">Ver la publicación en el BOE</a>` : ''}
                 ${aviso.urlPdf ? `<a href="${escapar(aviso.urlPdf)}" target="_blank" rel="noopener noreferrer">PDF</a>` : ''}
-            </div>`;
-
-        lista.appendChild(tarjeta);
-    }
-
-    const marcarTodos = document.getElementById('marcarTodos');
-    const sinLeer = avisos.filter(tocaMiTemario).filter(a => !leidos.has(a.id)).length;
-    if (marcarTodos) marcarTodos.style.display = sinLeer > 0 ? '' : 'none';
+            </div>
+        </div>`;
 }
-
-async function guardarLeidos(anterior) {
-    try {
-        await setDoc(doc(db, 'boeLeidos', usuario.uid), {
-            usuarioId: usuario.uid,
-            claves: [...leidos],
-            actualizado: new Date()
-        }, { merge: true });
-    } catch (error) {
-        console.error('[oposicion] No se pudo guardar la marca:', error);
-        leidos = anterior;
-        pintarAvisos();
-    }
-}
-
-/* Los botones se enganchan una sola vez por delegación, no al pintar
-   cada tarjeta: la lista se repinta con cada filtro y ahí es fácil
-   duplicar listeners sin darse cuenta. */
-document.addEventListener('click', async (evento) => {
-    const marcar = evento.target.closest('.boe-marcar[data-id]');
-    if (!marcar) return;
-
-    const id = marcar.dataset.id;
-    const anterior = new Set(leidos);
-    if (leidos.has(id)) leidos.delete(id); else leidos.add(id);
-    pintarAvisos();
-    await guardarLeidos(anterior);
-});
-
-document.getElementById('marcarTodos')?.addEventListener('click', async () => {
-    const sinLeer = avisos.filter(tocaMiTemario).filter(a => !leidos.has(a.id));
-    if (!sinLeer.length) return;
-    if (!confirm(`¿Marcar como leídos los ${sinLeer.length} avisos sin leer?`)) return;
-
-    const anterior = new Set(leidos);
-    sinLeer.forEach(a => leidos.add(a.id));
-    pintarAvisos();
-    await guardarLeidos(anterior);
-});
-
-document.querySelectorAll('.boe-filtro').forEach(boton => {
-    boton.addEventListener('click', () => {
-        document.querySelectorAll('.boe-filtro').forEach(b => b.classList.remove('activo'));
-        boton.classList.add('activo');
-        filtroActivo = boton.dataset.filtro;
-        pintarAvisos();
-    });
-});
 
 // ------------------------------------------------------------
 //  Selector de cuerpo
@@ -381,7 +359,7 @@ document.querySelectorAll('.boe-filtro').forEach(boton => {
 document.getElementById('selectorCuerpo')?.addEventListener('change', async (evento) => {
     cuerpoElegido = evento.target.value;
     await guardarCuerpo(cuerpoElegido);
-    await cargarFicha();     // repinta portada, leyes y novedades
+    await cargarFicha();
 });
 
 // ------------------------------------------------------------

@@ -29,66 +29,86 @@
    "Secretario Judicial" puede aparecer legítimamente en una cita
    histórica o en el nombre de una ley antigua. Esto señala, no
    corrige. */
+/* Qué norma hizo cada cambio, para poder enlazar al texto completo
+   desde el aviso. La reorganización judicial entera es de la LO
+   1/2025; lo de "Secretario Judicial" viene de más atrás y su sitio
+   es la LOPJ, que es donde se regula la figura hoy. */
+const LEY_EFICIENCIA = { id: 'BOE-A-2025-76', nombre: 'LO 1/2025 de eficiencia del Servicio Público de Justicia' };
+const LEY_LOPJ = { id: 'BOE-A-1985-12666', nombre: 'LO 6/1985 del Poder Judicial' };
+
 const TERMINOS_DEROGADOS = [
     {
         termino: 'juzgado de primera instancia',
         ahora: 'Tribunal de Instancia, Sección Civil',
-        gravedad: 'alta'
+        gravedad: 'alta',
+        ley: LEY_EFICIENCIA
     },
     {
         termino: 'juzgados de primera instancia',
         ahora: 'Tribunales de Instancia, Secciones Civiles',
-        gravedad: 'alta'
+        gravedad: 'alta',
+        ley: LEY_EFICIENCIA
     },
     {
         termino: 'juzgado de instruccion',
         ahora: 'Tribunal de Instancia, Sección de Instrucción',
-        gravedad: 'alta'
+        gravedad: 'alta',
+        ley: LEY_EFICIENCIA
     },
     {
         termino: 'juzgado de lo penal',
         ahora: 'Tribunal de Instancia, Sección de Enjuiciamiento Penal',
-        gravedad: 'alta'
+        gravedad: 'alta',
+        ley: LEY_EFICIENCIA
     },
     {
         termino: 'juzgado de lo mercantil',
         ahora: 'Tribunal de Instancia, Sección de lo Mercantil',
-        gravedad: 'alta'
+        gravedad: 'alta',
+        ley: LEY_EFICIENCIA
     },
     {
         termino: 'juzgado de lo social',
         ahora: 'Tribunal de Instancia, Sección de lo Social',
-        gravedad: 'alta'
+        gravedad: 'alta',
+        ley: LEY_EFICIENCIA
     },
     {
         termino: 'juzgado de vigilancia penitenciaria',
         ahora: 'Tribunal de Instancia, Sección de Vigilancia Penitenciaria',
-        gravedad: 'alta'
+        gravedad: 'alta',
+        ley: LEY_EFICIENCIA
     },
     {
         termino: 'juzgado de violencia sobre la mujer',
         ahora: 'Tribunal de Instancia, Sección de Violencia sobre la Mujer',
-        gravedad: 'alta'
+        gravedad: 'alta',
+        ley: LEY_EFICIENCIA
     },
     {
         termino: 'juzgado de menores',
         ahora: 'Tribunal de Instancia, Sección de Menores',
-        gravedad: 'alta'
+        gravedad: 'alta',
+        ley: LEY_EFICIENCIA
     },
     {
         termino: 'juzgado de lo contencioso',
         ahora: 'Tribunal de Instancia, Sección de lo Contencioso-Administrativo',
-        gravedad: 'alta'
+        gravedad: 'alta',
+        ley: LEY_EFICIENCIA
     },
     {
         termino: 'secretario judicial',
         ahora: 'Letrado de la Administración de Justicia',
-        gravedad: 'media'   // el cambio es de 2015: material MUY viejo
+        // el cambio es de 2015: material MUY viejo
+        gravedad: 'media',
+        ley: LEY_LOPJ
     },
     {
         termino: 'juzgado decano',
         ahora: 'Presidencia del Tribunal de Instancia',
-        gravedad: 'media'
+        gravedad: 'media',
+        ley: LEY_LOPJ
     }
 ];
 
@@ -99,7 +119,8 @@ const TERMINOS_MATIZADOS = [
     {
         termino: 'juzgado de paz',
         ahora: 'Oficina de Justicia en el Municipio (el Juez de Paz sigue existiendo)',
-        gravedad: 'baja'
+        gravedad: 'baja',
+        ley: LEY_EFICIENCIA
     }
 ];
 
