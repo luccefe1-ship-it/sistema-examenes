@@ -12,8 +12,10 @@
 //
 //  DE DÓNDE SALE CADA COSA:
 //    - Temario oficial y leyes por tema -> /api/mi-oposicion.
-//    - Reformas publicadas              -> colección boeAvisos, que
-//      escribe el cron. Aquí solo se leen.
+//    - Reformas de los dos últimos años -> también /api/mi-oposicion,
+//      que las cruza por artículo con el listado del temario. El
+//      navegador ya no toca la colección: el reparto necesita saber
+//      qué artículos entran en cada tema, y eso vive en el servidor.
 //    - Texto literal de los artículos   -> /api/articulo, que lo pide
 //      al BOE en el momento. No se guarda ni se reescribe: o es el
 //      texto oficial o no se enseña nada.
@@ -24,12 +26,7 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import {
-    collection, query, orderBy, limit, getDocs, getDoc, doc, setDoc
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-// Cuántos avisos se traen. Con uno o dos al día, 200 son varios meses.
-const MAX_AVISOS = 200;
+import { getDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const CUERPOS = {
     gestion:     'Gestión Procesal y Administrativa',
@@ -42,7 +39,6 @@ const URL_BOE = 'https://www.boe.es/buscar/act.php?id=';
 let usuario = null;
 let ficha = null;
 let cuerpoElegido = 'gestion';
-let avisos = [];
 
 /* El texto de los artículos ya pedidos, para no repetir la llamada al
    BOE cada vez que se vuelve a un tema. */
@@ -59,7 +55,7 @@ onAuthStateChanged(auth, async (user) => {
     cuerpoElegido = await leerCuerpo() || 'gestion';
     document.getElementById('selectorCuerpo').value = cuerpoElegido;
 
-    await Promise.all([cargarAvisos(), cargarFicha()]);
+    await cargarFicha();
 });
 
 async function leerCuerpo() {
@@ -125,43 +121,12 @@ async function cargarFicha() {
     }
 }
 
-async function cargarAvisos() {
-    try {
-        const instantanea = await getDocs(
-            query(collection(db, 'boeAvisos'), orderBy('fecha', 'desc'), limit(MAX_AVISOS)));
-
-        /* Solo las reformas de normas. Las convocatorias y los
-           acuerdos sueltos no cambian el texto de ninguna ley, y aquí
-           se responde a una única pregunta: ¿han tocado algo de este
-           tema? */
-        avisos = instantanea.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .filter(a => (a.normas || []).length && (a.articulos || []).length);
-
-    } catch (error) {
-        console.error('[oposicion] No se pudieron cargar las reformas:', error);
-        avisos = [];
-    } finally {
-        if (ficha) montarDesplegableDeTemas();
-    }
-}
-
 function pintarPortada() {
     document.getElementById('opCuerpo').textContent = ficha.cuerpo.nombre;
     document.getElementById('opDias').textContent = ficha.examenPasado ? '—' : ficha.diasParaExamen;
     document.getElementById('opFecha').textContent = fechaLarga(ficha.fechaExamen);
     document.getElementById('refTemario').textContent =
         `Anexo VI de la ${ficha.ordenConvocatoria}. ${ficha.cuerpo.temas} temas.`;
-}
-
-/* Las reformas que le tocan a un tema: las que han modificado alguna
-   de las leyes que ese tema estudia. */
-function reformasDelTema(tema) {
-    const suyas = new Set(tema.normas || []);
-    if (!suyas.size) return [];
-
-    return avisos.filter(aviso =>
-        (aviso.normas || []).some(n => suyas.has(n.id)));
 }
 
 // ------------------------------------------------------------
@@ -176,7 +141,7 @@ function montarDesplegableDeTemas() {
     selector.innerHTML = '<option value="">Elige tema para revisar</option>';
 
     for (const tema of temario) {
-        const reformas = reformasDelTema(tema);
+        const reformas = tema.reformas || [];
         const avisos = reformas.length + (tema.cambio ? 1 : 0);
         if (avisos) conReforma++;
 
@@ -214,7 +179,7 @@ function mostrarTema(numero) {
 
     if (!tema) { caja.innerHTML = ''; return; }
 
-    const reformas = reformasDelTema(tema);
+    const reformas = tema.reformas || [];
 
     caja.innerHTML = `
         <div class="op-detalle-cabecera">
@@ -297,23 +262,40 @@ function marcarDiferencia(texto, desde, hasta) {
     ].filter(Boolean).join(' ');
 }
 
+/* Cuándo cae la reforma respecto a tu examen. No se decide por el
+   opositor si "entra" o no —eso lo fija cada tribunal—: se dice la
+   fecha y de qué lado del corte cae. */
+const CUANDO = {
+    previa:      { etiqueta: 'Ya entraba',                  clase: 'previa' },
+    posterior:   { etiqueta: 'Posterior a tu convocatoria', clase: 'posterior' },
+    futura:      { etiqueta: 'Posterior a tu examen',       clase: 'futura' },
+    desconocida: { etiqueta: 'Sin fecha',                   clase: 'futura' }
+};
+
 function bloqueReforma(reforma, indice) {
-    const norma = (reforma.normas || [])[0] || {};
+    const norma = reforma.norma || {};
     const articulos = reforma.articulos || [];
+    const cuando = CUANDO[reforma.cuando] || CUANDO.desconocida;
+
+    /* Si la reforma tocó más artículos de los que estudia este tema,
+       se dice: así se entiende por qué salen tres y no doce. */
+    const otros = (reforma.todosLosArticulos || []).length - articulos.length;
 
     return `
         <div class="op-reforma">
             <div class="op-cambio-cabecera">
                 <span class="op-cambio-tipo reforma">Ley modificada</span>
-                <span class="op-cambio-veces">${escapar(reforma.fechaLegible || reforma.fecha || '')}</span>
+                <span class="op-marca-tiempo ${cuando.clase}">${cuando.etiqueta}</span>
+                <span class="op-cambio-veces">${escapar(reforma.fecha || reforma.anio || '')}</span>
             </div>
 
-            <p class="op-cambio-titulo">${escapar(norma.nombre || reforma.titulo || '')}</p>
-            ${reforma.resumen ? `<p class="op-cambio-resumen">${escapar(reforma.resumen)}</p>` : ''}
+            <p class="op-cambio-titulo">${escapar(norma.nombre || '')}</p>
+            ${reforma.titulo ? `<p class="op-cambio-resumen">${escapar(reforma.relacion || 'Modificada')} por ${escapar(reforma.titulo)}</p>` : ''}
 
             <p class="op-cambio-regla">
-                Artículos modificados:
+                Artículos de este tema que se han modificado:
                 <strong class="op-ahora">${escapar(articulos.join(', ')) || '—'}</strong>
+                ${otros > 0 ? `<span class="op-cambio-veces"> · la reforma tocó ${otros} artículo(s) más que no entran en este tema</span>` : ''}
             </p>
 
             <div class="op-articulos" id="articulos-${indice}">
@@ -322,7 +304,7 @@ function bloqueReforma(reforma, indice) {
 
             <div class="op-cambio-enlaces">
                 ${norma.id ? `<a href="${URL_BOE}${escapar(norma.id)}" target="_blank" rel="noopener noreferrer">Ver la ley completa</a>` : ''}
-                ${reforma.urlHtml ? `<a href="${escapar(reforma.urlHtml)}" target="_blank" rel="noopener noreferrer">Ver la reforma en el BOE</a>` : ''}
+                ${reforma.url ? `<a href="${escapar(reforma.url)}" target="_blank" rel="noopener noreferrer">Ver la reforma en el BOE</a>` : ''}
             </div>
         </div>`;
 }
@@ -334,7 +316,7 @@ async function cargarTextoArticulos(reforma, indice) {
     const caja = document.getElementById(`articulos-${indice}`);
     if (!caja) return;
 
-    const norma = (reforma.normas || [])[0];
+    const norma = reforma.norma;
     const articulos = reforma.articulos || [];
 
     if (!norma?.id || !articulos.length) {

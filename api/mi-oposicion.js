@@ -24,6 +24,97 @@ const {
 } = require('./_convocatoria');
 const { normasDeCuerpo, normasCitadas } = require('./_normas');
 const { temarioDe } = require('./_temarios');
+const { articulosQueAfectan, leyesDelTema, tieneListado } = require('./_articulos-temario');
+
+// ------------------------------------------------------------
+//  Reformas publicadas, repartidas por tema
+// ------------------------------------------------------------
+
+/* Las reformas guardadas por /api/reformas-repaso. Se leen de una vez
+   y se reparten en memoria: son unas decenas, y hacer una consulta
+   por tema serían 68 lecturas para responder a una pantalla. */
+async function leerReformas(db) {
+    if (!db) return [];
+
+    const instantanea = await db.collection('reformas').get();
+    return instantanea.docs.map(d => d.data());
+}
+
+/* ¿Esta reforma entra en el examen de este año?
+
+   El programa que se estudia es el que publicó la convocatoria, y
+   una reforma posterior no puede estar en un temario que se cerró
+   antes. Pero algunos tribunales aplican la ley vigente el día del
+   examen, así que NO SE DECIDE POR TI: se etiqueta con la fecha y
+   cada uno juzga.
+
+     previa      -> ya estaba cuando salió la convocatoria
+     posterior   -> después de la convocatoria, antes del examen
+     futura      -> después incluso del examen */
+function situarEnElTiempo(reforma, fechaConvocatoria, fechaExamen) {
+    const fecha = reforma.fecha || (reforma.anio ? `${reforma.anio}-12-31` : '');
+    if (!fecha) return 'desconocida';
+
+    if (fecha < fechaConvocatoria) return 'previa';
+    if (fecha <= fechaExamen) return 'posterior';
+    return 'futura';
+}
+
+/* Reparte cada reforma entre los temas a los que de verdad afecta.
+
+   CON LISTADO DE ARTÍCULOS (Gestión) el reparto es por artículo: la
+   reforma del 69.3 de la Constitución cae solo en el tema 1. SIN
+   LISTADO (Tramitación y Auxilio) se reparte por ley entera, que
+   avisa de más, y la pantalla lo advierte. */
+function repartirPorTema(temario, reformas, cuerpo, fechaConvocatoria, fechaExamen) {
+    const porArticulo = tieneListado(cuerpo);
+
+    return temario.map(tema => {
+        const suyas = [];
+
+        for (const reforma of reformas) {
+            const idLey = reforma.norma?.id;
+            if (!idLey || !tema.normas.includes(idLey)) continue;
+
+            let articulos = reforma.articulos || [];
+
+            if (porArticulo) {
+                // ¿Declara este tema esa ley en el listado de la academia?
+                const declaradas = leyesDelTema(cuerpo, tema.numero) || {};
+                if (!Object.prototype.hasOwnProperty.call(declaradas, idLey)) continue;
+
+                if (articulos.length) {
+                    const cruce = articulosQueAfectan(cuerpo, tema.numero, idLey, articulos);
+                    if (!cruce.length) continue;    // tocaron otros artículos
+                    articulos = cruce;
+                }
+                /* Sin artículos citados el BOE solo dice "se modifica
+                   la ley". No se puede afinar más, y entra: callarlo
+                   sería peor que enseñar uno de sobra. */
+            }
+
+            suyas.push({
+                clave: reforma.clave,
+                norma: reforma.norma,
+                articulos,
+                todosLosArticulos: reforma.articulos || [],
+                relacion: reforma.relacion || '',
+                texto: reforma.texto || '',
+                titulo: reforma.tituloModificadora || reforma.idModificadora,
+                anio: reforma.anio || null,
+                fecha: reforma.fecha || '',
+                url: reforma.url || '',
+                urlLey: reforma.urlLey || '',
+                cuando: situarEnElTiempo(reforma, fechaConvocatoria, fechaExamen)
+            });
+        }
+
+        // Lo más reciente primero: es lo que aún no se ha estudiado
+        suyas.sort((a, b) => String(b.fecha || b.anio).localeCompare(String(a.fecha || a.anio)));
+
+        return { ...tema, reformas: suyas, cruzadoPorArticulo: porArticulo };
+    });
+}
 
 // Cuántos fragmentos se devuelven por tema. Con enseñar unos cuantos
 // se entiende el problema; volcar 300 coincidencias no ayuda a nadie.
@@ -249,6 +340,20 @@ module.exports = async function handler(req, res) {
 
         const ficha = fichaConvocatoria(clave);
 
+        /* Las reformas se leen aquí y no en el navegador para poder
+           cruzarlas por artículo con el listado del temario, que vive
+           en el servidor. */
+        const reformas = await leerReformas(obtenerFirestore()).catch(error => {
+            console.warn('[mi-oposicion] No se pudieron leer las reformas:', error.message);
+            return [];
+        });
+
+        const fechaConvocatoria = ficha.hitos.find(h => h.idBoe === ficha.idBoeConvocatoria)?.fecha
+            || '2025-12-30';
+
+        const temario = repartirPorTema(
+            temarioDe(clave), reformas, clave, fechaConvocatoria, ficha.fechaExamen);
+
         /* EL TEMARIO ES EL OFICIAL, el del anexo VI de la convocatoria.
            Ya NO se leen los temas que el usuario haya subido a la
            plataforma: ese material es suyo y sirve para hacer tests,
@@ -258,7 +363,9 @@ module.exports = async function handler(req, res) {
         res.status(200).json({
             ...ficha,
 
-            temario: temarioDe(clave),
+            temario,
+            fechaConvocatoria,
+            cruceporArticulo: tieneListado(clave),
 
             /* Las leyes que se vigilan para este cuerpo. La pantalla las
                enseña para que se vea qué se está mirando: si una norma
