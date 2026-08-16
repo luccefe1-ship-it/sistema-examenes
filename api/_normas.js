@@ -27,7 +27,23 @@
      alias   cómo aparece citada en las preguntas del banco. Se usa
              para cruzar los artículos modificados con las preguntas,
              así que conviene poner todas las formas que uses.
-     bloque  para agrupar los avisos por parte del temario          */
+     bloque  para agrupar los avisos por parte del temario
+     cuerpos a qué cuerpos afecta. SI NO SE PONE, afecta a los tres.
+
+   SOBRE "cuerpos": se deja vacío a propósito en casi todas. Una
+   reforma de la LEC entra en el temario de Gestión, de Tramitación y
+   de Auxilio; restringirla a uno solo sería esconder un aviso que sí
+   importa. Solo se acota cuando la norma es de un tema que
+   únicamente aparece en el programa de un cuerpo. Ante la duda, sin
+   acotar: sobra un aviso, no falta.
+
+   El catálogo de abajo sale del listado de artículos del primer
+   ejercicio que da la academia (Francisco López Martínez, Gestión
+   Procesal, Granada), más lo que ya se vigilaba.
+
+   TODOS LOS IDENTIFICADORES DE ESTE ARCHIVO ESTÁN COMPROBADOS
+   contra la ficha del BOE. Aun así, tras cualquier cambio conviene
+   ejecutar GET /api/boe-vigilante?verificar=1. */
 const NORMAS = [
     // --- Organización judicial -------------------------------------
     {
@@ -176,8 +192,155 @@ const NORMAS = [
         nombre: 'Ley 19/2013 de Transparencia',
         alias: ['Ley 19/2013', 'Transparencia'],
         bloque: 'Transversales'
+    },
+
+    // ============================================================
+    //  Añadidas a partir del listado de artículos de la academia
+    // ============================================================
+
+    // --- Organización del Estado ----------------------------------
+    {
+        id: 'BOE-A-1979-23709',
+        nombre: 'LO 2/1979 del Tribunal Constitucional',
+        alias: ['LOTC', 'Ley Orgánica del Tribunal Constitucional'],
+        bloque: 'Organización del Estado'
+    },
+    {
+        id: 'BOE-A-1997-25336',
+        nombre: 'Ley 50/1997 del Gobierno',
+        alias: ['Ley del Gobierno', 'Ley 50/1997'],
+        bloque: 'Organización del Estado'
+    },
+    {
+        id: 'BOE-A-1985-5392',
+        nombre: 'Ley 7/1985 reguladora de las Bases del Régimen Local',
+        alias: ['LBRL', 'Bases del Régimen Local'],
+        bloque: 'Organización del Estado'
+    },
+
+    // --- Derecho sustantivo ---------------------------------------
+    {
+        id: 'BOE-A-1995-25444',
+        nombre: 'LO 10/1995 del Código Penal',
+        alias: ['CP', 'Código Penal'],
+        bloque: 'Procesal penal'
+    },
+    {
+        id: 'BOE-A-1889-4763',
+        nombre: 'Código Civil',
+        alias: ['CC', 'Código Civil'],
+        bloque: 'Procesal civil'
+    },
+    {
+        id: 'BOE-A-1960-10906',
+        nombre: 'Ley 49/1960 sobre Propiedad Horizontal',
+        alias: ['LPH', 'Propiedad Horizontal'],
+        bloque: 'Procesal civil'
+    },
+
+    // --- Procesos especiales --------------------------------------
+    {
+        id: 'BOE-A-1995-12095',
+        nombre: 'LO 5/1995 del Tribunal del Jurado',
+        alias: ['LOTJ', 'Tribunal del Jurado'],
+        bloque: 'Procesal penal'
+    },
+    {
+        id: 'BOE-A-2000-641',
+        nombre: 'LO 5/2000 reguladora de la responsabilidad penal de los menores',
+        alias: ['LO 5/2000', 'responsabilidad penal de los menores'],
+        bloque: 'Procesal penal'
+    },
+    {
+        id: 'BOE-A-1979-23708',
+        nombre: 'LO 1/1979 General Penitenciaria',
+        alias: ['LOGP', 'General Penitenciaria'],
+        bloque: 'Procesal penal'
+    },
+
+    /* El concurso de acreedores es el tema 68 de Gestión y no
+       aparece en el programa de los otros dos cuerpos. */
+    {
+        id: 'BOE-A-2020-4859',
+        nombre: 'RDL 1/2020, texto refundido de la Ley Concursal',
+        alias: ['Ley Concursal', 'TRLC', 'RDL 1/2020'],
+        bloque: 'Mercantil',
+        cuerpos: ['gestion']
+    },
+
+    // --- Costas, tasas y justicia gratuita ------------------------
+    {
+        id: 'BOE-A-1996-750',
+        nombre: 'Ley 1/1996 de Asistencia Jurídica Gratuita',
+        alias: ['LAJG', 'Asistencia Jurídica Gratuita'],
+        bloque: 'Procesal civil'
+    },
+    {
+        id: 'BOE-A-2012-14301',
+        nombre: 'Ley 10/2012 de tasas en el ámbito de la Administración de Justicia',
+        alias: ['Ley 10/2012', 'tasas judiciales'],
+        bloque: 'Procesal civil'
+    },
+    {
+        id: 'BOE-A-2015-8564',
+        nombre: 'Ley 29/2015 de cooperación jurídica internacional en materia civil',
+        alias: ['Ley 29/2015', 'cooperación jurídica internacional'],
+        bloque: 'Procesal civil'
+    },
+
+    // --- Función pública y derechos sindicales --------------------
+    {
+        id: 'BOE-A-2006-839',
+        nombre: 'RD 1608/2005, Reglamento Orgánico del Cuerpo de Letrados de la Administración de Justicia',
+        alias: ['Reglamento Secretarios', 'Reglamento Orgánico', 'RD 1608/2005'],
+        bloque: 'Función pública'
+    },
+    {
+        id: 'BOE-A-1985-16660',
+        nombre: 'LO 11/1985 de Libertad Sindical',
+        alias: ['LOLS', 'Libertad Sindical'],
+        bloque: 'Función pública'
+    },
+    {
+        id: 'BOE-A-1977-6061',
+        nombre: 'RDL 17/1977 sobre relaciones de trabajo (derecho de huelga)',
+        alias: ['RDL 17/1977', 'derecho de huelga'],
+        bloque: 'Función pública'
+    },
+    {
+        id: 'BOE-A-1995-24292',
+        nombre: 'Ley 31/1995 de Prevención de Riesgos Laborales',
+        alias: ['LPRL', 'Prevención de Riesgos Laborales'],
+        bloque: 'Función pública'
+    },
+
+    // --- Expediente digital y derecho de defensa ------------------
+    {
+        id: 'BOE-A-2023-25758',
+        nombre: 'RDL 6/2023 de medidas de eficiencia digital y procesal',
+        alias: ['RDL 6/2023', 'eficiencia digital y procesal'],
+        bloque: 'Nuevas tecnologías'
+    },
+    {
+        id: 'BOE-A-2015-12999',
+        nombre: 'RD 1065/2015 sobre comunicaciones electrónicas y sistema LexNET',
+        alias: ['RD 1065/2015', 'LexNET'],
+        bloque: 'Nuevas tecnologías'
+    },
+    {
+        id: 'BOE-A-2024-23630',
+        nombre: 'LO 5/2024 del Derecho de Defensa',
+        alias: ['LODD', 'LO 5/2024', 'Derecho de Defensa'],
+        bloque: 'Procesal civil'
     }
 ];
+
+/* Las normas que le tocan a un cuerpo. Sin "cuerpos" en la entrada,
+   la norma vale para los tres. */
+function normasDeCuerpo(clave) {
+    const cuerpo = String(clave || '');
+    return NORMAS.filter(n => !n.cuerpos || n.cuerpos.includes(cuerpo));
+}
 
 // ------------------------------------------------------------
 //  Filtro del sumario diario
@@ -367,5 +530,6 @@ module.exports = {
     normalizar,
     clasificarDisposicion,
     normasCitadas,
-    normaPorId
+    normaPorId,
+    normasDeCuerpo
 };

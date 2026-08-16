@@ -22,6 +22,7 @@ const {
     fichaConvocatoria, cuerpoValido, CUERPO_POR_DEFECTO,
     TERMINOS_DEROGADOS, TERMINOS_MATIZADOS
 } = require('./_convocatoria');
+const { normasDeCuerpo } = require('./_normas');
 
 // Cuántos fragmentos se devuelven por tema. Con enseñar unos cuantos
 // se entiende el problema; volcar 300 coincidencias no ayuda a nadie.
@@ -221,6 +222,18 @@ module.exports = async function handler(req, res) {
 
         res.status(200).json({
             ...ficha,
+
+            /* Las leyes que se vigilan para este cuerpo. La pantalla las
+               enseña para que se vea qué se está mirando: si una norma
+               del temario no aparece en esta lista, nadie va a avisar
+               de que la han tocado. */
+            normasVigiladas: normasDeCuerpo(clave).map(n => ({
+                id: n.id,
+                nombre: n.nombre,
+                bloque: n.bloque,
+                soloDeEsteCuerpo: Array.isArray(n.cuerpos)
+            })),
+
             revision: {
                 temasRevisados: revision.temas.length,
                 temasConProblemas: conProblemas.length,
