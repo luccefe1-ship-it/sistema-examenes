@@ -365,6 +365,9 @@ module.exports = async function handler(req, res) {
 
             temario,
             fechaConvocatoria,
+            /* Si el repaso semanal no ha corrido nunca, la colección
+               está vacía y no se puede decir "sin reformas". */
+            repasoHecho: reformas.length > 0,
             cruceporArticulo: tieneListado(clave),
 
             /* Las leyes que se vigilan para este cuerpo. La pantalla las

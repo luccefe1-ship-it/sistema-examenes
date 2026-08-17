@@ -12,10 +12,11 @@
 //
 //  DE DÓNDE SALE CADA COSA:
 //    - Temario oficial y leyes por tema -> /api/mi-oposicion.
-//    - Reformas de los dos últimos años -> también /api/mi-oposicion,
-//      que las cruza por artículo con el listado del temario. El
-//      navegador ya no toca la colección: el reparto necesita saber
-//      qué artículos entran en cada tema, y eso vive en el servidor.
+//    - Artículos reformados de un tema  -> /api/reformas-tema, que
+//      pregunta al BOE EN EL MOMENTO por las leyes de ese tema y
+//      cruza los artículos con el listado del temario. No depende de
+//      que se haya ejecutado ningún proceso: si el BOE lo dice hoy,
+//      aquí sale hoy.
 //    - Texto literal de los artículos   -> /api/articulo, que lo pide
 //      al BOE en el momento. No se guarda ni se reescribe: o es el
 //      texto oficial o no se enseña nada.
@@ -141,20 +142,22 @@ function montarDesplegableDeTemas() {
     selector.innerHTML = '<option value="">Elige tema para revisar</option>';
 
     for (const tema of temario) {
-        const reformas = tema.reformas || [];
-        const avisos = reformas.length + (tema.cambio ? 1 : 0);
-        if (avisos) conReforma++;
+        const reformas = (tema.reformas || []).length;
+        if (reformas) conReforma++;
 
         const opcion = document.createElement('option');
         opcion.value = String(tema.numero);
 
-        /* Tres estados, no dos. "Sin modificaciones" solo se dice
-           cuando de verdad se ha comparado con la convocatoria
-           anterior; si no hay con qué comparar se dice eso, porque
-           callar equivale a decir que está todo bien. */
-        opcion.textContent = `Tema ${tema.numero} — ${avisos
-            ? `con modificación (${avisos})`
-            : tema.comparado ? 'sin modificaciones' : 'sin comparar'}`;
+        /* El recuento sale de las reformas ya guardadas por el repaso
+           semanal. Si todavía no se ha ejecutado ninguna vez no hay
+           recuento, y entonces el desplegable NO dice "sin
+           modificaciones": dice el número del tema y ya está. Poner
+           "sin modificaciones" sin haber mirado sería mentir. */
+        opcion.textContent = reformas
+            ? `Tema ${tema.numero} — ${reformas} artículo(s) reformados`
+            : ficha?.repasoHecho
+                ? `Tema ${tema.numero} — sin reformas`
+                : `Tema ${tema.numero}`;
 
         selector.appendChild(opcion);
     }
@@ -166,7 +169,7 @@ function montarDesplegableDeTemas() {
     }
 
     document.getElementById('resumenTemas').textContent = conReforma
-        ? `${conReforma} con modificación`
+        ? `${conReforma} con reformas`
         : `${temario.length} temas`;
 }
 
@@ -179,30 +182,80 @@ function mostrarTema(numero) {
 
     if (!tema) { caja.innerHTML = ''; return; }
 
-    const reformas = tema.reformas || [];
-
+    /* Lo primero son los artículos reformados, que es a lo que se
+       entra. El cambio de enunciado respecto a la convocatoria
+       anterior va al final: se mira una vez y no se vuelve. */
     caja.innerHTML = `
         <div class="op-detalle-cabecera">
             <span class="op-tema-numero">Tema ${tema.numero}</span>
             <p class="op-detalle-titulo">${escapar(tema.titulo)}</p>
         </div>
-        ${tema.cambio ? bloqueCambioDeTemario(tema.cambio) : ''}
-        ${reformas.map((r, i) => bloqueReforma(r, i)).join('')}
-        ${!tema.cambio && !reformas.length
-            ? tema.comparado
-                ? `<p class="op-tema-nota limpio">
-                       Sin modificaciones. El enunciado es el mismo que en la convocatoria anterior
-                       y ninguna de sus leyes se ha tocado en el BOE.
-                   </p>`
-                : `<p class="op-tema-nota">
-                       No hay con qué comparar: todavía no está cargado el programa anterior de este
-                       cuerpo, así que de este tema solo se vigilan sus leyes en el BOE.
-                   </p>`
-            : ''}`;
 
-    // El texto literal se pide después de pintar, para que la ficha
-    // aparezca ya y los artículos se vayan rellenando.
-    reformas.forEach((reforma, i) => cargarTextoArticulos(reforma, i));
+        <div id="reformasDelTema">
+            <p class="op-tema-nota">Preguntando al BOE por las leyes de este tema…</p>
+        </div>
+
+        ${tema.cambio ? bloqueCambioDeTemario(tema.cambio) : ''}`;
+
+    cargarReformasDelTema(tema.numero);
+}
+
+/* Pregunta al BOE, en el momento, qué le ha pasado a las leyes de
+   este tema en los dos últimos años. No se lee de ninguna base de
+   datos: así no depende de que se haya ejecutado ningún proceso, y
+   lo que se ve es lo que dice el BOE hoy. */
+async function cargarReformasDelTema(numero) {
+    const caja = document.getElementById('reformasDelTema');
+    if (!caja) return;
+
+    try {
+        const token = await usuario.getIdToken();
+        const respuesta = await fetch('/api/reformas-tema', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({ cuerpo: cuerpoElegido, tema: numero })
+        });
+
+        if (!respuesta.ok) {
+            const detalle = await respuesta.json().catch(() => ({}));
+            throw new Error(detalle.error || `Error ${respuesta.status}`);
+        }
+
+        const datos = await respuesta.json();
+
+        // Si se ha cambiado de tema mientras llegaba, no se pisa nada
+        if (String(document.getElementById('selectorTema').value) !== String(numero)) return;
+
+        if (!datos.reformas.length) {
+            caja.innerHTML = `
+                <p class="op-tema-nota limpio">
+                    Ninguna de las leyes de este tema se ha reformado desde ${datos.desdeAnio}.
+                    ${datos.leyesConsultadas.length
+                        ? `Consultadas: ${escapar(datos.leyesConsultadas.join(', '))}.`
+                        : 'Este tema no tiene ninguna ley asociada todavía.'}
+                </p>`;
+            return;
+        }
+
+        caja.innerHTML = `
+            <p class="op-subtitulo">
+                ${datos.reformas.length} reforma(s) desde ${datos.desdeAnio} en las leyes de este tema.
+                ${datos.porArticulo
+                    ? 'Solo se muestran los artículos que entran en el tema.'
+                    : 'Este cuerpo todavía no tiene el listado de artículos, así que se avisa de toda la ley.'}
+            </p>
+            ${datos.reformas.map((r, i) => bloqueReforma(r, i)).join('')}`;
+
+        // El texto literal se pide después de pintar, para que la
+        // ficha aparezca ya y los artículos se vayan rellenando.
+        datos.reformas.forEach((reforma, i) => cargarTextoArticulos(reforma, i));
+
+    } catch (error) {
+        console.error('[oposicion] No se pudieron traer las reformas:', error);
+        caja.innerHTML = `<p class="op-tema-nota">
+            No se pudo consultar el BOE (${escapar(error.message)}). Vuelve a elegir el tema para reintentar.
+        </p>`;
+    }
 }
 
 /* El enunciado del tema ha cambiado respecto a la convocatoria
@@ -279,7 +332,7 @@ function bloqueReforma(reforma, indice) {
 
     /* Si la reforma tocó más artículos de los que estudia este tema,
        se dice: así se entiende por qué salen tres y no doce. */
-    const otros = (reforma.todosLosArticulos || []).length - articulos.length;
+    const otros = reforma.fueraDelTema || 0;
 
     return `
         <div class="op-reforma">
