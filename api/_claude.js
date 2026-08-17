@@ -72,27 +72,58 @@ function esperar(ms) {
 //  Llamada a la API con encadenado de cuentas y reintentos
 //  Recibe el cuerpo de la petición ya montado; devuelve la
 //  respuesta JSON de Claude más el nombre de la cuenta usada.
+//
+//  La "señal" es opcional y sirve para ponerle un tope de tiempo
+//  a TODO el proceso, reintentos y cambios de cuenta incluidos.
+//  Sin ella, una cadena de reintentos puede comerse entero el
+//  maxDuration de Vercel y hacer que la función muera con un 504
+//  sin cuerpo, que es un error que el usuario no puede entender.
+//  Los endpoints que no la pasan se comportan igual que siempre.
 // ------------------------------------------------------------
-async function llamarClaude(cuerpoPeticion, cuentas) {
+async function llamarClaude(cuerpoPeticion, cuentas, opciones = {}) {
+    const { señal = null } = opciones;
     const cuerpo = JSON.stringify(cuerpoPeticion);
     let respuesta = null;
     let cuentaUsada = null;
     const fallos = [];
     const descartadas = [];
 
+    // Se comprueba en cada vuelta: de nada sirve empezar una petición
+    // nueva si el tiempo ya se ha agotado
+    const sinTiempo = () => {
+        if (señal && señal.aborted) {
+            const error = new Error('Se ha agotado el tiempo disponible para esta petición.');
+            error.abortado = true;
+            throw error;
+        }
+    };
+
     for (const cuenta of cuentas) {
         let cambiarDeCuenta = false;
 
         for (let reintento = 0; reintento <= MAX_REINTENTOS; reintento++) {
-            const intento = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'content-type': 'application/json',
-                    'x-api-key': cuenta.clave.trim(),
-                    'anthropic-version': '2023-06-01'
-                },
-                body: cuerpo
-            });
+            sinTiempo();
+
+            let intento;
+            try {
+                intento = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'content-type': 'application/json',
+                        'x-api-key': cuenta.clave.trim(),
+                        'anthropic-version': '2023-06-01'
+                    },
+                    body: cuerpo,
+                    signal: señal || undefined
+                });
+            } catch (error) {
+                if (error.name === 'AbortError' || (señal && señal.aborted)) {
+                    const agotado = new Error('Se ha agotado el tiempo disponible para esta petición.');
+                    agotado.abortado = true;
+                    throw agotado;
+                }
+                throw error;
+            }
 
             if (intento.ok) {
                 respuesta = intento;
@@ -132,6 +163,7 @@ async function llamarClaude(cuerpoPeticion, cuentas) {
         if (descartadas.length === cuentas.length && descartadas.every(c => c.motivo === 'sin saldo')) {
             const error = new Error('Se han agotado los fondos de la API de Claude. Recarga saldo y vuelve a intentarlo.');
             error.enlace = URL_RECARGA;
+            error.sinSaldo = true;
             throw error;
         }
         throw new Error(`Ninguna cuenta pudo procesar la petición. ${fallos.join(' | ')}`);

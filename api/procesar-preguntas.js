@@ -3,28 +3,52 @@
 //  Función Serverless de Vercel
 //
 //  Convierte CUALQUIER texto con preguntas tipo test en el
-//  formato que usa la plataforma, usando Gemini Flash.
+//  formato que usa la plataforma, usando Claude Opus 4.8.
 //
 //  Da igual de dónde venga el texto: un Word de academia, un PDF
 //  copiado, apuntes propios, un correo. El modelo se encarga de
 //  entenderlo; la plataforma ya no depende de que el texto venga
 //  escrito de una forma concreta.
 //
-//  Requiere la variable de entorno GEMINI_API_KEY en Vercel.
-//  El tiempo máximo de ejecución se configura en vercel.json.
+//  ANTES USABA GEMINI FLASH y se cambió porque el cupo gratuito de
+//  Google (20 peticiones al día por modelo) obligaba a meter 25
+//  preguntas en cada petición. Esa era la causa real de los 504:
+//  generar 25 preguntas son unos 4.000 tokens de salida, y eso no
+//  cabía en los 60 segundos que Vercel le da a la función. Ahora se
+//  paga por token en vez de por petición, así que el número de
+//  peticiones da igual y los lotes pueden ser pequeños.
+//
+//  Requiere ANTHROPIC_API_KEY en Vercel (y opcionalmente
+//  ANTHROPIC_API_KEY_2). El tiempo máximo va en vercel.json.
 // ============================================================
 
-/* El plan gratuito de Google da 20 peticiones AL DÍA por modelo, así que
-   la petición es el recurso escaso: no los tokens (250.000 por minuto,
-   que no se rozan) ni el tiempo. Por eso los lotes son grandes. Con 25
-   preguntas por lote, un documento de academia entero se resuelve en una
-   sola petición en vez de tres. */
-const PREGUNTAS_POR_LOTE = 25;
-const MAX_TOKENS = 32000;
-const MAX_CARACTERES_BLOQUE = 14000; // corte de emergencia si no hay numeración
+const MODELO = 'claude-opus-4-8';
 
-const { peticionValida, obtenerClaves, llamarGemini } = require('./_gemini');
+/* Extraer preguntas es COPIAR BIEN, no razonar: el modelo transcribe lo
+   que ya está escrito y decide cuál es la correcta a partir de una marca
+   que también está en el texto. Con esfuerzo bajo va mucho más rápido y
+   la transcripción sale igual de fiel, que es justo lo que interesa
+   cuando el enemigo es el reloj de Vercel. */
+const ESFUERZO = 'low';
+
+/* Lotes pequeños a propósito. El techo de Vercel son 60 segundos y lo
+   que marca el tiempo es la SALIDA: unas 250 fichas por pregunta. Con 8
+   preguntas son ~2.000 tokens, que Opus escribe de sobra dentro del
+   presupuesto. Subir esto es volver a los 504. */
+const PREGUNTAS_POR_LOTE = 8;
+const MAX_TOKENS = 8000;
+const MAX_CARACTERES_BLOQUE = 8000;  // corte de emergencia si no hay numeración
+
+/* Presupuesto propio, por debajo del maxDuration de vercel.json. Si se
+   agota, la función corta ELLA y responde un JSON con un mensaje que se
+   entiende. Antes se limitaba a agotar el minuto y Vercel devolvía un
+   504 sin cuerpo, que en el navegador aparecía como el críptico "El
+   servidor devolvió una respuesta inesperada (504)". */
+const PRESUPUESTO_MS = 50000;
+
+const { peticionValida, obtenerCuentas, llamarClaude } = require('./_claude');
 const { usuarioConCupo } = require('./_auth');
+const { anotarConsumo } = require('./_consumo');
 
 // ------------------------------------------------------------
 //  Instrucciones para el modelo
@@ -93,43 +117,44 @@ REGLAS DE EXTRACCIÓN
    - No incluyas en la lista el solucionario ni los enunciados de relleno: solo preguntas de verdad con sus opciones.`;
 
 // ------------------------------------------------------------
-//  Esquema que Gemini está obligado a respetar.
-//  Formato OpenAPI (tipos en mayúsculas), que es lo que espera
-//  la API de Google en "responseSchema".
+//  Esquema que Claude está obligado a respetar.
+//  JSON Schema estándar (tipos en minúsculas y additionalProperties
+//  en false), que es lo que espera "output_config.format".
 // ------------------------------------------------------------
 const SCHEMA = {
-    type: 'OBJECT',
+    type: 'object',
     properties: {
         preguntas: {
-            type: 'ARRAY',
+            type: 'array',
             items: {
-                type: 'OBJECT',
+                type: 'object',
                 properties: {
                     texto: {
-                        type: 'STRING',
+                        type: 'string',
                         description: 'Enunciado de la pregunta, sin numeración ni identificador, terminado en ":"'
                     },
                     opciones: {
-                        type: 'ARRAY',
+                        type: 'array',
                         description: 'Las opciones en su orden original, sin prefijo de letra y sin la cita legal ni marcas en la correcta',
-                        items: { type: 'STRING' }
+                        items: { type: 'string' }
                     },
                     respuestaCorrecta: {
-                        type: 'STRING',
+                        type: 'string',
                         description: 'Letra de la opción correcta según su posición en el array',
                         enum: ['A', 'B', 'C', 'D']
                     },
                     marcaDetectada: {
-                        type: 'BOOLEAN',
+                        type: 'boolean',
                         description: 'true si la correcta venía señalada en el original (cita legal, marca o solucionario); false si se ha deducido'
                     }
                 },
                 required: ['texto', 'opciones', 'respuestaCorrecta', 'marcaDetectada'],
-                propertyOrdering: ['texto', 'opciones', 'respuestaCorrecta', 'marcaDetectada']
+                additionalProperties: false
             }
         }
     },
-    required: ['preguntas']
+    required: ['preguntas'],
+    additionalProperties: false
 };
 
 // ------------------------------------------------------------
@@ -304,11 +329,16 @@ module.exports = async function handler(req, res) {
     const usuario = await usuarioConCupo(req, res);
     if (!usuario) return;
 
-    if (obtenerClaves().length === 0) {
+    const cuentas = obtenerCuentas();
+    if (cuentas.length === 0) {
         return res.status(500).json({
-            error: 'Falta la variable de entorno GEMINI_API_KEY en Vercel. Créala en Google AI Studio y añádela al proyecto.'
+            error: 'Falta la variable de entorno ANTHROPIC_API_KEY en Vercel.'
         });
     }
+
+    // Cronómetro propio: aborta la llamada antes de que lo haga Vercel
+    const reloj = new AbortController();
+    const alarma = setTimeout(() => reloj.abort(), PRESUPUESTO_MS);
 
     try {
         const cuerpo = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
@@ -343,14 +373,53 @@ module.exports = async function handler(req, res) {
             ? `Extrae las ${numPreguntas} preguntas de este fragmento. Devuelve exactamente ${numPreguntas} preguntas.\n\n<documento>\n${fragmento}\n</documento>${clave}`
             : `Extrae todas las preguntas tipo test que encuentres en este fragmento. Si no hay ninguna, devuelve una lista vacía.\n\n<documento>\n${fragmento}\n</documento>${clave}`;
 
-        const { json, uso, modelo, cuenta } = await llamarGemini({
-            instrucciones: INSTRUCCIONES,
-            prompt,
-            esquema: SCHEMA,
-            maxTokens: MAX_TOKENS
+        const { data, cuenta } = await llamarClaude({
+            model: MODELO,
+            max_tokens: MAX_TOKENS,
+            system: INSTRUCCIONES,
+            messages: [{ role: 'user', content: prompt }],
+            output_config: {
+                effort: ESFUERZO,
+                format: { type: 'json_schema', schema: SCHEMA }
+            }
+        }, cuentas, { señal: reloj.signal });
+
+        // Se anota el gasto antes de nada: la llamada ya está pagada,
+        // salga bien o mal el resto
+        const coste = await anotarConsumo({
+            uid: usuario.uid,
+            email: usuario.email,
+            funcion: 'procesar-preguntas',
+            modelo: MODELO,
+            uso: data.usage,
+            cuenta,
+            detalle: { lote, caracteres: fragmento.length, preguntasEnElLote: numPreguntas }
         });
 
-        const preguntas = json.preguntas || [];
+        if (data.stop_reason === 'max_tokens') {
+            return res.status(500).json({
+                error: 'La respuesta se cortó por longitud. Baja PREGUNTAS_POR_LOTE en el servidor.'
+            });
+        }
+
+        const bloqueTexto = (data.content || []).find(b => b.type === 'text');
+        if (!bloqueTexto) {
+            return res.status(500).json({ error: 'Claude no devolvió contenido de texto.' });
+        }
+
+        let preguntas;
+        try {
+            preguntas = JSON.parse(bloqueTexto.text).preguntas || [];
+        } catch (e) {
+            return res.status(500).json({ error: 'Claude no ha devuelto un JSON válido.' });
+        }
+
+        // El navegador espera estos dos nombres, no los de la API
+        const uso = {
+            tokensEntrada: (data.usage && data.usage.input_tokens) || 0,
+            tokensSalida: (data.usage && data.usage.output_tokens) || 0
+        };
+        const modelo = MODELO;
 
         // Numeración correlativa entre lotes. Sin numeración de origen no se
         // puede saber cuántas van por delante, así que el navegador renumera.
@@ -361,7 +430,7 @@ module.exports = async function handler(req, res) {
             avisos.push(`El lote ${lote + 1} contenía ${numPreguntas} preguntas y se han extraído ${preguntas.length}.`);
         }
 
-        console.log(`[procesar-preguntas] lote ${lote + 1}/${lotes.length} · ${validas.length} preguntas · ${modelo} · ${cuenta} · ${uso.tokensEntrada}+${uso.tokensSalida} tokens`);
+        console.log(`[procesar-preguntas] lote ${lote + 1}/${lotes.length} · ${validas.length} preguntas · ${modelo} · ${cuenta} · ${uso.tokensEntrada}+${uso.tokensSalida} tokens · ${coste.costeDolares} $`);
 
         return res.status(200).json({
             lote,
@@ -370,15 +439,32 @@ module.exports = async function handler(req, res) {
             preguntas: validas,
             avisos,
             modelo,
-            uso
+            cuenta,
+            uso,
+            costeDolares: coste.costeDolares
         });
 
     } catch (error) {
         console.error('[procesar-preguntas]', error);
-        return res.status((error.cupoAgotado || error.ritmo) ? 429 : 500).json({
+
+        /* Se acabó el presupuesto. Se responde 503 con un mensaje claro
+           en vez de dejar que Vercel devuelva un 504 sin cuerpo. */
+        if (error.abortado || error.name === 'AbortError') {
+            return res.status(503).json({
+                error: 'Este bloque ha tardado demasiado y se ha cortado para no agotar el tiempo del servidor. ' +
+                       'Vuelve a darle a Procesar: los bloques que ya salieron bien no se repiten. ' +
+                       'Si pasa siempre, el documento tiene preguntas muy largas y hay que bajar PREGUNTAS_POR_LOTE.',
+                tiempoAgotado: true
+            });
+        }
+
+        return res.status(error.sinSaldo ? 429 : 500).json({
             error: error.message || 'Error procesando el texto',
-            cupoAgotado: !!error.cupoAgotado,
-            ritmo: !!error.ritmo
+            sinSaldo: !!error.sinSaldo,
+            enlace: error.enlace || undefined
         });
+
+    } finally {
+        clearTimeout(alarma);
     }
 };

@@ -10211,23 +10211,27 @@ async function moverSeleccionadasA(destinoId) {
 //  SUBIDA DE PREGUNTAS
 //
 //  Un solo camino para todo: arrastrar un Word o pegar texto
-//  acaban en la misma función. El servidor (Gemini Flash) es
+//  acaban en la misma función. El servidor (Claude Opus 4.8) es
 //  quien entiende el formato, así que el navegador no necesita
 //  saber nada de cómo vienen escritas las preguntas.
 //
-//  Es gratis: se usa el cupo diario del plan gratuito de Google.
-//  Si algún día se agota, el servidor lo dice con claridad y
-//  basta con esperar al reinicio de esa noche.
+//  Ya NO es gratis: se paga por token de la API de Claude, y el
+//  gasto queda anotado por usuario en Firestore. A cambio se han
+//  acabado los cortes por cupo diario y los lotes pueden ser
+//  pequeños, que era lo que hacía falta para no agotar el tiempo
+//  de la función y acabar en un 504.
 // ============================================================
 
 const ENDPOINT_PROCESAR = '/api/procesar-preguntas';
 
-// El plan gratuito da 5 peticiones por minuto, o sea una cada 12 segundos.
-// Se va de una en una y se espera ese hueco antes de la siguiente. Como un
-// documento de academia normal cabe en una sola petición, esta pausa casi
-// nunca llega a notarse: solo aparece en documentos de más de 25 preguntas.
-const LOTES_EN_PARALELO = 1;
-const PAUSA_ENTRE_LOTES_MS = 12500;
+/* Con Gemini había que ir de uno en uno esperando 12 segundos, porque el
+   plan gratuito solo daba 5 peticiones por minuto. Claude no tiene ese
+   estrangulamiento, y como ahora los lotes son de 8 preguntas hay muchos
+   más: mantener aquella pausa habría convertido un Word de 200 preguntas
+   en cinco minutos de espera. Se mandan de tres en tres con un respiro
+   corto, suficiente para no disparar el límite de la cuenta. */
+const LOTES_EN_PARALELO = 3;
+const PAUSA_ENTRE_LOTES_MS = 800;
 
 function inicializarSubidaWord() {
     const zona = document.getElementById('zonaWord');
@@ -10329,10 +10333,8 @@ async function procesarEntrada(texto, origen) {
 
             completados++;
             const extraidas = resultados.reduce((suma, lote) => suma + (lote ? lote.length : 0), 0);
-            // Con varios bloques hay que esperar entre uno y otro por el límite
-            // de peticiones por minuto; se avisa para que no parezca colgado.
             const espera = completados < totalLotes && totalLotes > 1
-                ? ' · esperando unos segundos para no pasarse del límite de Google'
+                ? ' · quedan bloques por procesar'
                 : '';
             mostrarProgresoWord(
                 `Analizando las preguntas... ${completados} de ${totalLotes} bloques · ${extraidas} extraídas${espera}`,
@@ -10432,6 +10434,15 @@ async function pedirLote(texto, lote) {
     try {
         datos = await respuesta.json();
     } catch (e) {
+        /* Sin cuerpo JSON casi siempre significa que Vercel ha matado la
+           función por tiempo (504) y ha respondido su propia página de
+           error. Decirlo así ahorra tener que ir a mirar los registros. */
+        if (respuesta.status === 504) {
+            throw new Error(
+                'El servidor ha tardado demasiado en este bloque y se ha cortado (504). ' +
+                'Vuelve a darle a Procesar; si se repite siempre, avisa para bajar el tamaño del lote.'
+            );
+        }
         throw new Error(`El servidor devolvió una respuesta inesperada (${respuesta.status}).`);
     }
 
