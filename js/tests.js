@@ -1763,6 +1763,74 @@ window.cambiarRespuestaCorrecta = async function(temaId, preguntaIndex, nuevaLet
 };
 
 // Eliminar pregunta específica
+// Reescribe los índices de una pregunta ya pintada (data-*, ids y onclick)
+// para que siga apuntando a la posición correcta del array de Firebase.
+function reindexarPreguntaDOM(div, temaId, nuevoIndex) {
+    div.dataset.preguntaIndex = nuevoIndex;
+
+    const handlers = {
+        '.btn-edit':        `editarPregunta('${temaId}', ${nuevoIndex})`,
+        '.btn-delete':      `eliminarPregunta('${temaId}', ${nuevoIndex})`,
+        '.btn-verify':      `toggleVerificacion('${temaId}', ${nuevoIndex})`,
+        '.btn-oficial':     `toggleOficial('${temaId}', ${nuevoIndex})`,
+        '.btn-explicacion': `abrirExplicacionBanco('${temaId}', ${nuevoIndex})`,
+        '.btn-mover':       `abrirModalMoverPregunta('${temaId}', ${nuevoIndex})`
+    };
+    Object.entries(handlers).forEach(([sel, handler]) => {
+        const btn = div.querySelector(sel);
+        if (btn) btn.setAttribute('onclick', handler);
+    });
+
+    const texto = div.querySelector('.pregunta-texto');
+    if (texto) texto.id = `texto-${temaId}-${nuevoIndex}`;
+
+    const opciones = div.querySelector('.opciones-container');
+    if (opciones) opciones.id = `opciones-${temaId}-${nuevoIndex}`;
+
+    div.querySelectorAll('.opciones-container .opcion-item').forEach((item, i) => {
+        const radio = item.querySelector('input[type="radio"]');
+        if (radio) {
+            radio.name = `correcta-${temaId}-${nuevoIndex}`;
+            radio.setAttribute('onchange', `cambiarRespuestaCorrecta('${temaId}', ${nuevoIndex}, '${radio.value}')`);
+        }
+        const opTexto = item.querySelector('.opcion-texto');
+        if (opTexto) opTexto.id = `opcion-${temaId}-${nuevoIndex}-${i}`;
+    });
+
+    const cbSel = div.querySelector('.pregunta-seleccion-checkbox');
+    if (cbSel) cbSel.dataset.preguntaIndex = nuevoIndex;
+}
+
+// Quita del DOM una pregunta borrada. La misma pregunta puede estar pintada a
+// la vez en el banco (#preguntas-<temaId>) y en el panel del buscador
+// (#resultadosBusqueda), así que hay que borrar TODAS sus copias; si no, al
+// darle a la papelera desde el buscador la pregunta se quedaba en pantalla.
+// Además, al eliminarse una posición del array, todos los índices posteriores
+// de ese tema bajan uno: se reindexan estén en el panel que estén, para que
+// los botones no acaben apuntando a la pregunta equivocada.
+function quitarPreguntaDelDOM(temaId, preguntaIndex) {
+    const esc = (typeof CSS !== 'undefined' && CSS.escape)
+        ? CSS.escape(String(temaId))
+        : String(temaId);
+
+    document.querySelectorAll(
+        `.pregunta-editable[data-tema-id="${esc}"][data-pregunta-index="${preguntaIndex}"]`
+    ).forEach(div => {
+        // En el buscador cada resultado va precedido del título del tema
+        const previo = div.previousElementSibling;
+        if (div.closest('#resultadosBusqueda') && previo && !previo.classList.contains('pregunta-editable')) {
+            previo.remove();
+        }
+        div.remove();
+    });
+
+    document.querySelectorAll(`.pregunta-editable[data-tema-id="${esc}"]`).forEach(div => {
+        const idx = parseInt(div.dataset.preguntaIndex, 10);
+        if (isNaN(idx) || idx < preguntaIndex) return;
+        reindexarPreguntaDOM(div, temaId, idx - 1);
+    });
+}
+
 window.eliminarPregunta = async function(temaId, preguntaIndex) {
     if (confirm('¿Estás seguro de que quieres eliminar esta pregunta?')) {
         try {
@@ -1775,27 +1843,9 @@ window.eliminarPregunta = async function(temaId, preguntaIndex) {
             
             await updateDoc(temaRef, { preguntas });
 
-            // Eliminar SOLO el elemento DOM de la pregunta
-            const preguntaDiv = document.querySelector(`#preguntas-${temaId} [data-pregunta-index="${preguntaIndex}"]`);
-            if (preguntaDiv) {
-                preguntaDiv.remove();
-            }
-            
-            // Reindexar las preguntas restantes en el DOM
-            const preguntasRestantes = document.querySelectorAll(`#preguntas-${temaId} .pregunta-editable`);
-            preguntasRestantes.forEach((div, newIndex) => {
-                div.dataset.preguntaIndex = newIndex;
-                // Actualizar onclick de los botones
-                const btnEdit = div.querySelector('.btn-edit');
-                const btnDelete = div.querySelector('.btn-delete');
-                const btnVerify = div.querySelector('.btn-verify');
-                if (btnEdit) btnEdit.setAttribute('onclick', `editarPregunta('${temaId}', ${newIndex})`);
-                if (btnDelete) btnDelete.setAttribute('onclick', `eliminarPregunta('${temaId}', ${newIndex})`);
-                if (btnVerify) btnVerify.setAttribute('onclick', `toggleVerificacion('${temaId}', ${newIndex})`);
-                // 🆕 Reindexar también el checkbox de selección múltiple
-                const cbSel = div.querySelector('.pregunta-seleccion-checkbox');
-                if (cbSel) cbSel.dataset.preguntaIndex = newIndex;
-            });
+            // Eliminar la pregunta de TODAS sus copias en pantalla
+            // (banco y panel del buscador) y reindexar las que quedan
+            quitarPreguntaDelDOM(temaId, preguntaIndex);
             // 🆕 Refrescar contador de la barra de selección
             if (typeof actualizarBarraSeleccion === 'function') actualizarBarraSeleccion();
             
@@ -10137,7 +10187,11 @@ window.eliminarPreguntasSeleccionadas = async function() {
         alert(`✅ ${total} pregunta(s) eliminada(s) correctamente`);
         
         if (document.getElementById('banco-section')?.classList.contains('active')) {
-            cargarBancoPreguntas();
+            await cargarBancoPreguntas();
+            // Si el buscador estaba activo, repintar resultados ya sin las borradas
+            if (document.getElementById('buscadorPreguntas')?.value.trim()) {
+                ejecutarBusquedaPreguntas();
+            }
         }
     } catch (error) {
         console.error('Error eliminando preguntas seleccionadas:', error);
