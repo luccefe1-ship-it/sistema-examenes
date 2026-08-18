@@ -1319,7 +1319,7 @@ function crearPreguntaEditable(pregunta, index, temaId) {
     const verificada = pregunta.verificada || false;
     const oficial = pregunta.esOficial || false;
     return `
-        <div class="pregunta-item pregunta-editable ${verificada ? 'pregunta-verificada' : ''} ${oficial ? 'pregunta-oficial' : ''}" data-pregunta-index="${index}">
+        <div class="pregunta-item pregunta-editable ${verificada ? 'pregunta-verificada' : ''} ${oficial ? 'pregunta-oficial' : ''}" data-tema-id="${temaId}" data-pregunta-index="${index}">
             <div class="pregunta-controls">
                 <button class="btn-icon btn-verify ${verificada ? 'verified' : ''}" 
                         onclick="toggleVerificacion('${temaId}', ${index})" 
@@ -8416,40 +8416,67 @@ async function mostrarEstadisticasGlobales(querySnapshot) {
 // Cargar preguntas solo cuando se abre el desplegable
 // ========== SISTEMA DE PREGUNTAS OFICIALES ==========
 
+// Devuelve TODOS los nodos de una misma pregunta que hay en pantalla.
+// Importante: la pregunta puede estar pintada a la vez en el banco
+// (#preguntas-<temaId>) y en el panel del buscador (#resultadosBusqueda),
+// así que hay que refrescar todas sus copias, no solo la del banco.
+function nodosDePregunta(temaId, preguntaIndex) {
+    const sel = `.pregunta-editable[data-tema-id="${CSS.escape(String(temaId))}"][data-pregunta-index="${preguntaIndex}"]`;
+    return Array.from(document.querySelectorAll(sel));
+}
+
+// Pinta el estado "oficial" de una pregunta en todas sus copias en pantalla
+function pintarEstadoOficial(temaId, preguntaIndex, esOficial) {
+    nodosDePregunta(temaId, preguntaIndex).forEach(preguntaDiv => {
+        preguntaDiv.classList.toggle('pregunta-oficial', esOficial);
+        const btnOficial = preguntaDiv.querySelector('.btn-oficial');
+        if (btnOficial) {
+            btnOficial.classList.toggle('oficial-activa', esOficial);
+            btnOficial.innerHTML = esOficial ? '📋' : '📄';
+            btnOficial.title = esOficial ? 'Pregunta oficial de examen' : 'Marcar como oficial de examen';
+        }
+    });
+}
+
 // Toggle individual
 window.toggleOficial = async function(temaId, preguntaIndex) {
+    // 1) FEEDBACK VISUAL INMEDIATO (igual en el banco y en el buscador)
+    const nodos = nodosDePregunta(temaId, preguntaIndex);
+    const estabaOficial = nodos.length
+        ? nodos[0].classList.contains('pregunta-oficial')
+        : false;
+    const nuevoEstado = !estabaOficial;
+    pintarEstadoOficial(temaId, preguntaIndex, nuevoEstado);
+
+    // 2) PERSISTIR EN FIREBASE
     try {
         const temaRef = doc(db, "temas", temaId);
         const temaDoc2 = await getDoc(temaRef);
-        if (!temaDoc2.exists()) return;
-        
-        const preguntas = temaDoc2.data().preguntas || [];
-        if (preguntaIndex >= preguntas.length) return;
-        
-        preguntas[preguntaIndex].esOficial = !preguntas[preguntaIndex].esOficial;
-        
-        await updateDoc(temaRef, { preguntas });
-        
-        // Actualizar UI sin recargar todo
-        const container = document.getElementById(`preguntas-${temaId}`);
-        if (container) {
-            const preguntaDiv = container.querySelectorAll('.pregunta-editable')[preguntaIndex];
-            if (preguntaDiv) {
-                preguntaDiv.classList.toggle('pregunta-oficial', preguntas[preguntaIndex].esOficial);
-                const btnOficial = preguntaDiv.querySelector('.btn-oficial');
-                if (btnOficial) {
-                    btnOficial.classList.toggle('oficial-activa', preguntas[preguntaIndex].esOficial);
-                    btnOficial.innerHTML = preguntas[preguntaIndex].esOficial ? '📋' : '📄';
-                    btnOficial.title = preguntas[preguntaIndex].esOficial ? 'Pregunta oficial de examen' : 'Marcar como oficial de examen';
-                }
-            }
+        if (!temaDoc2.exists()) {
+            pintarEstadoOficial(temaId, preguntaIndex, estabaOficial);
+            return;
         }
-        
+
+        const preguntas = temaDoc2.data().preguntas || [];
+        if (preguntaIndex >= preguntas.length) {
+            pintarEstadoOficial(temaId, preguntaIndex, estabaOficial);
+            return;
+        }
+
+        preguntas[preguntaIndex].esOficial = nuevoEstado;
+
+        await updateDoc(temaRef, { preguntas });
+
+        // Reconfirmar con el valor realmente guardado
+        pintarEstadoOficial(temaId, preguntaIndex, !!preguntas[preguntaIndex].esOficial);
+
         // Invalidar caché
         invalidarCacheTemas();
-        
+
     } catch (error) {
         console.error('Error toggling oficial:', error);
+        // Revertir el feedback visual si la escritura falló
+        pintarEstadoOficial(temaId, preguntaIndex, estabaOficial);
         alert('Error al cambiar estado oficial');
     }
 };
@@ -8493,6 +8520,11 @@ window.toggleOficialBloque = async function(temaId) {
             ).join('');
             container.dataset.cargado = 'true';
         }
+
+        // Y refrescar también las copias pintadas en el panel del buscador
+        preguntas.forEach((pregunta, index) => {
+            pintarEstadoOficial(temaId, index, !!pregunta.esOficial);
+        });
         
     } catch (error) {
         console.error('Error toggling oficial en bloque:', error);
